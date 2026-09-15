@@ -652,6 +652,12 @@ class ApostaController extends BaseController
                 }
             }
 
+            // Teto de sanidade para probabilidade efetiva em linhas comerciais (Odd >= 1.45)
+            if ($odd >= 1.45 && $probPoisson > 82.0) {
+                $probPoisson = 82.0;
+                $evPercentual = round(($probPoisson / 100.0 * $odd - 1.0) * 100.0, 2);
+            }
+
             $minProbReq = 45.0;
 
             if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {

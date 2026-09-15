@@ -903,8 +903,8 @@ def evaluate_and_select_best_ah_candidate(
             if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
 
-        # Teto de Sanidade para Probabilidade Efetiva em Linhas Comerciais (Odd >= 1.70 não pode registrar ilusão > 82%)
-        if c_odd >= 1.70 and prob_eff > 82.0:
+        # Teto de Sanidade para Probabilidade Efetiva em Linhas Comerciais (Odd >= 1.45 não pode registrar ilusão > 82%)
+        if c_odd >= 1.45 and prob_eff > 82.0:
             prob_eff = 82.0
             res['prob_eff'] = 82.0
             ev = round((prob_eff / 100.0 * c_odd - 1.0) * 100.0, 2)
@@ -1155,14 +1155,25 @@ def calculate_unified_handicap_recommendation(
         return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
     # Calibração Estrutural de Paridade de Eficiência U5J e Mando de Campo:
-    # Se a diferença de eficiência ponderada entre as duas equipes for estreita (|h_eff - a_eff| <= 2.0)
-    # e o mandante for o favorito nas odds de mercado da Betano/1X2 (odd_h < odd_a),
-    # o visitante NÃO pode ter xG de Poisson desproporcionalmente superior ao mandante.
     h_eff_calib = compute_team_u5j_efficiency(u_json.get('home') if isinstance(u_json, dict) else None)
     a_eff_calib = compute_team_u5j_efficiency(u_json.get('away') if isinstance(u_json, dict) else None)
     if abs(h_eff_calib - a_eff_calib) <= 2.0 and odd_h > 1.0 and odd_a > 1.0 and odd_h < odd_a:
         if xg_a > xg_h:
             xg_a = round(min(xg_a, xg_h * 0.95), 2)
+            poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+    # Trava Universal de Coerência de xG Relativo às Odds 1X2 Oficiais (Prevenção de xG Descolado do Banco):
+    if odd_h > 1.0 and odd_a > 1.0 and xg_h > 0 and xg_a > 0:
+        is_tight_market = abs(odd_h - odd_a) <= 0.35 or (2.20 <= odd_h <= 2.90 and 2.20 <= odd_a <= 2.90)
+        max_allowed_ratio = 1.55 if is_tight_market else 2.20
+        ratio_recalc = False
+        if (xg_a / xg_h) > max_allowed_ratio:
+            xg_a = round(xg_h * max_allowed_ratio, 2)
+            ratio_recalc = True
+        elif (xg_h / xg_a) > max_allowed_ratio:
+            xg_h = round(xg_a * max_allowed_ratio, 2)
+            ratio_recalc = True
+        if ratio_recalc:
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
 
     # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):

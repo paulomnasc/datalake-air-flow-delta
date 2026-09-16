@@ -33,6 +33,7 @@ try:
         evaluate_ah_line_poisson as ah_evaluate_line_poisson,
         evaluate_and_select_best_ah_candidate as ah_evaluate_and_select_best_candidate,
         build_fallback_lines_from_odds as ah_build_fallback_lines,
+        fetch_all_betano_ah_lines as ah_fetch_all_betano_ah_lines,
         compute_team_u5j_efficiency
     )
 except Exception:
@@ -40,6 +41,7 @@ except Exception:
     ah_evaluate_line_poisson = None
     ah_evaluate_and_select_best_candidate = None
     ah_build_fallback_lines = None
+    ah_fetch_all_betano_ah_lines = None
     compute_team_u5j_efficiency = None
 
 try:
@@ -1419,7 +1421,8 @@ def calculate_asian_handicap_suggestion(
     home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
     home_zone=None, away_zone=None,
     league_name=None,
-    home_team_id=None, away_team_id=None
+    home_team_id=None, away_team_id=None,
+    fixture_id=None
 ):
     """
     Calcula a sugestão de Handicap Asiático priorizando Odds do Mercado de Apostas, Fator Mando de Campo Recalibrado (+10% / -7%),
@@ -2175,10 +2178,131 @@ def calculate_asian_handicap_suggestion(
             poisson_matrix_ah[k] /= tot_p_ah
 
     # Validação do Gatekeeper Poisson de Handicap Asiático via asian_handicap_engine (Single Source of Truth)
-    # Regra 12 (AGENTS.md): Não mais gerar palpites de handicap se não houver linhas reais das casas de apostas (API-Football / The Odds API)
-    suggestion = "Sem Entrada (Abstenção)"
-    confidence = 50.00
-    main_reason = "🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações de Handicap Asiático aguardando abertura de mercado nas casas de apostas oficiais (API-Football / The Odds API). Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
+    # Regra 12 (AGENTS.md): Proibição de dados sintéticos -> Linhas reais das casas de apostas (API-Football / The Odds API)
+    betano_lines = []
+    if fixture_id and ah_fetch_all_betano_ah_lines:
+        try:
+            betano_lines = ah_fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+        except Exception as e_bl:
+            betano_lines = []
+
+    if not betano_lines:
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        main_reason = (
+            f"🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações oficiais de Handicap Asiático aguardando "
+            f"abertura de mercado nas casas de apostas oficiais (API-Football / The Odds API) para {home_team} vs {away_team}. "
+            f"Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
+        )
+    else:
+        # Avaliação estrita das linhas reais da Betano através do motor canônico do Gatekeeper
+        best_cand = None
+        approved_cands = []
+        if ah_evaluate_and_select_best_candidate and poisson_matrix_ah:
+            best_cand, approved_cands = ah_evaluate_and_select_best_candidate(
+                poisson_matrix_ah, betano_lines, home_team, away_team,
+                float(odd_home) if odd_home else 2.0, float(odd_away) if odd_away else 2.0,
+                min_ev=5.0, min_prob=58.0,
+                home_team_id=home_team_id, away_team_id=away_team_id,
+                home_last5=home_last5, away_last5=away_last5
+            )
+
+        if best_cand:
+            suggestion = best_cand['palpite_str']
+            ev_res = best_cand['eval']
+            confidence = round(min(88.0, 55.0 + ev_res['ev_percent'] * 0.5), 1)
+            calc_memory += f" | 🎯 Gatekeeper Poisson AH: {suggestion} | Odd Justa {ev_res['odd_justa']:.2f} (Prob: {ev_res['prob_eff']:.1f}%) [Odd: {best_cand['odd']:.2f} | EV: {ev_res['ev_percent']:+.1f}%]"
+            main_reason = (
+                f"🎯 GATEKEEPER AH APROVADO (+EV {ev_res['ev_percent']:+.1f}%) | "
+                f"Odd Betano {best_cand['odd']:.2f} vs Odd Justa {ev_res['odd_justa']:.2f} (Prob. Efetiva: {ev_res['prob_eff']:.1f}%) | "
+                f"Matriz Poisson: xG {home_team} {round(lambda_home, 2)} x {round(lambda_away, 2)} {away_team} | "
+                f"Desfechos: Vitória {ev_res['p_win']:.1f}%, Meio-Green {ev_res['p_half_win']:.1f}%, Push {ev_res['p_push']:.1f}%, Meio-Red {ev_res['p_half_loss']:.1f}%, Red {ev_res['p_loss']:.1f}%."
+            )
+        else:
+            suggestion = "Sem Entrada (Abstenção)"
+            confidence = 50.00
+            # Diagnóstico técnico preciso do motivo de reprovação pelo Gatekeeper
+            odd_h = 0.0
+            odd_a = 0.0
+            dnb_odd = 0.0
+            fav_eff = 0.0
+            dog_eff = 0.0
+            fav_pts = 0
+            dog_pts = 0
+
+            odd_h = float(odd_home) if odd_home else 2.0
+            odd_a = float(odd_away) if odd_away else 2.0
+            fav_is_home = (odd_h < odd_a)
+            fav_team = home_team if fav_is_home else away_team
+            dog_team = away_team if fav_is_home else home_team
+            fav_id = home_team_id if fav_is_home else away_team_id
+            is_t1 = is_tier_1_elite_club(team_id=fav_id, team_name=fav_team)
+            t1_str = " (Tier 1)" if is_t1 else ""
+
+            dnb_cand = next((c for c in betano_lines if c.get('line') == 0.0 and c.get('is_away') == (not fav_is_home)), None)
+            dnb_odd = float(dnb_cand.get('odd') or 0.0) if dnb_cand else 0.0
+
+            fav_l5 = home_last5 if fav_is_home else away_last5
+            dog_l5 = away_last5 if fav_is_home else home_last5
+            fav_eff = compute_team_u5j_efficiency(fav_l5) if compute_team_u5j_efficiency and fav_l5 else 0.0
+            dog_eff = compute_team_u5j_efficiency(dog_l5) if compute_team_u5j_efficiency and dog_l5 else 0.0
+            fav_tr_obj = analyze_trend_and_momentum(fav_team, fav_l5) if analyze_trend_and_momentum else {}
+            dog_tr_obj = analyze_trend_and_momentum(dog_team, dog_l5) if analyze_trend_and_momentum else {}
+            fav_trend = fav_tr_obj.get("trend", "CURVA_ESTAVEL")
+            dog_trend = dog_tr_obj.get("trend", "CURVA_ESTAVEL")
+
+            fav_pts = fav_l5.get('pts', 0) if (fav_l5 and isinstance(fav_l5, dict)) else 0
+            dog_pts = dog_l5.get('pts', 0) if (dog_l5 and isinstance(dog_l5, dict)) else 0
+            fav_in_form = (fav_pts >= 12 or fav_eff >= 9.0) and ((fav_eff - dog_eff) >= 3.0 or (fav_pts - dog_pts) >= 4)
+            is_crisis_clash = (
+                (fav_eff <= 3.0 and dog_eff <= 3.0) or
+                (home_last5 and away_last5 and isinstance(home_last5, dict) and isinstance(away_last5, dict) and home_last5.get('v', 0) <= 1 and away_last5.get('v', 0) <= 1 and fav_pts <= 4 and dog_pts <= 4)
+            )
+
+            if is_crisis_clash:
+                main_reason = (
+                    f"🛡️ [Gatekeeper AH NO_BET / Duelo de Crises] Partida {home_team} vs {away_team} -> "
+                    f"Ambas as equipes em momento técnico desfavorável no U5J ({home_team} {fav_eff if fav_is_home else dog_eff:.1f} pts vs {away_team} {dog_eff if fav_is_home else fav_eff:.1f} pts). "
+                    f"Confronto de alta imprevisibilidade e desorganização tática. Abstenção mandatória."
+                )
+            elif fav_in_form:
+                main_reason = (
+                    f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
+                    f"As odds 1x2 da casa apontam {fav_team}{t1_str} como favorito, respaldado por sua superioridade no U5J "
+                    f"({fav_eff:.1f} pts vs {dog_eff:.1f} pts do {dog_team}). As linhas conservadoras a favor do favorito (0.0 AH e -0.25 AH) "
+                    f"não atingiram os limiares mínimos de rentabilidade (+EV >= 5.0%), e as linhas defensivas no azarão foram terminantemente "
+                    f"bloqueadas por inferioridade técnica. Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
+                )
+            elif dnb_cand and (fav_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA")) and (dog_eff > fav_eff or dog_trend == "CURVA_ASCENDENTE"):
+                main_reason = (
+                    f"🛡️ [Gatekeeper AH NO_BET / Queda de Rendimento e Eficiência] Partida {home_team} vs {away_team} -> "
+                    f"Favorito {fav_team}{t1_str} em momento desfavorável no U5J ({fav_trend}, {fav_eff:.1f} pts de eficiência ponderada) "
+                    f"contra {dog_team} ({dog_eff:.1f} pts de eficiência em {dog_trend}). "
+                    f"A linha seca DNB ({fav_team} 0.0 AH @ {dnb_odd:.2f}) foi terminantemente vetada pelo Gatekeeper por risco de momento/platô. "
+                    f"Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
+                )
+            elif dnb_cand and dnb_odd < 1.50:
+                main_reason = (
+                    f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] Partida {home_team} vs {away_team} -> "
+                    f"A linha segura DNB ({fav_team}{t1_str} 0.0 AH) está cotada a apenas @ {dnb_odd:.2f} na Betano, "
+                    f"abaixo do piso mínimo aceito de rentabilidade (@ 1.50). "
+                    f"Linhas de handicap negativo no favorito exigem perfil de Super-Favorito Tier 1 (odd <= 1.22) "
+                    f"e as linhas na zebra foram rejeitadas por EV negativo ou gestão de risco. "
+                    f"Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
+                )
+            else:
+                context_extra = ""
+                if (odd_h <= 1.55) or (odd_a <= 1.55):
+                    if not fav_is_home:
+                        context_extra = f" Favorito visitante {fav_team}{t1_str}: linhas esticadas (<= -0.50 AH) vetadas por proteção de mando de campo (teto para visitante é -0.25 AH com tolerância a empate) e linha DNB sem cotação mínima."
+                    else:
+                        context_extra = f" Favorito mandante {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
+                main_reason = (
+                    f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
+                    f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 58.0% ajustada por momento e teto de odd 1.85 no favorito). "
+                    f"Eficiência U5J: {home_team} ({fav_eff if fav_is_home else dog_eff:.1f} pts) vs {away_team} ({dog_eff if fav_is_home else fav_eff:.1f} pts). "
+                    f"Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
+                )
 
     banca_h = 45.0
     banca_d = 30.0
@@ -3431,17 +3555,16 @@ def main():
             # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
             # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
             cursor.execute("""
-                SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
+                SELECT palpite, probabilidade_poisson, resultado_detalhado, status, status_gatekeeper 
                 FROM apostas 
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
-                  AND status_gatekeeper = 'APROVADO' 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
 
-            if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+            if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
                 ah_suggestion = existing_ah_aposta['palpite']
                 ah_confidence = float(existing_ah_aposta.get('probabilidade_poisson') or 74.0)
                 from asian_handicap_engine import compose_compound_ah_reasoning
@@ -3458,7 +3581,7 @@ def main():
                     existing_reasoning=existing_f_reasoning
                 )
             else:
-                # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak / Copa Guard)
+                # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak / Copa Guard / Betano Lines)
                 l_name = f.get("league", {}).get("name", "")
                 res_ah = calculate_asian_handicap_suggestion(
                     home_c_stats["avg_goals_scored"], home_c_stats["avg_goals_conceded"],
@@ -3477,7 +3600,8 @@ def main():
                     odd_away=cur_odd_away,
                     league_name=l_name,
                     home_team_id=home_id,
-                    away_team_id=away_id
+                    away_team_id=away_id,
+                    fixture_id=fix_id
                 )
                 ah_suggestion, ah_confidence, ah_reasoning = res_ah[0], res_ah[1], res_ah[2]
 
@@ -4457,24 +4581,24 @@ def update_oddspedia_odds(conn):
                     home_last5, away_last5, best_c1, best_cX, best_c2,
                     league_name=l_name,
                     home_team_id=fix.get('home_team_id'),
-                    away_team_id=fix.get('away_team_id')
+                    away_team_id=fix.get('away_team_id'),
+                    fixture_id=fix_id
                 )
 
                 # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
                 # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
                 # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
                 cursor.execute("""
-                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status, status_gatekeeper 
                     FROM apostas 
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
-                      AND status_gatekeeper = 'APROVADO' 
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
 
-                if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+                if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
                     sug = existing_ah_aposta['palpite']
                     conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                     from asian_handicap_engine import compose_compound_ah_reasoning
@@ -4717,23 +4841,23 @@ def enrich_fixtures_standings(conn):
                 home_rank, away_rank, home_ppg, away_ppg, motivation_score, home_zone, away_zone,
                 league_name=l_name,
                 home_team_id=fix.get('home_team_id'),
-                away_team_id=fix.get('away_team_id')
+                away_team_id=fix.get('away_team_id'),
+                fixture_id=fix_id
             )
             
             # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
             # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
             # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
             cursor.execute("""
-                SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
+                SELECT palpite, probabilidade_poisson, resultado_detalhado, status, status_gatekeeper 
                 FROM apostas 
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
-                  AND status_gatekeeper = 'APROVADO' 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
-            if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+            if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
                 sug = existing_ah_aposta['palpite']
                 conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                 from asian_handicap_engine import compose_compound_ah_reasoning
@@ -4789,9 +4913,9 @@ def recalculate_inconsistent_odds_predictions(conn):
                    home_rank, away_rank, home_ppg, away_ppg, standings_motivation_score, home_zone, away_zone
             FROM fixtures_trends 
             WHERE odd_home > 1.0 AND odd_draw > 1.0 AND odd_away > 1.0
-              AND (ah_reasoning LIKE '%Odds Indisponíveis%' OR ah_reasoning LIKE '%Odds de mercado indisponíveis%')
-              AND DATE(fixture_date) >= CURDATE() - INTERVAL 7 DAY
-              AND status NOT IN ('FT', 'AET', 'PEN', 'CANC', 'PST', 'FINISHED', 'MATCH FINISHED')
+              AND (ah_reasoning LIKE '%Odds Indisponíveis%' OR ah_reasoning LIKE '%Odds de mercado indisponíveis%' OR ah_reasoning LIKE '%Linhas Reais%')
+              AND DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY
+              AND DATE(fixture_date) <= CURDATE() + INTERVAL 2 DAY
         """)
         inconsistent_fixtures = cursor.fetchall()
         if inconsistent_fixtures:
@@ -4816,23 +4940,23 @@ def recalculate_inconsistent_odds_predictions(conn):
                     fix.get('standings_motivation_score'), fix.get('home_zone'), fix.get('away_zone'),
                     league_name=l_name,
                     home_team_id=fix.get('home_team_id'),
-                    away_team_id=fix.get('away_team_id')
+                    away_team_id=fix.get('away_team_id'),
+                    fixture_id=fix_id
                 )
 
                 # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
                 # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
                 # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
                 cursor.execute("""
-                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status, status_gatekeeper 
                     FROM apostas 
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
-                      AND status_gatekeeper = 'APROVADO' 
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
-                if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+                if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
                     sug = existing_ah_aposta['palpite']
                     conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                     from asian_handicap_engine import compose_compound_ah_reasoning

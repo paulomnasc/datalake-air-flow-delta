@@ -408,24 +408,28 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 estornado = True
                 print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
 
-        # Disparo da Notificação em Tempo Real para o Usuário (Ação na Betano)
-        titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
-        msg_notif = (
-            f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-            f"({aposta['time_casa']} vs {aposta['time_fora']}). "
-            f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
-        )
-        link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
-        registrar_notificacao_usuario(
-            cursor=cursor,
-            usuario_id=usuario_id,
-            aposta_id=aposta_id,
-            fixture_id=fixture_id,
-            tipo="APOSTA_CANCELADA",
-            titulo=titulo_notif,
-            mensagem=msg_notif,
-            link=link_notif
-        )
+        # Disparo da Notificação em Tempo Real: APENAS para apostas confirmadas (confirmada = 1 ou tem débito)
+        is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)
+        if is_aposta_confirmada:
+            titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            msg_notif = (
+                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}). "
+                f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
+            )
+            link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
+            registrar_notificacao_usuario(
+                cursor=cursor,
+                usuario_id=usuario_id,
+                aposta_id=aposta_id,
+                fixture_id=fixture_id,
+                tipo="APOSTA_CANCELADA",
+                titulo=titulo_notif,
+                mensagem=msg_notif,
+                link=link_notif
+            )
+        else:
+            print(f"ℹ️ [Sininho Ignorado] Aposta #{aposta_id} não confirmada. Notificação de cancelamento dispensada.")
 
         detail = dict(aposta)
         detail['motivo'] = motivo

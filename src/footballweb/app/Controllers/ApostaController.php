@@ -2846,17 +2846,30 @@ class ApostaController extends BaseController
         $userId = $access['user_id'];
         $db = \Config\Database::connect();
 
-        // Contar total de não lidas
-        $totalNaoLidas = $db->table('notificacoes_usuario')
-            ->where('usuario_id', $userId)
-            ->where('lida', 0)
+        // Contar total de não lidas (APOSTA_CANCELADA apenas se confirmada = 1 ou com débito)
+        $totalNaoLidas = $db->table('notificacoes_usuario n')
+            ->join('apostas a', 'a.id = n.aposta_id', 'left')
+            ->where('n.usuario_id', $userId)
+            ->where('n.lida', 0)
+            ->groupStart()
+                ->where('n.tipo !=', 'APOSTA_CANCELADA')
+                ->orWhere('a.confirmada', 1)
+                ->orWhere('EXISTS (SELECT 1 FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA")', null, false)
+            ->groupEnd()
             ->countAllResults();
 
         // Buscar as últimas 15 notificações (não lidas primeiro, depois por data mais recente)
-        $notificacoes = $db->table('notificacoes_usuario')
-            ->where('usuario_id', $userId)
-            ->orderBy('lida', 'ASC')
-            ->orderBy('criado_em', 'DESC')
+        $notificacoes = $db->table('notificacoes_usuario n')
+            ->select('n.*')
+            ->join('apostas a', 'a.id = n.aposta_id', 'left')
+            ->where('n.usuario_id', $userId)
+            ->groupStart()
+                ->where('n.tipo !=', 'APOSTA_CANCELADA')
+                ->orWhere('a.confirmada', 1)
+                ->orWhere('EXISTS (SELECT 1 FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA")', null, false)
+            ->groupEnd()
+            ->orderBy('n.lida', 'ASC')
+            ->orderBy('n.criado_em', 'DESC')
             ->limit(15)
             ->get()
             ->getResultArray();

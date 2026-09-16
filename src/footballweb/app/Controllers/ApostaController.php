@@ -1274,6 +1274,124 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Confirma um lote de apostas e realiza os débitos correspondentes na conta corrente (AJAX)
+     */
+    public function confirmarLote()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para confirmar simulações de apostas.'
+            ])->setStatusCode(403);
+        }
+
+        $userId = (int)$access['user_id'];
+        
+        $ids = $this->request->getPost('ids');
+        if (empty($ids)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput) && isset($jsonInput['ids'])) {
+                $ids = $jsonInput['ids'];
+            }
+        }
+
+        if (!is_array($ids) || empty($ids)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma aposta selecionada para confirmação em lote.'
+            ])->setStatusCode(400);
+        }
+
+        $cleanIds = array_unique(array_filter(array_map('intval', $ids), fn($v) => $v > 0));
+        if (empty($cleanIds)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'IDs de apostas inválidos para confirmação.'
+            ])->setStatusCode(400);
+        }
+
+        $apostas = $this->apostaModel->whereIn('id', $cleanIds)->findAll();
+        if (empty($apostas)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma das simulações de aposta solicitadas foi encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $db = \Config\Database::connect();
+        $confirmedCount = 0;
+        $totalDebitado = 0.00;
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+
+        foreach ($apostas as $aposta) {
+            // Valida permissão de acesso à aposta
+            if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+                continue;
+            }
+
+            // Aposta cancelada não pode ser confirmada
+            if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+                continue;
+            }
+
+            // Apenas status elegíveis: 'Pendente' ou 'Não Confirmada'
+            if ($aposta->status !== 'Pendente' && $aposta->status !== 'Não Confirmada') {
+                continue;
+            }
+
+            $apostaId = (int)$aposta->id;
+            $valorAposta = (float)$aposta->valor_aposta;
+
+            // Verifica anti-duplicidade de débito
+            $qExists = $db->table('conta_corrente')
+                ->where('usuario_id', $userId)
+                ->where('aposta_id', $apostaId)
+                ->where('tipo', 'DEBITO_APOSTA')
+                ->get();
+            $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+            if (!$debitoExistente && $valorAposta > 0) {
+                $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
+                $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
+                if ($resDebito['success']) {
+                    $totalDebitado += $valorAposta;
+                }
+            }
+
+            $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
+            $this->apostaModel->update($apostaId, [
+                'confirmada' => 1,
+                'status'     => $novoStatus,
+                'updated_at' => $now
+            ]);
+
+            $confirmedCount++;
+        }
+
+        $novoSaldo = $this->contaCorrenteModel->getSaldo($userId);
+
+        if ($confirmedCount === 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.'
+            ]);
+        }
+
+        $strDebitado = number_format($totalDebitado, 2, ',', '.');
+        $pluralApostas = ($confirmedCount === 1) ? 'aposta confirmada' : 'apostas confirmadas';
+
+        return $this->response->setJSON([
+            'success'         => true,
+            'confirmed_count' => $confirmedCount,
+            'total_debitado'  => $totalDebitado,
+            'novo_saldo'      => $novoSaldo,
+            'message'         => "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente."
+        ]);
+    }
+
+    /**
      * Processa jogos encerrados do dia (Simula/dispara verificação das 23:00 hs via DAG)
      */
     public function processar()

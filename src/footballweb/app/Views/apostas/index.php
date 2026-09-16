@@ -1123,6 +1123,10 @@ if (!function_exists('getBookmakerUrl')) {
         <i class="bi bi-shield-slash text-danger"></i> Abstenções (NO_BET)
       </a>
 
+      <button type="button" class="btn btn-success rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2 shadow-sm" id="btnConfirmarTodasApostas" onclick="openConfirmBatchModal()" title="Confirmar todas as apostas pendentes e não confirmadas visíveis em tela">
+        <i class="bi bi-check2-all fs-5"></i> <?= lang('App.confirm_all_bets') ?>
+      </button>
+
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
         <i class="bi bi-plus-lg"></i> <?= lang('App.new_bet') ?>
       </button>
@@ -1184,7 +1188,7 @@ if (!function_exists('getBookmakerUrl')) {
           $leagueCountry = $aposta->league_country ?? '';
           $leagueFlag    = $aposta->league_flag ?? '';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -1864,6 +1868,53 @@ if (!function_exists('getBookmakerUrl')) {
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
         <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
           <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR APOSTAS EM LOTE -->
+<div class="modal fade modal-dark" id="confirmBatchModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+          <i class="bi bi-check2-all text-success fs-4"></i> <?= lang('App.confirm_all_bets_modal_title') ?>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-light-50 small mb-3"><?= lang('App.confirm_all_bets_modal_desc') ?></p>
+        
+        <div class="p-3 mb-3 rounded-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small"><?= lang('App.bets_on_screen_selected') ?>:</span>
+            <strong id="confirmBatchCount" class="text-white">0 apostas</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-0">
+            <span class="text-muted small"><?= lang('App.total_amount_to_debit') ?>:</span>
+            <strong id="confirmBatchTotalAmount" class="text-warning fs-6">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-3" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-light-50 small"><?= lang('App.current_balance') ?>:</span>
+            <span id="confirmBatchCurrentBalance" class="fw-bold text-success">R$ 0,00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-light-50 small"><?= lang('App.balance_after_debit') ?>:</span>
+            <strong id="confirmBatchProjectedBalance" class="fw-bold text-white">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div id="confirmBatchAlert" style="display: none;"></div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+        <button type="button" class="btn btn-success fw-bold px-4 text-white d-inline-flex align-items-center gap-2 shadow" id="btnExecuteConfirmBatch" onclick="executeConfirmBatch()">
+          <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.execute_batch_confirm_btn') ?>
         </button>
       </div>
     </div>
@@ -3265,6 +3316,123 @@ if (!function_exists('getBookmakerUrl')) {
         btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
       }
       alert('Erro na confirmação da aposta.');
+    });
+  }
+
+  let currentBatchBetIds = [];
+
+  function openConfirmBatchModal() {
+    const cards = document.querySelectorAll('.bet-card-item');
+    const eligibleCards = [];
+    let totalValor = 0;
+
+    cards.forEach(card => {
+      // Verifica se a aposta está visível em tela de acordo com os filtros aplicados
+      if (card.style.display === 'none') return;
+
+      const status = (card.getAttribute('data-status') || '').trim();
+      const confirmada = card.getAttribute('data-confirmada');
+      const cardId = parseInt(card.getAttribute('data-id') || card.id.replace('aposta-card-', ''), 10);
+      const valor = parseFloat(card.getAttribute('data-valor') || 0);
+
+      // Deve estar com status 'Pendente' ou 'Não Confirmada', não confirmada e não cancelada
+      const isEligibleStatus = (status === 'Pendente' || status === 'Não Confirmada');
+      const isNaoConfirmada = (confirmada !== '1');
+      const isNotCancelada = !status.toLowerCase().includes('cancelad');
+
+      if (cardId > 0 && isEligibleStatus && isNaoConfirmada && isNotCancelada) {
+        eligibleCards.push({ id: cardId, valor: valor });
+        totalValor += valor;
+      }
+    });
+
+    if (eligibleCards.length === 0) {
+      alert('<?= lang('App.no_pending_unconfirmed_on_screen') ?>');
+      return;
+    }
+
+    currentBatchBetIds = eligibleCards.map(c => c.id);
+
+    const countEl = document.getElementById('confirmBatchCount');
+    const amountEl = document.getElementById('confirmBatchTotalAmount');
+    if (countEl) countEl.textContent = eligibleCards.length + (eligibleCards.length === 1 ? ' aposta' : ' apostas');
+    if (amountEl) amountEl.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+
+    const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
+    let saldoVal = 0;
+    if (saldoEl) {
+      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+      saldoVal = parseFloat(raw) || 0;
+    }
+
+    const proj = saldoVal - totalValor;
+    const curBalEl = document.getElementById('confirmBatchCurrentBalance');
+    const projBalEl = document.getElementById('confirmBatchProjectedBalance');
+    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+
+    const alertEl = document.getElementById('confirmBatchAlert');
+    const btnExec = document.getElementById('btnExecuteConfirmBatch');
+    if (btnExec) {
+      btnExec.disabled = false;
+      btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.execute_batch_confirm_btn') ?> (' + eligibleCards.length + ')';
+    }
+
+    if (proj < 0) {
+      if (projBalEl) projBalEl.className = 'fw-bold text-danger';
+      if (alertEl) {
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Aviso:</strong> O saldo da sua conta corrente ficará negativo (R$ ' + proj.toFixed(2).replace('.', ',') + ') após a confirmação deste lote.';
+      }
+    } else {
+      if (projBalEl) projBalEl.className = 'fw-bold text-white';
+      if (alertEl) alertEl.style.display = 'none';
+    }
+
+    const modalEl = document.getElementById('confirmBatchModal');
+    if (modalEl) {
+      showModalSafely(modalEl);
+    }
+  }
+
+  function executeConfirmBatch() {
+    if (!currentBatchBetIds || currentBatchBetIds.length === 0) return;
+
+    const btnExec = document.getElementById('btnExecuteConfirmBatch');
+    if (btnExec) {
+      btnExec.disabled = true;
+      btnExec.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processando lote...';
+    }
+
+    const formData = new FormData();
+    currentBatchBetIds.forEach(id => formData.append('ids[]', id));
+
+    fetch('/apostas/confirmar-lote', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('⚡ ' + data.message);
+        window.location.reload();
+      } else {
+        if (btnExec) {
+          btnExec.disabled = false;
+          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.execute_batch_confirm_btn') ?>';
+        }
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnExec) {
+        btnExec.disabled = false;
+        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.execute_batch_confirm_btn') ?>';
+      }
+      alert('Erro ao processar a confirmação em lote das apostas.');
     });
   }
 

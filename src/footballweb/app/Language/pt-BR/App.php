@@ -473,4 +473,11 @@ return [
     'balance_after_debit'           => 'Saldo Projetado Após Débito',
     'confirm_debit_btn'             => '⚡ Efetivar Confirmação e Débito',
     'insufficient_balance_msg'      => 'Saldo insuficiente na conta corrente para confirmar esta aposta.',
+    'confirm_all_bets'              => 'Confirmar todas apostas',
+    'confirm_all_bets_modal_title'  => 'Confirmar Todas as Apostas em Lote',
+    'confirm_all_bets_modal_desc'   => 'Deseja confirmar em lote todas as apostas pendentes e não confirmadas visíveis na tela e debitar os respectivos valores da sua conta corrente?',
+    'bets_on_screen_selected'       => 'Apostas Selecionadas em Tela',
+    'total_amount_to_debit'         => 'Valor Total a Debitar',
+    'execute_batch_confirm_btn'     => '⚡ Efetivar Débito em Lote e Confirmar',
+    'no_pending_unconfirmed_on_screen' => 'Nenhuma aposta pendente e não confirmada está visível na tela no momento.',
 ];

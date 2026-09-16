@@ -648,7 +648,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
         # Sincronização atômica Card <-> Aposta com proteção para apostas confirmadas
-        sync_fixture_and_bet_handicap(
+        c_cnt, u_cnt, s_cnt = sync_fixture_and_bet_handicap(
             cursor=cursor,
             fixture_id=fixture_id,
             home_team=home_team,
@@ -664,17 +664,21 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             confirmada_val=confirmada_val,
             destaque_val=int(best_cand.get('destaque', 0))
         )
+        apostas_criadas += c_cnt
+        apostas_duplicadas += (u_cnt + s_cnt)
 
-        novas_apostas_detalhes.append({
-            'usuario_id': user_ids[0] if user_ids else 558,
-            'time_casa': home_team,
-            'time_fora': away_team,
-            'palpite': selected_palpite,
-            'odd': odd_val,
-            'valor_aposta': valor_aposta,
-            'ganhos_potenciais': ganhos_potenciais,
-            'data_hora_jogo': fixture_date
-        })
+        # Disparo de e-mail ESTRITAMENTE para apostas genuinamente recém-criadas nesta execução
+        if c_cnt > 0:
+            novas_apostas_detalhes.append({
+                'usuario_id': user_ids[0] if user_ids else 558,
+                'time_casa': home_team,
+                'time_fora': away_team,
+                'palpite': selected_palpite,
+                'odd': odd_val,
+                'valor_aposta': valor_aposta,
+                'ganhos_potenciais': ganhos_potenciais,
+                'data_hora_jogo': fixture_date
+            })
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE APOSTAS AH BETANO CONCLUÍDO!")

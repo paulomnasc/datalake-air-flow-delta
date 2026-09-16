@@ -854,20 +854,29 @@ def evaluate_and_select_best_ah_candidate(
                 continue
             if c_odd < 1.50 or c_odd > 1.95:
                 continue
-            required_prob = 55.0 if is_super_fav_crushed else 62.0
-            required_ev = min_ev if is_super_fav_crushed else 15.0
+            required_prob = 58.0 if is_super_fav_crushed else 65.0
+            required_ev = 8.0 if is_super_fav_crushed else 15.0
         elif c_line == -0.25:
-            # Linha conservadora de -0.25 AH: permitida para Favoritos em Grande Fase ou Super-Favoritos
+            # Linha conservadora de -0.25 AH:
+            # 1. Somente para Mandante (Home) ou Super-Favorito comprovado
+            if c_is_away and not is_super_fav_crushed:
+                continue
+            # 2. Exclusivamente quando a odd 1X2 da equipe favorita for <= 1.85 (favorito sólido de mercado).
+            #    Se a odd 1X2 for > 1.85 (ex: 1.95 a 2.30), o mercado precifica equilíbrio com alto risco de empate;
+            #    nesses cenários, é mandatório operar na linha 0.0 AH (DNB) com proteção total de capital.
+            if cand_odd > 1.85:
+                continue
+            # 3. Exige Favorito em Grande Fase comprovada no U5J (ou Super-Favorito)
             if not (is_fav_in_form or is_eligible_negative):
                 continue
-            # Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
+            # 4. Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
             if c_odd < 1.50 or c_odd > 1.85:
                 continue
-            # Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
+            # 5. Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
             if cand_trend == "CURVA_DESCENDENTE":
                 continue
-            required_prob = 55.0
-            required_ev = min_ev
+            required_prob = 62.0  # Calibrado de 55.0% para 62.0% (filtro de alta convicção pré-PR #103)
+            required_ev = 8.0     # Elevado de 5.0% para 8.0% (exige margem real de valor)
         elif c_line in standard_allowed_lines:
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
@@ -936,6 +945,22 @@ def evaluate_and_select_best_ah_candidate(
     tier1_massacre_picks = [c for c in approved if c.get('is_tier1_massacre')]
     if tier1_massacre_picks:
         return tier1_massacre_picks[0], approved
+
+    # Prioridade Estrutural e Preservação de Capital: Ancoragem em Empate Anula (0.0 AH)
+    # Quando ambas as linhas (0.0 AH e -0.25 AH) forem aprovadas pelo Gatekeeper:
+    # 1) Se a odd 1X2 da equipe favorita for > 1.70, o risco de empate é estatisticamente significativo (~25-30%).
+    #    A linha 0.0 AH (DNB) é compulsoriamente selecionada para garantir 100% de reembolso no empate e evitar meio-reds.
+    # 2) Se a odd 1X2 for <= 1.70, a linha -0.25 AH só é preferida se apresentar valor esperado decisivamente superior
+    #    (pelo menos +4.0 pontos percentuais de EV acima de 0.0 AH). Caso contrário, 0.0 AH prevalece como porto seguro.
+    dnb_cand = next((c for c in approved if c.get('line') == 0.0), None)
+    neg25_cand = next((c for c in approved if c.get('line') == -0.25), None)
+    if dnb_cand and neg25_cand:
+        c_odd_1x2 = raw_a_odd if neg25_cand.get('is_away') else raw_h_odd
+        dnb_ev = dnb_cand.get('eval', {}).get('ev_percent', 0.0)
+        neg25_ev = neg25_cand.get('eval', {}).get('ev_percent', 0.0)
+        if c_odd_1x2 > 1.70 or (neg25_ev < dnb_ev + 4.0):
+            approved = [dnb_cand] + [c for c in approved if c is not dnb_cand]
+            return approved[0], approved
 
     # Em situações de Distorção de Banca / Soberania da Performance, prioriza linhas equilibradas (0.0 AH ou -0.25 AH)
     surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (0.0, -0.25)]
@@ -2082,21 +2107,29 @@ def sync_fixture_and_bet_handicap(
         existing_reasoning=existing_r
     )
 
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
+
     for uid in user_ids:
         cursor.execute("""
-            SELECT a.id, a.palpite, a.confirmada,
+            SELECT a.id, a.palpite, a.confirmada, a.status,
                    (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
             FROM apostas a
             WHERE a.fixture_id = %s AND a.usuario_id = %s AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+              AND a.status = 'Pendente'
         """, (fixture_id, uid))
         ja_existe = cursor.fetchone()
 
         if ja_existe:
             tem_debito = (int(ja_existe.get('tem_debito') or 0) > 0)
             is_conf = (int(ja_existe.get('confirmada') or 0) == 1) or tem_debito
-            if is_conf:
+            is_settled = ja_existe.get('status') in ('Cashout', 'Cancelada', 'Ganha', 'Perdida', 'Anulada')
+            if is_conf or is_settled:
                 has_confirmed_bet = True
-                print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} com confirmação/débito financeiro mantida intacta.")
+                status_motivo = "liquidada/salvaguarda" if is_settled else "confirmação/débito financeiro"
+                print(f"🔒 [Aposta Mantida User #{uid}] ID #{ja_existe['id']} com {status_motivo} mantida intacta.")
+                skipped_count += 1
                 continue
 
             # Atualizar aposta pendente não confirmada com compound_reasoning uniforme
@@ -2116,6 +2149,7 @@ def sync_fixture_and_bet_handicap(
                 WHERE id = %s
             """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
             print(f"🔄 [Aposta AH Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f}")
+            updated_count += 1
         else:
             # Inserir nova aposta
             cursor.execute("""
@@ -2135,6 +2169,7 @@ def sync_fixture_and_bet_handicap(
                 compound_reasoning
             ))
             aposta_id = cursor.lastrowid
+            created_count += 1
             print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f}")
 
             if confirmada_val == 1:
@@ -2205,6 +2240,8 @@ def sync_fixture_and_bet_handicap(
             WHERE fixture_id = %s
         """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
         print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
+
+    return created_count, updated_count, skipped_count
 
 
 def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link):

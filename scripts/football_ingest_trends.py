@@ -1852,22 +1852,37 @@ def calculate_asian_handicap_suggestion(
                         confidence = 75.00
                         main_reason = f"💎 Oportunidade de Valor (Anti-Empate): Jogo equilibrado com odds abertas (@ {float(odd_home):.2f}). Momento positivo do visitante {away_team} sustentando entrada de alta proteção em {suggestion}.{note_str}"
                     else:
-                        suggestion = f"{home_team} -0.25 AH"
-                        confidence = 72.00
-                        main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao mandante {home_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_home):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
+                        if odd_home and float(odd_home) > 1.85:
+                            suggestion = f"{home_team} 0.0 AH"
+                            confidence = 74.00
+                            main_reason = f"Confronto equilibrado com leve viés favorável ao mandante {home_team} (@ {float(odd_home):.2f}). Proteção conservadora com Empate Anula (0.0 AH / DNB) e reembolso de 100% no empate.{note_str}"
+                        else:
+                            suggestion = f"{home_team} -0.25 AH"
+                            confidence = 72.00
+                            main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao mandante {home_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_home):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
                 else:
-                    suggestion = f"{home_team} -0.25 AH"
-                    confidence = round(min(78.0, 64.0 + abs(delta_goals) * 10), 2)
-                    main_reason = f"Favoritismo do {home_team} em casa nas odds (@ {float(odd_home):.2f}) e métricas (+{delta_goals:.2f} gols esperados). Entrada segura com proteção de meia estaca (AH -0.25).{note_str}"
+                    if odd_home and float(odd_home) > 1.85:
+                        suggestion = f"{home_team} 0.0 AH"
+                        confidence = 74.00
+                        main_reason = f"Confronto com forças equilibradas nas odds (@ {float(odd_home):.2f}). A proteção mandatória de capital do Gatekeeper seleciona Empate Anula (0.0 AH / DNB), garantindo 100% de reembolso no empate.{note_str}"
+                    else:
+                        suggestion = f"{home_team} -0.25 AH"
+                        confidence = round(min(78.0, 64.0 + abs(delta_goals) * 10), 2)
+                        main_reason = f"Favoritismo do {home_team} em casa nas odds (@ {float(odd_home):.2f}) e métricas (+{delta_goals:.2f} gols esperados). Entrada segura com proteção de meia estaca (AH -0.25).{note_str}"
             elif delta_goals >= -0.30:
                 if is_open_market or (odd_home and float(odd_home) >= 2.15):
                     suggestion = f"{away_team} +0.5 AH"
                     confidence = 75.00
                     main_reason = f"💎 Oportunidade de Valor: Confronto equilibrado com odds abertas para o mandante (@ {float(odd_home):.2f}). Métricas xG favoráveis ao visitante {away_team}. Cobertura segura em {suggestion}.{note_str}"
                 else:
-                    suggestion = f"{home_team} -0.25 AH"
-                    confidence = 72.00
-                    main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
+                    if odd_home and float(odd_home) > 1.85:
+                        suggestion = f"{home_team} 0.0 AH"
+                        confidence = 72.00
+                        main_reason = f"Confronto equilibrado nas odds de mercado (@ {float(odd_home):.2f}). Proteção de capital focada em Empate Anula (0.0 AH / DNB) com 100% de reembolso no empate.{note_str}"
+                    else:
+                        suggestion = f"{home_team} -0.25 AH"
+                        confidence = 72.00
+                        main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             elif odd_home and float(odd_home) <= 2.00 and (odd_away and (float(odd_away) >= 3.80 or (float(odd_home) > 0 and float(odd_away) / float(odd_home) >= 2.0))):
                 # TRAVA DE MANDO CONSAGRADO (Anti-Zebra em Caldeirões):
                 # Mandante é favorito consolidado de mercado em casa (H <= 2.00) contra zebra expressiva (A >= 3.80).

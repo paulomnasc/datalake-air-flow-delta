@@ -129,3 +129,16 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
 ## 13. Comunicação em Linguagem Natural Clara (Proibição de Fórmulas e Expressões Matemáticas Brutas)
 - **Foco em Clareza e Negócio:** Toda explicação, análise de partidas, diagnóstico de anomalias ou relatório apresentado ao usuário deve ser expresso em **linguagem natural clara, direta e objetiva**.
 - **Proibição de Fórmulas Matemáticas Brutas:** É expressamente proibido responder com fórmulas matemáticas em LaTeX, blocos de equações ou sequências aritméticas brutas (como cadeias de multiplicações de decimais ou notações acadêmicas). O assistente deve sempre traduzir o raciocínio em termos práticos de futebol, explicando o conceito por trás dos números (ex: "o efeito acumulado de vários redutores derrubou excessivamente a expectativa de gols do time mandante").
+
+---
+
+## 14. Registro Obrigatório em Diário de Bordo para Qualquer Alteração em Motores de Regras e Critérios de Palpites/Apostas
+- **Documentação Mandatória e Imediata:** Sempre que for realizada qualquer criação, alteração, refatoração, calibração de pesos, adição/remoção de filtros ou ajuste nos critérios de avaliação e geração de palpites e apostas nos motores de **Handicap Asiático (AH)** ou de **Cartões** (em arquivos como `scripts/asian_handicap_engine.py`, `scripts/cards_engine.py`, `scripts/football_ingest_trends.py`, `scripts/criar_apostas_handicap_diario.py`, `scripts/criar_apostas_cartoes_diario.py`, `src/footballweb/app/Controllers/ApostaController.php` ou correlatos), o assistente/desenvolvedor **DEVE OBRIGATORIAMENTE registrar e detalhar minuciosamente a intervenção no Diário de Bordo**.
+- **Localização e Nomenclatura Padrão:**
+  - Diretório oficial: `docs/footballweb/diario-bordo/`.
+  - Padrão do nome do arquivo: **`yyyy-mm-dd.md`** (ano-mês-dia, ex: `2026-09-16.md`). Se o arquivo da data corrente já existir, a documentação deve ser adicionada como uma nova seção temática estruturada no mesmo documento.
+- **Conteúdo Mínimo Obrigatório no Diário de Bordo:**
+  1. **Motivação e Diagnóstico Técnico:** Identificação do problema, anomalia, requisito de calibração ou desvio de performance que motivou a mudança.
+  2. **Arquivos e Trechos Modificados:** Relação completa de scripts, classes e métodos alterados.
+  3. **Impacto Prático e Regras de Negócio:** Comparativo detalhado em linguagem clara explicando o comportamento anterior vs. o novo comportamento esperado do motor e da gestão de risco da banca.
+  4. **Validação e Testes:** Registro das checagens de sintaxe, simulações ou testes executados que comprovam a estabilidade sistêmica da alteração.

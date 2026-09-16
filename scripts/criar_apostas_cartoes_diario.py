@@ -329,6 +329,7 @@ from cards_engine import (
     calculate_poisson_under_cdf,
     calculate_poisson_under_lines,
     calculate_expected_cards,
+    compute_fixture_expected_cards,
     fetch_betano_real_card_odds,
     evaluate_best_card_under_line,
     sync_fixture_and_bet_cards,
@@ -380,7 +381,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     if is_all_open:
         cursor.execute("""
             SELECT * FROM fixtures_trends
-            WHERE fixture_date >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+            WHERE fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """)
@@ -389,7 +390,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
+              AND fixture_date >= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
@@ -468,54 +469,22 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                     print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
 
         if not is_allowed_league(league_id, league_name, fixture_date):
-            print(f"🌍 [Fora do Escopo / Bloqueio Meio de Semana] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
-            cancelar_apostas_pendentes_existentes("Liga/Copa fora do escopo (Bloqueio Meio de Semana / EFL Trophy)")
+            print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
+            cancelar_apostas_pendentes_existentes("Liga/Copa fora do escopo global monitorado")
             continue
 
 
-        # Trava Obrigatória do Gatekeeper: Não criar apostas em jogos sem árbitro definido (65% de peso no modelo)
-        referee_name = (fix.get('referee_name') or '').strip()
-        ref_low = referee_name.lower()
-        if not referee_name or any(un in ref_low for un in ['árbitro não informado', 'arbitro nao informado', 'não informado', 'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro']):
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Árbitro] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Árbitro não definido ('{referee_name or 'Nulo'}'). Entrada ignorada por segurança.")
-            cancelar_apostas_pendentes_existentes("Árbitro não definido")
+        # Cálculo Estrutural e Sistêmico de Cartões (Cards Engine - Single Source of Truth)
+        calc_res = compute_fixture_expected_cards(cursor, fix)
+        if not calc_res or calc_res[0] is None:
+            print(f"🛡️ [Gatekeeper NO_BET / Dados Insuficientes] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Médias estatísticas de cartões ausentes ou incompletas no banco. Entrada ignorada por segurança (Regra nº 9).")
+            cancelar_apostas_pendentes_existentes("Dados estatísticos insuficientes de cartões (Regra nº 9)")
             apostas_abstencao += 1
             continue
 
-        prediction_text = (fix.get('prediction_text') or '').strip()
+        exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined = calc_res
         league_round = (fix.get('league_round') or '').strip()
         is_knockout = is_knockout_round_advanced(league_round, league_name)
-
-        # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
-        h_tid = fix.get('home_team_id')
-        a_tid = fix.get('away_team_id')
-        _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
-        _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
-        friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
-        knockout_mult = 1.18 if is_knockout else 1.00
-
-        # Extrair expectativa de cartões xC do texto e calibrar com multiplicadores
-        match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
-        if match_xc:
-            base_xc = float(match_xc.group(1))
-            exp_cards = round(base_xc * friction_mult * knockout_mult, 2)
-        else:
-            exp_cards = round(4.20 * friction_mult * knockout_mult, 2)
-
-        # Consulta estatísticas do árbitro para acionamento da Trava de Piso
-        ref_cards_avg = None
-        if referee_name:
-            cursor.execute("SELECT average_yellow_cards, average_red_cards FROM referee_stats WHERE name = %s", (referee_name,))
-            r_row = cursor.fetchone()
-            if r_row:
-                ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
-
-        u5j_info = {
-            'h_eff': h_eff,
-            'a_eff': a_eff,
-            'friction_mult': friction_mult,
-            'desc': friction_desc
-        }
 
         selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
             exp_cards=exp_cards,
@@ -525,7 +494,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             u5j_friction_info=u5j_info,
             is_knockout=is_knockout,
             home_team=home_team,
-            away_team=away_team
+            away_team=away_team,
+            is_referee_confirmed=is_ref_confirmed
         )
 
         if not selected_cand:

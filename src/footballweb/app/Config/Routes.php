@@ -61,6 +61,7 @@ $routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['a
 $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
 $routes->post('/apostas/confirmar/(:num)', 'ApostaController::confirmar/$1', ['as' => 'apostas.confirmar']);
 $routes->post('/apostas/confirmar', 'ApostaController::confirmar', ['as' => 'apostas.confirmar_post']);
+$routes->post('/apostas/confirmar-lote', 'ApostaController::confirmarLote', ['as' => 'apostas.confirmar_lote']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
@@ -68,9 +69,16 @@ $routes->get('/apostas/relatorio-ia-perdas', 'ApostaController::relatorioIaPerda
 $routes->get('/apostas/relatorio-eficiencia', 'ApostaController::relatorioEficiencia', ['as' => 'apostas.relatorio_eficiencia']);
 $routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficiencia');
 $routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho', ['as' => 'apostas.analise_desempenho']);
+$routes->get('/apostas/relatorio-abstencoes', 'ApostaController::relatorioAbstencoes', ['as' => 'apostas.relatorio_abstencoes']);
+$routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstencoes');
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
+
+// Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
+$routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
+$routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
+$routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);

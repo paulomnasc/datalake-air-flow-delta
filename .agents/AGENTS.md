@@ -63,3 +63,82 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - É expressamente proibido implementar soluções pontuais, gambiarras com *hardcoding* de IDs de times específicos, ou regras ad-hoc que resolvam apenas a partida mencionada pelo usuário.
   - Toda partida ou exemplo apontado pelo usuário deve ser tratado como um **caso de teste representativo** de uma falha de arquitetura mais ampla; a solução deve obrigatoriamente consertar a causa raiz em nível de pipeline para que todos os jogos presentes e futuros sejam processados corretamente.
 
+---
+
+## 7. Distinção Obrigatória: Falha Algorítmica vs. Zebra Clássica (Variância Esportiva e Prevenção de Overfitting)
+- **Proibição de Alterar Código por Causa de Zebras Esportivas:**
+  - O futebol possui variância inerente nos 90 minutos. Em modelos de Valor Esperado Positivo (+EV), apostas com 80% a 90% de cobertura projetada **perderão entre 10% e 20% das vezes** devido a imponderáveis de campo (gols fortuitos, bolas paradas, falhas individuais pontuais, eficácia atípica de finalizações do azarão).
+  - Tentar criar filtros ad-hoc ou endurecer travas no Gatekeeper para "evitar" uma perda pontual onde todos os fundamentos pré-jogo eram sólidos é um erro clássico e destrutivo de **overfitting** (ajuste excessivo). Isso destrói o volume de apostas e a lucratividade matemática da esteira no longo prazo.
+
+- **Estudo de Caso Emblemático de Zebra (NÃO ALTERAR CÓDIGO):**
+  - **Partida**: *Boyacá Chicó 2 x 1 Independiente Medellín* (12/09/2026 - Primera A Colombiana).
+  - **Entrada Selecionada**: `Independiente Medellín -0.25 AH` @ 1.52 (EV +39.6%).
+  - **Fundamentos Pré-Jogo Perfeitos**:
+    - **Odds 1X2 Globais**: Chicó @ 4.35 vs Medellín @ 1.93 (mercado precificava probabilidade do azarão abaixo de 22%).
+    - **Forma Recente (U5J)**: Medellín com 4V-0E-1D (11.0 pts de eficiência), vindo de vitórias contundentes fora de casa, contra 1V-2E-2D (4.0 pts de eficiência) do Chicó.
+    - **Gestão de Risco**: O Gatekeeper foi prudente ao selecionar a linha de cobertura `-0.25 AH` (meio-reembolso no empate) em vez do ML seco (-0.5).
+  - **Diretriz Operacional**: A aposta foi matematicamente e conceitualmente impecável no pré-jogo. A vitória do Boyacá Chicó foi estritamente uma **zebra clássica (azarão venceu)**. É expressamente proibido criar regras restritivas ou alterar os pesos do Gatekeeper para tentar filtrar esse tipo de partida.
+
+---
+
+## 8. Inicialização Prévia Obrigatória de Variáveis Numéricas Locais
+- Toda e qualquer variável numérica local dentro de uma função ou método (especialmente contadores, acumuladores, somatórios ou ponderadores como `tier1_cnt`, `total_points`, etc.) **DEVE OBRIGATORIAMENTE ser declarada e inicializada explicitamente (ex: `0` ou `0.0`) antes do início de qualquer loop (`for`, `while`) ou condicional**.
+- É expressamente proibido declarar ou inicializar variáveis contadoras apenas dentro do corpo de laços ou dentro de ramificações condicionais, evitando falhas de escopo em tempo de execução como `UnboundLocalError`.
+
+---
+
+## 9. Proibição Absoluta de Fallbacks Artificiais em Variáveis Estatísticas
+- **Nunca atribuir valores fictícios ou arbitrários como fallback:** Quando dados estatísticos indispensáveis para a precificação de um modelo não forem encontrados no banco de dados (ex: histórico U5J, média de cartões do árbitro, médias móveis do time), **É ESTRITAMENTE PROIBIDO** atribuir valores mágicos ou artificiais (como `0.0`, `5.0` ou médias inventadas) apenas para permitir a continuidade do fluxo.
+- **Diretriz Operacional**:
+  - Em caso de ausência ou inconsistência de métricas estatísticas essenciais, o sistema deve:
+    1. Imprimir explicitamente o erro no console/log identificando o time, ID e o dado ausente.
+    2. Interromper o cálculo da partida (`NO_BET`) e **NÃO gerar a aposta**, garantindo a integridade matemática do portfólio.
+
+---
+
+## 10. Proibição Absoluta de Comandos Git (`git commit` e `git push`)
+- O assistente/agente **NUNCA DEVE** executar de forma autônoma comandos de versionamento como `git commit`, `git push`, `git merge`, `git rebase` ou equivalentes.
+- **Diretriz Operacional**:
+  - Todas as operações de controle de versão (criação de commits, push para branches remotas, tags ou merges) são de **responsabilidade e controle exclusivo do usuário desenvolvedor**.
+  - O assistente só tem permissão para executar comandos `git commit` ou `git push` se o usuário solicitar de forma textual, direta e explícita nessa instrução específica (ex: *"faça o commit e push disso agora"*).
+
+---
+
+## 11. Proteção Reforçada dos Motores de Apostas (`cards_engine.py` e `asian_handicap_engine.py`) e Sincronização Obrigatória com PHP
+- **Núcleo Crítico Intocável sem Autorização Justificada:** Os arquivos `scripts/cards_engine.py` e `scripts/asian_handicap_engine.py` são os motores centrais matemáticos e estatísticos (Poisson, Gatekeeper, EV e liquidez) de todo o sistema.
+- **Fluxo Obrigatório Pré-Edição:** O assistente/agente está terminantemente proibido de alterar qualquer linha desses dois arquivos sem antes:
+  1. **Apresentar Justificativa Matemática e de Negócio:** Explicar detalhadamente o motivo da alteração, a anomalia ou necessidade identificada e a comprovação matemática de que não se trata de *overfitting* ou reação a uma zebra pontual (respeitando rigorosamente as Regras 6 e 7).
+  2. **Mapear Impacto Sistêmico:** Demonstrar o impacto nos pipelines consumidores (`criar_apostas_handicap_diario.py`, `criar_apostas_cartoes_diario.py`, `football_ingest_trends.py` e `ApostaController.php`).
+  3. **Apresentar o Diff Completo Proposto.**
+  4. **Aguardar a Autorização Explícita do Usuário:** Somente aplicar a edição após o usuário ler a justificativa e responder expressamente autorizando a alteração.
+- **Sincronização Obrigatória com `ApostaController.php`:**
+  - Se você alterar uma regra matemática no `asian_handicap_engine.py` ou `cards_engine.py` (por exemplo, um novo piso de odd ou threshold de probabilidade), as apostas automáticas do Airflow seguirão o Python, mas apostas criadas manualmente pela web usarão o `ApostaController.php`. Portanto, se a regra de validação do Gatekeeper mudar no Python, o método PHP correspondente (`evaluateGatekeeper` em `src/footballweb/app/Controllers/ApostaController.php`) **DEVE OBRIGATORIAMENTE ser alinhado** para manter consistência e integridade total entre a esteira autônoma e as apostas manuais.
+
+---
+
+## 12. Proibição Absoluta de Geração de Dados Sintéticos e Odds Fictícias
+- **Apenas Dados Reais de Mercado e de Campo:** É terminantemente proibido gerar, simular, interpolar ou inventar linhas de apostas, cotações/odds sintéticas (ex: tags ou métodos como `POISSON_SYNTHETIC`, `build_fallback_lines_from_odds` que inventem odds sem lastro em bookmaker real) ou quaisquer métricas estatísticas simuladas nos processamentos de qualquer algoritmo ou motor do sistema (`asian_handicap_engine.py`, `football_ingest_trends.py`, `cards_engine.py`, etc.).
+- **Diretriz Operacional e Abstenção Mandatória:**
+  - A esteira de ingestão de tendências e os motores preditivos **não mais gerarão palpites de handicap se não houver linhas reais das casas de apostas**, ou seja, se não houver retorno de cotações reais da **API-Football** nem da **The Odds API** (fallback de contingência quando a cota estiver esgotada).
+  - Se as cotações reais das casas de apostas oficiais não estiverem disponíveis ou ativas no momento da execução, o sistema **NUNCA DEVE inventar, interpolar ou deduzir odds sintéticas a partir do 1X2**.
+  - Em vez de sintetizar linhas e odds inexistentes, o sistema deve registrar a ausência de liquidez de mercado e decretar **`NO_BET` (Abstenção Mandatória por Ausência de Cotações Reais de Casas de Apostas na API-Football / The Odds API)**.
+  - Toda aposta simulada, sugerida ou registrada na plataforma deve obrigatoriamente possuir 100% de correspondência com cotações reais, líquidas e comprovadas nas bookmakers oficiais.
+
+---
+
+## 13. Comunicação em Linguagem Natural Clara (Proibição de Fórmulas e Expressões Matemáticas Brutas)
+- **Foco em Clareza e Negócio:** Toda explicação, análise de partidas, diagnóstico de anomalias ou relatório apresentado ao usuário deve ser expresso em **linguagem natural clara, direta e objetiva**.
+- **Proibição de Fórmulas Matemáticas Brutas:** É expressamente proibido responder com fórmulas matemáticas em LaTeX, blocos de equações ou sequências aritméticas brutas (como cadeias de multiplicações de decimais ou notações acadêmicas). O assistente deve sempre traduzir o raciocínio em termos práticos de futebol, explicando o conceito por trás dos números (ex: "o efeito acumulado de vários redutores derrubou excessivamente a expectativa de gols do time mandante").
+
+---
+
+## 14. Registro Obrigatório em Diário de Bordo para Qualquer Alteração em Motores de Regras e Critérios de Palpites/Apostas
+- **Documentação Mandatória e Imediata:** Sempre que for realizada qualquer criação, alteração, refatoração, calibração de pesos, adição/remoção de filtros ou ajuste nos critérios de avaliação e geração de palpites e apostas nos motores de **Handicap Asiático (AH)** ou de **Cartões** (em arquivos como `scripts/asian_handicap_engine.py`, `scripts/cards_engine.py`, `scripts/football_ingest_trends.py`, `scripts/criar_apostas_handicap_diario.py`, `scripts/criar_apostas_cartoes_diario.py`, `src/footballweb/app/Controllers/ApostaController.php` ou correlatos), o assistente/desenvolvedor **DEVE OBRIGATORIAMENTE registrar e detalhar minuciosamente a intervenção no Diário de Bordo**.
+- **Localização e Nomenclatura Padrão:**
+  - Diretório oficial: `docs/footballweb/diario-bordo/`.
+  - Padrão do nome do arquivo: **`yyyy-mm-dd.md`** (ano-mês-dia, ex: `2026-09-16.md`). Se o arquivo da data corrente já existir, a documentação deve ser adicionada como uma nova seção temática estruturada no mesmo documento.
+- **Conteúdo Mínimo Obrigatório no Diário de Bordo:**
+  1. **Motivação e Diagnóstico Técnico:** Identificação do problema, anomalia, requisito de calibração ou desvio de performance que motivou a mudança.
+  2. **Arquivos e Trechos Modificados:** Relação completa de scripts, classes e métodos alterados.
+  3. **Impacto Prático e Regras de Negócio:** Comparativo detalhado em linguagem clara explicando o comportamento anterior vs. o novo comportamento esperado do motor e da gestão de risco da banca.
+  4. **Validação e Testes:** Registro das checagens de sintaxe, simulações ou testes executados que comprovam a estabilidade sistêmica da alteração.

@@ -704,6 +704,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span><?= lang('App.tips_efficiency') ?></span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('apostas/relatorio-abstencoes') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-danger d-flex align-items-center gap-1" title="Auditoria de Abstenções (NO_BET)">
+                        <i class="bi bi-shield-slash" style="font-size: 18px;"></i>
+                        <span>Abstenções (NO_BET)</span>
+                    </a>
+                </li>
             </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0 align-items-center">
@@ -718,6 +724,39 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <li><a class="dropdown-item" href="<?= base_url('lang/es') ?>">🇪🇸 <?= lang('App.lang_es') ?></a></li>
                     </ul>
                 </div>
+
+                <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+                <!-- Central de Notificações do Usuário (Sino & Dropdown) -->
+                <div class="nav-item dropdown me-2 position-relative" id="dropdown-notificacoes-wrapper">
+                    <a class="nav-link px-2 d-flex align-items-center position-relative text-dark" href="#" id="notificacoesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notificações & Alertas de Apostas">
+                        <i class="bi bi-bell-fill" style="font-size: 20px; color: #f59e0b;"></i>
+                        <span id="badge-notificacoes" class="position-absolute top-1 start-100 translate-middle badge rounded-pill bg-danger" style="display: none; font-size: 0.68rem; padding: 0.25em 0.5em;">
+                            0
+                        </span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end shadow-lg p-0 border-0" aria-labelledby="notificacoesDropdown" style="width: 360px; max-width: 90vw; border-radius: 12px; overflow: hidden; background: #1e293b; color: #f8fafc; z-index: 1060;">
+                        <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-secondary" style="background: #0f172a;">
+                            <span class="fw-bold d-flex align-items-center gap-2 text-light" style="font-size: 0.95rem;">
+                                <i class="bi bi-bell-fill text-warning"></i> Notificações
+                            </span>
+                            <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0" id="btn-marcar-todas-lidas" style="font-size: 0.78rem;">
+                                Marcar lidas
+                            </button>
+                        </div>
+                        <div id="lista-notificacoes-container" style="max-height: 380px; overflow-y: auto;">
+                            <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                                <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                                Nenhuma notificação recente.
+                            </div>
+                        </div>
+                        <div class="p-2 text-center border-top border-secondary" style="background: #0f172a;">
+                            <a href="<?= base_url('apostas?filtro_status=Cancelada') ?>" class="text-decoration-none text-info small">
+                                Ver todas as apostas canceladas <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <?php echo anchor("contactUs", lang('App.contact_us'), ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
                 <?php echo anchor("reportError", lang('App.report_error'), ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
@@ -737,6 +776,265 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <!-- Mensagens de sucesso e erro centralizadas na tela -->
     <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
     <div id="error-message" class="alert alert-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+
+    <!-- Toast Pop-up Flutuante de Alerta em Tempo Real (Abstenções e Cash Out Betano) -->
+    <div id="toast-notificacao-popup" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-popup-card shadow-lg">
+            <div class="toast-popup-header">
+                <span id="toast-notif-badge" class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)
+                </span>
+                <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast" aria-label="Close" style="font-size: 0.75rem;"></button>
+            </div>
+            <div class="toast-popup-body">
+                <h6 id="toast-notif-titulo" class="fw-bold text-warning mb-1" style="font-size: 0.92rem;">⚠️ Aposta Cancelada pela IA</h6>
+                <p id="toast-notif-mensagem" class="text-light mb-3" style="font-size: 0.82rem; line-height: 1.35; color: #cbd5e1 !important;">
+                    O Gatekeeper ativou Abstenção da IA. Se já realizou o bilhete na Betano, efetue o Cash Out imediato!
+                </p>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <a href="#" id="toast-notif-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+    .toast-popup-container {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 10999;
+        max-width: 420px;
+        width: calc(100vw - 48px);
+        animation: slideInRightToast 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes slideInRightToast {
+        from { transform: translateX(120%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .toast-popup-card {
+        background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+        border: 2px solid #ef4444;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+    }
+    .toast-popup-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .pulse-badge-anim {
+        animation: pulseBadge 1.5s infinite;
+    }
+    @keyframes pulseBadge {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.85; transform: scale(1.05); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    .notif-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        transition: background-color 0.2s ease;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+        color: #f8fafc;
+    }
+    .notif-item:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
+    }
+    .notif-item.nao-lida {
+        background-color: rgba(239, 68, 68, 0.15);
+        border-left: 3px solid #ef4444;
+    }
+    .notif-item .notif-time {
+        font-size: 0.72rem;
+        color: #94a3b8;
+    }
+    </style>
+
+    <script>
+    (function() {
+        const notifApiUrl = '<?= base_url('notificacoes/nao-lidas') ?>';
+        const markReadUrl = '<?= base_url('notificacoes/marcar-lida') ?>';
+        const markAllReadUrl = '<?= base_url('notificacoes/marcar-todas-lidas') ?>';
+
+        let popupsExibidos = new Set();
+        try {
+            const saved = sessionStorage.getItem('popups_notificacoes_exibidos');
+            if (saved) {
+                JSON.parse(saved).forEach(id => popupsExibidos.add(id));
+            }
+        } catch(e) {}
+
+        function salvarPopupsExibidos() {
+            try {
+                sessionStorage.setItem('popups_notificacoes_exibidos', JSON.stringify(Array.from(popupsExibidos)));
+            } catch(e) {}
+        }
+
+        function checkNotificacoes() {
+            fetch(notifApiUrl, {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.success) return;
+
+                const badge = document.getElementById('badge-notificacoes');
+                const total = data.total_nao_lidas || 0;
+
+                if (badge) {
+                    if (total > 0) {
+                        badge.textContent = total > 99 ? '99+' : total;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+
+                // Renderizar dropdown
+                const container = document.getElementById('lista-notificacoes-container');
+                if (container && data.notificacoes && data.notificacoes.length > 0) {
+                    let html = '';
+                    data.notificacoes.forEach(n => {
+                        const isUnread = (parseInt(n.lida) === 0);
+                        const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
+                        const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
+
+                        html += `
+                            <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
+                                        ${n.titulo}
+                                    </strong>
+                                    <span class="notif-time">${timeStr}</span>
+                                </div>
+                                <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
+                                    ${n.mensagem}
+                                </div>
+                            </a>
+                        `;
+                    });
+                    container.innerHTML = html;
+
+                    // Evento de clique para marcar lida
+                    container.querySelectorAll('.notif-item').forEach(el => {
+                        el.addEventListener('click', function(e) {
+                            const nid = this.getAttribute('data-notif-id');
+                            if (nid) {
+                                fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            }
+                        });
+                    });
+                }
+
+                // Disparo de Pop-up Toast na tela para notificação de cancelamento recente não lida
+                if (data.notificacoes && data.notificacoes.length > 0) {
+                    const naoLidas = data.notificacoes.filter(n => parseInt(n.lida) === 0);
+                    if (naoLidas.length > 0) {
+                        const maisRecente = naoLidas[0];
+                        if (!popupsExibidos.has(maisRecente.id)) {
+                            popupsExibidos.add(maisRecente.id);
+                            salvarPopupsExibidos();
+                            exibirToastPopup(maisRecente);
+                        }
+                    }
+                }
+            })
+            .catch(err => {});
+        }
+
+        function exibirToastPopup(notif) {
+            const toastEl = document.getElementById('toast-notificacao-popup');
+            const badgeEl = document.getElementById('toast-notif-badge');
+            const tituloEl = document.getElementById('toast-notif-titulo');
+            const msgEl = document.getElementById('toast-notif-mensagem');
+            const linkEl = document.getElementById('toast-notif-link');
+            if (!toastEl || !tituloEl || !msgEl || !linkEl) return;
+
+            tituloEl.textContent = notif.titulo;
+            msgEl.textContent = notif.mensagem;
+
+            const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
+            if (badgeEl) {
+                if (isAprovada) {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
+                } else {
+                    badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)';
+                }
+            }
+
+            if (linkEl) {
+                if (isAprovada) {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
+                } else {
+                    linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out';
+                }
+            }
+
+            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
+            const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
+            linkEl.href = linkHref;
+
+            linkEl.onclick = function() {
+                fetch(markReadUrl + '/' + notif.id, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                toastEl.style.display = 'none';
+            };
+
+            const btnClose = document.getElementById('btn-fechar-toast');
+            if (btnClose) {
+                btnClose.onclick = function() {
+                    toastEl.style.display = 'none';
+                };
+            }
+
+            toastEl.style.display = 'block';
+
+            // Auto-ocultar após 18 segundos se não interagido
+            setTimeout(function() {
+                if (toastEl.style.display === 'block') {
+                    toastEl.style.display = 'none';
+                }
+            }, 18000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnAll = document.getElementById('btn-marcar-todas-lidas');
+            if (btnAll) {
+                btnAll.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fetch(markAllReadUrl, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(res => res.json())
+                    .then(() => {
+                        const badge = document.getElementById('badge-notificacoes');
+                        if (badge) badge.style.display = 'none';
+                        document.querySelectorAll('.notif-item.nao-lida').forEach(el => {
+                            el.classList.remove('nao-lida');
+                        });
+                    });
+                });
+            }
+
+            // Iniciar checagem
+            checkNotificacoes();
+            setInterval(checkNotificacoes, 30000);
+        });
+    })();
+    </script>
 
     <div class="sidebyside-container">
 

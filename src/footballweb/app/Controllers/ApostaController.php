@@ -168,7 +168,7 @@ class ApostaController extends BaseController
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
                 WHERE a.usuario_id = ?
-                ORDER BY a.destaque DESC, CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
+                ORDER BY CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
             ", [$userId])->getResultObject();
 
             $tzUtc = new \DateTimeZone('UTC');
@@ -347,16 +347,7 @@ class ApostaController extends BaseController
                             ? filter_var($this->request->getPost('confirmar_debitar'), FILTER_VALIDATE_BOOLEAN) 
                             : true;
 
-        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
-        $saldoInsuficienteAviso = '';
-
-        if ($confirmarDebitar && $saldoAtual < $valorAposta) {
-            $confirmarDebitar = false;
-            if ($status === 'Pendente') {
-                $status = 'Não Confirmada';
-            }
-            $saldoInsuficienteAviso = " ⚠️ Saldo em conta corrente insuficiente (R$ " . number_format($saldoAtual, 2, ',', '.') . ") - gravada como Não Confirmada.";
-        } elseif (!$confirmarDebitar && $status === 'Pendente') {
+        if (!$confirmarDebitar && $status === 'Pendente') {
             $status = 'Não Confirmada';
         }
 
@@ -407,7 +398,7 @@ class ApostaController extends BaseController
 
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg . $saldoInsuficienteAviso,
+                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -423,95 +414,12 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental
-     * Prioriza validação pelo ID oficial da API-Sports / Banco de Dados.
+     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental.
+     * Delega para o Helper central canônico (App\Helpers\LeagueHelper::isTier1EliteClub).
      */
     private function isTier1EliteClub(?int $teamId = null, ?string $teamName = null): bool
     {
-        $tier1Clubs = [
-            529  => "Barcelona",
-            541  => "Real Madrid",
-            530  => "Atlético Madrid",
-            50   => "Manchester City",
-            40   => "Liverpool",
-            42   => "Arsenal",
-            49   => "Chelsea",
-            157  => "Bayern Munich",
-            165  => "Borussia Dortmund",
-            168  => "Bayer Leverkusen",
-            85   => "Paris Saint Germain",
-            505  => "Inter",
-            489  => "AC Milan",
-            496  => "Juventus",
-            492  => "Napoli",
-            211  => "Benfica",
-            212  => "FC Porto",
-            228  => "Sporting CP",
-            194  => "Ajax",
-            197  => "PSV Eindhoven",
-            127  => "Flamengo",
-            121  => "Palmeiras",
-            1062 => "Atlético Mineiro",
-            451  => "Boca Juniors",
-            435  => "River Plate",
-            571  => "Red Bull Salzburg",
-            637  => "Sturm Graz",
-            781  => "Rapid Vienna",
-            173  => "RB Leipzig",
-            47   => "Tottenham",
-            33   => "Manchester United",
-            91   => "Monaco",
-            80   => "Lyon",
-            81   => "Marseille",
-            497  => "AS Roma",
-            487  => "Lazio",
-            209  => "Feyenoord",
-            247  => "Celtic",
-            257  => "Rangers",
-            645  => "Galatasaray",
-            611  => "Fenerbahçe",
-            549  => "Beşiktaş",
-            553  => "Olympiakos Piraeus",
-            569  => "Club Brugge KV",
-            554  => "Anderlecht",
-            565  => "BSC Young Boys",
-            400  => "FC Copenhagen",
-        ];
-
-        if ($teamId !== null && $teamId > 0) {
-            return isset($tier1Clubs[(int)$teamId]);
-        }
-
-        if (empty($teamName)) {
-            return false;
-        }
-
-        $raw = mb_strtolower(trim($teamName));
-        $norm = iconv('UTF-8', 'ASCII//TRANSLIT', $raw);
-        if ($norm === false) {
-            $norm = $raw;
-        }
-
-        $disqualifiedHomonyms = [
-            'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
-            'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
-        ];
-        foreach ($disqualifiedHomonyms as $dh) {
-            if (strpos($norm, $dh) !== false && strpos($norm, 'manchester city') === false) {
-                return false;
-            }
-        }
-
-        foreach ($tier1Clubs as $id => $name) {
-            $cNorm = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name)));
-            if ($norm === $cNorm || strpos($norm, " {$cNorm} ") !== false) {
-                return true;
-            }
-            if (strlen($cNorm) >= 6 && strpos($norm, $cNorm) !== false) {
-                return true;
-            }
-        }
-        return false;
+        return \App\Helpers\LeagueHelper::isTier1EliteClub($teamId, $teamName);
     }
 
     /**
@@ -581,17 +489,28 @@ class ApostaController extends BaseController
             $isCandT1 = $this->isTier1EliteClub($candId, $candName);
             $isOppT1 = $this->isTier1EliteClub($oppId, $oppName);
 
-            if ($isCandT1 && !$isOppT1) {
+            if ($isCandT1) {
                 $oppKey = $isAwayFav ? 'home' : 'away';
+                $candKey = $isAwayFav ? 'away' : 'home';
                 if (!empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
                     $u5Arr = json_decode($mU5[1], true);
                     if (!empty($u5Arr[$oppKey])) {
                         $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
                         $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
-                        if ($oppPts <= 5 || $oppV === 0) {
+                        $candPts = (int)($u5Arr[$candKey]['pts'] ?? 0);
+                        $oddCand = $isAwayFav ? (float)($fixture->odd_away ?? 99) : (float)($fixture->odd_home ?? 99);
+                        $isCrisisOpp = ($oppPts <= 5 || $oppV === 0);
+
+                        if (!$isOppT1 && $isCrisisOpp) {
+                            $destaque = 1;
+                        } elseif ($isOppT1 && $isCrisisOpp && ($candPts >= 8 || $oddCand <= 1.60 || $candPts >= $oppPts + 4)) {
                             $destaque = 1;
                         }
                     }
+                }
+
+                if (stripos($fixture->ah_reasoning ?? '', 'Tier 1 Dominante') !== false) {
+                    $destaque = 1;
                 }
             }
         }
@@ -624,6 +543,40 @@ class ApostaController extends BaseController
             if ($xgHome <= 0.1) $xgHome = 1.30;
             if ($xgAway <= 0.1) $xgAway = 1.10;
 
+            // Bloqueio Estrutural de Linhas Positivas de Azarão (+AH > 0.0)
+            if ($line > 0.0) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Entradas em linhas de handicap positivo (+AH) a favor de azarões estão desativadas por expectativa matemática negativa comprovada. O modelo foca estritamente em Favoritos (-AH) e Empate Anula (0.0 AH).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
+
+            // Regra Mandatória de Mando de Campo: Bloqueia linhas esticadas (< -0.25 AH) fora de casa
+            if ($isAway && $line < -0.25) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando de Campo): Linhas negativas esticadas (< -0.25 AH) fora de casa são proibidas. Para equipes visitantes, o teto de agressividade é -0.25 AH com tolerância de empate.";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
+
+            // Regra Estrutural de -0.25 AH: Restrição a Mandantes Favoritos Sólidos (1X2 <= 1.85 e odd <= 1.85)
+            if (abs($line - (-0.25)) < 0.001) {
+                if ($isAway && !$isCandT1) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando de Campo): A linha -0.25 AH é reservada a mandantes ou super-favoritos de elite fora de casa. Risco excessivo de empate/meio-red fora de casa.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+                if ($odd > 1.85) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Teto de odd excedido para -0.25 AH (máximo @ 1.85). Odds acima de 1.85 indicam favoritismo frágil da banca com alto risco de meio-red.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+                $cand1x2 = $isAway ? $oddAway : $oddHome;
+                if ($cand1x2 > 1.85) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Equilíbrio de Mercado): Linha -0.25 AH bloqueada para equipes com odd 1X2 superior a 1.85 (@ {$cand1x2}). Em jogos equilibrados, a proteção mandatória de capital é Empate Anula (0.0 AH).";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+            }
+
             // 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
             // Bloqueia handicap positivo a favor do visitante quando o mandante é favorito sólido de mercado
             if ($isAway && $line > 0.0) {
@@ -655,8 +608,6 @@ class ApostaController extends BaseController
                     }
                 }
             }
-
-
 
             if ($odd < 1.45) {
                 $statusGatekeeper = 'NO_BET';
@@ -714,17 +665,49 @@ class ApostaController extends BaseController
                 $probPoisson = 1.00;
             }
 
-            $minProbReq = 45.0;
+            // Trava de Sanidade de Mercado em PHP: se a probabilidade da plataforma divergir excessivamente do mercado 1X2
+            if ($oddHome > 1.0 && $oddAway > 1.0) {
+                $candOdd = $isAway ? $oddAway : $oddHome;
+                $oppOdd = $isAway ? $oddHome : $oddAway;
+                $mktProb = (1.0 / $candOdd) / ((1.0 / $candOdd) + (1.0 / $oppOdd)) * 100.0;
+                $pureWinProb = 0.0;
+                foreach ($matrix as $c) {
+                    $diffG = $isAway ? ($c['y'] - $c['x']) : ($c['x'] - $c['y']);
+                    if ($diffG > 0) {
+                        $pureWinProb += (($totalP > 0) ? ($c['p'] / $totalP) : $c['p']) * 100.0;
+                    }
+                }
+                if (($pureWinProb - $mktProb) > 25.0) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Divergência excessiva entre probabilidade calculada e cotações reais de mercado.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+            }
 
-            if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {
+            // Teto de sanidade para probabilidade efetiva em linhas comerciais (Odd >= 1.45)
+            if ($odd >= 1.45 && $probPoisson > 82.0) {
+                $probPoisson = 82.0;
+                $evPercentual = round(($probPoisson / 100.0 * $odd - 1.0) * 100.0, 2);
+            }
+
+            // Limiares Calibrados de Gatekeeper Alinhados com asian_handicap_engine.py
+            if (abs($line - (-0.25)) < 0.001) {
+                $minProbReq = 62.0;
+                $minEvReq = 8.0;
+            } elseif ($line < -0.25) {
+                $minProbReq = 65.0;
+                $minEvReq = 12.0;
+            } else {
+                $minProbReq = 58.0;
+                $minEvReq = 5.0;
+            }
+
+            if ($evPercentual >= $minEvReq && $probPoisson >= $minProbReq) {
                 $statusGatekeeper = 'APROVADO';
-                $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +5.0%) | Prob. Efetiva: {$probPoisson}%.";
-            } elseif ($evPercentual >= 0.0 && $probPoisson >= $minProbReq) {
-                $statusGatekeeper = 'APROVADO';
-                $gatekeeperMsg = "Gatekeeper AH Aprovado (+EV Neutro/Positivo): Odd Real ({$odd}) | EV: +{$evPercentual}% | Prob. Efetiva: {$probPoisson}%.";
+                $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +{$minEvReq}%) | Prob. Efetiva: {$probPoisson}% (Mínimo: {$minProbReq}%).";
             } else {
                 $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo ou probabilidade insuficiente (EV: {$evPercentual}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
+                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem margem de valor ou probabilidade insuficiente (EV: {$evPercentual}% vs Mínimo: +{$minEvReq}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
             }
 
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
@@ -761,7 +744,7 @@ class ApostaController extends BaseController
         $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
 
         if ($fixture && !empty($fixture->prediction_text)) {
-            preg_match('/xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
+            preg_match('/(?:xC|Expectativa)(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
             $xc = !empty($matchesXc[1]) ? (float)$matchesXc[1] : null;
 
             if ($xc !== null && $xc > 0) {
@@ -782,9 +765,19 @@ class ApostaController extends BaseController
                 }
 
                 // 2. MATRIZ DINÂMICA DE RISCO (Odd vs Probabilidade Mínima Poisson + Margem EV)
-                $isUnknownRef = false;
-                if (!empty($fixture->referee_name) && (stripos($fixture->referee_name, 'Não Informado') !== false || stripos($fixture->referee_name, 'Desconhecido') !== false)) {
-                    $isUnknownRef = true;
+                $refName = !empty($fixture->referee_name) ? trim($fixture->referee_name) : '';
+                $isUnknownRef = empty($refName) 
+                    || stripos($refName, 'Não Informado') !== false 
+                    || stripos($refName, 'Desconhecido') !== false 
+                    || stripos($refName, 'unassigned') !== false 
+                    || stripos($refName, 'tbd') !== false
+                    || stripos($refName, 'sem arbitro') !== false;
+
+                // Bloqueia linha agressiva Under 3.5 se árbitro oficial estiver pendente
+                if ($isUnknownRef && $line <= 3.5) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linha agressiva de Under 3.5 bloqueada por segurança enquanto a escala oficial de arbitragem estiver pendente.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
 
                 // Definição dos limiares da Matriz Dinâmica
@@ -802,10 +795,10 @@ class ApostaController extends BaseController
                     $faixaRisco     = "Agressiva (Odd > 1.75)";
                 }
 
-                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida)
+                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida e +5% EV exigido)
                 if ($isUnknownRef) {
                     $minProbExigida += 5.0;
-                    $minEvExigido   += 3.0;
+                    $minEvExigido   += 5.0;
                 }
 
                 // 3. Verificação de Duplicidade / Exposição por Evento
@@ -1283,17 +1276,6 @@ class ApostaController extends BaseController
         }
 
         $valorAposta = (float)$aposta->valor_aposta;
-        $saldoAtual  = $this->contaCorrenteModel->getSaldo($userId);
-
-        if ($saldoAtual < $valorAposta) {
-            return $this->response->setJSON([
-                'success'      => false,
-                'insufficient' => true,
-                'saldo_atual'  => $saldoAtual,
-                'valor_aposta' => $valorAposta,
-                'message'      => "Saldo insuficiente na conta corrente para confirmar esta aposta! Saldo atual: R$ " . number_format($saldoAtual, 2, ',', '.') . " | Valor necessário: R$ " . number_format($valorAposta, 2, ',', '.')
-            ]);
-        }
 
         $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
         $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
@@ -1320,6 +1302,124 @@ class ApostaController extends BaseController
             'novo_saldo'  => $novoSaldo,
             'id'          => $apostaId,
             'novo_status' => $novoStatus
+        ]);
+    }
+
+    /**
+     * Confirma um lote de apostas e realiza os débitos correspondentes na conta corrente (AJAX)
+     */
+    public function confirmarLote()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para confirmar simulações de apostas.'
+            ])->setStatusCode(403);
+        }
+
+        $userId = (int)$access['user_id'];
+        
+        $ids = $this->request->getPost('ids');
+        if (empty($ids)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput) && isset($jsonInput['ids'])) {
+                $ids = $jsonInput['ids'];
+            }
+        }
+
+        if (!is_array($ids) || empty($ids)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma aposta selecionada para confirmação em lote.'
+            ])->setStatusCode(400);
+        }
+
+        $cleanIds = array_unique(array_filter(array_map('intval', $ids), fn($v) => $v > 0));
+        if (empty($cleanIds)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'IDs de apostas inválidos para confirmação.'
+            ])->setStatusCode(400);
+        }
+
+        $apostas = $this->apostaModel->whereIn('id', $cleanIds)->findAll();
+        if (empty($apostas)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma das simulações de aposta solicitadas foi encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $db = \Config\Database::connect();
+        $confirmedCount = 0;
+        $totalDebitado = 0.00;
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+
+        foreach ($apostas as $aposta) {
+            // Valida permissão de acesso à aposta
+            if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+                continue;
+            }
+
+            // Aposta cancelada não pode ser confirmada
+            if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+                continue;
+            }
+
+            // Apenas status elegíveis: 'Pendente' ou 'Não Confirmada'
+            if ($aposta->status !== 'Pendente' && $aposta->status !== 'Não Confirmada') {
+                continue;
+            }
+
+            $apostaId = (int)$aposta->id;
+            $valorAposta = (float)$aposta->valor_aposta;
+
+            // Verifica anti-duplicidade de débito
+            $qExists = $db->table('conta_corrente')
+                ->where('usuario_id', $userId)
+                ->where('aposta_id', $apostaId)
+                ->where('tipo', 'DEBITO_APOSTA')
+                ->get();
+            $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+            if (!$debitoExistente && $valorAposta > 0) {
+                $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
+                $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
+                if ($resDebito['success']) {
+                    $totalDebitado += $valorAposta;
+                }
+            }
+
+            $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
+            $this->apostaModel->update($apostaId, [
+                'confirmada' => 1,
+                'status'     => $novoStatus,
+                'updated_at' => $now
+            ]);
+
+            $confirmedCount++;
+        }
+
+        $novoSaldo = $this->contaCorrenteModel->getSaldo($userId);
+
+        if ($confirmedCount === 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.'
+            ]);
+        }
+
+        $strDebitado = number_format($totalDebitado, 2, ',', '.');
+        $pluralApostas = ($confirmedCount === 1) ? 'aposta confirmada' : 'apostas confirmadas';
+
+        return $this->response->setJSON([
+            'success'         => true,
+            'confirmed_count' => $confirmedCount,
+            'total_debitado'  => $totalDebitado,
+            'novo_saldo'      => $novoSaldo,
+            'message'         => "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente."
         ]);
     }
 
@@ -2147,6 +2247,7 @@ class ApostaController extends BaseController
      */
     public function relatorioEficiencia()
     {
+        ini_set('memory_limit', '512M');
         $access = $this->checkAccess();
         $db = \Config\Database::connect();
 
@@ -2155,15 +2256,20 @@ class ApostaController extends BaseController
         $leagueFilter = $this->request->getVar('league');
         $marketFilter = $this->request->getVar('market');
         $statusFilter = $this->request->getVar('status');
+        $confirmedFilter = $this->request->getVar('confirmed') ?? '1';
 
         if (empty($startDate) && empty($endDate)) {
-            // Se foi enviada uma requisição de filtro (market/league/status), permite buscar Todo o Período
-            if ($this->request->getVar('market') !== null || $this->request->getVar('league') !== null || $this->request->getVar('status') !== null) {
+            // Se foi enviada uma requisição de filtro (market/league/status/confirmed), permite buscar Todo o Período
+            if ($this->request->getVar('market') !== null || $this->request->getVar('league') !== null || $this->request->getVar('status') !== null || $this->request->getVar('confirmed') !== null) {
                 $startDate = null;
                 $endDate = null;
             } else {
-                $endDate = date('Y-m-d');
-                $startDate = date('Y-m-d', strtotime('-60 days'));
+                $tzBrt = new \DateTimeZone('America/Sao_Paulo');
+                $nowBrt = new \DateTime('now', $tzBrt);
+                $endDate = $nowBrt->format('Y-m-d');
+                $startDt = clone $nowBrt;
+                $startDt->modify('-6 days');
+                $startDate = $startDt->format('Y-m-d');
             }
         } elseif (empty($startDate)) {
             $startDate = $endDate;
@@ -2177,17 +2283,61 @@ class ApostaController extends BaseController
             $endDate = $temp;
         }
 
-        // Auto-seed: Garante que partidas FT em fixtures_trends possuam registro em palpites_gerados
-        $this->ensurePalpitesGeradosExist($db);
+        // 1. Reconciliação Contábil da Conta Corrente (Banca Real)
+        $contaCorrenteStats = [
+            'saldo_atual'     => 0.0,
+            'total_depositos' => 0.0,
+            'total_resgates'  => 0.0,
+            'lucro_apostas'   => 0.0
+        ];
 
-        // Consulta de palpites de jogos ENCERRADOS (status FT)
-        $builder = $db->table('palpites_gerados p')
+        $userId = $access['user_id'] ?? null;
+        $userCcWhere = (!empty($userId) && (int)$userId !== 146) ? "WHERE usuario_id = " . (int)$userId : "";
+        $rowSaldo = $db->query("SELECT saldo_posterior FROM conta_corrente {$userCcWhere} ORDER BY id DESC LIMIT 1")->getRow();
+        if ($rowSaldo) {
+            $contaCorrenteStats['saldo_atual'] = (float)$rowSaldo->saldo_posterior;
+        }
+
+        $rowTotals = $db->query("
+            SELECT 
+                SUM(CASE WHEN tipo = 'CREDITO_ADICIONADO' THEN valor ELSE 0 END) as total_depositos,
+                SUM(CASE WHEN tipo = 'RESGATE_CREDITO' THEN valor ELSE 0 END) as total_resgates,
+                SUM(CASE WHEN tipo IN ('CREDITO_RETORNO_APOSTA', 'ESTORNO_APOSTA', 'DEBITO_APOSTA') THEN valor ELSE 0 END) as lucro_apostas
+            FROM conta_corrente
+            {$userCcWhere}
+        ")->getRow();
+        if ($rowTotals) {
+            $contaCorrenteStats['total_depositos'] = (float)$rowTotals->total_depositos;
+            $contaCorrenteStats['total_resgates']  = abs((float)$rowTotals->total_resgates);
+            $contaCorrenteStats['lucro_apostas']   = (float)$rowTotals->lucro_apostas;
+        }
+
+        // 2. Consulta de Apostas da Carteira
+        $builder = $db->table('apostas a')
             ->select('
-                p.*,
-                COALESCE(NULLIF(p.home_team, ""), f.home_team, "Time Casa") as home_team,
-                COALESCE(NULLIF(p.away_team, ""), f.away_team, "Time Fora") as away_team,
+                a.id as aposta_id,
+                a.usuario_id,
+                a.fixture_id,
+                a.time_casa,
+                a.time_fora,
+                a.mercado,
+                a.palpite,
+                a.odd,
+                a.odd_justa,
+                a.probabilidade_poisson,
+                a.valor_aposta,
+                a.ganhos_potenciais,
+                a.cash_out,
+                a.status as aposta_status,
+                a.status_gatekeeper,
+                a.resultado_detalhado,
+                a.data_hora_jogo,
+                a.criado_em,
+                a.confirmada,
+                (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA") as tem_debito,
+                COALESCE(NULLIF(f.league_name, ""), "Outras Ligas") as league_name,
+                f.league_id,
                 f.fixture_date,
-                f.league_name,
                 f.goals_home,
                 f.goals_away,
                 f.yellow_cards_home,
@@ -2196,16 +2346,32 @@ class ApostaController extends BaseController
                 f.red_cards_away,
                 f.corners_home,
                 f.corners_away,
+                f.ah_suggestion,
+                f.ah_confidence,
+                f.over_cards_probability,
                 f.status as game_status
             ')
-            ->join('fixtures_trends f', 'p.fixture_id = f.fixture_id')
-            ->where('f.status', 'FT');
+            ->join('fixtures_trends f', 'a.fixture_id = f.fixture_id', 'left');
+
+        if (!empty($userId) && (int)$userId !== 146) {
+            $builder->where('a.usuario_id', (int)$userId);
+        }
+
+        // Filtro de Confirmação: Sim (padrão), Não ou Todas
+        if ($confirmedFilter === '1') {
+            $builder->where('(a.confirmada = 1 OR (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA") > 0)');
+        } elseif ($confirmedFilter === '0') {
+            $builder->where('((a.confirmada = 0 OR a.confirmada IS NULL) AND (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA") = 0)');
+        }
+
+        // Apenas apostas encerradas e resolvidas (exclui pendentes/abertas)
+        $builder->where("a.status NOT IN ('Pendente', 'Aberta', 'Em Andamento')");
 
         if (!empty($startDate)) {
-            $builder->where('DATE(f.fixture_date) >=', $startDate);
+            $builder->where("(DATE(CONVERT_TZ(COALESCE(a.data_hora_jogo, a.criado_em), '+00:00', '-03:00')) >= '{$startDate}')", null, false);
         }
         if (!empty($endDate)) {
-            $builder->where('DATE(f.fixture_date) <=', $endDate);
+            $builder->where("(DATE(CONVERT_TZ(COALESCE(a.data_hora_jogo, a.criado_em), '+00:00', '-03:00')) <= '{$endDate}')", null, false);
         }
 
         if (!empty($leagueFilter)) {
@@ -2215,36 +2381,64 @@ class ApostaController extends BaseController
         if (!empty($marketFilter)) {
             $mFilterUpper = strtoupper(trim($marketFilter));
             if ($mFilterUpper === 'OVER') {
-                $builder->where("(LOWER(p.mercado) LIKE '%over%' OR LOWER(p.linha_sugerida) LIKE '%mais%' OR LOWER(p.linha_sugerida) LIKE '%over%')");
+                $builder->where("(LOWER(a.mercado) LIKE '%over%' OR LOWER(a.palpite) LIKE '%mais%' OR LOWER(a.palpite) LIKE '%over%')");
             } elseif ($mFilterUpper === 'UNDER') {
-                $builder->where("(LOWER(p.mercado) LIKE '%under%' OR LOWER(p.linha_sugerida) LIKE '%menos%' OR LOWER(p.linha_sugerida) LIKE '%under%')");
-            } elseif ($mFilterUpper === 'AH_MINUS' || $mFilterUpper === '-AH') {
-                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%-%' OR p.linha_sugerida REGEXP '-[0-9]'))");
+                $builder->where("(LOWER(a.mercado) LIKE '%under%' OR LOWER(a.palpite) LIKE '%menos%' OR LOWER(a.palpite) LIKE '%under%')");
+            } elseif ($mFilterUpper === 'AH_DEFENSIVE') {
+                $builder->where("((LOWER(a.mercado) LIKE '%handicap%' OR LOWER(a.palpite) LIKE '%ah%') AND (a.palpite LIKE '%+%' OR a.palpite LIKE '%0.0%' OR a.palpite LIKE '% 0 %' OR a.palpite LIKE '% 0 AH%' OR a.palpite REGEXP '\\\+[0-9]|0(\\\\.0)? AH| 0.0'))");
+            } elseif ($mFilterUpper === 'AH_AGGRESSIVE' || $mFilterUpper === 'AH_MINUS' || $mFilterUpper === '-AH') {
+                $builder->where("((LOWER(a.mercado) LIKE '%handicap%' OR LOWER(a.palpite) LIKE '%ah%') AND (a.palpite LIKE '%-%' OR a.palpite REGEXP '-[0-9]'))");
+            } elseif ($mFilterUpper === 'AH_MINUS_025') {
+                $builder->where("((LOWER(a.mercado) LIKE '%handicap%' OR LOWER(a.palpite) LIKE '%ah%') AND (a.palpite LIKE '%-0.25%' OR a.palpite LIKE '%-0,25%'))");
+            } elseif ($mFilterUpper === 'AH_DNB') {
+                $builder->where("((LOWER(a.mercado) LIKE '%handicap%' OR LOWER(a.palpite) LIKE '%ah%') AND (a.palpite LIKE '%0.0%' OR a.palpite LIKE '% 0 %' OR a.palpite LIKE '% 0 AH%' OR a.palpite REGEXP ' 0(\\\\.0)? AH'))");
             } elseif ($mFilterUpper === 'AH_PLUS' || $mFilterUpper === '+AH') {
-                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%+%' OR p.linha_sugerida REGEXP '\\\+[0-9]'))");
+                $builder->where("((LOWER(a.mercado) LIKE '%handicap%' OR LOWER(a.palpite) LIKE '%ah%') AND (a.palpite LIKE '%+%' OR a.palpite REGEXP '\\\+[0-9]'))");
             } else {
                 $escaped = $db->escapeLikeString($marketFilter);
-                $builder->where("(LOWER(p.mercado) LIKE LOWER('%" . $escaped . "%') OR LOWER(p.linha_sugerida) LIKE LOWER('%" . $escaped . "%'))");
+                $builder->where("(LOWER(a.mercado) LIKE LOWER('%" . $escaped . "%') OR LOWER(a.palpite) LIKE LOWER('%" . $escaped . "%'))");
             }
         }
 
         if (!empty($statusFilter)) {
-            $builder->where('p.resultado_status', strtoupper($statusFilter));
+            $sf = strtoupper(trim($statusFilter));
+            if ($sf === 'GREEN' || $sf === 'GANHA') {
+                $builder->whereIn('a.status', ['Ganha', 'Meio Ganha', 'GREEN']);
+            } elseif ($sf === 'RED' || $sf === 'PERDIDA') {
+                $builder->whereIn('a.status', ['Perdida', 'Meio Perdida', 'RED']);
+            } elseif ($sf === 'VOID' || $sf === 'ANULADA') {
+                $builder->whereIn('a.status', ['Anulada', 'ANULADA', 'VOID']);
+            } elseif ($sf === 'NO_BET') {
+                $builder->where('a.status_gatekeeper', 'NO_BET');
+            }
         }
 
-        $builder->orderBy('f.fixture_date', 'DESC');
-        $palpites = $builder->get()->getResultObject();
+        $builder->orderBy('a.data_hora_jogo', 'DESC');
+        $builder->orderBy('a.id', 'DESC');
+        $rawApostas = $builder->get(1000)->getResultObject();
 
-        // Buscar lista de Ligas disponíveis para o filtro
-        $ligas = $db->table('fixtures_trends')
-            ->select('DISTINCT(league_name) as league_name')
-            ->where('status', 'FT')
-            ->where('league_name IS NOT NULL')
+        // Buscar lista de Ligas distintas para o filtro
+        $ligasBuilder = $db->table('apostas a')
+            ->select('DISTINCT(COALESCE(NULLIF(f.league_name, ""), "Outras Ligas")) as league_name')
+            ->join('fixtures_trends f', 'a.fixture_id = f.fixture_id', 'left');
+        if (!empty($userId) && (int)$userId !== 146) {
+            $ligasBuilder->where('a.usuario_id', (int)$userId);
+        }
+        if ($confirmedFilter === '1') {
+            $ligasBuilder->where('(a.confirmada = 1 OR (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA") > 0)');
+        } elseif ($confirmedFilter === '0') {
+            $ligasBuilder->where('((a.confirmada = 0 OR a.confirmada IS NULL) AND (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA") = 0)');
+        }
+        $ligas = $ligasBuilder
             ->orderBy('league_name', 'ASC')
             ->get()->getResultObject();
 
-        // Calcular Métricas / KPIs apenas para jogos encerrados
-        $totalAnalisados = count($palpites);
+        // Data de hoje no fuso horário BRT (São Paulo)
+        $todayBrt = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+        $isSingleDayToday = (!empty($startDate) && $startDate === $todayBrt && !empty($endDate) && $endDate === $todayBrt);
+
+        // Inicialização Obrigatória de Variáveis Numéricas (Regra 8)
+        $totalAnalisados = count($rawApostas);
         $greenCount = 0;
         $redCount = 0;
         $voidCount = 0;
@@ -2253,53 +2447,340 @@ class ApostaController extends BaseController
 
         $unidadesApostadas = 0.0;
         $lucroPrejuizoUnidades = 0.0;
+        $totalApostadoReal = 0.0;
+        $lucroLiquidoReal = 0.0;
 
-        foreach ($palpites as $item) {
-            $st = strtoupper($item->resultado_status);
-            $odd = (float)($item->odd_momento ?? 1.85);
+        $allGreenCount = 0;
+        $allRedCount = 0;
+        $allVoidCount = 0;
+        $allWinWeight = 0.0;
+        $allDecidedCount = 0;
+        $allUnidades = 0.0;
+        $allUnidadesDelta = 0.0;
+        $allApostado = 0.0;
+        $allLucro = 0.0;
+
+        $closedGreenCount = 0;
+        $closedRedCount = 0;
+        $closedVoidCount = 0;
+        $closedWinWeight = 0.0;
+        $closedDecidedCount = 0;
+        $closedUnidades = 0.0;
+        $closedUnidadesDelta = 0.0;
+        $closedApostado = 0.0;
+        $closedLucro = 0.0;
+        $closedBetsCount = 0;
+
+        $openApostado = 0.0;
+        $openPartialLucro = 0.0;
+        $openBetsCount = 0;
+
+        $somaProbProjetada = 0.0;
+        $countProbValida = 0;
+
+        // Estrutura de Segmentação de Risco
+        $segmentacao = [
+            'defensivo' => [
+                'label'      => 'Handicap Defensivo (+AH / 0.0)',
+                'icon'       => 'bi-shield-check',
+                'color'      => '#38bdf8',
+                'badge'      => 'bg-info text-dark',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ],
+            'agressivo' => [
+                'label'      => 'Handicap Agressivo (-AH)',
+                'icon'       => 'bi-lightning-charge-fill',
+                'color'      => '#f59e0b',
+                'badge'      => 'bg-warning text-dark',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ],
+            'cartoes'   => [
+                'label'      => 'Total de Cartões (Over/Under)',
+                'icon'       => 'bi-card-text',
+                'color'      => '#a855f7',
+                'badge'      => 'bg-secondary text-white',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ]
+        ];
+
+        $palpites = [];
+
+        foreach ($rawApostas as $ap) {
+            $statusRaw = trim((string)$ap->aposta_status);
+            $odd = (float)($ap->odd ?? 1.85);
             if ($odd <= 1.0) $odd = 1.85;
 
-            switch ($st) {
-                case 'GREEN':
-                    $greenCount++;
-                    $unidadesApostadas += 1.0;
-                    $lucroPrejuizoUnidades += ($odd - 1.0);
-                    break;
+            $stake = (float)($ap->valor_aposta ?? 10.0);
+            if ($stake <= 0.0) $stake = 10.0;
 
-                case 'RED':
-                    $redCount++;
-                    $unidadesApostadas += 1.0;
-                    $lucroPrejuizoUnidades -= 1.0;
-                    break;
+            $statusNorm = 'PENDING';
+            $lucroAposta = 0.0;
+            $unidadeDelta = 0.0;
+            $winWeight = 0.0;
+            $isDecided = false;
+            $category = 'PENDING';
+            $ganho = (float)($ap->ganhos_potenciais ?? 0.0);
+            $cashout = (float)($ap->cash_out ?? 0.0);
 
-                case 'VOID':
-                    $voidCount++;
-                    $unidadesApostadas += 1.0;
-                    // Reembolso 0 lucro
-                    break;
+            $isConfirmedOrDebited = (isset($ap->confirmada) && (int)$ap->confirmada === 1) || (!empty($ap->tem_debito) && (int)$ap->tem_debito > 0);
 
-                case 'NO_BET':
-                    $noBetCount++;
-                    break;
-
-                default:
-                    $pendingCount++;
-                    break;
+            if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                $statusNorm = 'GREEN';
+                $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                $lucroAposta = $ret - $stake;
+                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
+                $winWeight = 1.0;
+                $isDecided = true;
+                $category = 'GREEN';
+            } elseif ($statusRaw === 'Meio Ganha') {
+                $statusNorm = 'GREEN';
+                $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                $lucroAposta = ($fullRet - $stake) / 2.0;
+                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
+                $winWeight = 0.75;
+                $isDecided = true;
+                $category = 'GREEN';
+            } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                $statusNorm = 'RED';
+                $lucroAposta = -$stake;
+                $unidadeDelta = -1.0;
+                $winWeight = 0.0;
+                $isDecided = true;
+                $category = 'RED';
+            } elseif ($statusRaw === 'Meio Perdida') {
+                $statusNorm = 'RED';
+                $lucroAposta = -($stake / 2.0);
+                $unidadeDelta = -0.5;
+                $winWeight = 0.25;
+                $isDecided = true;
+                $category = 'RED';
+            } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                $statusNorm = 'VOID';
+                $lucroAposta = 0.0;
+                $unidadeDelta = 0.0;
+                $winWeight = 0.0;
+                $isDecided = false;
+                $category = 'VOID';
+            } elseif ($statusRaw === 'Cashout') {
+                $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
+                $lucroAposta = $cashVal - $stake;
+                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+                $statusNorm = ($lucroAposta >= 0.0) ? 'GREEN' : 'RED';
+                $winWeight = ($lucroAposta > 0.0) ? 1.0 : 0.0;
+                $isDecided = true;
+                $category = $statusNorm;
+            } else {
+                if ($ap->status_gatekeeper === 'NO_BET' && !$isConfirmedOrDebited) {
+                    $statusNorm = 'NO_BET';
+                    $category = 'NO_BET';
+                } else {
+                    $statusNorm = 'PENDING';
+                    $category = 'PENDING';
+                }
             }
+
+            // Converte data do jogo para fuso horário de São Paulo (BRT)
+            $rawDate = $ap->data_hora_jogo ?? $ap->criado_em ?? $ap->fixture_date ?? '';
+            $dtBrtFormatted = $rawDate;
+            $dtBrtDay = '';
+            if (!empty($rawDate)) {
+                try {
+                    $dtObj = new \DateTime($rawDate, new \DateTimeZone('UTC'));
+                    $dtObj->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
+                    $dtBrtFormatted = $dtObj->format('Y-m-d H:i');
+                    $dtBrtDay = $dtObj->format('Y-m-d');
+                } catch (\Exception $e) {
+                    $dtBrtFormatted = $rawDate;
+                    $dtBrtDay = substr((string)$rawDate, 0, 10);
+                }
+            }
+
+            $isBetToday = ($dtBrtDay === $todayBrt);
+
+            if ($category === 'NO_BET') {
+                $noBetCount++;
+            } elseif ($category === 'PENDING') {
+                $pendingCount++;
+            } elseif ($category === 'GREEN') {
+                $allGreenCount++;
+            } elseif ($category === 'RED') {
+                $allRedCount++;
+            } elseif ($category === 'VOID') {
+                $allVoidCount++;
+            }
+
+            if (in_array($category, ['GREEN', 'RED', 'VOID'], true)) {
+                $allApostado += $stake;
+                $allLucro += $lucroAposta;
+                $allUnidades += 1.0;
+                $allUnidadesDelta += $unidadeDelta;
+                if ($isDecided) {
+                    $allWinWeight += $winWeight;
+                    $allDecidedCount++;
+                }
+
+                if ($isBetToday) {
+                    $openApostado += $stake;
+                    $openPartialLucro += $lucroAposta;
+                    $openBetsCount++;
+                } else {
+                    $closedApostado += $stake;
+                    $closedLucro += $lucroAposta;
+                    $closedBetsCount++;
+                    $closedUnidades += 1.0;
+                    $closedUnidadesDelta += $unidadeDelta;
+                    if ($category === 'GREEN') $closedGreenCount++;
+                    elseif ($category === 'RED') $closedRedCount++;
+                    elseif ($category === 'VOID') $closedVoidCount++;
+                    if ($isDecided) {
+                        $closedWinWeight += $winWeight;
+                        $closedDecidedCount++;
+                    }
+                }
+            }
+
+            // Probabilidade projetada por Poisson
+            $probProj = null;
+            if (!empty($ap->probabilidade_poisson) && (float)$ap->probabilidade_poisson > 0) {
+                $probProj = (float)$ap->probabilidade_poisson;
+            } elseif (!empty($ap->ah_confidence) && (float)$ap->ah_confidence > 0) {
+                $probProj = (float)$ap->ah_confidence;
+            } elseif (!empty($ap->over_cards_probability) && (float)$ap->over_cards_probability > 0) {
+                $ov = (float)$ap->over_cards_probability;
+                $probProj = (stripos($ap->palpite, 'mais') !== false || stripos($ap->palpite, 'over') !== false) ? $ov : (100.0 - $ov);
+            }
+
+            if ($probProj !== null && $probProj > 0 && in_array($statusNorm, ['GREEN', 'RED', 'VOID'], true)) {
+                $somaProbProjetada += $probProj;
+                $countProbValida++;
+            }
+
+            // Segmentação de Risco
+            $segKey = null;
+            if (stripos($ap->mercado, 'cart') !== false || stripos($ap->palpite, 'cart') !== false) {
+                $segKey = 'cartoes';
+            } elseif (stripos($ap->mercado, 'handicap') !== false || stripos($ap->palpite, 'ah') !== false) {
+                if (stripos($ap->palpite, '-') !== false || preg_match('/-[0-9]/', $ap->palpite)) {
+                    $segKey = 'agressivo';
+                } else {
+                    $segKey = 'defensivo';
+                }
+            }
+
+            if ($segKey && in_array($statusNorm, ['GREEN', 'RED', 'VOID'], true)) {
+                $segmentacao[$segKey]['total']++;
+                $segmentacao[$segKey]['unidades'] += 1.0;
+                $segmentacao[$segKey]['lucro'] += $unidadeDelta;
+                if ($statusNorm === 'GREEN') $segmentacao[$segKey]['green']++;
+                elseif ($statusNorm === 'RED') $segmentacao[$segKey]['red']++;
+                elseif ($statusNorm === 'VOID') $segmentacao[$segKey]['void']++;
+            }
+
+            // Objeto formatado para compatibilidade total com a view
+            $itemObj = new \stdClass();
+            $itemObj->id_palpite        = $ap->aposta_id;
+            $itemObj->fixture_id        = $ap->fixture_id;
+            $itemObj->fixture_date      = $dtBrtFormatted;
+            $itemObj->home_team         = $ap->time_casa;
+            $itemObj->away_team         = $ap->time_fora;
+            $itemObj->league_name       = $ap->league_name;
+            $itemObj->mercado           = $ap->mercado;
+            $itemObj->linha_sugerida    = $ap->palpite;
+            $itemObj->odd_momento       = $odd;
+            $itemObj->valor_aposta      = $stake;
+            $itemObj->lucro_real        = $lucroAposta;
+            $itemObj->resultado_status  = $statusNorm;
+            $itemObj->detalhe_resultado = $ap->resultado_detalhado ?? '';
+            $itemObj->prob_projetada    = $probProj ? round($probProj, 1) : null;
+            $itemObj->goals_home        = $ap->goals_home;
+            $itemObj->goals_away        = $ap->goals_away;
+            $itemObj->yellow_cards_home = $ap->yellow_cards_home;
+            $itemObj->yellow_cards_away = $ap->yellow_cards_away;
+            $itemObj->red_cards_home    = $ap->red_cards_home;
+            $itemObj->red_cards_away    = $ap->red_cards_away;
+
+            $palpites[] = $itemObj;
         }
 
-        $entradasRecomendadas = $greenCount + $redCount + $voidCount;
-        $resolvidasWinRed = $greenCount + $redCount;
+        // Se visualização geral ou multi-dias, consolida estritamente os dias fechados (alinhado com analiseDesempenho)
+        $useClosedOnly = (!$isSingleDayToday && $closedBetsCount > 0);
 
-        $winRate = $resolvidasWinRed > 0 ? round(($greenCount / $resolvidasWinRed) * 100, 2) : 0.0;
-        $redRate = $resolvidasWinRed > 0 ? round(($redCount / $resolvidasWinRed) * 100, 2) : 0.0;
-        $voidRate = $totalAnalisados > 0 ? round(($voidCount / $totalAnalisados) * 100, 2) : 0.0;
-        $abstentionRate = $totalAnalisados > 0 ? round(($noBetCount / $totalAnalisados) * 100, 2) : 0.0;
-        $selectionRate = $totalAnalisados > 0 ? round(($entradasRecomendadas / $totalAnalisados) * 100, 2) : 0.0;
-        $roiPercent = $unidadesApostadas > 0 ? round(($lucroPrejuizoUnidades / $unidadesApostadas) * 100, 2) : 0.0;
+        $totalApostadoReal     = $useClosedOnly ? $closedApostado : $allApostado;
+        $lucroLiquidoReal      = $useClosedOnly ? $closedLucro : $allLucro;
+        $lucroPrejuizoUnidades = $useClosedOnly ? $closedUnidadesDelta : $allUnidadesDelta;
+        $unidadesApostadas     = $useClosedOnly ? $closedUnidades : $allUnidades;
+        $totalAnalisados       = $useClosedOnly ? $closedBetsCount : count($rawApostas);
+        $greenCount            = $useClosedOnly ? $closedGreenCount : $allGreenCount;
+        $redCount              = $useClosedOnly ? $closedRedCount : $allRedCount;
+        $voidCount             = $useClosedOnly ? $closedVoidCount : $allVoidCount;
+        $decidedCount          = $useClosedOnly ? $closedDecidedCount : $allDecidedCount;
+        $winWeight             = $useClosedOnly ? $closedWinWeight : $allWinWeight;
+
+        $entradasRecomendadas = $greenCount + $redCount + $voidCount;
+
+        $winRate = $decidedCount > 0 ? round(($winWeight / $decidedCount) * 100, 1) : 0.0;
+        $redRate = $decidedCount > 0 ? round((($decidedCount - $winWeight) / $decidedCount) * 100, 1) : 0.0;
+        $redRateTotal = $entradasRecomendadas > 0 ? round(($redCount / $entradasRecomendadas) * 100, 1) : 0.0;
+        $voidRate = $totalAnalisados > 0 ? round(($voidCount / $totalAnalisados) * 100, 1) : 0.0;
+        $abstentionRate = $totalAnalisados > 0 ? round(($noBetCount / $totalAnalisados) * 100, 1) : 0.0;
+        $selectionRate = $totalAnalisados > 0 ? round(($entradasRecomendadas / $totalAnalisados) * 100, 1) : 0.0;
+
+        // ROI Real sobre o Capital Total Efetivamente Apostado
+        $roiPercent = $totalApostadoReal > 0 ? round(($lucroLiquidoReal / $totalApostadoReal) * 100, 1) : 0.0;
+
+        // Cobertura Real (Greens + Voids sobre Recomendadas)
+        $coberturaReal = $entradasRecomendadas > 0 ? round((($greenCount + $voidCount) / $entradasRecomendadas) * 100, 1) : 0.0;
+        // Cobertura Projetada Poisson (Média das Probabilidades Pré-Jogo)
+        $coberturaProjetada = $countProbValida > 0 ? round($somaProbProjetada / $countProbValida, 2) : 0.0;
+        $gapCobertura = round($coberturaReal - $coberturaProjetada, 2);
+
+        // Status de Validação da Regra 7 (.agents/AGENTS.md)
+        $regra7Status = 'DENTRO_META';
+        if ($redRateTotal > 20.0) {
+            $regra7Status = 'ALERTA_RISCO';
+        } elseif ($redRateTotal < 10.0 && $entradasRecomendadas >= 5) {
+            $regra7Status = 'EXCELENTE';
+        }
+
+        // Finalizar cálculos da segmentação
+        foreach ($segmentacao as $k => &$seg) {
+            $dec = $seg['green'] + $seg['red'];
+            $seg['winRate'] = $dec > 0 ? round(($seg['green'] / $dec) * 100, 1) : 0.0;
+            $seg['redRate'] = $dec > 0 ? round(($seg['red'] / $dec) * 100, 1) : 0.0;
+            $seg['cobertura'] = $seg['total'] > 0 ? round((($seg['green'] + $seg['void']) / $seg['total']) * 100, 1) : 0.0;
+            $seg['roi'] = $seg['unidades'] > 0 ? round(($seg['lucro'] / $seg['unidades']) * 100, 1) : 0.0;
+        }
+        unset($seg);
 
         $data = [
-            'title'                 => 'Relatório de Eficiência de Palpites',
+            'title'                 => 'Relatório de Eficiência de Palpites & Carteira Real',
             'user'                  => $access['user'],
             'credits'               => $access['credits'],
             'palpites'              => $palpites,
@@ -2317,11 +2798,25 @@ class ApostaController extends BaseController
             'noBetCount'            => $noBetCount,
             'winRate'               => $winRate,
             'redRate'               => $redRate,
+            'redRateTotal'          => $redRateTotal,
             'voidRate'              => $voidRate,
             'abstentionRate'        => $abstentionRate,
             'selectionRate'         => $selectionRate,
+            'coberturaReal'         => $coberturaReal,
+            'coberturaProjetada'    => $coberturaProjetada,
+            'gapCobertura'          => $gapCobertura,
+            'regra7Status'          => $regra7Status,
+            'segmentacao'           => $segmentacao,
             'lucroPrejuizoUnidades' => round($lucroPrejuizoUnidades, 2),
-            'roiPercent'            => $roiPercent
+            'roiPercent'            => $roiPercent,
+            'totalApostadoReal'     => round($totalApostadoReal, 2),
+            'lucroLiquidoReal'      => round($lucroLiquidoReal, 2),
+            'openApostado'          => round($openApostado, 2),
+            'openPartialLucro'      => round($openPartialLucro, 2),
+            'openBetsCount'         => $openBetsCount,
+            'useClosedOnly'         => $useClosedOnly,
+            'contaCorrenteStats'    => $contaCorrenteStats,
+            'confirmedFilter'       => $confirmedFilter
         ];
 
         return view('header', $data)
@@ -2330,195 +2825,13 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Auxiliar interno para popular automaticamente palpites_gerados
-     * a partir de jogos encerrados em fixtures_trends (para Handicap Asiático e Total de Cartões Over/Under)
+     * Auxiliar interno desativado conforme Regra 12 (.agents/AGENTS.md).
+     * Proibição absoluta de geração de dados sintéticos e odds fictícias retroativas pós-jogo.
      */
     private function ensurePalpitesGeradosExist(\CodeIgniter\Database\BaseConnection $db): void
     {
-        try {
-            // 1. Popula palpites de Handicap Asiático para partidas FT sem registro de AH
-            $fixturesSemAH = $db->query("
-                SELECT f.fixture_id, f.home_team, f.away_team, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
-                       f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away
-                FROM fixtures_trends f
-                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Handicap Asiático')
-                WHERE p.id_palpite IS NULL
-                  AND f.status = 'FT'
-                  AND f.ah_suggestion IS NOT NULL AND TRIM(f.ah_suggestion) != ''
-                LIMIT 500
-            ")->getResultObject();
-
-            if (!empty($fixturesSemAH)) {
-                foreach ($fixturesSemAH as $fix) {
-                    $fid = (int)$fix->fixture_id;
-                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
-                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
-                    $ah = trim((string)($fix->ah_suggestion ?? ''));
-
-                    if (stripos($ah, 'sem entrada') !== false || stripos($ah, 'bloqueada') !== false || stripos($ah, 'abstenção') !== false) {
-                        $mercado = 'Sem Entrada';
-                        $linha = 'Sem Entrada (Abstenção)';
-                        $odd = null;
-                        $status = 'NO_BET';
-                        $detalhe = "🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca.";
-                    } else {
-                        $mercado = 'Handicap Asiático';
-                        $linha = $ah;
-                        $odd = (float)($fix->odd_home ?? 1.90);
-
-                        $isAwayBet = false;
-                        if (!empty($awayTeam) && stripos($linha, $awayTeam) !== false) {
-                            $isAwayBet = true;
-                        } elseif (stripos($linha, 'fora') !== false || stripos($linha, 'visitante') !== false) {
-                            $isAwayBet = true;
-                        }
-
-                        $handicapLine = 0.0;
-                        if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $linha, $matches)) {
-                            $handicapLine = (float)str_replace(',', '.', $matches[1]);
-                        }
-
-                        $diffGols = $isAwayBet ? ((int)$fix->goals_away - (int)$fix->goals_home) : ((int)$fix->goals_home - (int)$fix->goals_away);
-                        $adj = $diffGols + $handicapLine;
-
-                        if ($adj > 0.25) {
-                            $status = 'GREEN';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite GANHO ({$linha})";
-                        } elseif (abs($adj) < 0.01) {
-                            $status = 'VOID';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Empate Anulou (Palpite {$linha})";
-                        } else {
-                            $status = 'RED';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite PERDIDO ({$linha})";
-                        }
-                    }
-
-                    $db->table('palpites_gerados')->insert([
-                        'fixture_id'        => $fid,
-                        'home_team'         => $homeTeam,
-                        'away_team'         => $awayTeam,
-                        'mercado'           => $mercado,
-                        'linha_sugerida'    => $linha,
-                        'odd_momento'       => $odd,
-                        'resultado_status'  => $status,
-                        'detalhe_resultado' => $detalhe
-                    ]);
-                }
-            }
-
-            // 2. Popula palpites de Total de Cartões (Over / Under) para partidas FT sem registro de Cartões
-            $fixturesSemCartoes = $db->query("
-                SELECT f.fixture_id, f.home_team, f.away_team, f.over_cards_probability,
-                       f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away
-                FROM fixtures_trends f
-                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Total de Cartões')
-                WHERE p.id_palpite IS NULL
-                  AND f.status = 'FT'
-                  AND f.over_cards_probability IS NOT NULL
-                LIMIT 500
-            ")->getResultObject();
-
-            if (!empty($fixturesSemCartoes)) {
-                foreach ($fixturesSemCartoes as $fix) {
-                    $fid = (int)$fix->fixture_id;
-                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
-                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
-                    $probCards = (float)($fix->over_cards_probability ?? 50.0);
-                    $totCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
-
-                    if ($probCards > 55.0) {
-                        $mercado = 'Total de Cartões';
-                        $linha = 'Mais de 4.5 Cartões (Over)';
-                        $odd = 1.85;
-                        if ($totCards > 4.5) {
-                            $status = 'GREEN';
-                            $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> Palpite GANHO (Over)";
-                        } else {
-                            $status = 'RED';
-                            $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> Palpite PERDIDO (Over)";
-                        }
-                    } else {
-                        $mercado = 'Total de Cartões';
-                        $linha = 'Menos de 5.5 Cartões (Under)';
-                        $odd = 1.85;
-                        if ($totCards < 5.5) {
-                            $status = 'GREEN';
-                            $detalhe = "FT {$totCards} Cartões (Limite 5.5) -> Palpite GANHO (Under)";
-                        } else {
-                            $status = 'RED';
-                            $detalhe = "FT {$totCards} Cartões (Limite 5.5) -> Palpite PERDIDO (Under)";
-                        }
-                    }
-
-                    $db->table('palpites_gerados')->insert([
-                        'fixture_id'        => $fid,
-                        'home_team'         => $homeTeam,
-                        'away_team'         => $awayTeam,
-                        'mercado'           => $mercado,
-                        'linha_sugerida'    => $linha,
-                        'odd_momento'       => $odd,
-                        'resultado_status'  => $status,
-                        'detalhe_resultado' => $detalhe
-                    ]);
-                }
-            }
-
-            // 3. Popula palpites de Total de Gols (Over / Under) para partidas FT sem registro de Gols
-            $fixturesSemGols = $db->query("
-                SELECT f.fixture_id, f.home_team, f.away_team, f.goals_home, f.goals_away
-                FROM fixtures_trends f
-                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Total de Gols')
-                WHERE p.id_palpite IS NULL
-                  AND f.status = 'FT'
-                LIMIT 500
-            ")->getResultObject();
-
-            if (!empty($fixturesSemGols)) {
-                foreach ($fixturesSemGols as $fix) {
-                    $fid = (int)$fix->fixture_id;
-                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
-                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
-                    $totGoals = (int)($fix->goals_home ?? 0) + (int)($fix->goals_away ?? 0);
-
-                    if ($totGoals >= 2) {
-                        $mercado = 'Total de Gols';
-                        $linha = 'Mais de 2.5 Gols (Over)';
-                        $odd = 1.85;
-                        if ($totGoals > 2.5) {
-                            $status = 'GREEN';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite GANHO (Over)";
-                        } else {
-                            $status = 'RED';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite PERDIDO (Over)";
-                        }
-                    } else {
-                        $mercado = 'Total de Gols';
-                        $linha = 'Menos de 2.5 Gols (Under)';
-                        $odd = 1.85;
-                        if ($totGoals < 2.5) {
-                            $status = 'GREEN';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite GANHO (Under)";
-                        } else {
-                            $status = 'RED';
-                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite PERDIDO (Under)";
-                        }
-                    }
-
-                    $db->table('palpites_gerados')->insert([
-                        'fixture_id'        => $fid,
-                        'home_team'         => $homeTeam,
-                        'away_team'         => $awayTeam,
-                        'mercado'           => $mercado,
-                        'linha_sugerida'    => $linha,
-                        'odd_momento'       => $odd,
-                        'resultado_status'  => $status,
-                        'detalhe_resultado' => $detalhe
-                    ]);
-                }
-            }
-        } catch (\Exception $e) {
-            log_message('error', 'Erro ao auto-popular palpites_gerados: ' . $e->getMessage());
-        }
+        // Desativado por conformidade com a Regra 12.
+        return;
     }
 
     /**
@@ -2574,6 +2887,23 @@ class ApostaController extends BaseController
                 } else {
                     $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
                     $ap->data_brt_dia = date('Y-m-d');
+                }
+
+                // Resolve país e formata nome de exibição: (País ou Internacional) + Nome da Liga
+                $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($ap->league_id ?? null, $ap->league_name ?? null);
+                $country = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : $leagueInfo['country'];
+                $ap->league_country = $country;
+                $ap->league_flag    = $leagueInfo['flag'];
+
+                $rawLeague = trim($ap->league_name ?? 'Outras Ligas');
+                if (!empty($country) && $country !== 'Outro') {
+                    if (stripos($rawLeague, "({$country})") === false) {
+                        $ap->display_league_name = "({$country}) {$rawLeague}";
+                    } else {
+                        $ap->display_league_name = $rawLeague;
+                    }
+                } else {
+                    $ap->display_league_name = $rawLeague;
                 }
             }
             unset($ap);
@@ -2647,6 +2977,541 @@ class ApostaController extends BaseController
         }
 
         return $this->response->setJSON($result);
+    }
+
+    /**
+     * Retorna a lista de notificações não lidas e recentes do usuário logado.
+     */
+    public function getNotificacoesNaoLidas()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'total_nao_lidas' => 0,
+                'notificacoes' => []
+            ]);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+
+        // Contar total de não lidas (APOSTA_CANCELADA apenas se confirmada = 1 ou com débito)
+        $totalNaoLidas = $db->table('notificacoes_usuario n')
+            ->join('apostas a', 'a.id = n.aposta_id', 'left')
+            ->where('n.usuario_id', $userId)
+            ->where('n.lida', 0)
+            ->groupStart()
+                ->where('n.tipo !=', 'APOSTA_CANCELADA')
+                ->orWhere('a.confirmada', 1)
+                ->orWhere('EXISTS (SELECT 1 FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA")', null, false)
+            ->groupEnd()
+            ->countAllResults();
+
+        // Buscar as últimas 15 notificações (não lidas primeiro, depois por data mais recente)
+        $notificacoes = $db->table('notificacoes_usuario n')
+            ->select('n.*')
+            ->join('apostas a', 'a.id = n.aposta_id', 'left')
+            ->where('n.usuario_id', $userId)
+            ->groupStart()
+                ->where('n.tipo !=', 'APOSTA_CANCELADA')
+                ->orWhere('a.confirmada', 1)
+                ->orWhere('EXISTS (SELECT 1 FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = "DEBITO_APOSTA")', null, false)
+            ->groupEnd()
+            ->orderBy('n.lida', 'ASC')
+            ->orderBy('n.criado_em', 'DESC')
+            ->limit(15)
+            ->get()
+            ->getResultArray();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'total_nao_lidas' => (int)$totalNaoLidas,
+            'notificacoes' => $notificacoes
+        ]);
+    }
+
+    /**
+     * Marca uma notificação individual como lida.
+     */
+    public function marcarNotificacaoLida($id = null)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $id = (int)$id;
+
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('id', $id)
+            ->where('usuario_id', $userId)
+            ->update(['lida' => 1]);
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Marca todas as notificações do usuário como lidas.
+     */
+    public function marcarTodasNotificacoesLidas()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->where('lida', 0)
+            ->update(['lida' => 1]);
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Relatório Analítico de Abstenções (NO_BET)
+     * Consolida dados do Gatekeeper para Handicap Asiático e Cartões Under
+     */
+    public function relatorioAbstencoes()
+    {
+        ini_set('memory_limit', '512M');
+        $access = $this->checkAccess();
+        $db = \Config\Database::connect();
+
+        $modalidade = strtolower(trim((string)($this->request->getVar('modalidade') ?? 'todos')));
+        if (!in_array($modalidade, ['todos', 'ah', 'cartao'])) {
+            $modalidade = 'todos';
+        }
+
+        $periodo = strtolower(trim((string)($this->request->getVar('periodo') ?? '14d')));
+        $startDate = $this->request->getVar('start_date');
+        $endDate   = $this->request->getVar('end_date');
+        $ligaFilter = $this->request->getVar('liga');
+
+        if ($periodo === '7d') {
+            $startDate = date('Y-m-d', strtotime('-7 days'));
+            $endDate   = date('Y-m-d');
+        } elseif ($periodo === '30d') {
+            $startDate = date('Y-m-d', strtotime('-30 days'));
+            $endDate   = date('Y-m-d');
+        } elseif ($periodo === 'custom' && !empty($startDate) && !empty($endDate)) {
+            // Mantém datas enviadas
+        } else {
+            // Default 14d
+            $periodo   = '14d';
+            $startDate = date('Y-m-d', strtotime('-14 days'));
+            $endDate   = date('Y-m-d');
+        }
+
+        if (!empty($startDate) && !empty($endDate) && $startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+
+        // Busca lista de Ligas disponíveis para o filtro
+        $ligas = $db->table('fixtures_trends')
+            ->select('DISTINCT(league_name) as league_name')
+            ->where('fixture_date >=', $startDate . ' 00:00:00')
+            ->where('fixture_date <=', $endDate . ' 23:59:59')
+            ->where('league_name IS NOT NULL')
+            ->orderBy('league_name', 'ASC')
+            ->get()->getResultObject();
+
+        // Consulta partidas no período
+        $builder = $db->table('fixtures_trends')
+            ->select('fixture_id, fixture_date, league_name, home_team, away_team, ah_suggestion, ah_confidence, ah_reasoning, prediction_text, over_cards_probability, status')
+            ->where('fixture_date >=', $startDate . ' 00:00:00')
+            ->where('fixture_date <=', $endDate . ' 23:59:59');
+
+        if (!empty($ligaFilter)) {
+            $builder->where('league_name', $ligaFilter);
+        }
+
+        $builder->orderBy('fixture_date', 'DESC');
+        $fixtures = $builder->get()->getResultObject();
+
+        // Inicialização prévia de variáveis numéricas conforme Regra 8 do repositório
+        $totalJogosAnalisados = 0;
+        $totalAprovados = 0;
+        $totalAbstencoes = 0;
+        
+        $totalAhAvaliados = 0;
+        $totalAhAprovados = 0;
+        $totalAhAbstencoes = 0;
+
+        $totalCardsAvaliados = 0;
+        $totalCardsAprovados = 0;
+        $totalCardsAbstencoes = 0;
+
+        $motivosCount = [];
+        $timelineData = [];
+        $partidasLista = [];
+
+        foreach ($fixtures as $f) {
+            $fDateStr = !empty($f->fixture_date) ? substr($f->fixture_date, 0, 10) : date('Y-m-d');
+            if (!isset($timelineData[$fDateStr])) {
+                $timelineData[$fDateStr] = [
+                    'data'      => $fDateStr,
+                    'total'     => 0,
+                    'nobet'     => 0,
+                    'aprovado'  => 0,
+                ];
+            }
+
+            // 1. Processamento de Handicap Asiático
+            if ($modalidade === 'todos' || $modalidade === 'ah') {
+                $sug = trim((string)($f->ah_suggestion ?? ''));
+                $reason = trim((string)($f->ah_reasoning ?? ''));
+                $fullAh = $reason . ' ' . $sug;
+                $isAhEvaluated = (!empty($sug) || !empty($reason));
+
+                if ($isAhEvaluated) {
+                    $totalAhAvaliados++;
+                    $totalJogosAnalisados++;
+                    $timelineData[$fDateStr]['total']++;
+
+                    $isAhNoBet = (
+                        stripos($sug, 'absten') !== false ||
+                        stripos($sug, 'sem entrada') !== false ||
+                        stripos($sug, 'no_bet') !== false ||
+                        stripos($sug, 'bloquead') !== false ||
+                        stripos($reason, 'NO_BET') !== false
+                    );
+
+                    if ($isAhNoBet) {
+                        $totalAhAbstencoes++;
+                        $totalAbstencoes++;
+                        $timelineData[$fDateStr]['nobet']++;
+
+                        // Identificar motivo
+                        $cat = 'Gestão de Risco Preventiva da IA';
+                        $regra = 'Travas de prudência por equilíbrio excessivo ou volatilidade projetada';
+                        $badgeColor = '#64748b';
+
+                        if (preg_match('/\[Gatekeeper AH NO_BET\s*\/\s*([^\]]+)\]/i', $reason, $m)) {
+                            $tag = trim($m[1]);
+                            if (stripos($tag, 'Linhas Reais') !== false) {
+                                $cat = 'Ausência de Linhas Reais nas Casas';
+                                $regra = 'Regra 12: Proibição de odds sintéticas; sem linhas oficiais na Betano/The Odds API';
+                                $badgeColor = '#ef4444';
+                            } elseif (stripos($tag, 'Amostragem') !== false) {
+                                $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
+                                $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
+                                $badgeColor = '#f59e0b';
+                            } elseif (stripos($tag, 'Sem EV') !== false) {
+                                $cat = 'Sem EV+ Mínimo (+EV < 5.0% ou Prob. Insuficiente)';
+                                $regra = 'Poisson e odds de mercado não atingiram o limiar mínimo de +EV >= 5.0%';
+                                $badgeColor = '#3b82f6';
+                            } elseif (stripos($tag, 'Piso') !== false) {
+                                $cat = 'Odd de Mercado Abaixo do Piso (< 1.50)';
+                                $regra = 'Cotação líquida inferior ao piso mínimo operacional de segurança';
+                                $badgeColor = '#ec4899';
+                            } elseif (stripos($tag, 'Odds 1X2') !== false) {
+                                $cat = 'Cotações 1X2 Ausentes de Mercado';
+                                $regra = 'Partida sem cotações 1X2 de abertura precificadas pelas bookmakers';
+                                $badgeColor = '#8b5cf6';
+                            } elseif (stripos($tag, 'Crises') !== false) {
+                                $cat = 'Duelo de Crises Severas';
+                                $regra = 'Ambas as equipes em jejum/crise severa com alta imprevisibilidade técnica';
+                                $badgeColor = '#d97706';
+                            } elseif (stripos($tag, 'Rendimento') !== false) {
+                                $cat = 'Queda Recente de Rendimento e Eficiência';
+                                $regra = 'Deterioração drástica na conversão ofensiva/defensiva recente dos times';
+                                $badgeColor = '#a855f7';
+                            } else {
+                                $cat = 'AH: ' . $tag;
+                            }
+                        } elseif (stripos($fullAh, 'Ausência de Linhas Reais') !== false || stripos($fullAh, 'Cotações oficiais de Handicap Asiático indisponíveis') !== false || stripos($fullAh, 'Odds de mercado indisponíveis') !== false) {
+                            $cat = 'Ausência de Linhas Reais nas Casas';
+                            $regra = 'Regra 12: Proibição de odds sintéticas; sem linhas oficiais na Betano/The Odds API';
+                            $badgeColor = '#ef4444';
+                        } elseif (stripos($fullAh, 'Amostragem Insuficiente') !== false || stripos($fullAh, 'Histórico recente incompleto') !== false || stripos($fullAh, 'Histórico U5J insuficiente') !== false) {
+                            $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
+                            $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
+                            $badgeColor = '#f59e0b';
+                        } elseif (stripos($fullAh, 'odd nominal esmagada') !== false || stripos($fullAh, 'odd nominal deprimida') !== false || stripos($fullAh, 'linhas agressivas') !== false) {
+                            $cat = 'Odd Esmagada / Linha Agressiva Bloqueada';
+                            $regra = 'Superfavorito com odd esmagada (@ 1.20-1.40); linhas esticadas bloqueadas para evitar perdas no empate';
+                            $badgeColor = '#ea580c';
+                        } elseif (stripos($fullAh, 'Sem EV+') !== false || stripos($fullAh, '+EV >=') !== false || stripos($fullAh, 'Falta de valor') !== false) {
+                            $cat = 'Sem EV+ Mínimo (+EV < 5.0% ou Prob. Insuficiente)';
+                            $regra = 'Poisson e odds de mercado não atingiram o limiar mínimo de +EV >= 5.0%';
+                            $badgeColor = '#3b82f6';
+                        } elseif (stripos($fullAh, 'Odds 1X2 Ausentes') !== false || stripos($fullAh, 'cotações 1X2 de mercado no banco') !== false) {
+                            $cat = 'Cotações 1X2 Ausentes de Mercado';
+                            $regra = 'Partida sem cotações 1X2 de abertura precificadas pelas bookmakers';
+                            $badgeColor = '#8b5cf6';
+                        } elseif (stripos($fullAh, 'Odd Abaixo do Piso') !== false || stripos($fullAh, 'abaixo do piso') !== false) {
+                            $cat = 'Odd de Mercado Abaixo do Piso (< 1.50)';
+                            $regra = 'Cotação líquida inferior ao piso mínimo operacional de segurança';
+                            $badgeColor = '#ec4899';
+                        } elseif (stripos($fullAh, 'Alerta de Copa') !== false || stripos($fullAh, 'ALERTA DE COPA') !== false) {
+                            $cat = 'Alerta de Copa (Risco de Rodízio)';
+                            $regra = 'Partida de copa eliminatória com elevado risco de time alternativo/misto';
+                            $badgeColor = '#e11d48';
+                        } elseif (stripos($fullAh, 'Divergência Crítica') !== false) {
+                            $cat = 'Divergência Crítica (Mercado vs xG)';
+                            $regra = 'Divergência severa entre a precificação da casa de apostas e as métricas de campo';
+                            $badgeColor = '#0284c7';
+                        }
+
+                        $chaveMotivo = 'AH: ' . $cat;
+                        if (!isset($motivosCount[$chaveMotivo])) {
+                            $motivosCount[$chaveMotivo] = [
+                                'nome'        => $cat,
+                                'modalidade'  => 'Handicap Asiático',
+                                'modalidade_key' => 'ah',
+                                'count'       => 0,
+                                'regra_ouro'  => $regra,
+                                'color'       => $badgeColor,
+                            ];
+                        }
+                        $motivosCount[$chaveMotivo]['count']++;
+
+                        if (count($partidasLista) < 600) {
+                            $partidasLista[] = (object)[
+                                'fixture_id'   => $f->fixture_id,
+                                'data'         => $f->fixture_date,
+                                'liga'         => $f->league_name ?? 'Não informada',
+                                'times'        => ($f->home_team ?? 'Time Casa') . ' x ' . ($f->away_team ?? 'Time Fora'),
+                                'home_team'    => $f->home_team ?? 'Time Casa',
+                                'away_team'    => $f->away_team ?? 'Time Fora',
+                                'modalidade'   => 'Handicap Asiático',
+                                'modalidade_key' => 'ah',
+                                'motivo_nome'  => $cat,
+                                'motivo_texto' => $reason ?: $sug,
+                                'badge_color'  => $badgeColor,
+                                'status'       => $f->status ?? 'NS'
+                            ];
+                        }
+                    } else {
+                        $totalAhAprovados++;
+                        $totalAprovados++;
+                        $timelineData[$fDateStr]['aprovado']++;
+                    }
+                }
+            }
+
+            // 2. Processamento de Cartões Under
+            if ($modalidade === 'todos' || $modalidade === 'cartao') {
+                $ptext = trim((string)($f->prediction_text ?? ''));
+                $isCardEvaluated = !empty($ptext);
+
+                if ($isCardEvaluated) {
+                    $totalCardsAvaliados++;
+                    if ($modalidade === 'cartao') {
+                        $totalJogosAnalisados++;
+                        $timelineData[$fDateStr]['total']++;
+                    }
+
+                    $isCardNoBet = (
+                        stripos($ptext, 'no_bet') !== false ||
+                        stripos($ptext, 'sem entrada') !== false ||
+                        stripos($ptext, 'absten') !== false ||
+                        stripos($ptext, 'bloquead') !== false
+                    );
+
+                    if ($isCardNoBet) {
+                        $totalCardsAbstencoes++;
+                        if ($modalidade === 'cartao') {
+                            $totalAbstencoes++;
+                            $timelineData[$fDateStr]['nobet']++;
+                        }
+
+                        $cat = 'Outro Bloqueio Preventivo de Cartões';
+                        $regra = 'Travas de segurança preventiva do Gatekeeper Disciplinar';
+                        $badgeColor = '#64748b';
+
+                        if (stripos($ptext, 'zerados ou indisponíveis') !== false) {
+                            $cat = 'Dados de Cartões Zerados ou Indisponíveis';
+                            $regra = 'Regra 9: Proibição de fallbacks artificiais; ausência de histórico consolidado no cache';
+                            $badgeColor = '#ef4444';
+                        } elseif (stripos($ptext, 'Início de campeonato') !== false || stripos($ptext, '< 5 jogos com dados') !== false) {
+                            $cat = 'Início de Temporada / Amostragem < 5 Jogos';
+                            $regra = 'Regra 9: Menos de 5 partidas registradas na base para calcular médias móveis confiáveis';
+                            $badgeColor = '#f59e0b';
+                        } elseif (stripos($ptext, 'Trava de Árbitro') !== false || stripos($ptext, 'Rigor do árbitro') !== false) {
+                            $cat = 'Trava de Rigor do Árbitro';
+                            $regra = 'Árbitro escalado com histórico rigoroso (> 4.80 c/j), incompatível com Under';
+                            $badgeColor = '#dc2626';
+                        } elseif (stripos($ptext, 'Atrito Disciplinar') !== false) {
+                            $cat = 'Risco de Atrito Disciplinar U5J';
+                            $regra = 'Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas';
+                            $badgeColor = '#ea580c';
+                        } elseif (stripos($ptext, 'Média de cartões por time') !== false || stripos($ptext, 'inferior) com amostragem') !== false) {
+                            $cat = 'Média Disciplinar Anômala (<= 1.0 c/j)';
+                            $regra = 'Histórico disciplinar estatisticamente suspeito ou distorcido';
+                            $badgeColor = '#8b5cf6';
+                        } elseif (stripos($ptext, 'Mata-Mata') !== false || stripos($ptext, 'eliminatór') !== false) {
+                            $cat = 'Mata-Mata / Confronto Eliminatório';
+                            $regra = 'Partida eliminatória com alta carga emocional e risco disciplinar elevado';
+                            $badgeColor = '#e11d48';
+                        } elseif (stripos($ptext, 'Sem Margem') !== false) {
+                            $cat = 'Sem Margem Estatística para Under';
+                            $regra = 'Expectativa de cartões superior às linhas Under disponíveis no mercado';
+                            $badgeColor = '#0284c7';
+                        } elseif (stripos($ptext, 'Sem Árbitro') !== false || stripos($ptext, 'Árbitro não definido') !== false) {
+                            $cat = 'Árbitro Não Definido a < 48h';
+                            $regra = 'Confronto próximo sem confirmação da escala oficial de arbitragem';
+                            $badgeColor = '#64748b';
+                        }
+
+                        $chaveMotivo = 'Cartões: ' . $cat;
+                        if (!isset($motivosCount[$chaveMotivo])) {
+                            $motivosCount[$chaveMotivo] = [
+                                'nome'        => $cat,
+                                'modalidade'  => 'Cartões Under',
+                                'modalidade_key' => 'cartao',
+                                'count'       => 0,
+                                'regra_ouro'  => $regra,
+                                'color'       => $badgeColor,
+                            ];
+                        }
+                        $motivosCount[$chaveMotivo]['count']++;
+
+                        if (count($partidasLista) < 600) {
+                            $partidasLista[] = (object)[
+                                'fixture_id'   => $f->fixture_id,
+                                'data'         => $f->fixture_date,
+                                'liga'         => $f->league_name ?? 'Não informada',
+                                'times'        => ($f->home_team ?? 'Time Casa') . ' x ' . ($f->away_team ?? 'Time Fora'),
+                                'home_team'    => $f->home_team ?? 'Time Casa',
+                                'away_team'    => $f->away_team ?? 'Time Fora',
+                                'modalidade'   => 'Cartões Under',
+                                'modalidade_key' => 'cartao',
+                                'motivo_nome'  => $cat,
+                                'motivo_texto' => $ptext,
+                                'badge_color'  => $badgeColor,
+                                'status'       => $f->status ?? 'NS'
+                            ];
+                        }
+                    } else {
+                        $totalCardsAprovados++;
+                        if ($modalidade === 'cartao') {
+                            $totalAprovados++;
+                            $timelineData[$fDateStr]['aprovado']++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ordenar motivos por contagem decrescente
+        uasort($motivosCount, function($a, $b) {
+            return $b['count'] <=> $a['count'];
+        });
+
+        // Calcular percentuais na tabela agregada
+        $denominadorNb = ($totalAbstencoes > 0) ? $totalAbstencoes : 1;
+        $denominadorTotal = ($totalJogosAnalisados > 0) ? $totalJogosAnalisados : 1;
+        $motivosTabela = [];
+
+        foreach ($motivosCount as $k => $item) {
+            $pctNb = round(($item['count'] / $denominadorNb) * 100, 2);
+            $pctTot = round(($item['count'] / $denominadorTotal) * 100, 2);
+            $motivosTabela[] = (object)[
+                'nome'        => $item['nome'],
+                'modalidade'  => $item['modalidade'],
+                'modalidade_key' => $item['modalidade_key'],
+                'count'       => $item['count'],
+                'pct_nb'      => $pctNb,
+                'pct_total'   => $pctTot,
+                'regra_ouro'  => $item['regra_ouro'],
+                'color'       => $item['color']
+            ];
+        }
+
+        // Taxas Globais
+        $taxaAbstencaoGlobal = ($totalJogosAnalisados > 0) ? round(($totalAbstencoes / $totalJogosAnalisados) * 100, 2) : 0.0;
+        $taxaAprovacaoGlobal = ($totalJogosAnalisados > 0) ? round(($totalAprovados / $totalJogosAnalisados) * 100, 2) : 0.0;
+
+        $taxaAhAbstencao = ($totalAhAvaliados > 0) ? round(($totalAhAbstencoes / $totalAhAvaliados) * 100, 2) : 0.0;
+        $taxaCardsAbstencao = ($totalCardsAvaliados > 0) ? round(($totalCardsAbstencoes / $totalCardsAvaliados) * 100, 2) : 0.0;
+
+        $principalGargalo = !empty($motivosTabela) ? $motivosTabela[0] : null;
+
+        // Montar dados para os gráficos Chart.js
+        $chartLabels = [];
+        $chartCounts = [];
+        $chartColors = [];
+        $chartPcts   = [];
+
+        foreach (array_slice($motivosTabela, 0, 8) as $m) {
+            $chartLabels[] = (strlen($m->nome) > 28) ? substr($m->nome, 0, 25) . '...' : $m->nome;
+            $chartCounts[] = $m->count;
+            $chartColors[] = $m->color;
+            $chartPcts[]   = $m->pct_nb;
+        }
+
+        // Se houver mais de 8 motivos, agrupa o restante em "Outros"
+        if (count($motivosTabela) > 8) {
+            $somaOutros = 0;
+            $somaOutrosPct = 0.0;
+            foreach (array_slice($motivosTabela, 8) as $m) {
+                $somaOutros += $m->count;
+                $somaOutrosPct += $m->pct_nb;
+            }
+            if ($somaOutros > 0) {
+                $chartLabels[] = 'Demais Motivos Combinados';
+                $chartCounts[] = $somaOutros;
+                $chartColors[] = '#94a3b8';
+                $chartPcts[]   = round($somaOutrosPct, 2);
+            }
+        }
+
+        // Ordenar timeline por data cronológica crescente
+        ksort($timelineData);
+        $timelineDates = [];
+        $timelineNb    = [];
+        $timelineAp    = [];
+
+        foreach ($timelineData as $tDate => $tVals) {
+            $timelineDates[] = date('d/m', strtotime($tDate));
+            $timelineNb[]    = $tVals['nobet'];
+            $timelineAp[]    = $tVals['aprovado'];
+        }
+
+        $data = [
+            'modalidade'           => $modalidade,
+            'periodo'              => $periodo,
+            'startDate'            => $startDate,
+            'endDate'              => $endDate,
+            'ligaFilter'           => $ligaFilter,
+            'ligas'                => $ligas,
+            'totalJogosAnalisados' => $totalJogosAnalisados,
+            'totalAbstencoes'      => $totalAbstencoes,
+            'totalAprovados'       => $totalAprovados,
+            'taxaAbstencaoGlobal'  => $taxaAbstencaoGlobal,
+            'taxaAprovacaoGlobal'  => $taxaAprovacaoGlobal,
+            'totalAhAvaliados'     => $totalAhAvaliados,
+            'totalAhAbstencoes'    => $totalAhAbstencoes,
+            'totalAhAprovados'     => $totalAhAprovados,
+            'taxaAhAbstencao'      => $taxaAhAbstencao,
+            'totalCardsAvaliados'  => $totalCardsAvaliados,
+            'totalCardsAbstencoes' => $totalCardsAbstencoes,
+            'totalCardsAprovados'  => $totalCardsAprovados,
+            'taxaCardsAbstencao'   => $taxaCardsAbstencao,
+            'principalGargalo'     => $principalGargalo,
+            'motivosTabela'        => $motivosTabela,
+            'partidasLista'        => $partidasLista,
+            'chartLabelsJson'      => json_encode($chartLabels),
+            'chartCountsJson'      => json_encode($chartCounts),
+            'chartColorsJson'      => json_encode($chartColors),
+            'chartPctsJson'        => json_encode($chartPcts),
+            'timelineDatesJson'    => json_encode($timelineDates),
+            'timelineNbJson'       => json_encode($timelineNb),
+            'timelineApJson'       => json_encode($timelineAp),
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_abstencoes', $data)
+             . view('footer');
     }
 }
 

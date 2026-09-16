@@ -98,7 +98,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
         cursor.execute("""
             INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
         """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
 
         cursor.execute("""
@@ -723,64 +723,9 @@ def process_palpites_gerados(cursor):
                 WHERE id_palpite = %s
             """, (home, away, status, detalhe, pid))
 
-    # 2. Se houver partidas encerradas (FT) sem registro em palpites_gerados, gerar entradas automáticas
-    cursor.execute("""
-        SELECT f.fixture_id, f.home_team, f.away_team, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
-               f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away,
-               f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away,
-               f.corners_home, f.corners_away
-        FROM fixtures_trends f
-        LEFT JOIN palpites_gerados p ON f.fixture_id = p.fixture_id
-        WHERE p.id_palpite IS NULL
-          AND f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
-          AND f.score_processed_at IS NOT NULL
-          AND f.goals_home IS NOT NULL
-          AND f.goals_away IS NOT NULL
-        LIMIT 300
-    """)
-    fixtures_sem_palpite = cursor.fetchall()
-    
-    if fixtures_sem_palpite:
-        print(f"🌱 Gerando palpites e abstenções para {len(fixtures_sem_palpite)} partidas FT sem registro prévio...")
-        for fix in fixtures_sem_palpite:
-            fid = fix['fixture_id']
-            home = fix['home_team']
-            away = fix['away_team']
-            pred = (fix.get('prediction_text') or '').strip()
-            ah = (fix.get('ah_suggestion') or '').strip()
-            probCards = float(fix.get('over_cards_probability') or 50.0)
-            
-            if not pred and not ah and 45.0 <= probCards <= 55.0:
-                mercado = 'Sem Entrada'
-                linha = 'Sem Entrada (Abstenção)'
-                odd = None
-            elif ah:
-                mercado = 'Handicap Asiático'
-                linha = ah
-                odd = float(fix.get('odd_home') or 1.40)
-            elif probCards > 55.0:
-                mercado = 'Total de Cartões'
-                linha = 'Over 4.5 Cartões'
-                odd = 1.85
-            else:
-                mercado = 'Total de Gols'
-                linha = 'Over 2.5 Gols'
-                odd = 1.80
-
-            status, detalhe = evaluate_palpite_status(
-                home, away, fix['goals_home'], fix['goals_away'],
-                fix['yellow_cards_home'], fix['yellow_cards_away'],
-                fix['red_cards_home'], fix['red_cards_away'],
-                fix['corners_home'], fix['corners_away'],
-                mercado, linha, odd
-            )
-
-            cursor.execute("""
-                INSERT INTO palpites_gerados (fixture_id, home_team, away_team, mercado, linha_sugerida, odd_momento, resultado_status, detalhe_resultado)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (fid, home, away, mercado, linha, odd, status, detalhe))
-
-        print("✅ Liquidação de palpites concluída com sucesso!")
+    # 2. Regra 12 (.agents/AGENTS.md): Proibição absoluta de geração de dados sintéticos e odds fictícias retroativas pós-jogo.
+    # Palpites e apostas devem nascer exclusivamente antes da partida começar, com odds reais de mercado.
+    pass
 
 if __name__ == '__main__':
     process_pending_bets()

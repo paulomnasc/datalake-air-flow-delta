@@ -288,11 +288,26 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
     except Exception as e_mail:
         print(f"❌ [Erro ao enviar E-mail] Falha no disparo SMTP para {recipient}: {e_mail}")
 
+def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link):
+    """
+    Insere notificação na tabela notificacoes_usuario para exibição em tempo real (Sino + Toast Pop-up).
+    """
+    try:
+        cursor.execute("""
+            INSERT INTO notificacoes_usuario (
+                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criado_em
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, NOW())
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
+        print(f"🔔 [Notificação Registrada User #{usuario_id}] {titulo}")
+    except Exception as e:
+        print(f"⚠️ [Notificação] Falha ao registrar notificação para user #{usuario_id}: {e}")
+
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):
     """
     Busca apostas pendentes no mercado de Handicap Asiático para o fixture_id.
     Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
     efetua o estorno financeiro (ESTORNO_APOSTA) atualizando o saldo do usuário.
+    Gera notificação em tempo real (notificacoes_usuario) com link direto para ação de Cash Out na Betano.
     Retorna lista de dicionários com detalhes das apostas canceladas/estornadas.
     """
     cursor.execute("""
@@ -303,7 +318,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         WHERE a.fixture_id = %s 
           AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
           AND a.status = 'Pendente'
-          AND (a.confirmada IS NULL OR a.confirmada = 0)
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
     
@@ -321,12 +335,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         aposta_id = aposta['id']
         usuario_id = aposta['usuario_id']
         valor = float(aposta['valor_aposta'] or 0.0)
-        
-        # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
-        is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
-        if is_confirmada:
-            print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
-            continue
         
         # Obter cotações 1X2 para descrição natural e clara
         cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
@@ -399,6 +407,29 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 
                 estornado = True
                 print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+
+        # Disparo da Notificação em Tempo Real: APENAS para apostas confirmadas (confirmada = 1 ou tem débito)
+        is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)
+        if is_aposta_confirmada:
+            titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            msg_notif = (
+                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}). "
+                f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
+            )
+            link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
+            registrar_notificacao_usuario(
+                cursor=cursor,
+                usuario_id=usuario_id,
+                aposta_id=aposta_id,
+                fixture_id=fixture_id,
+                tipo="APOSTA_CANCELADA",
+                titulo=titulo_notif,
+                mensagem=msg_notif,
+                link=link_notif
+            )
+        else:
+            print(f"ℹ️ [Sininho Ignorado] Aposta #{aposta_id} não confirmada. Notificação de cancelamento dispensada.")
 
         detail = dict(aposta)
         detail['motivo'] = motivo
@@ -481,8 +512,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     if is_prematch_window:
         cursor.execute("""
             SELECT * FROM fixtures_trends
-            WHERE fixture_date >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-              AND fixture_date <= DATE_ADD(NOW(), INTERVAL 45 MINUTE)
+            WHERE fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+              AND fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """)
@@ -491,7 +522,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
+              AND fixture_date >= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
@@ -522,8 +553,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         league_name = fix.get('league_name') or ''
 
         if not is_allowed_league(league_id, league_name, fixture_date):
-            print(f"🌍 [Fora do Escopo / Bloqueio Meio de Semana] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo (Bloqueio Meio de Semana / EFL Trophy)")
+            print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo global monitorado")
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
@@ -546,16 +577,19 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
             ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
             cursor.execute("""
-                SELECT id, palpite, confirmada FROM apostas 
+                SELECT id, palpite, confirmada, status FROM apostas 
                 WHERE fixture_id = %s 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                  AND status = 'Pendente'
+                  AND status != 'Não Confirmada'
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC
                 LIMIT 1
             """, (fixture_id,))
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
-                if int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
-                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
+                is_settled_blindado = has_pending_bet.get('status') not in ('Pendente', 'Não Confirmada')
+                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                    status_lbl = "blindada" if is_settled_blindado else "ativa"
+                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
                     continue
 
             cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
@@ -614,7 +648,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
         # Sincronização atômica Card <-> Aposta com proteção para apostas confirmadas
-        sync_fixture_and_bet_handicap(
+        c_cnt, u_cnt, s_cnt = sync_fixture_and_bet_handicap(
             cursor=cursor,
             fixture_id=fixture_id,
             home_team=home_team,
@@ -630,17 +664,21 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             confirmada_val=confirmada_val,
             destaque_val=int(best_cand.get('destaque', 0))
         )
+        apostas_criadas += c_cnt
+        apostas_duplicadas += (u_cnt + s_cnt)
 
-        novas_apostas_detalhes.append({
-            'usuario_id': user_ids[0] if user_ids else 558,
-            'time_casa': home_team,
-            'time_fora': away_team,
-            'palpite': selected_palpite,
-            'odd': odd_val,
-            'valor_aposta': valor_aposta,
-            'ganhos_potenciais': ganhos_potenciais,
-            'data_hora_jogo': fixture_date
-        })
+        # Disparo de e-mail ESTRITAMENTE para apostas genuinamente recém-criadas nesta execução
+        if c_cnt > 0:
+            novas_apostas_detalhes.append({
+                'usuario_id': user_ids[0] if user_ids else 558,
+                'time_casa': home_team,
+                'time_fora': away_team,
+                'palpite': selected_palpite,
+                'odd': odd_val,
+                'valor_aposta': valor_aposta,
+                'ganhos_potenciais': ganhos_potenciais,
+                'data_hora_jogo': fixture_date
+            })
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE APOSTAS AH BETANO CONCLUÍDO!")

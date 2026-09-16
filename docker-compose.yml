@@ -141,8 +141,10 @@ services:
     container_name: mysql${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     environment:
+      TZ: America/Sao_Paulo
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
+    command: --default-time-zone='-03:00'
     ports:
       - "${MYSQL_PORT}:3306"
     volumes:

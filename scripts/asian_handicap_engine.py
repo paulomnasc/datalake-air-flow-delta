@@ -535,7 +535,7 @@ def evaluate_and_select_best_ah_candidate(
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
     - Score de Valor = EV% * (Prob / 100.0)
     """
-    standard_allowed_lines = {0.0, 0.5, 1.0, 1.25, 1.5}
+    standard_allowed_lines = {0.0}
     moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
@@ -593,6 +593,16 @@ def evaluate_and_select_best_ah_candidate(
 
         # Trava de Segurança Máxima Anti-Goleada:
         if c_line < -1.0:
+            continue
+
+        # =========================================================================
+        # REGRA ESTRUTURAL ANTI-ZEBRA: BLOQUEIO DE LINHAS POSITIVAS (+AH > 0.0)
+        # O histórico empírico consolidado comprovou que apoiar azarões em linhas positivas
+        # (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5) com cotações espremidas (1.50 a 1.75)
+        # gera expectativa matemática negativa (-25.3% ROI).
+        # O Gatekeeper passa a operar com FOCO ESTRITO EM FAVORITOS (-AH) e DNB (0.0 AH).
+        # =========================================================================
+        if c_line > 0.0:
             continue
 
         # =========================================================================
@@ -927,10 +937,10 @@ def evaluate_and_select_best_ah_candidate(
     if tier1_massacre_picks:
         return tier1_massacre_picks[0], approved
 
-    # Em situações de Distorção de Banca / Soberania da Performance, prevalece a linha de maior proteção (+1.0 AH ou +0.5 AH)
-    surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (1.0, 0.5)]
+    # Em situações de Distorção de Banca / Soberania da Performance, prioriza linhas equilibradas (0.0 AH ou -0.25 AH)
+    surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (0.0, -0.25)]
     if surge_cushion:
-        surge_cushion.sort(key=lambda x: (x['line'] == 1.0, x['score']), reverse=True)
+        surge_cushion.sort(key=lambda x: x['score'], reverse=True)
         approved = surge_cushion + [c for c in approved if c not in surge_cushion]
         return approved[0], approved
 

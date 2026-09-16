@@ -543,6 +543,13 @@ class ApostaController extends BaseController
             if ($xgHome <= 0.1) $xgHome = 1.30;
             if ($xgAway <= 0.1) $xgAway = 1.10;
 
+            // Bloqueio Estrutural de Linhas Positivas de Azarão (+AH > 0.0)
+            if ($line > 0.0) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Entradas em linhas de handicap positivo (+AH) a favor de azarões estão desativadas por expectativa matemática negativa comprovada. O modelo foca estritamente em Favoritos (-AH) e Empate Anula (0.0 AH).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
+
             // 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
             // Bloqueia handicap positivo a favor do visitante quando o mandante é favorito sólido de mercado
             if ($isAway && $line > 0.0) {

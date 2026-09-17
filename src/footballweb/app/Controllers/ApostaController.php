@@ -756,13 +756,17 @@ class ApostaController extends BaseController
         // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
         // =========================================================================
 
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
+        // =========================================================================
+        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
+        // =========================================================================
+
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA (Apenas Under 5.5 e Under 6.5)
         preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
         $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
 
-        if ($lineCheck < 1.15) {
+        if (abs($lineCheck - 5.5) > 0.01 && abs($lineCheck - 6.5) > 0.01) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
@@ -803,7 +807,7 @@ class ApostaController extends BaseController
                     $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
                 }
 
-                // 2. MATRIZ DINÂMICA DE RISCO (Odd vs Probabilidade Mínima Poisson + Margem EV)
+                // 2. MATRIZ DE RISCO E TRAVAS DE OURO DO GATEKEEPER
                 $refName = !empty($fixture->referee_name) ? trim($fixture->referee_name) : '';
                 $isUnknownRef = empty($refName) 
                     || stripos($refName, 'Não Informado') !== false 
@@ -812,33 +816,25 @@ class ApostaController extends BaseController
                     || stripos($refName, 'tbd') !== false
                     || stripos($refName, 'sem arbitro') !== false;
 
-                // Bloqueia linha agressiva Under 3.5 se árbitro oficial estiver pendente
-                if ($isUnknownRef && $line <= 3.5) {
+                // Regra Canônica: Sem juiz = NO_BET
+                if ($isUnknownRef) {
                     $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linha agressiva de Under 3.5 bloqueada por segurança enquanto a escala oficial de arbitragem estiver pendente.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Partida sem árbitro oficial confirmado na escala. Entrada em Under Cartões bloqueada por segurança (Sem juiz = NO_BET).";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Definição dos limiares da Matriz Dinâmica
-                if ($odd <= 1.55) {
-                    $minProbExigida = 50.0;
-                    $minEvExigido   = 0.0;
-                    $faixaRisco     = "Conservadora (Odd <= 1.55)";
-                } elseif ($odd <= 1.75) {
-                    $minProbExigida = 60.0;
-                    $minEvExigido   = 5.0;
-                    $faixaRisco     = "Intermediária (Odd 1.56 - 1.75)";
-                } else {
-                    $minProbExigida = 65.0;
-                    $minEvExigido   = 10.0;
-                    $faixaRisco     = "Agressiva (Odd > 1.75)";
+                // Regra Canônica Exclusiva: Apenas Under 5.5 e Under 6.5
+                if (abs($line - 5.5) > 0.01 && abs($line - 6.5) > 0.01) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida e +5% EV exigido)
-                if ($isUnknownRef) {
-                    $minProbExigida += 5.0;
-                    $minEvExigido   += 5.0;
-                }
+                // Critérios específicos por linha (Under 5.5 e Under 6.5)
+                $minOddReq  = (abs($line - 5.5) < 0.01) ? 1.65 : 1.50;
+                $maxXcReq   = (abs($line - 5.5) < 0.01) ? 4.50 : 5.50;
+                $minProbReq = 60.0;
+                $minEvReq   = 0.0;
 
                 // 3. Verificação de Duplicidade / Exposição por Evento
                 $duplicateCount = 0;
@@ -857,25 +853,24 @@ class ApostaController extends BaseController
                     : "";
 
                 // Avaliação final do Gatekeeper
-                if ($lineCheck < 5.5 && ($xc === null || $xc > 3.30 || $probPoisson < 75.0)) {
+                if ($odd < $minOddReq) {
                     $statusGatekeeper = 'NO_BET';
-                    $xcFormatted = ($xc !== null) ? $xc : 'N/A';
-                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Entrada na linha Under 4.5 exige Expectativa (xC) <= 3.30 cartões (Atual: {$xcFormatted}) e Probabilidade Poisson >= 75.0% (Atual: {$probPoisson}%).{$duplicidadeMsg}";
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo do piso mínimo de segurança ({$minOddReq}) para a linha Under {$line}.{$duplicidadeMsg}";
+                } elseif ($xc > $maxXcReq) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Expectativa de cartões ({$xc}) excede o teto de segurança ({$maxXcReq}) para a linha Under {$line}.{$duplicidadeMsg}";
+                } elseif ($probPoisson < $minProbReq) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade Poisson ({$probPoisson}%) abaixo do mínimo exigido ({$minProbReq}%) para a linha Under {$line}.{$duplicidadeMsg}";
                 } elseif ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).{$duplicidadeMsg}";
-                } elseif ($evPercentual !== null && $evPercentual >= $minEvExigido && $probPoisson >= $minProbExigida) {
+                } elseif ($evPercentual !== null && $evPercentual >= $minEvReq) {
                     $statusGatekeeper = 'APROVADO';
-                    $refMsg = $isUnknownRef ? " | Árbitro: Genérico (+5% Rigor Exigido)" : "";
-                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Faixa {$faixaRisco} | Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +{$minEvExigido}%) | Prob. Poisson: {$probPoisson}% (Mínimo: {$minProbExigida}%){$refMsg} | Teto: {$maxAllowedOdd}.{$duplicidadeMsg}";
+                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Linha Under {$line} | Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% | Prob. Poisson: {$probPoisson}% (Mínimo: 60.0%) | xC: {$xc} (Teto: {$maxXcReq}) | Árbitro Oficial Confirmado.{$duplicidadeMsg}";
                 } else {
                     $statusGatekeeper = 'NO_BET';
-                    if ($evPercentual !== null && $evPercentual < $minEvExigido) {
-                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Faixa {$faixaRisco} exige EV mínimo de +{$minEvExigido}% (EV Atual: {$evPercentual}%).{$duplicidadeMsg}";
-                    } else {
-                        $refMsg = $isUnknownRef ? " (Árbitro não informado na API exige +5% de margem)" : "";
-                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade Poisson ({$probPoisson}%) abaixo do mínimo exigido ({$minProbExigida}%) para a Faixa {$faixaRisco}{$refMsg}.{$duplicidadeMsg}";
-                    }
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Valor esperado (+EV: {$evPercentual}%) insuficiente para aprovação na linha Under {$line}.{$duplicidadeMsg}";
                 }
             }
         }

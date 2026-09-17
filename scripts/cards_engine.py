@@ -560,25 +560,32 @@ def evaluate_best_card_under_line(
     is_referee_confirmed: bool = True
 ):
     """
-    Avalia as linhas Under (3.5, 4.5, 5.5, 6.5) contra as odds reais da Betano e aplica o Gatekeeper:
-    - Probabilidade Poisson >= 60.0% (ou >= 65.0% se árbitro pendente de confirmação)
+    Avalia exclusivamente as linhas seguras Under 5.5 e Under 6.5 contra as odds reais da Betano e aplica o Gatekeeper:
+    - Sem juiz confirmado = NO_BET mandatório (proteção de capital)
+    - Apenas linhas Under 5.5 e Under 6.5 (linhas 3.5 e 4.5 bloqueadas)
+    - Probabilidade Poisson >= 60.0%
     - Odd Betano >= 1.50 (ou 1.65 para Under 5.5)
-    - Valor Esperado Positivo (+EV > 0.0%, ou +EV >= 5.0% se árbitro pendente de confirmação)
+    - Valor Esperado Positivo (+EV > 0.0%)
     - Trava de Piso do Árbitro: veta linhas Under se o árbitro tiver média >= (linha - 0.30)
     - Trava de Atrito Disciplinar U5J: se ambas as equipes tiverem pontuação U5J <= 3.0 (ou negativa),
-      bloqueia linhas secas de Under 3.5 e 4.5 por risco de estouro de cartões decorrente de faltas táticas/frustração.
-    - Trava de Mata-Mata Oitavas+: se for partida eliminatória a partir das oitavas, bloqueia Under 3.5 e 4.5
+      bloqueia estratégia Under por risco de estouro de cartões decorrente de faltas táticas/frustração.
+    - Trava de Mata-Mata Oitavas+: se for partida eliminatória a partir das oitavas com xC elevado, bloqueia Under
       devido à catimba, tensão e faltas táticas eliminatórias.
-    - Trava de Árbitro Pendente: se o árbitro oficial ainda não estiver publicado pela federação,
-      bloqueia a linha Under 3.5 e exige margem de segurança conservadora sobre as linhas 4.5, 5.5 e 6.5.
     Retorna: (best_candidate, all_candidates, prediction_text, over_cards_prob)
     """
+    # 0. Trava de Ouro Canônica: Sem Juiz Oficial Confirmado = NO_BET Mandatório
+    if not is_referee_confirmed:
+        reason = "🛡️ [Gatekeeper Cartões NO_BET / Sem Árbitro Definido] Partida sem árbitro oficial confirmado na escala. Entrada em Under Cartões bloqueada pelo Gatekeeper (Sem juiz = NO_BET)."
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
+        return None, [], pred_text, 50.0
+
     under_probs = calculate_poisson_under_lines(exp_cards)
     
     # Probabilidade de Over 4.5 como referência de over_cards_probability
     over_cards_prob = round(100.0 - under_probs.get(4.5, 50.0), 2)
 
-    standard_lines = [3.5, 4.5, 5.5, 6.5]
+    # Restrição Canônica Exclusiva: Apenas Under 5.5 e Under 6.5
+    standard_lines = [5.5, 6.5]
     candidates = []
 
     friction_mult = u5j_friction_info.get('friction_mult', 1.0) if u5j_friction_info else 1.0
@@ -590,9 +597,6 @@ def evaluate_best_card_under_line(
     has_elevated_friction = is_severe_u5j_risk or (friction_mult >= 1.15 and exp_cards >= 4.50)
 
     # 1. Trava Sistêmica Mandatória de Atrito Disciplinar U5J:
-    # Se houver atrito disciplinar severo (ambos U5J <= 3 pts ou atrito >= 1.15 com xC >= 4.50),
-    # o jogo possui elevadíssimo risco de explosão de cartões por faltas táticas/crise.
-    # A estratégia Under inteira é vetada pelo Gatekeeper (abstenção mandatória).
     if has_elevated_friction:
         h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
         a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
@@ -616,44 +620,20 @@ def evaluate_best_card_under_line(
     for line_val in standard_lines:
         # Trava de Piso do Árbitro Confirmado (Referee Disciplinary Ceiling Guard):
         # Bloqueia a linha Under se a média histórica de cartões do árbitro for superior ou estiver a menos de 0.30 cartão da linha.
-        if is_referee_confirmed and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
-            continue
-
-        # Trava de Mata-Mata Oitavas+: bloqueia linhas agressivas (Under 3.5 e 4.5)
-        if is_knockout and line_val <= 4.5:
-            continue
-
-        # Trava de Segurança para Árbitro Pendente: bloqueia linha agressiva Under 3.5 por prudência
-        if not is_referee_confirmed and line_val <= 3.5:
+        if referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
             continue
 
         prob = under_probs.get(line_val, 0.0)
         odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
         palpite_str = f"Menos de {line_val} Cartões"
 
-        # Crivo de status estrito do Gatekeeper por linha (reforçado para escala pendente)
-        if not is_referee_confirmed:
-            if line_val <= 3.5:
-                status_gk = 'NO_BET'
-            elif line_val <= 4.5:
-                status_gk = 'APROVADO' if (exp_cards <= 3.20 and prob >= 68.0) else 'NO_BET'
-            elif line_val <= 5.5:
-                status_gk = 'APROVADO' if (exp_cards <= 4.30 and prob >= 65.0) else 'NO_BET'
-            elif line_val <= 6.5:
-                status_gk = 'APROVADO' if (exp_cards <= 5.30 and prob >= 65.0) else 'NO_BET'
-            else:
-                status_gk = 'NO_BET'
+        # Crivo de status estrito do Gatekeeper exclusivo para Under 5.5 e Under 6.5
+        if abs(line_val - 5.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
+        elif abs(line_val - 6.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob >= 60.0) else 'NO_BET'
         else:
-            if line_val <= 3.5:
-                status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob >= 70.0) else 'NO_BET'
-            elif line_val <= 4.5:
-                status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob >= 65.0) else 'NO_BET'
-            elif line_val <= 5.5:
-                status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
-            elif line_val <= 6.5:
-                status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob >= 60.0) else 'NO_BET'
-            else:
-                status_gk = 'NO_BET'
+            status_gk = 'NO_BET'
 
         candidates.append({
             'line_val': line_val,
@@ -665,8 +645,7 @@ def evaluate_best_card_under_line(
         })
 
     # Filtrar candidatos rigorosamente aprovados pelo Gatekeeper
-    min_cand_prob = 65.0 if not is_referee_confirmed else 60.0
-    valid_candidates = [c for c in candidates if c['status_gk'] == 'APROVADO' and c['prob'] >= min_cand_prob]
+    valid_candidates = [c for c in candidates if c['status_gk'] == 'APROVADO' and c['prob'] >= 60.0]
     valid_candidates.sort(key=lambda x: x['prob'], reverse=True)
 
     selected_cand = None
@@ -698,8 +677,7 @@ def evaluate_best_card_under_line(
             continue
 
         ev_calc = round(((prob / 100.0) * real_odd - 1.0) * 100.0, 2)
-        min_ev_req = 5.0 if not is_referee_confirmed else 0.0
-        if ev_calc < min_ev_req:
+        if ev_calc < 0.0:
             continue
 
         cand_copy = dict(cand)
@@ -708,7 +686,7 @@ def evaluate_best_card_under_line(
         cand_copy['bookmaker'] = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
         cand_copy['ev_calc'] = ev_calc
         cand_copy['exp_cards'] = exp_cards
-        ref_context_note = "Árbitro Oficial Confirmado" if is_referee_confirmed else "Escala Oficial Pendente (Base Disciplinar da Competição)"
+        ref_context_note = "Árbitro Oficial Confirmado"
         cand_copy['gatekeeper_reason'] = format_gatekeeper_result(
             'APROVADO',
             palpite_str,
@@ -726,22 +704,16 @@ def evaluate_best_card_under_line(
         extra_note = f" [{friction_desc}]" if friction_desc and friction_mult != 1.0 else ""
         if is_knockout:
             extra_note += " [Mata-Mata Oitavas+]"
-        if not is_referee_confirmed:
-            extra_note += " [Escala Pendente / Base Competição]"
         pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
     else:
-        if is_knockout and is_referee_confirmed and referee_cards_avg and float(referee_cards_avg) >= 3.80:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Confronto eliminatório com alta tensão e árbitro rigoroso ({float(referee_cards_avg):.2f} cartões/jogo). Linhas Under 3.5 e 4.5 bloqueadas por risco disciplinar. Abstenção mandatória."
+        if referee_cards_avg and float(referee_cards_avg) >= 5.20:
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under 5.5/6.5. Entrada bloqueada."
         elif is_severe_u5j_risk:
             h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas baixas de Under bloqueadas. Abstenção mandatória."
-        elif is_referee_confirmed and referee_cards_avg and float(referee_cards_avg) >= 4.20:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada."
-        elif not is_referee_confirmed:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Margem com Árbitro Pendente] Partida com escala oficial pendente (Base da Competição: {exp_cards} xC). Limiar reforçado de segurança (Prob >= 65.0% e EV >= +5.0%) não atendido. Abstenção mandatória."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas de Under bloqueadas. Abstenção mandatória."
         else:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper. Abstenção mandatória."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 5.5 e 6.5). Abstenção mandatória."
         pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob

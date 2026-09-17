@@ -279,10 +279,8 @@ def extract_all_cards_suggestions(prediction_text: str):
         if cand_u not in candidates:
             candidates.append(cand_u)
 
-    # Linhas padrão de Under comercializadas na Betano para avaliação
+    # Linhas padrão de Under comercializadas na Betano para avaliação (exclusivo Under 5.5 e Under 6.5)
     standard_lines = [
-        (False, 3.5),
-        (False, 4.5),
         (False, 5.5),
         (False, 6.5)
     ]
@@ -298,18 +296,12 @@ def extract_all_cards_suggestions(prediction_text: str):
         prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
         odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-        if line_val < 3.5:
-            status_gk = 'NO_BET'
-        elif line_val <= 3.5:
-            status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob_poisson >= 70.0) else 'NO_BET'
-        elif line_val <= 4.5:
-            status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob_poisson >= 65.0) else 'NO_BET'
-        elif line_val <= 5.5:
-            status_gk = 'APROVADO' if (exp_cards <= 4.80 and prob_poisson >= 60.0) else 'NO_BET'
-        elif line_val <= 6.5:
-            status_gk = 'APROVADO' if (exp_cards <= 6.20 and prob_poisson >= 60.0) else 'NO_BET'
+        if abs(line_val - 5.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob_poisson >= 60.0) else 'NO_BET'
+        elif abs(line_val - 6.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob_poisson >= 60.0) else 'NO_BET'
         else:
-            # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
+            # Apenas Under 5.5 e Under 6.5 autorizados
             status_gk = 'NO_BET'
 
         palpite_str = f"Menos de {line_val} Cartões"

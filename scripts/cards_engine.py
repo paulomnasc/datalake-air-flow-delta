@@ -953,25 +953,26 @@ def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
                 raw_ref = f_info.get('referee')
                 if raw_ref and raw_ref.strip():
                     ref_name = raw_ref.split(',')[0].strip()
-                    cursor.execute("""
-                        UPDATE fixtures_trends SET
-                            referee_name = %s,
-                            referee_api_checked_at = NOW(),
-                            updated_at = NOW()
-                        WHERE fixture_id = %s
-                    """, (ref_name, fid))
-                    enriched[fid] = ref_name
-                    print(f"✅ [Árbitro Enriquecido] Fixture #{fid} -> Árbitro oficial atribuído: '{ref_name}'")
-
-                    # Sincroniza em referee_stats se não existir
-                    cursor.execute("SELECT name FROM referee_stats WHERE name = %s", (ref_name,))
-                    if not cursor.fetchone():
+                    try:
+                        # 1. Cadastra prioritariamente na tabela referee_stats para satisfazer a Foreign Key
                         cursor.execute("""
-                            INSERT INTO referee_stats (
+                            INSERT IGNORE INTO referee_stats (
                                 name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level, updated_at
                             ) VALUES (%s, 4.20, 0.20, 24.00, 50, 'Moderado', NOW())
                         """, (ref_name,))
-                        print(f"📋 [Referee Stats] Árbitro '{ref_name}' cadastrado na tabela referee_stats.")
+
+                        # 2. Atualiza a partida com o árbitro oficial na tabela fixtures_trends
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                referee_name = %s,
+                                referee_api_checked_at = NOW(),
+                                updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (ref_name, fid))
+                        enriched[fid] = ref_name
+                        print(f"✅ [Árbitro Enriquecido] Fixture #{fid} -> Árbitro oficial atribuído: '{ref_name}'")
+                    except Exception as err_fix:
+                        print(f"⚠️ [Árbitro Enriquecido] Erro ao associar árbitro '{ref_name}' ao fixture #{fid}: {err_fix}")
                 else:
                     cursor.execute("""
                         UPDATE fixtures_trends SET

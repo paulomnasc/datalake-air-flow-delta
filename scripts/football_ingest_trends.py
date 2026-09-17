@@ -2204,7 +2204,8 @@ def calculate_asian_handicap_suggestion(
                 float(odd_home) if odd_home else 2.0, float(odd_away) if odd_away else 2.0,
                 min_ev=5.0, min_prob=58.0,
                 home_team_id=home_team_id, away_team_id=away_team_id,
-                home_last5=home_last5, away_last5=away_last5
+                home_last5=home_last5, away_last5=away_last5,
+                xg_home=lambda_home, xg_away=lambda_away
             )
 
         if best_cand:

@@ -567,6 +567,22 @@ def evaluate_and_select_best_ah_candidate(
     market_cand_win_prob = 50.0
     p_pure_win = 50.0
     max_divergence = 18.0
+    xg_h_val = 0.0
+    xg_a_val = 0.0
+    xg_diff = 0.0
+    is_home_poisson_dominant_minus_half = False
+
+    if (xg_home is None or xg_away is None) and poisson_matrix:
+        try:
+            xg_h_val = float(sum(x * p for (x, y), p in poisson_matrix.items()))
+            xg_a_val = float(sum(y * p for (x, y), p in poisson_matrix.items()))
+        except Exception:
+            xg_h_val = float(xg_home or 0.0)
+            xg_a_val = float(xg_away or 0.0)
+    else:
+        xg_h_val = float(xg_home or 0.0)
+        xg_a_val = float(xg_away or 0.0)
+    xg_diff = xg_h_val - xg_a_val
 
     # 0. Trava Sistêmica Mandatória de Duelo de Crises (Ambas as Equipes em Má Fase):
     # Se ambas as equipes apresentarem aproveitamento precário no U5J (eficiência <= 3.0 pts ou <= 1 vitória recente cada),
@@ -832,6 +848,22 @@ def evaluate_and_select_best_ah_candidate(
             (cand_pts - opp_pts) >= 7
         )
 
+        # NOVA REGRA ESTRUTURAL: Mandante com Dominância de Poisson e Cotação 1X2 Deprimida (DESTRAVA -0.5 AH APENAS)
+        # Permite avaliar a linha de vitória simples (-0.5 AH) exclusivamente para Mandante quando:
+        # 1) É mandante (not c_is_away) e favorito sólido no 1X2 (odd <= 1.50 ou Tier 1 <= 1.55)
+        # 2) Poisson projeta superioridade indiscutível: xg_home >= 2.40 e saldo projetado (xg_home - xg_away) >= 1.40 gols
+        # 3) Adversário NÃO é Tier 1 de elite e NÃO está em CURVA_ASCENDENTE
+        # 4) Mandante NÃO está em CURVA_DESCENDENTE e tem no máximo 1 derrota recente (cand_d <= 1)
+        is_home_poisson_dominant_minus_half = (
+            not c_is_away and
+            (cand_odd <= 1.50 or (is_tier1 and cand_odd <= 1.55)) and
+            (xg_h_val >= 2.40 and xg_diff >= 1.40) and
+            not is_opp_tier1 and
+            opp_trend != "CURVA_ASCENDENTE" and
+            cand_trend != "CURVA_DESCENDENTE" and
+            cand_d <= 1
+        )
+
         is_eligible_negative = (is_super_fav_crushed or is_dominant_tier1)
 
         # Identificação de Favorito em Grande Fase (U5J >= 9.0 pts, vantagem >= 3.0 pts e cand_odd < opp_odd):
@@ -849,30 +881,45 @@ def evaluate_and_select_best_ah_candidate(
             required_ev += 2.0
 
         if c_line in moderate_negative_lines:
-            # Linhas de handicap negativo (-0.5, -0.75, -1.0) são restritas a Super-Favoritos ou Tier 1 com Assimetria Dominante
-            if not is_eligible_negative:
-                continue
-            if c_odd < 1.50 or c_odd > 1.95:
-                continue
-            required_prob = 58.0 if is_super_fav_crushed else 65.0
-            required_ev = 8.0 if is_super_fav_crushed else 15.0
+            # -0.5 AH pode ser liberado para mandantes com dominância de Poisson OU super-favoritos/assimetria
+            # Linhas mais profundas (-0.75 AH e -1.0 AH) permanecem terminantemente restritas a Super-Favoritos ou Tier 1 Dominante
+            if c_line == -0.5:
+                if not (is_eligible_negative or is_home_poisson_dominant_minus_half):
+                    continue
+                # Faixa de odd segura para -0.5 AH (permite cotas a partir de 1.35 para mandantes de elite)
+                if c_odd < 1.35 or c_odd > 1.95:
+                    continue
+                required_prob = 58.0 if is_super_fav_crushed else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
+                required_ev = 8.0 if is_super_fav_crushed else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
+            else:
+                # Linhas -0.75 AH e -1.0 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
+                if not is_eligible_negative:
+                    continue
+                if c_odd < 1.50 or c_odd > 1.95:
+                    continue
+                required_prob = 58.0 if is_super_fav_crushed else 65.0
+                required_ev = 8.0 if is_super_fav_crushed else 15.0
         elif c_line == -0.25:
             # Linha conservadora de -0.25 AH:
             # 1. Somente para Mandante (Home) ou Super-Favorito comprovado
             if c_is_away and not is_super_fav_crushed:
                 continue
-            # 2. Exclusivamente quando a odd 1X2 da equipe favorita for <= 1.85 (favorito sólido de mercado).
-            #    Se a odd 1X2 for > 1.85 (ex: 1.95 a 2.30), o mercado precifica equilíbrio com alto risco de empate;
+            # 2. Exclusivamente quando a odd 1X2 da equipe favorita for <= 1.75 (favorito sólido de mercado).
+            #    Se a odd 1X2 for > 1.75 (ex: 1.80 a 2.30), o mercado precifica equilíbrio com alto risco de empate;
             #    nesses cenários, é mandatório operar na linha 0.0 AH (DNB) com proteção total de capital.
-            if cand_odd > 1.85:
+            if cand_odd > 1.75:
                 continue
-            # 3. Exige Favorito em Grande Fase comprovada no U5J (ou Super-Favorito)
+            # 3. Trava de Adversário Competitivo no U5J: se o adversário tiver bom aproveitamento (>= 10 pts ou >= 3 vitórias),
+            #    o confronto é parelho e a proteção do empate via 0.0 AH é mandatória.
+            if opp_pts >= 10 or opp_v >= 3:
+                continue
+            # 4. Exige Favorito em Grande Fase comprovada no U5J (ou Super-Favorito)
             if not (is_fav_in_form or is_eligible_negative):
                 continue
-            # 4. Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
+            # 5. Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
             if c_odd < 1.50 or c_odd > 1.85:
                 continue
-            # 5. Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
+            # 6. Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
             if cand_trend == "CURVA_DESCENDENTE":
                 continue
             required_prob = 62.0  # Calibrado de 55.0% para 62.0% (filtro de alta convicção pré-PR #103)
@@ -1053,11 +1100,28 @@ def calculate_unified_handicap_recommendation(
         return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
 
     # Projeção de xG:
-    # 1. Fonte Primária: xG calibrado do banco de dados (fixtures_trends.xg_home / xg_away) da modelagem estatística robusta
-    xg_h = float(fixture_dict.get('xg_home') or 0.0)
-    xg_a = float(fixture_dict.get('xg_away') or 0.0)
+    # 1. Prioridade Absoluta: xG Adj contextualmente calibrado no reasoning (com mando, streak e odds integradas)
+    xg_adj_h = None
+    xg_adj_a = None
+    if reasoning:
+        m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        if m_h and m_a:
+            try:
+                xg_adj_h = float(m_h.group(1))
+                xg_adj_a = float(m_a.group(1))
+            except Exception:
+                pass
 
-    # 2. Fallback Secundário: Projeção de xG a partir dos 5 jogos consolidados de U5J caso xG do banco esteja zerado/indisponível
+    if xg_adj_h is not None and xg_adj_a is not None and xg_adj_h > 0.1 and xg_adj_a > 0.1:
+        xg_h = xg_adj_h
+        xg_a = xg_adj_a
+    else:
+        # 2. Fonte Secundária: xG calibrado do banco de dados (fixtures_trends.xg_home / xg_away)
+        xg_h = float(fixture_dict.get('xg_home') or 0.0)
+        xg_a = float(fixture_dict.get('xg_away') or 0.0)
+
+    # 3. Fallback: Projeção de xG a partir dos 5 jogos consolidados de U5J caso xG esteja zerado/indisponível
     if xg_h <= 0.1 or xg_a <= 0.1:
         if 'home' in u_json and 'away' in u_json:
             h_m = u_json['home'].get('matches', [])
@@ -1088,15 +1152,6 @@ def calculate_unified_handicap_recommendation(
             if a_sc and h_con:
                 raw_xg_a = (sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0
                 xg_a = round(raw_xg_a * 0.92, 2)
-
-    # 3. Fallback Terciário: Extração de xG a partir do reasoning em texto
-    if xg_h <= 0.1 or xg_a <= 0.1:
-        m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
-        m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
-        if m_h:
-            xg_h = float(m_h.group(1))
-        if m_a:
-            xg_a = float(m_a.group(1))
 
     if xg_h <= 0.1 or xg_a <= 0.1:
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Sem xG] Métricas de xG derivadas de U5J ausentes para {home_team} vs {away_team}. Abstenção mandatória."
@@ -1200,7 +1255,8 @@ def calculate_unified_handicap_recommendation(
     # Trava Universal de Coerência de xG Relativo às Odds 1X2 Oficiais (Prevenção de xG Descolado do Banco):
     if odd_h > 1.0 and odd_a > 1.0 and xg_h > 0 and xg_a > 0:
         is_tight_market = abs(odd_h - odd_a) <= 0.35 or (2.20 <= odd_h <= 2.90 and 2.20 <= odd_a <= 2.90)
-        max_allowed_ratio = 1.55 if is_tight_market else 2.20
+        odds_ratio = (odd_a / odd_h) if odd_h < odd_a else (odd_h / odd_a)
+        max_allowed_ratio = 1.55 if is_tight_market else max(2.20, min(6.0, odds_ratio * 0.90))
         ratio_recalc = False
         if (xg_a / xg_h) > max_allowed_ratio:
             xg_a = round(xg_h * max_allowed_ratio, 2)
@@ -1366,7 +1422,9 @@ def calculate_unified_handicap_recommendation(
         away_team=away_team,
         home_team_id=fixture_dict.get('home_team_id'),
         away_team_id=fixture_dict.get('away_team_id'),
-        existing_reasoning=reasoning
+        existing_reasoning=reasoning,
+        odd_home=odd_h,
+        odd_away=odd_a
     )
 
     # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)
@@ -1880,7 +1938,9 @@ def compose_compound_ah_reasoning(
     away_team: str,
     home_team_id: int = None,
     away_team_id: int = None,
-    existing_reasoning: str = None
+    existing_reasoning: str = None,
+    odd_home: float = None,
+    odd_away: float = None
 ) -> str:
     """
     Constrói e garante a integridade do formato composto de fixtures_trends.ah_reasoning:
@@ -2024,16 +2084,16 @@ def compose_compound_ah_reasoning(
             if abs(h_eff_val - a_eff_val) >= 2.5:
                 existing_motivation = None
 
-    if not u5j_json_str:
-        u5j_json_str = json.dumps({
-            "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
-            "away": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []}
-        }, ensure_ascii=False)
-
-    nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
-    if not existing_motivation:
-        odd_home, odd_away = None, None
-        if cursor and fixture_id:
+    # Resolução dinâmica e robusta de cotações 1X2 para validação e geração da narrativa
+    if (odd_home is None or odd_away is None) and fixture_id:
+        b1x2 = _betano_ah_1x2_cache.get(fixture_id) if '_betano_ah_1x2_cache' in globals() else None
+        if b1x2 and b1x2.get('casa') and b1x2.get('visitante'):
+            try:
+                odd_home = float(b1x2['casa'])
+                odd_away = float(b1x2['visitante'])
+            except Exception:
+                pass
+        elif cursor:
             try:
                 cursor.execute("SELECT odd_home, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
                 r_odds = cursor.fetchone()
@@ -2042,6 +2102,36 @@ def compose_compound_ah_reasoning(
                     odd_away = r_odds.get("odd_away")
             except Exception:
                 pass
+
+    # Validação de coerência das odds 1X2 com a narrativa existente
+    if existing_motivation and odd_home and odd_away:
+        try:
+            oh_val = float(odd_home)
+            oa_val = float(odd_away)
+            if oh_val > 1.0 and oa_val > 1.0:
+                is_home_sug = home_team.lower() in str(suggestion).lower()
+                backed_team_name = home_team if is_home_sug else away_team
+                opp_team_name = away_team if is_home_sug else home_team
+                backed_odd_val = oh_val if is_home_sug else oa_val
+                opp_odd_val = oa_val if is_home_sug else oh_val
+
+                # Se a narrativa gravada afirma que a casa aponta o time apostado como favorito, mas as odds 1X2 mostram que o adversário tem odd menor
+                if f"apontam corretamente o {backed_team_name} como favorito" in existing_motivation and opp_odd_val < backed_odd_val:
+                    existing_motivation = None
+                # Se a narrativa gravada afirma que a casa aponta o adversário como favorito, mas o time apostado tem odd menor
+                elif f"apontem o {opp_team_name} como favorito" in existing_motivation and backed_odd_val < opp_odd_val:
+                    existing_motivation = None
+        except Exception:
+            pass
+
+    if not u5j_json_str:
+        u5j_json_str = json.dumps({
+            "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
+            "away": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []}
+        }, ensure_ascii=False)
+
+    nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
+    if not existing_motivation:
         nl_mot = generate_high_level_ah_narrative(
             suggestion=suggestion,
             home_team=home_team,

@@ -1364,10 +1364,10 @@ if (!function_exists('getBookmakerUrl')) {
                 $betProcText = 'Processamento: ✅ Completo';
                 $betProcClass = 'proc-complete';
                 $betProcTooltip = 'Aposta devidamente liquidada com resultado oficial gravado.';
-              } elseif (!empty($placarExibir) || !empty($aposta->resultado_detalhado)) {
+              } elseif (!empty($placarExibir)) {
                 $betProcText = 'Processamento: 🌗 Parcial';
                 $betProcClass = 'proc-partial';
-                $betProcTooltip = 'Partida encerrada, aguardando apuração da DAG das 23h.';
+                $betProcTooltip = 'Partida encerrada com placar registrado, aguardando apuração da DAG de liquidação.';
               }
             ?>
 

@@ -50,8 +50,35 @@
         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
 
+    .badge-status-meio-green {
+        background-color: #15803d !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        padding: 0.45em 0.85em;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .badge-status-meio-red {
+        background-color: #c2410c !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        padding: 0.45em 0.85em;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
     .badge-status-red {
         background-color: #991b1b !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        padding: 0.45em 0.85em;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .badge-status-cashout {
+        background-color: #d97706 !important;
         color: #ffffff !important;
         font-weight: 700;
         padding: 0.45em 0.85em;
@@ -619,9 +646,15 @@
                                     <?php
                                         $st = strtoupper($p->resultado_status);
                                         $lucro = (float)($p->lucro_real ?? 0.0);
-                                        if ($st === 'GREEN') {
+                                        $isCashout = !empty($p->is_cashout) || (($p->aposta_status ?? '') === 'Cashout');
+                                        
+                                        if ($isCashout) {
+                                            $prefix = ($lucro > 0.01) ? '+R$ ' : (($lucro < -0.01) ? '-R$ ' : 'R$ ');
+                                            $colorClass = ($lucro > 0.01) ? 'text-success' : (($lucro < -0.01) ? 'text-danger' : 'text-warning');
+                                            echo '<span class="fw-bold ' . $colorClass . '">' . $prefix . number_format(abs($lucro), 2, ',', '.') . ' <small class="text-white-50">(Cashout)</small></span>';
+                                        } elseif ($st === 'GREEN' || $st === 'MEIO_GREEN') {
                                             echo '<span class="fw-bold text-success">+R$ ' . number_format($lucro, 2, ',', '.') . '</span>';
-                                        } elseif ($st === 'RED') {
+                                        } elseif ($st === 'RED' || $st === 'MEIO_RED') {
                                             echo '<span class="fw-bold text-danger">-R$ ' . number_format(abs($lucro), 2, ',', '.') . '</span>';
                                         } elseif ($st === 'VOID') {
                                             echo '<span class="fw-bold text-info">R$ 0,00 (Reembolso)</span>';
@@ -637,10 +670,16 @@
                                     <?php
                                         if ($st === 'GREEN') {
                                             echo '<span class="badge badge-status-green"><i class="bi bi-check-lg me-1"></i> GREEN</span>';
+                                        } elseif ($st === 'MEIO_GREEN') {
+                                            echo '<span class="badge badge-status-meio-green"><i class="bi bi-check me-1"></i> MEIO-GREEN</span>';
+                                        } elseif ($st === 'MEIO_RED') {
+                                            echo '<span class="badge badge-status-meio-red"><i class="bi bi-dash-circle me-1"></i> MEIO-RED</span>';
                                         } elseif ($st === 'RED') {
                                             echo '<span class="badge badge-status-red"><i class="bi bi-x-lg me-1"></i> RED</span>';
                                         } elseif ($st === 'VOID') {
                                             echo '<span class="badge badge-status-void"><i class="bi bi-arrow-counterclockwise me-1"></i> VOID</span>';
+                                        } elseif ($st === 'CASHOUT') {
+                                            echo '<span class="badge badge-status-cashout"><i class="bi bi-box-arrow-right me-1"></i> CASHOUT</span>';
                                         } elseif ($st === 'NO_BET') {
                                             echo '<span class="badge badge-status-nobet"><i class="bi bi-slash-circle me-1"></i> NO-BET</span>';
                                         } else {

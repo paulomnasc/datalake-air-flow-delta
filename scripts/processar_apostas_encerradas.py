@@ -535,8 +535,16 @@ def process_pending_bets():
         # Obter estatísticas reais de encerramento do jogo
         stats = get_fixture_stats(fixture, cursor)
         if not stats:
-            status_curr = fixture.get('status', 'NS')
-            print(f"⏳ Partida {time_casa} vs {time_fora} com status '{status_curr}' ou estatísticas nulas/incompletas. Aposta #{aposta_id} permanece Pendente.")
+            status_curr = (fixture.get('status') or 'NS').strip().upper()
+            fix_date = fixture.get('fixture_date')
+            if status_curr == 'NS':
+                print(f"⏳ Partida {time_casa} vs {time_fora} agendada para {fix_date} (status 'NS' - Não iniciada). Aposta #{aposta_id} permanece Pendente.")
+            elif status_curr in ('PST', 'CANCELLED', 'POSTPONED', 'CANC', 'ABD'):
+                print(f"⏸️ Partida {time_casa} vs {time_fora} adiada/cancelada (status '{status_curr}'). Aposta #{aposta_id} permanece Pendente.")
+            elif status_curr in ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY'):
+                print(f"🔴 Partida {time_casa} vs {time_fora} em andamento (status '{status_curr}'). Aposta #{aposta_id} permanece Pendente.")
+            else:
+                print(f"⏳ Partida {time_casa} vs {time_fora} com status '{status_curr}' ou estatísticas nulas/incompletas. Aposta #{aposta_id} permanece Pendente.")
             continue
 
         # Avaliar Aposta

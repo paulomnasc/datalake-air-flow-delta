@@ -557,7 +557,7 @@ class ApostaController extends BaseController
                 return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
             }
 
-            // Regra Estrutural de -0.25 AH: Restrição a Mandantes Favoritos Sólidos (1X2 <= 1.85 e odd <= 1.85)
+            // Regra Estrutural de -0.25 AH: Restrição a Mandantes Favoritos Sólidos (1X2 <= 1.75 e odd <= 1.85)
             if (abs($line - (-0.25)) < 0.001) {
                 if ($isAway && !$isCandT1) {
                     $statusGatekeeper = 'NO_BET';
@@ -570,10 +570,45 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
                 $cand1x2 = $isAway ? $oddAway : $oddHome;
-                if ($cand1x2 > 1.85) {
+                if ($cand1x2 > 1.75) {
                     $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Equilíbrio de Mercado): Linha -0.25 AH bloqueada para equipes com odd 1X2 superior a 1.85 (@ {$cand1x2}). Em jogos equilibrados, a proteção mandatória de capital é Empate Anula (0.0 AH).";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Equilíbrio de Mercado): Linha -0.25 AH bloqueada para equipes com odd 1X2 superior a 1.75 (@ {$cand1x2}). Em jogos equilibrados, a proteção mandatória de capital é Empate Anula (0.0 AH).";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+
+                // Trava de Adversário Competitivo no U5J (>= 10 pts ou >= 3V)
+                $oppKey = $isAway ? 'home' : 'away';
+                if ($fixture && !empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
+                    $u5Arr = json_decode($mU5[1], true);
+                    if (!empty($u5Arr[$oppKey])) {
+                        $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
+                        $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
+                        if ($oppPts >= 10 || $oppV >= 3) {
+                            $statusGatekeeper = 'NO_BET';
+                            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Adversário Competitivo): Linha -0.25 AH bloqueada contra adversário em boa fase no U5J ({$oppPts} pts / {$oppV}V). Proteção mandatória via 0.0 AH.";
+                            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                        }
+                    }
+                }
+            }
+
+            // Regra para Linhas Negativas Esticadas (< -0.25 AH)
+            if ($line < -0.25) {
+                if (abs($line - (-0.5)) < 0.001) {
+                    // Linha -0.5 AH: permitida para Mandantes com Dominância de Poisson e 1X2 deprimida
+                    $isHomePoissonDom = (!$isAway && ($oddHome <= 1.50 || ($isCandT1 && $oddHome <= 1.55)) && $xgHome >= 2.40 && ($xgHome - $xgAway) >= 1.40 && !$isOppT1);
+                    if (!$isHomePoissonDom && !$isCandT1) {
+                        $statusGatekeeper = 'NO_BET';
+                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linha -0.5 AH reservada exclusivamente a mandantes com dominância indiscutível de Poisson e cotação 1X2 deprimida, ou Super-Favoritos Tier 1.";
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                    }
+                } else {
+                    // Linhas mais profundas (< -0.5 AH, como -0.75 e -1.0): NUNCA destravadas por Poisson isolado (destravando -0.5 AH APENAS)
+                    if (!$isCandT1) {
+                        $statusGatekeeper = 'NO_BET';
+                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas mais agressivas que -0.5 AH (-0.75, -1.0) são restritas estritamente a Super-Favoritos Tier 1 em massacre.";
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                    }
                 }
             }
 
@@ -609,9 +644,10 @@ class ApostaController extends BaseController
                 }
             }
 
-            if ($odd < 1.45) {
+            $minOddFloor = (abs($line - (-0.5)) < 0.001 && !$isAway) ? 1.35 : 1.45;
+            if ($odd < $minOddFloor) {
                 $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< {$minOddFloor}) para Handicap Asiático. Sem margem de valor esperado (+EV).";
                 return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
             }
 
@@ -694,7 +730,10 @@ class ApostaController extends BaseController
             if (abs($line - (-0.25)) < 0.001) {
                 $minProbReq = 62.0;
                 $minEvReq = 8.0;
-            } elseif ($line < -0.25) {
+            } elseif (abs($line - (-0.5)) < 0.001) {
+                $minProbReq = 60.0;
+                $minEvReq = 5.0;
+            } elseif ($line < -0.5) {
                 $minProbReq = 65.0;
                 $minEvReq = 12.0;
             } else {
@@ -2551,58 +2590,174 @@ class ApostaController extends BaseController
 
             $isConfirmedOrDebited = (isset($ap->confirmada) && (int)$ap->confirmada === 1) || (!empty($ap->tem_debito) && (int)$ap->tem_debito > 0);
 
+            // 1. Contabilidade Financeira Real da Carteira (Mantém ROI e Lucro Líquido intactos)
             if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
-                $statusNorm = 'GREEN';
                 $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
                 $lucroAposta = $ret - $stake;
                 $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
-                $winWeight = 1.0;
-                $isDecided = true;
-                $category = 'GREEN';
             } elseif ($statusRaw === 'Meio Ganha') {
-                $statusNorm = 'GREEN';
                 $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
                 $lucroAposta = ($fullRet - $stake) / 2.0;
                 $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
-                $winWeight = 0.75;
-                $isDecided = true;
-                $category = 'GREEN';
             } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
-                $statusNorm = 'RED';
                 $lucroAposta = -$stake;
                 $unidadeDelta = -1.0;
-                $winWeight = 0.0;
-                $isDecided = true;
-                $category = 'RED';
             } elseif ($statusRaw === 'Meio Perdida') {
-                $statusNorm = 'RED';
                 $lucroAposta = -($stake / 2.0);
                 $unidadeDelta = -0.5;
-                $winWeight = 0.25;
-                $isDecided = true;
-                $category = 'RED';
             } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
-                $statusNorm = 'VOID';
                 $lucroAposta = 0.0;
                 $unidadeDelta = 0.0;
-                $winWeight = 0.0;
-                $isDecided = false;
-                $category = 'VOID';
             } elseif ($statusRaw === 'Cashout') {
                 $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
                 $lucroAposta = $cashVal - $stake;
                 $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
-                $statusNorm = ($lucroAposta >= 0.0) ? 'GREEN' : 'RED';
-                $winWeight = ($lucroAposta > 0.0) ? 1.0 : 0.0;
-                $isDecided = true;
-                $category = $statusNorm;
-            } else {
-                if ($ap->status_gatekeeper === 'NO_BET' && !$isConfirmedOrDebited) {
-                    $statusNorm = 'NO_BET';
-                    $category = 'NO_BET';
+            }
+
+            // 2. Avaliação Esportiva do Palpite (Acurácia de Campo da IA para Win Rate, Red Rate, Cobertura e Badges)
+            $sportingStatus = null;
+            $sportingWinWeight = null;
+            $sportingIsDecided = false;
+
+            if ($ap->goals_home !== null && $ap->goals_away !== null) {
+                $gHome = (int)$ap->goals_home;
+                $gAway = (int)$ap->goals_away;
+                $palpiteLower = mb_strtolower(trim((string)$ap->palpite), 'UTF-8');
+                $mercadoLower = mb_strtolower(trim((string)$ap->mercado), 'UTF-8');
+                $timeCasaLower = mb_strtolower(trim((string)$ap->time_casa), 'UTF-8');
+                $timeForaLower = mb_strtolower(trim((string)$ap->time_fora), 'UTF-8');
+
+                // A. Handicap Asiático / DNB
+                if (strpos($mercadoLower, 'handicap') !== false || strpos($palpiteLower, 'ah') !== false || strpos($palpiteLower, '0.0') !== false || strpos($palpiteLower, '0,0') !== false) {
+                    $isAwayBet = false;
+                    if (!empty($timeForaLower) && strpos($palpiteLower, $timeForaLower) !== false) {
+                        $isAwayBet = true;
+                    } elseif (strpos($palpiteLower, 'fora') !== false || strpos($palpiteLower, 'visitante') !== false || strpos($palpiteLower, ' 2 ') !== false) {
+                        $isAwayBet = true;
+                    }
+
+                    $line = 0.0;
+                    if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', (string)$ap->palpite, $mLine)) {
+                        $line = (float)str_replace(',', '.', $mLine[1]);
+                    }
+
+                    $diffGols = $isAwayBet ? ($gAway - $gHome) : ($gHome - $gAway);
+                    $adj = $diffGols + $line;
+
+                    if ($adj > 0.25) {
+                        $sportingStatus = 'GREEN';
+                        $sportingWinWeight = 1.0;
+                        $sportingIsDecided = true;
+                    } elseif (abs($adj - 0.25) < 0.01) {
+                        $sportingStatus = 'MEIO_GREEN';
+                        $sportingWinWeight = 0.75;
+                        $sportingIsDecided = true;
+                    } elseif (abs($adj) < 0.01) {
+                        $sportingStatus = 'VOID';
+                        $sportingWinWeight = 0.0;
+                        $sportingIsDecided = false;
+                    } elseif (abs($adj - (-0.25)) < 0.01) {
+                        $sportingStatus = 'MEIO_RED';
+                        $sportingWinWeight = 0.25;
+                        $sportingIsDecided = true;
+                    } else {
+                        $sportingStatus = 'RED';
+                        $sportingWinWeight = 0.0;
+                        $sportingIsDecided = true;
+                    }
+                } elseif (strpos($mercadoLower, 'cart') !== false || strpos($palpiteLower, 'cart') !== false) {
+                    if ($ap->yellow_cards_home !== null && $ap->yellow_cards_away !== null) {
+                        $totCards = (int)$ap->yellow_cards_home + (int)$ap->yellow_cards_away + (int)($ap->red_cards_home ?? 0) + (int)($ap->red_cards_away ?? 0);
+                        $thresh = 4.5;
+                        if (preg_match('/(\d+(?:[\.,]\d+)?)/', (string)$ap->palpite, $mThresh)) {
+                            $thresh = (float)str_replace(',', '.', $mThresh[1]);
+                        }
+                        $isUnder = (strpos($palpiteLower, 'menos') !== false || strpos($palpiteLower, 'under') !== false);
+                        $won = $isUnder ? ($totCards < $thresh) : ($totCards > $thresh);
+                        $sportingStatus = $won ? 'GREEN' : 'RED';
+                        $sportingWinWeight = $won ? 1.0 : 0.0;
+                        $sportingIsDecided = true;
+                    }
+                } elseif (strpos($mercadoLower, 'gol') !== false || strpos($palpiteLower, 'gol') !== false) {
+                    $totGoals = $gHome + $gAway;
+                    $thresh = 2.5;
+                    if (preg_match('/(\d+(?:[\.,]\d+)?)/', (string)$ap->palpite, $mThresh)) {
+                        $thresh = (float)str_replace(',', '.', $mThresh[1]);
+                    }
+                    $isUnder = (strpos($palpiteLower, 'menos') !== false || strpos($palpiteLower, 'under') !== false);
+                    $won = $isUnder ? ($totGoals < $thresh) : ($totGoals > $thresh);
+                    $sportingStatus = $won ? 'GREEN' : 'RED';
+                    $sportingWinWeight = $won ? 1.0 : 0.0;
+                    $sportingIsDecided = true;
+                }
+            }
+
+            // Se obtivemos a avaliação esportiva do campo, ela prevalece para a eficiência do palpite
+            if ($sportingStatus !== null) {
+                $statusNorm = $sportingStatus;
+                $winWeight = $sportingWinWeight;
+                $isDecided = $sportingIsDecided;
+                if ($sportingStatus === 'GREEN' || $sportingStatus === 'MEIO_GREEN') {
+                    $category = 'GREEN';
+                } elseif ($sportingStatus === 'RED' || $sportingStatus === 'MEIO_RED') {
+                    $category = 'RED';
+                } elseif ($sportingStatus === 'VOID') {
+                    $category = 'VOID';
                 } else {
-                    $statusNorm = 'PENDING';
                     $category = 'PENDING';
+                }
+            } else {
+                // Fallback quando não há dados de placar oficial ainda
+                if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                    $statusNorm = 'GREEN';
+                    $winWeight = 1.0;
+                    $isDecided = true;
+                    $category = 'GREEN';
+                } elseif ($statusRaw === 'Meio Ganha') {
+                    $statusNorm = 'MEIO_GREEN';
+                    $winWeight = 0.75;
+                    $isDecided = true;
+                    $category = 'GREEN';
+                } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                    $statusNorm = 'RED';
+                    $winWeight = 0.0;
+                    $isDecided = true;
+                    $category = 'RED';
+                } elseif ($statusRaw === 'Meio Perdida') {
+                    $statusNorm = 'MEIO_RED';
+                    $winWeight = 0.25;
+                    $isDecided = true;
+                    $category = 'RED';
+                } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                    $statusNorm = 'VOID';
+                    $winWeight = 0.0;
+                    $isDecided = false;
+                    $category = 'VOID';
+                } elseif ($statusRaw === 'Cashout') {
+                    if ($lucroAposta > 0.01) {
+                        $statusNorm = 'GREEN';
+                        $winWeight = 1.0;
+                        $isDecided = true;
+                        $category = 'GREEN';
+                    } elseif ($lucroAposta < -0.01) {
+                        $statusNorm = 'RED';
+                        $winWeight = 0.0;
+                        $isDecided = true;
+                        $category = 'RED';
+                    } else {
+                        $statusNorm = 'CASHOUT';
+                        $winWeight = 0.0;
+                        $isDecided = false;
+                        $category = 'VOID';
+                    }
+                } else {
+                    if ($ap->status_gatekeeper === 'NO_BET' && !$isConfirmedOrDebited) {
+                        $statusNorm = 'NO_BET';
+                        $category = 'NO_BET';
+                    } else {
+                        $statusNorm = 'PENDING';
+                        $category = 'PENDING';
+                    }
                 }
             }
 
@@ -2677,30 +2832,30 @@ class ApostaController extends BaseController
                 $probProj = (stripos($ap->palpite, 'mais') !== false || stripos($ap->palpite, 'over') !== false) ? $ov : (100.0 - $ov);
             }
 
-            if ($probProj !== null && $probProj > 0 && in_array($statusNorm, ['GREEN', 'RED', 'VOID'], true)) {
+            if ($probProj !== null && $probProj > 0 && in_array($category, ['GREEN', 'RED', 'VOID'], true)) {
                 $somaProbProjetada += $probProj;
                 $countProbValida++;
             }
 
             // Segmentação de Risco
             $segKey = null;
-            if (stripos($ap->mercado, 'cart') !== false || stripos($ap->palpite, 'cart') !== false) {
-                $segKey = 'cartoes';
-            } elseif (stripos($ap->mercado, 'handicap') !== false || stripos($ap->palpite, 'ah') !== false) {
+            if (stripos($ap->mercado, 'handicap') !== false || stripos($ap->palpite, 'ah') !== false) {
                 if (stripos($ap->palpite, '-') !== false || preg_match('/-[0-9]/', $ap->palpite)) {
                     $segKey = 'agressivo';
                 } else {
                     $segKey = 'defensivo';
                 }
+            } elseif (stripos($ap->mercado, 'cart') !== false || stripos($ap->palpite, 'cartão') !== false || stripos($ap->palpite, 'cartao') !== false || stripos($ap->palpite, 'cartões') !== false || stripos($ap->palpite, 'cartoes') !== false || stripos($ap->palpite, 'card') !== false) {
+                $segKey = 'cartoes';
             }
 
-            if ($segKey && in_array($statusNorm, ['GREEN', 'RED', 'VOID'], true)) {
+            if ($segKey && in_array($category, ['GREEN', 'RED', 'VOID'], true)) {
                 $segmentacao[$segKey]['total']++;
                 $segmentacao[$segKey]['unidades'] += 1.0;
                 $segmentacao[$segKey]['lucro'] += $unidadeDelta;
-                if ($statusNorm === 'GREEN') $segmentacao[$segKey]['green']++;
-                elseif ($statusNorm === 'RED') $segmentacao[$segKey]['red']++;
-                elseif ($statusNorm === 'VOID') $segmentacao[$segKey]['void']++;
+                if ($category === 'GREEN') $segmentacao[$segKey]['green']++;
+                elseif ($category === 'RED') $segmentacao[$segKey]['red']++;
+                elseif ($category === 'VOID') $segmentacao[$segKey]['void']++;
             }
 
             // Objeto formatado para compatibilidade total com a view
@@ -2717,6 +2872,8 @@ class ApostaController extends BaseController
             $itemObj->valor_aposta      = $stake;
             $itemObj->lucro_real        = $lucroAposta;
             $itemObj->resultado_status  = $statusNorm;
+            $itemObj->is_cashout        = ($statusRaw === 'Cashout');
+            $itemObj->aposta_status     = $statusRaw;
             $itemObj->detalhe_resultado = $ap->resultado_detalhado ?? '';
             $itemObj->prob_projetada    = $probProj ? round($probProj, 1) : null;
             $itemObj->goals_home        = $ap->goals_home;

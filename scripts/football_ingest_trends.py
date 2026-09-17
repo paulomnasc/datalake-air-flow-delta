@@ -521,8 +521,8 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         """, (team_id, team_name, league_id, json.dumps(matches[:5])))
                         if hasattr(cursor, 'connection') and cursor.connection:
                             cursor.connection.commit()
-                    except Exception:
-                        pass
+                    except Exception as e_u5j:
+                        print(f"⚠️ [Cache U5J] Erro ao persistir team_last5_cache para '{team_name}' (#{team_id}): {e_u5j}")
                 if len(matches) >= 5:
                     has_cached_entry = True
         except Exception as e_api_m:
@@ -747,10 +747,10 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         """, (team_id, team_name, league_id, json.dumps(matches[:5])))
                         if hasattr(cursor, 'connection') and cursor.connection:
                             cursor.connection.commit()
-                    except Exception:
-                        pass
+                    except Exception as e_u5j_f24:
+                        print(f"⚠️ [Cache U5J Futbol24] Erro ao persistir team_last5_cache para '{team_name}' (#{team_id}): {e_u5j_f24}")
         except Exception as e_f24_form:
-            pass
+            print(f"⚠️ [Futbol24 Form] Erro ao processar retrospecto recente para '{team_name}': {e_f24_form}")
 
     # 5. Se não houver partidas encontradas no banco nem via API/scraper
     if not matches:
@@ -2612,8 +2612,8 @@ def sync_scores_from_the_odds_api_fallback(cursor, pending_fixtures, conn=None):
                                 if h_tid or a_tid:
                                     try:
                                         cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
-                                    except Exception:
-                                        pass
+                                    except Exception as e_del:
+                                        print(f"⚠️ [Cache U5J] Erro ao invalidar team_last5_cache para times {h_tid}, {a_tid}: {e_del}")
 
                                 print(f"  ⚽ [The Odds API Fallback] Placar consolidado: {p['home_team']} {gh} x {ga} {p['away_team']} (fixture_id={fid}) -> FT")
                                 total_updated += 1
@@ -2710,8 +2710,8 @@ def sync_pending_past_fixtures(conn, headers):
                                     if h_tid or a_tid:
                                         try:
                                             cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
-                                        except Exception:
-                                            pass
+                                        except Exception as e_del:
+                                            print(f"⚠️ [Cache U5J] Erro ao invalidar team_last5_cache para times {h_tid}, {a_tid}: {e_del}")
                                 updated_count += 1
                                 updated_fixture_ids.add(fid)
                     except Exception as e_date:
@@ -3196,8 +3196,8 @@ def main():
                         away_team_id = VALUES(away_team_id),
                         status = VALUES(status);
                 """, (f_id, f_date, l_id, l_name, l_round, h_team, a_team, h_team_id, a_team_id, st_short))
-            except Exception:
-                pass
+            except Exception as e_pre_ins:
+                print(f"🚨 [fixtures_trends Pre-Insert] Erro ao pré-inserir partida #{f_id} ({h_team} vs {a_team}): {e_pre_ins}")
     conn.commit()
 
     # Enriquecimento inicial de Odds ANTES do processamento de estatísticas pesadas por partida
@@ -3430,8 +3430,8 @@ def main():
                                 SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
-                        except Exception:
-                            pass
+                        except Exception as e_ma:
+                            print(f"⚠️ [team_moving_averages] Erro ao atualizar médias de cartões do time #{t_id}: {e_ma}")
                 elif (res_stats.get("avg_cards", 0.0) <= 0.50 or res_stats.get("matches_count", 0) < 3) and real_c_avg > 0:
                     res_stats["avg_cards"] = real_c_avg
                     res_stats["matches_count"] = max(res_stats.get("matches_count", 0), real_c_cnt)
@@ -3442,8 +3442,8 @@ def main():
                                 SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
-                        except Exception:
-                            pass
+                        except Exception as e_ma:
+                            print(f"⚠️ [team_moving_averages] Erro ao atualizar médias de cartões do time #{t_id}: {e_ma}")
 
                 return res_stats
 

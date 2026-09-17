@@ -228,8 +228,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = 0 WHERE fixture_id = %s", (fixture_id,))
             else:
                 cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = cards_api_retry_count + 1 WHERE fixture_id = %s", (fixture_id,))
-        except Exception:
-            pass
+        except Exception as e_stats_cards:
+            print(f"🚨 [match_statistics_cache] Erro ao salvar estatísticas/status da partida #{fixture_id}: {e_stats_cards}")
 
     return res_tuple
 

@@ -142,3 +142,19 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   2. **Arquivos e Trechos Modificados:** Relação completa de scripts, classes e métodos alterados.
   3. **Impacto Prático e Regras de Negócio:** Comparativo detalhado em linguagem clara explicando o comportamento anterior vs. o novo comportamento esperado do motor e da gestão de risco da banca.
   4. **Validação e Testes:** Registro das checagens de sintaxe, simulações ou testes executados que comprovam a estabilidade sistêmica da alteração.
+
+---
+
+## 15. Proibição Absoluta de Silenciamento de Exceções de Banco de Dados e Camada Model (Visibilidade Obrigatória de Falhas)
+- **Tolerância Zero a `except: pass` e Supressão Oculta de Erros:**
+  - É expressamente proibido silenciar, mascarar ou capturar genericamente exceções provenientes da camada de banco de dados (MySQL/Postgres) e da camada Model/DAO sem registrar detalhadamente a falha no console e nos logs do sistema.
+  - O uso de blocos como `except Exception: pass`, `except: continue` sem log, ou `catch (\Throwable $e) {}` vazios em rotinas de inserção, atualização ou exclusão de dados é **terminantemente proibido**.
+- **Obrigatoriedade de Contexto Completo no Registro de Falhas:**
+  - Qualquer erro relacional ou estrutural (violação de chave estrangeira `FK 1452`, chave duplicada `1062`, deadlock, timeout de conexão ou falha de constraints) deve obrigatoriamente imprimir no log:
+    1. A operação em execução (`INSERT`, `UPDATE`, `DELETE`);
+    2. A tabela e as entidades afetadas (ex: `fixture_id`, `team_id`, `referee_name`);
+    3. O código numérico e a mensagem literal emitida pelo banco de dados;
+    4. O impacto direto na esteira (ex: "abortando enriquecimento da partida por falha de integridade").
+- **Proteção da Banca contra Estados Corrompidos (Fail-Fast):**
+  - O sistema nunca deve prosseguir como se uma gravação tivesse sido realizada com sucesso quando a camada de banco rejeitou a operação.
+  - Se um dado indispensável não puder ser persistido devido a uma falha de modelo, a aposta ou predição correspondente deve ser imediatamente suspensa (`NO_BET` / Abstenção por Falha Relacional), evitando que apostas financeiras reais sejam emitidas sobre premissas estatísticas incompletas ou ausentes.

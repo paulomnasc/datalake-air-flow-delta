@@ -52,7 +52,8 @@ try:
         format_gatekeeper_result as cards_format_gatekeeper_result,
         is_knockout_round_advanced as cards_is_knockout_round_advanced,
         calculate_u5j_card_friction as cards_calculate_u5j_card_friction,
-        get_team_u5j_efficiency_cards as cards_get_team_u5j_efficiency
+        get_team_u5j_efficiency_cards as cards_get_team_u5j_efficiency,
+        enrich_missing_referees_batch
     )
 except Exception:
     cards_calculate_expected = None
@@ -62,6 +63,7 @@ except Exception:
     cards_is_knockout_round_advanced = None
     cards_calculate_u5j_card_friction = None
     cards_get_team_u5j_efficiency = None
+    enrich_missing_referees_batch = None
 
 
 
@@ -3248,6 +3250,27 @@ def main():
     except Exception as e_clean:
         print(f"Aviso ao executar limpeza de jogos de base/femininos: {e_clean}")
 
+    # Enriquecimento dinâmico de árbitros para partidas pré-jogo (< 48h) com escala pendente (Regra de Ouro nº 3, item 4)
+    if enrich_missing_referees_batch and filtered_fixtures:
+        try:
+            flat_fixtures = [{
+                'fixture_id': f['fixture']['id'],
+                'league_id': f.get('league', {}).get('id'),
+                'league_name': f.get('league', {}).get('name'),
+                'fixture_date': f.get('fixture', {}).get('date'),
+                'referee_name': f.get('fixture', {}).get('referee') or existing_db_referees.get(f['fixture']['id'])
+            } for f in filtered_fixtures]
+            enriched_refs = enrich_missing_referees_batch(cursor, conn, flat_fixtures)
+            if enriched_refs:
+                for f in filtered_fixtures:
+                    fid = f['fixture']['id']
+                    if fid in enriched_refs:
+                        f['fixture']['referee'] = enriched_refs[fid]
+                        existing_db_referees[fid] = enriched_refs[fid]
+                print(f"🪄 [Enriquecimento Dinâmico] {len(enriched_refs)} partida(s) tiveram árbitro oficial atualizado via API-Sports.")
+        except Exception as e_enr_ref:
+            print(f"Aviso ao executar enrich_missing_referees_batch: {e_enr_ref}")
+
     try:
         for f in filtered_fixtures:
             fix_id = f["fixture"]["id"]
@@ -3256,6 +3279,7 @@ def main():
             
             league_id = f["league"]["id"]
             league_name = f["league"]["name"]
+            l_round_val = f.get("league", {}).get("round", "")
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
 
@@ -3577,8 +3601,8 @@ def main():
                     suggestion=ah_suggestion,
                     home_team=home_team,
                     away_team=away_team,
-                    home_team_id=home_id,
-                    away_team_id=away_id,
+                    home_team_id=home_team_id,
+                    away_team_id=away_team_id,
                     existing_reasoning=existing_f_reasoning
                 )
             else:
@@ -3600,8 +3624,8 @@ def main():
                     odd_draw=cur_odd_draw,
                     odd_away=cur_odd_away,
                     league_name=l_name,
-                    home_team_id=home_id,
-                    away_team_id=away_id,
+                    home_team_id=home_team_id,
+                    away_team_id=away_team_id,
                     fixture_id=fix_id
                 )
                 ah_suggestion, ah_confidence, ah_reasoning = res_ah[0], res_ah[1], res_ah[2]
@@ -3682,8 +3706,8 @@ def main():
                 prediction_text = cards_format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', no_ref_reason) if cards_format_gatekeeper_result else f"STATUS GK: NO_BET\nSUGGESTION: Sem Entrada (Abstenção)\nREASON: {no_ref_reason}"
             else:
                 # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
-                h_eff = compute_team_u5j_efficiency(h_l5) if h_l5 else 0.0
-                a_eff = compute_team_u5j_efficiency(a_l5) if a_l5 else 0.0
+                h_eff = compute_team_u5j_efficiency(home_last5) if home_last5 else 0.0
+                a_eff = compute_team_u5j_efficiency(away_last5) if away_last5 else 0.0
                 friction_mult, friction_desc = cards_calculate_u5j_card_friction(h_eff, a_eff) if cards_calculate_u5j_card_friction else (1.0, "")
                 l_round_val = f.get("league", {}).get("round", "")
                 is_knockout = cards_is_knockout_round_advanced(l_round_val, league_name) if cards_is_knockout_round_advanced else False

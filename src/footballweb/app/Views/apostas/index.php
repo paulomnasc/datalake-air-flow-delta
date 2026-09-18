@@ -3658,6 +3658,95 @@ if (!function_exists('getBookmakerUrl')) {
     });
   }
 
+  // Função Global para Destacar Aposta e Ajustar Filtros Automaticamente
+  window.destacarApostaPorId = function(destaqueId, dataJogoSugerida) {
+    if (!destaqueId) return;
+
+    // 1. Localiza a aposta no conjunto carregado
+    const userApostas = <?= json_encode($apostas ?? []) ?>;
+    const targetBet = userApostas.find(a => String(a.id) === String(destaqueId));
+
+    // Determina a data do jogo no fuso de Brasília
+    let betDate = dataJogoSugerida || null;
+    if (targetBet) {
+      betDate = targetBet.data_brt_dia 
+        || (targetBet.data_hora_jogo_brt ? targetBet.data_hora_jogo_brt.substring(0, 10) : '')
+        || (targetBet.data_hora_jogo ? targetBet.data_hora_jogo.substring(0, 10) : '')
+        || (targetBet.criado_em ? targetBet.criado_em.substring(0, 10) : '');
+    }
+
+    // 2. Ajusta o filtro de período para contemplar a data do jogo
+    const startEl = document.getElementById('betStartDateInput');
+    const endEl = document.getElementById('betEndDateInput');
+    const selectEl = document.getElementById('betDatePresetSelect');
+
+    if (betDate && startEl && endEl) {
+      startEl.value = betDate;
+      endEl.value = betDate;
+      if (selectEl) {
+        const now = new Date();
+        const todayStr = formatDateYYYYMMDD(now);
+        selectEl.value = (betDate === todayStr) ? 'today' : 'custom';
+      }
+    } else if (typeof setBetDatePreset === 'function') {
+      setBetDatePreset('all');
+    }
+
+    // 3. Garante que o filtro de status seja 'all'
+    currentStatusFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('btnFilterAll')?.classList.add('active');
+
+    // 4. Garante que apostas canceladas estejam visíveis
+    currentWithoutCancelledFilter = '0';
+    const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
+    if (toggleCanceladas) {
+      toggleCanceladas.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
+      const btnNao = toggleCanceladas.querySelector('[data-val="0"]');
+      if (btnNao) btnNao.classList.add('active-no');
+    }
+
+    // 5. Reseta filtros de mercado, busca e jogos futuros que poderiam ocultar o card
+    const marketSelect = document.getElementById('betMarketFilterSelect');
+    if (marketSelect) marketSelect.value = 'all';
+
+    const searchInput = document.getElementById('betSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    currentFutureGamesFilter = 'all';
+    const futureToggle = document.getElementById('futureGamesSlideToggle');
+    if (futureToggle) {
+      futureToggle.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
+    }
+
+    // 6. Aplica os filtros na grade
+    if (typeof applyBetFilters === 'function') {
+      applyBetFilters();
+    }
+
+    // 7. Força visibilidade, rola a tela até o card e aplica o destaque pulsante
+    setTimeout(function() {
+      const cardItem = document.getElementById('aposta-card-' + destaqueId);
+      if (cardItem) {
+        cardItem.style.display = 'flex';
+        cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        cardItem.classList.add('pulse-highlight');
+        cardItem.style.boxShadow = '0 0 32px rgba(239, 68, 68, 1)';
+        cardItem.style.border = '2px solid #ef4444';
+      }
+    }, 350);
+  };
+
+  window.addEventListener('hashchange', function() {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#aposta-card-')) {
+      const id = hash.replace('#aposta-card-', '');
+      if (id && typeof window.destacarApostaPorId === 'function') {
+        window.destacarApostaPorId(id);
+      }
+    }
+  });
+
   // Auto-abrir modal e preencher dados quando direcionado do card do FootballWeb
   document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -3668,32 +3757,21 @@ if (!function_exists('getBookmakerUrl')) {
     const palpiteParam = urlParams.get('palpite');
     const destaqueId = urlParams.get('destaque_id');
     const filtroStatus = urlParams.get('filtro_status');
+    const dataJogoParam = urlParams.get('data_jogo');
 
     // Se vier com destaque_id ou filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
-    if (destaqueId || filtroStatus === 'Cancelada') {
+    if (destaqueId) {
+      window.destacarApostaPorId(destaqueId, dataJogoParam);
+    } else if (filtroStatus === 'Cancelada') {
       currentWithoutCancelledFilter = '0';
       const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
       if (toggleCanceladas) {
+        toggleCanceladas.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
         const btnNao = toggleCanceladas.querySelector('[data-val="0"]');
-        if (btnNao) {
-          toggleCanceladas.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
-          btnNao.classList.add('active');
-        }
+        if (btnNao) btnNao.classList.add('active-no');
       }
       if (typeof applyBetFilters === 'function') {
         applyBetFilters();
-      }
-
-      if (destaqueId) {
-        setTimeout(function() {
-          const cardItem = document.getElementById('aposta-card-' + destaqueId);
-          if (cardItem) {
-            cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            cardItem.classList.add('pulse-highlight');
-            cardItem.style.boxShadow = '0 0 28px rgba(239, 68, 68, 0.95)';
-            cardItem.style.border = '2px solid #ef4444';
-          }
-        }, 400);
       }
     }
 

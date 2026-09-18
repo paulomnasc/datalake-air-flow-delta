@@ -55,6 +55,39 @@ def get_live_env_vars():
                 pass
     return env_vars
 
+def format_game_date_brt(data_j):
+    """
+    Formata data do jogo para exibição em e-mails no horário de Brasília (UTC-3).
+    Suporta objetos datetime e strings ISO / SQL.
+    """
+    if not data_j:
+        return '-'
+    dt = None
+    if isinstance(data_j, datetime):
+        dt = data_j
+    elif isinstance(data_j, str) and data_j.strip() not in ('', '-'):
+        try:
+            dt = datetime.fromisoformat(data_j.strip().replace('Z', ''))
+        except Exception:
+            return data_j
+
+    if dt:
+        if dt.tzinfo is None:
+            from datetime import timezone
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt_utc = dt
+
+        try:
+            from zoneinfo import ZoneInfo
+            dt_brt = dt_utc.astimezone(ZoneInfo("America/Sao_Paulo"))
+        except Exception:
+            dt_brt = dt_utc - timedelta(hours=3)
+
+        return dt_brt.strftime("%d/%m/%Y %H:%M")
+
+    return str(data_j)
+
 def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
     """
     Envia e-mail formatado em HTML com a lista das novas apostas de cartões criadas.
@@ -78,11 +111,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
     for aposta in novas_apostas:
         tc = aposta.get('time_casa', '-')
         tv = aposta.get('time_fora', '-')
-        data_j = aposta.get('data_hora_jogo', '-')
-        if isinstance(data_j, datetime):
-            data_j = data_j.strftime("%d/%m/%Y %H:%M")
-        elif not data_j:
-            data_j = '-'
+        data_j = format_game_date_brt(aposta.get('data_hora_jogo'))
         
         casa = aposta.get('casa_de_aposta', 'Betano')
         palpite = aposta.get('palpite', '-')
@@ -523,6 +552,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             'fixture_id': fixture_id,
             'time_casa': home_team,
             'time_fora': away_team,
+            'data_hora_jogo': fixture_date,
             'palpite': selected_cand['palpite_str'],
             'casa_de_aposta': selected_cand.get('bookmaker', 'Betano'),
             'odd': selected_cand['real_odd'],

@@ -923,12 +923,33 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     });
                     container.innerHTML = html;
 
-                    // Evento de clique para marcar lida
+                    // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
                                 fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            }
+
+                            const href = this.getAttribute('href');
+                            if (href && typeof window.destacarApostaPorId === 'function') {
+                                try {
+                                    const parsedUrl = new URL(href, window.location.origin);
+                                    const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                                    const dataJogo = parsedUrl.searchParams.get('data_jogo');
+                                    if (destaqueId) {
+                                        e.preventDefault();
+                                        window.history.pushState({}, '', href);
+                                        window.destacarApostaPorId(destaqueId, dataJogo);
+
+                                        // Fecha o dropdown de notificações
+                                        const notifDropdownEl = document.getElementById('notificacoesDropdown');
+                                        if (notifDropdownEl && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+                                            const bsDrop = bootstrap.Dropdown.getInstance(notifDropdownEl);
+                                            if (bsDrop) bsDrop.hide();
+                                        }
+                                    }
+                                } catch(err) {}
                             }
                         });
                     });
@@ -986,9 +1007,22 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 
-            linkEl.onclick = function() {
+            linkEl.onclick = function(e) {
                 fetch(markReadUrl + '/' + notif.id, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 toastEl.style.display = 'none';
+
+                if (linkHref && typeof window.destacarApostaPorId === 'function') {
+                    try {
+                        const parsedUrl = new URL(linkHref, window.location.origin);
+                        const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                        const dataJogo = parsedUrl.searchParams.get('data_jogo');
+                        if (destaqueId) {
+                            e.preventDefault();
+                            window.history.pushState({}, '', linkHref);
+                            window.destacarApostaPorId(destaqueId, dataJogo);
+                        }
+                    } catch(err) {}
+                }
             };
 
             const btnClose = document.getElementById('btn-fechar-toast');

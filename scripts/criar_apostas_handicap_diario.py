@@ -127,6 +127,39 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
 
     return None, None
 
+def format_game_date_brt(data_j):
+    """
+    Formata data do jogo para exibição em e-mails no horário de Brasília (UTC-3).
+    Suporta objetos datetime e strings ISO / SQL.
+    """
+    if not data_j:
+        return '-'
+    dt = None
+    if isinstance(data_j, datetime):
+        dt = data_j
+    elif isinstance(data_j, str) and data_j.strip() not in ('', '-'):
+        try:
+            dt = datetime.fromisoformat(data_j.strip().replace('Z', ''))
+        except Exception:
+            return data_j
+
+    if dt:
+        if dt.tzinfo is None:
+            from datetime import timezone
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt_utc = dt
+
+        try:
+            from zoneinfo import ZoneInfo
+            dt_brt = dt_utc.astimezone(ZoneInfo("America/Sao_Paulo"))
+        except Exception:
+            dt_brt = dt_utc - timedelta(hours=3)
+
+        return dt_brt.strftime("%d/%m/%Y %H:%M")
+
+    return str(data_j)
+
 def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulomnasc@gmail.com"):
     """
     Envia e-mail formatado em HTML com a lista das novas apostas de Handicap Asiático criadas e/ou canceladas/estornadas.
@@ -158,11 +191,7 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
     for aposta in novas_apostas:
         tc = aposta.get('time_casa', '-')
         tv = aposta.get('time_fora', '-')
-        data_j = aposta.get('data_hora_jogo', '-')
-        if isinstance(data_j, datetime):
-            data_j = data_j.strftime("%d/%m/%Y %H:%M")
-        elif not data_j:
-            data_j = '-'
+        data_j = format_game_date_brt(aposta.get('data_hora_jogo'))
         
         palpite = aposta.get('palpite', '-')
         odd = float(aposta.get('odd', 0.0))
@@ -183,6 +212,7 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
     for aposta in apostas_canceladas:
         tc = aposta.get('time_casa', '-')
         tv = aposta.get('time_fora', '-')
+        data_j = format_game_date_brt(aposta.get('data_hora_jogo'))
         palpite = aposta.get('palpite', '-')
         valor = float(aposta.get('valor_aposta', 10.0))
         motivo = aposta.get('motivo', 'Abstenção da IA')
@@ -193,7 +223,7 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
 
         rows_canc_html += f"""
         <tr style="border-bottom: 1px solid #e0e0e0; background-color: #fff5f5;">
-            <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}</td>
+            <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}<br><span style="color: #666; font-weight: normal; font-size: 11px;">{data_j}</span></td>
             <td style="padding: 10px; font-size: 13px; color: #dc3545; font-weight: bold; text-align: center;">{palpite}</td>
             <td style="padding: 10px; font-size: 12px; color: #666;">{motivo}</td>
             <td style="padding: 10px; font-size: 12px; text-align: center;">{estorno_badge}</td>
@@ -226,7 +256,7 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
         <table style="width: 100%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #dee2e6; font-family: Arial, sans-serif;">
             <thead>
                 <tr style="background-color: #dc3545; color: #ffffff; text-align: left; font-size: 13px;">
-                    <th style="padding: 10px;">Partida</th>
+                    <th style="padding: 10px;">Partida / Horário</th>
                     <th style="padding: 10px; text-align: center;">Palpite Cancelado</th>
                     <th style="padding: 10px;">Motivo da Abstenção / Bloqueio</th>
                     <th style="padding: 10px; text-align: center;">Status do Estorno</th>
@@ -408,28 +438,47 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 estornado = True
                 print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
 
-        # Disparo da Notificação em Tempo Real: APENAS para apostas confirmadas (confirmada = 1 ou tem débito)
+        # Disparo da Notificação em Tempo Real (Sininho & Toast Pop-up) para todas as apostas canceladas
         is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)
         if is_aposta_confirmada:
-            titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            titulo_notif = f"⚠️ Aposta Cancelada (Estornada): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
                 f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}). "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}). Saldo de R$ {valor:.2f} estornado em conta. "
                 f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
             )
-            link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
-            registrar_notificacao_usuario(
-                cursor=cursor,
-                usuario_id=usuario_id,
-                aposta_id=aposta_id,
-                fixture_id=fixture_id,
-                tipo="APOSTA_CANCELADA",
-                titulo=titulo_notif,
-                mensagem=msg_notif,
-                link=link_notif
-            )
         else:
-            print(f"ℹ️ [Sininho Ignorado] Aposta #{aposta_id} não confirmada. Notificação de cancelamento dispensada.")
+            titulo_notif = f"⚠️ Sugestão Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            msg_notif = (
+                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}) por ausência de margem de segurança matemática (Gatekeeper NO_BET). "
+                f"Não realizar entrada nesta partida."
+            )
+
+        dj = aposta.get('data_hora_jogo')
+        dj_str = ""
+        if isinstance(dj, datetime):
+            try:
+                from zoneinfo import ZoneInfo
+                dj_brt = dj.astimezone(ZoneInfo("America/Sao_Paulo")) if dj.tzinfo else (dj - timedelta(hours=3))
+                dj_str = dj_brt.strftime("%Y-%m-%d")
+            except Exception:
+                dj_str = (dj - timedelta(hours=3)).strftime("%Y-%m-%d")
+        elif isinstance(dj, str) and len(dj) >= 10:
+            dj_str = dj[:10]
+
+        data_query = f"&data_jogo={dj_str}" if dj_str else ""
+        link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}{data_query}#aposta-card-{aposta_id}"
+        registrar_notificacao_usuario(
+            cursor=cursor,
+            usuario_id=usuario_id,
+            aposta_id=aposta_id,
+            fixture_id=fixture_id,
+            tipo="APOSTA_CANCELADA",
+            titulo=titulo_notif,
+            mensagem=msg_notif,
+            link=link_notif
+        )
 
         detail = dict(aposta)
         detail['motivo'] = motivo

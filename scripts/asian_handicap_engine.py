@@ -2446,28 +2446,47 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 estornado = True
                 print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
 
-        # Disparo da Notificação em Tempo Real: APENAS para apostas confirmadas (confirmada = 1 ou tem débito)
+        # Disparo da Notificação em Tempo Real (Sininho & Toast Pop-up) para todas as apostas canceladas
         is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)
         if is_aposta_confirmada:
-            titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            titulo_notif = f"⚠️ Aposta Cancelada (Estornada): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
                 f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}). "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}). Saldo de R$ {valor:.2f} estornado em conta. "
                 f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
             )
-            link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
-            registrar_notificacao_usuario(
-                cursor=cursor,
-                usuario_id=usuario_id,
-                aposta_id=aposta_id,
-                fixture_id=fixture_id,
-                tipo="APOSTA_CANCELADA",
-                titulo=titulo_notif,
-                mensagem=msg_notif,
-                link=link_notif
-            )
         else:
-            print(f"ℹ️ [Sininho Ignorado] Aposta #{aposta_id} não confirmada. Notificação de cancelamento dispensada.")
+            titulo_notif = f"⚠️ Sugestão Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+            msg_notif = (
+                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
+                f"({aposta['time_casa']} vs {aposta['time_fora']}) por ausência de margem de segurança matemática (Gatekeeper NO_BET). "
+                f"Não realizar entrada nesta partida."
+            )
+
+        dj = aposta.get('data_hora_jogo')
+        dj_str = ""
+        if isinstance(dj, datetime):
+            try:
+                from zoneinfo import ZoneInfo
+                dj_brt = dj.astimezone(ZoneInfo("America/Sao_Paulo")) if dj.tzinfo else (dj - timedelta(hours=3))
+                dj_str = dj_brt.strftime("%Y-%m-%d")
+            except Exception:
+                dj_str = (dj - timedelta(hours=3)).strftime("%Y-%m-%d")
+        elif isinstance(dj, str) and len(dj) >= 10:
+            dj_str = dj[:10]
+
+        data_query = f"&data_jogo={dj_str}" if dj_str else ""
+        link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}{data_query}#aposta-card-{aposta_id}"
+        registrar_notificacao_usuario(
+            cursor=cursor,
+            usuario_id=usuario_id,
+            aposta_id=aposta_id,
+            fixture_id=fixture_id,
+            tipo="APOSTA_CANCELADA",
+            titulo=titulo_notif,
+            mensagem=msg_notif,
+            link=link_notif
+        )
 
         detail = dict(aposta)
         detail['motivo'] = motivo

@@ -441,7 +441,63 @@ if (!function_exists('getBookmakerUrl')) {
   .bets-grid.list-view .asian-handicap-widget-box,
   .bets-grid.list-view .bet-card-detail-box,
   .bets-grid.list-view .bet-card-meta-row,
-  .bets-grid.list-view .bet-card-gk-row {
+  .bets-grid.list-view .bet-card-gk-row,
+  .bets-grid.list-view .bet-badge-toggle-bar,
+  .bets-grid.list-view .bet-card-section {
+    width: 100%;
+  }
+
+  /* Barra de Alternância Retrátil e Badges (Padrão Dashboard) */
+  .bet-badge-toggle-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 6px 0 10px 0;
+    width: 100%;
+  }
+  .bet-toggle-badge {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    user-select: none;
+    line-height: 1.2;
+  }
+  .bet-toggle-badge:hover {
+    background: rgba(51, 65, 85, 0.9);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+  .bet-toggle-badge.active {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  }
+  .bet-toggle-badge.green.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+    color: #10b981;
+  }
+  .bet-toggle-badge.blue.active {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+    color: #38bdf8;
+  }
+  .bet-toggle-badge.red.active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #ef4444;
+  }
+  .bet-card-section {
+    display: none;
+    margin-bottom: 12px;
     width: 100%;
   }
   .bets-grid.list-view .bet-card-footer {
@@ -1401,35 +1457,79 @@ if (!function_exists('getBookmakerUrl')) {
               }
             ?>
 
-            <?php if ($isAbstencaoBloqueada): ?>
-              <div class="asian-handicap-widget-box mb-3" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                  <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
-                    <i class="bi bi-shield-x me-1"></i> 🚫 <?= lang('App.bet_blocked_risk_management') ?>
-                  </span>
-                  <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
-                    ⚪ <?= lang('App.no_entry_abstention') ?>
-                  </span>
-                </div>
+            <?php 
+              $hasGkDetail = $isAbstencaoBloqueada || !empty($detalhadoExibir);
+            ?>
+            <?php if ($hasGkDetail): ?>
+              <?php
+                // Determina classe visual e rótulo do botão retrátil no padrão dos cards do Dashboard
+                $gkBadgeColor = 'blue';
+                $gkBadgeIcon = 'bi-shield-check';
+                $gkBadgeText = 'STATUS GK Detalhado';
 
-                <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
-                    <div style="font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 5px; font-size: 0.78rem;">
-                      <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
-                    </div>
-                    <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
-                      <i class="bi bi-shield-lock-fill"></i> <?= (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic') ?>
-                    </span>
-                  </div>
-                  <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
-                    <?= htmlspecialchars($abstencaoTexto) ?>
-                  </div>
-                </div>
+                if ($isAbstencaoBloqueada) {
+                  $gkBadgeColor = 'red';
+                  $gkBadgeIcon = 'bi-shield-x';
+                  $gkBadgeText = '🚫 Abstenção IA / Gatekeeper NO_BET';
+                } elseif (($aposta->status_gatekeeper ?? '') === 'APROVADO' || stripos($detalhadoExibir, 'STATUS GK: APROVADO') !== false) {
+                  $gkBadgeColor = 'green';
+                  $gkBadgeIcon = 'bi-shield-check';
+                  $gkBadgeText = '🛡️ STATUS GK: APROVADO';
+                } elseif (($aposta->status_gatekeeper ?? '') === 'NO_BET' || stripos($detalhadoExibir, 'STATUS GK: NO_BET') !== false) {
+                  $gkBadgeColor = 'red';
+                  $gkBadgeIcon = 'bi-shield-x';
+                  $gkBadgeText = '🚫 STATUS GK: NO_BET';
+                } elseif (!empty($detalhadoExibir)) {
+                  $gkBadgeColor = 'blue';
+                  $gkBadgeIcon = 'bi-info-circle';
+                  $gkBadgeText = 'ℹ️ Detalhes da Aposta';
+                }
+              ?>
+
+              <!-- Botão Retrátil no padrão dos cards do Dashboard -->
+              <div class="bet-badge-toggle-bar">
+                <button type="button" 
+                        id="btn-gk-<?= $aposta->id ?>" 
+                        class="bet-toggle-badge <?= $gkBadgeColor ?>" 
+                        onclick="toggleApostaGk(<?= $aposta->id ?>)"
+                        title="Clique para expandir/retrair a auditoria detalhada do Gatekeeper">
+                  <i class="bi <?= $gkBadgeIcon ?> me-1"></i> <?= $gkBadgeText ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                </button>
               </div>
-            <?php elseif (!empty($detalhadoExibir)): ?>
-              <div class="bet-card-detail-box" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; width: 100%;">
-                <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
-                <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+
+              <!-- Seção Retrátil do STATUS GK (carregada oculta com display: none por padrão) -->
+              <div id="sec-gk-<?= $aposta->id ?>" class="bet-card-section" style="display: none;">
+                <?php if ($isAbstencaoBloqueada): ?>
+                  <div class="asian-handicap-widget-box mb-2" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                      <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                        <i class="bi bi-shield-x me-1"></i> 🚫 <?= lang('App.bet_blocked_risk_management') ?>
+                      </span>
+                      <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
+                        ⚪ <?= lang('App.no_entry_abstention') ?>
+                      </span>
+                    </div>
+
+                    <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                        <div style="font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 5px; font-size: 0.78rem;">
+                          <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
+                        </div>
+                        <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
+                          <i class="bi bi-shield-lock-fill"></i> <?= (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic') ?>
+                        </span>
+                      </div>
+                      <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
+                        <?= htmlspecialchars($abstencaoTexto) ?>
+                      </div>
+                    </div>
+                  </div>
+                <?php elseif (!empty($detalhadoExibir)): ?>
+                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; width: 100%;">
+                    <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
+                    <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                  </div>
+                <?php endif; ?>
               </div>
             <?php endif; ?>
 
@@ -1453,11 +1553,11 @@ if (!function_exists('getBookmakerUrl')) {
             <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
               <div class="bet-card-gk-row mt-2 d-flex align-items-center gap-2 flex-wrap w-100" style="font-size: 0.78rem;">
                 <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
-                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" onclick="toggleApostaGk(<?= $aposta->id ?>)" style="cursor: pointer;" title="Clique para ver detalhes do Gatekeeper">
                     <i class="bi bi-shield-check me-1"></i> Gatekeeper: <?= lang('App.ev_approved') ?>
                   </span>
                 <?php elseif ($aposta->status_gatekeeper === 'NO_BET'): ?>
-                  <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1">
+                  <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1" onclick="toggleApostaGk(<?= $aposta->id ?>)" style="cursor: pointer;" title="Clique para ver detalhes do Gatekeeper">
                     <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET
                   </span>
                 <?php endif; ?>
@@ -3816,5 +3916,40 @@ if (!function_exists('getBookmakerUrl')) {
       toast.style.transform = 'translateX(25px)';
       setTimeout(() => toast.remove(), 350);
     }, 7000);
+  }
+
+  // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)
+  function toggleApostaGk(apostaId) {
+    if (!apostaId) return;
+    if (typeof $ !== 'undefined') {
+      const sec = $('#sec-gk-' + apostaId);
+      const btn = $('#btn-gk-' + apostaId);
+      if (!sec.length) return;
+      if (sec.is(':visible')) {
+        sec.slideUp(200, function() {
+          btn.removeClass('active');
+          btn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
+        });
+      } else {
+        sec.slideDown(200, function() {
+          btn.addClass('active');
+          btn.find('.icon-arrow').removeClass('bi-chevron-down').addClass('bi-chevron-up');
+        });
+      }
+    } else {
+      const sec = document.getElementById('sec-gk-' + apostaId);
+      const btn = document.getElementById('btn-gk-' + apostaId);
+      if (!sec) return;
+      const isVisible = sec.style.display !== 'none';
+      sec.style.display = isVisible ? 'none' : 'block';
+      if (btn) {
+        btn.classList.toggle('active', !isVisible);
+        const icon = btn.querySelector('.icon-arrow');
+        if (icon) {
+          icon.classList.toggle('bi-chevron-up', !isVisible);
+          icon.classList.toggle('bi-chevron-down', isVisible);
+        }
+      }
+    }
   }
 </script>

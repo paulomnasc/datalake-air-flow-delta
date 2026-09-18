@@ -2188,42 +2188,40 @@ def calculate_asian_handicap_suggestion(
         except Exception as e_bl:
             betano_lines = []
 
-    if not betano_lines:
-        suggestion = "Sem Entrada (Abstenção)"
-        confidence = 50.00
+    best_cand = None
+    approved_cands = []
+    if betano_lines and ah_evaluate_and_select_best_candidate and poisson_matrix_ah:
+        best_cand, approved_cands = ah_evaluate_and_select_best_candidate(
+            poisson_matrix_ah, betano_lines, home_team, away_team,
+            float(odd_home) if odd_home else 2.0, float(odd_away) if odd_away else 2.0,
+            min_ev=5.0, min_prob=58.0,
+            home_team_id=home_team_id, away_team_id=away_team_id,
+            home_last5=home_last5, away_last5=away_last5,
+            xg_home=lambda_home, xg_away=lambda_away
+        )
+
+    if best_cand:
+        suggestion = best_cand['palpite_str']
+        ev_res = best_cand['eval']
+        confidence = round(min(88.0, 55.0 + ev_res['ev_percent'] * 0.5), 1)
+        calc_memory += f" | 🎯 Gatekeeper Poisson AH: {suggestion} | Odd Justa {ev_res['odd_justa']:.2f} (Prob: {ev_res['prob_eff']:.1f}%) [Odd: {best_cand['odd']:.2f} | EV: {ev_res['ev_percent']:+.1f}%]"
         main_reason = (
-            f"🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações oficiais de Handicap Asiático aguardando "
-            f"abertura de mercado nas casas de apostas oficiais (API-Football / The Odds API) para {home_team} vs {away_team}. "
-            f"Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
+            f"🎯 GATEKEEPER AH APROVADO (+EV {ev_res['ev_percent']:+.1f}%) | "
+            f"Odd Betano {best_cand['odd']:.2f} vs Odd Justa {ev_res['odd_justa']:.2f} (Prob. Efetiva: {ev_res['prob_eff']:.1f}%) | "
+            f"Matriz Poisson: xG {home_team} {round(lambda_home, 2)} x {round(lambda_away, 2)} {away_team} | "
+            f"Desfechos: Vitória {ev_res['p_win']:.1f}%, Meio-Green {ev_res['p_half_win']:.1f}%, Push {ev_res['p_push']:.1f}%, Meio-Red {ev_res['p_half_loss']:.1f}%, Red {ev_res['p_loss']:.1f}%."
         )
     else:
-        # Avaliação estrita das linhas reais da Betano através do motor canônico do Gatekeeper
-        best_cand = None
-        approved_cands = []
-        if ah_evaluate_and_select_best_candidate and poisson_matrix_ah:
-            best_cand, approved_cands = ah_evaluate_and_select_best_candidate(
-                poisson_matrix_ah, betano_lines, home_team, away_team,
-                float(odd_home) if odd_home else 2.0, float(odd_away) if odd_away else 2.0,
-                min_ev=5.0, min_prob=58.0,
-                home_team_id=home_team_id, away_team_id=away_team_id,
-                home_last5=home_last5, away_last5=away_last5,
-                xg_home=lambda_home, xg_away=lambda_away
-            )
-
-        if best_cand:
-            suggestion = best_cand['palpite_str']
-            ev_res = best_cand['eval']
-            confidence = round(min(88.0, 55.0 + ev_res['ev_percent'] * 0.5), 1)
-            calc_memory += f" | 🎯 Gatekeeper Poisson AH: {suggestion} | Odd Justa {ev_res['odd_justa']:.2f} (Prob: {ev_res['prob_eff']:.1f}%) [Odd: {best_cand['odd']:.2f} | EV: {ev_res['ev_percent']:+.1f}%]"
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        has_real_1x2_odds = bool(odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0)
+        if not has_real_1x2_odds:
             main_reason = (
-                f"🎯 GATEKEEPER AH APROVADO (+EV {ev_res['ev_percent']:+.1f}%) | "
-                f"Odd Betano {best_cand['odd']:.2f} vs Odd Justa {ev_res['odd_justa']:.2f} (Prob. Efetiva: {ev_res['prob_eff']:.1f}%) | "
-                f"Matriz Poisson: xG {home_team} {round(lambda_home, 2)} x {round(lambda_away, 2)} {away_team} | "
-                f"Desfechos: Vitória {ev_res['p_win']:.1f}%, Meio-Green {ev_res['p_half_win']:.1f}%, Push {ev_res['p_push']:.1f}%, Meio-Red {ev_res['p_half_loss']:.1f}%, Red {ev_res['p_loss']:.1f}%."
+                f"🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações oficiais de Handicap Asiático aguardando "
+                f"abertura de mercado nas casas de apostas oficiais (API-Football / The Odds API) para {home_team} vs {away_team}. "
+                f"Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
             )
         else:
-            suggestion = "Sem Entrada (Abstenção)"
-            confidence = 50.00
             # Diagnóstico técnico preciso do motivo de reprovação pelo Gatekeeper
             odd_h = 0.0
             odd_a = 0.0
@@ -4051,8 +4049,8 @@ def main():
                             goals_home, goals_away, elapsed,
                             yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
                             corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                            goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning, gatekeeper_category
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
                             fixture_date = VALUES(fixture_date),
                             home_team_id = VALUES(home_team_id),
@@ -4081,7 +4079,8 @@ def main():
                             last_event = COALESCE(VALUES(last_event), last_event),
                             ah_suggestion = VALUES(ah_suggestion),
                             ah_confidence = VALUES(ah_confidence),
-                            ah_reasoning = VALUES(ah_reasoning);
+                            ah_reasoning = VALUES(ah_reasoning),
+                            gatekeeper_category = VALUES(gatekeeper_category);
                     """, (
                         fix_id, fix_date, league_id, league_name, l_round_val, home_team, away_team,
                         home_team_id, away_team_id,
@@ -4089,7 +4088,8 @@ def main():
                         goals_home, goals_away, elapsed,
                         yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
                         corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                        goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
+                        goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning,
+                        determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(ah_suggestion) else 'APROVADO', ah_suggestion, ah_reasoning)
                     ))
                     conn.commit()
                     if is_abstain_suggestion(ah_suggestion):
@@ -4650,9 +4650,10 @@ def update_oddspedia_odds(conn):
                                 xg_away = IF(xg_away <= 0, %s, xg_away),
                                 is_surebet = %s, surebet_profit_pct = %s,
                                 ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
+                                gatekeeper_category = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, fix_id))
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(sug) else 'APROVADO', sug, reason), fix_id))
                         conn.commit()
                         if is_abstain_suggestion(sug):
                             cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
@@ -5007,13 +5008,15 @@ def recalculate_inconsistent_odds_predictions(conn):
                         existing_reasoning=existing_f_reasoning
                     )
 
+                from asian_handicap_engine import determine_gatekeeper_category
+                gk_cat = determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(sug) else 'APROVADO', sug, reason)
                 cursor.execute("""
                     UPDATE fixtures_trends SET
                         xg_home = IF(xg_home <= 0, %s, xg_home),
                         xg_away = IF(xg_away <= 0, %s, xg_away),
-                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, updated_at = NOW()
+                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, gatekeeper_category = %s, updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (proj_h, proj_a, sug, conf, reason, fix_id))
+                """, (proj_h, proj_a, sug, conf, reason, gk_cat, fix_id))
                 if is_abstain_suggestion(sug):
                     cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
                 else:

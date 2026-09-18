@@ -3477,8 +3477,18 @@ if (!function_exists('getBetDecisionTree')) {
                                             $awayName = $fix->away_team ?? 'Fora';
                                             $rText = ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? '') . ' ' . ($motivation ?? '');
 
+                                            // Categoria do Gatekeeper (Prioridade Máxima)
+                                            $dbGkCat = !empty($fix->gatekeeper_category) ? trim($fix->gatekeeper_category) : '';
+                                            if (empty($dbGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? ''), $mCat)) {
+                                                $dbGkCat = trim($mCat[1]);
+                                            }
+
+                                            if (!empty($dbGkCat)) {
+                                                $ah_block_badge = $dbGkCat;
+                                                $ah_block_desc = !empty($main_analysis) ? $main_analysis : $raw_reasoning;
+                                            }
                                             // 0. Detalhamento Estruturado do Gatekeeper (Prioridade Máxima)
-                                            if (stripos($main_analysis, 'STATUS GK:') !== false || stripos($raw_reasoning, 'STATUS GK:') !== false || stripos($rText, 'Gatekeeper AH NO_BET') !== false || stripos($rText, '🛡️ [Gatekeeper') !== false) {
+                                            elseif (stripos($main_analysis, 'STATUS GK:') !== false || stripos($raw_reasoning, 'STATUS GK:') !== false || stripos($rText, 'Gatekeeper AH NO_BET') !== false || stripos($rText, '🛡️ [Gatekeeper') !== false) {
                                                 $ah_block_badge = 'Gatekeeper NO_BET';
                                                 $ah_block_desc = !empty($main_analysis) ? $main_analysis : $raw_reasoning;
                                             }
@@ -3822,6 +3832,17 @@ if (!function_exists('getBetDecisionTree')) {
                                                         <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.7rem; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; border-radius: 6px;" onclick="checarOddsDashboard(<?= $fix->fixture_id ?>, this)">
                                                             <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
                                                         </button>
+                                                        <?php 
+                                                            $appCat = !empty($fix->gatekeeper_category) ? trim($fix->gatekeeper_category) : '';
+                                                            if (empty($appCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? ''), $mCat)) {
+                                                                $appCat = trim($mCat[1]);
+                                                            }
+                                                        ?>
+                                                        <?php if (!empty($appCat)): ?>
+                                                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-weight: 700; font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                                                <i class="bi bi-patch-check-fill"></i> <?= htmlspecialchars($appCat) ?>
+                                                            </span>
+                                                        <?php endif; ?>
                                                         <span class="badge badge-ah-sug-<?= $fix->fixture_id ?>" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
                                                             🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
                                                         </span>

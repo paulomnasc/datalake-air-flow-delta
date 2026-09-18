@@ -351,10 +351,11 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
     
-    # Se a abstenção for decorrente de indisponibilidade de odds da API ou cota esgotada,
+    # Se a abstenção for decorrente de indisponibilidade de odds da API, cota esgotada ou ausência de linhas em tempo real,
     # NUNCA cancela apostas pendentes já criadas anteriormente com +EV
     is_api_odds_missing = any(k.lower() in (motivo or '').lower() for k in [
-        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
+        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker',
+        'ausência de linhas reais', 'cotações oficiais de handicap asiático indisponíveis', 'linhas reais', 'ausência de cotações'
     ]) and 'odds 1x2 ausentes' not in (motivo or '').lower()
     if is_api_odds_missing:
         print(f"🔒 [Apostas Preservadas / Indisponibilidade de Odds API] Partida #{fixture_id} possui aposta(s) pendente(s). Cancelamento abortado pois a ausência de odds da Betano via API é temporária/cota.")
@@ -616,26 +617,35 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
         if status_gk == 'NO_BET' or not best_cand:
             print(f"🛡️ [Gatekeeper AH NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {detalhe_calculo}")
+            is_api_missing = any(k.lower() in (detalhe_calculo or '').lower() for k in [
+                'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker',
+                'ausência de linhas reais', 'cotações oficiais de handicap asiático indisponíveis', 'linhas reais', 'ausência de cotações'
+            ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
+
+            # Se a partida já possui card aprovado em fixtures_trends ou odds gravadas, preserva sem cancelar!
+            cur_sug_db = fix.get('ah_suggestion') or ''
+            has_approved_card_in_db = cur_sug_db and not any(k in cur_sug_db.lower() for k in ['sem entrada', 'abstenção', 'abstencao', 'no_bet', 'bloqueada'])
+            if is_api_missing and has_approved_card_in_db:
+                print(f"🔒 [Card e Aposta Preservados / Falha Temporária de API] Partida #{fixture_id} ({home_team} vs {away_team}) possui dados gravados ({cur_sug_db}). Mantendo registro existente.")
+                continue
+
             apostas_abstenção += 1
             canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, detalhe_calculo)
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
             # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
-            is_api_missing = any(k.lower() in (detalhe_calculo or '').lower() for k in [
-                'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
-            ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
             cursor.execute("""
                 SELECT id, palpite, confirmada, status FROM apostas 
                 WHERE fixture_id = %s 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                  AND status != 'Não Confirmada'
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC
+                  AND status NOT IN ('Não Confirmada', 'Cancelada')
+                ORDER BY (status IN ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')) DESC, confirmada DESC, id DESC
                 LIMIT 1
             """, (fixture_id,))
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
-                is_settled_blindado = has_pending_bet.get('status') not in ('Pendente', 'Não Confirmada')
+                is_settled_blindado = has_pending_bet.get('status') in ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')
                 if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
                     status_lbl = "blindada" if is_settled_blindado else "ativa"
                     print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")

@@ -363,6 +363,7 @@ class ApostaController extends BaseController
             'probabilidade_poisson' => $probPoisson,
             'ev_percentual'         => $evPercentual,
             'status_gatekeeper'     => $statusGatekeeper,
+            'gatekeeper_category'   => $eval['gatekeeperCategory'] ?? null,
             'data_hora_jogo'        => $dataHoraJogo,
             'valor_aposta'          => $valorAposta,
             'ganhos_potenciais'     => $ganhosPotenciais,
@@ -431,6 +432,7 @@ class ApostaController extends BaseController
         $probPoisson = null;
         $evPercentual = null;
         $statusGatekeeper = 'NAO_ANALISADO';
+        $gatekeeperCategory = null;
         $gatekeeperMsg = 'Simulação de aposta sem análise de estatísticas.';
         $destaque = 0;
 
@@ -441,12 +443,13 @@ class ApostaController extends BaseController
         // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over para Cartões)
         if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
             $statusGatekeeper = 'AVISO_RISCO_OVER';
+            $gatekeeperCategory = 'Aviso de Risco Over';
             $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 
         if (!$isCartoes && !$isHandicap) {
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 
         $db = \Config\Database::connect();
@@ -592,15 +595,17 @@ class ApostaController extends BaseController
                 // Regra Canônica: Sem juiz = NO_BET
                 if ($isUnknownRef) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Sem Árbitro Confirmado';
                     $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Partida sem árbitro oficial confirmado na escala. Entrada em Under Cartões bloqueada por segurança (Sem juiz = NO_BET).";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
                 // Regra Canônica Exclusiva: Apenas Under 5.5 e Under 6.5
                 if (abs($line - 5.5) > 0.01 && abs($line - 6.5) > 0.01) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Linha de Cartões Não Autorizada';
                     $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
                 // Critérios específicos por linha (Under 5.5 e Under 6.5)
@@ -628,27 +633,33 @@ class ApostaController extends BaseController
                 // Avaliação final do Gatekeeper
                 if ($odd < $minOddReq) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Odd Abaixo do Piso Mínimo';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo do piso mínimo de segurança ({$minOddReq}) para a linha Under {$line}.{$duplicidadeMsg}";
                 } elseif ($xc > $maxXcReq) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Expectativa Excessiva de Cartões';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Expectativa de cartões ({$xc}) excede o teto de segurança ({$maxXcReq}) para a linha Under {$line}.{$duplicidadeMsg}";
                 } elseif ($probPoisson < $minProbReq) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Probabilidade Insuficiente';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade Poisson ({$probPoisson}%) abaixo do mínimo exigido ({$minProbReq}%) para a linha Under {$line}.{$duplicidadeMsg}";
                 } elseif ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Odd Excessiva (Risco)';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).{$duplicidadeMsg}";
                 } elseif ($evPercentual !== null && $evPercentual >= $minEvReq) {
                     $statusGatekeeper = 'APROVADO';
+                    $gatekeeperCategory = 'Valor Esperado Positivo (+EV)';
                     $gatekeeperMsg = "Gatekeeper Green Light (+EV): Linha Under {$line} | Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% | Prob. Poisson: {$probPoisson}% (Mínimo: 60.0%) | xC: {$xc} (Teto: {$maxXcReq}) | Árbitro Oficial Confirmado.{$duplicidadeMsg}";
                 } else {
                     $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Falta de Valor Esperado (+EV)';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Valor esperado (+EV: {$evPercentual}%) insuficiente para aprovação na linha Under {$line}.{$duplicidadeMsg}";
                 }
             }
         }
 
-        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
     }
 
     /**
@@ -683,13 +694,14 @@ class ApostaController extends BaseController
         }
 
         return [
-            'fixtureId'        => $res['fixtureId'] ?? $fixtureId,
-            'oddJusta'         => $res['oddJusta'] ?? null,
-            'probPoisson'      => $res['probPoisson'] ?? null,
-            'evPercentual'     => $res['evPercentual'] ?? null,
-            'statusGatekeeper' => $res['statusGatekeeper'],
-            'gatekeeperMsg'    => $res['gatekeeperMsg'] ?? '',
-            'destaque'         => (int)($res['destaque'] ?? 0)
+            'fixtureId'          => $res['fixtureId'] ?? $fixtureId,
+            'oddJusta'           => $res['oddJusta'] ?? null,
+            'probPoisson'        => $res['probPoisson'] ?? null,
+            'evPercentual'       => $res['evPercentual'] ?? null,
+            'statusGatekeeper'   => $res['statusGatekeeper'],
+            'gatekeeperCategory' => $res['gatekeeperCategory'] ?? null,
+            'gatekeeperMsg'      => $res['gatekeeperMsg'] ?? '',
+            'destaque'           => (int)($res['destaque'] ?? 0)
         ];
     }
 
@@ -809,6 +821,7 @@ class ApostaController extends BaseController
             'probabilidade_poisson' => $eval['probPoisson'],
             'ev_percentual'         => $eval['evPercentual'],
             'status_gatekeeper'     => $eval['statusGatekeeper'],
+            'gatekeeper_category'   => $eval['gatekeeperCategory'] ?? null,
             'valor_aposta'          => $valorAposta,
             'ganhos_potenciais'     => $ganhosPotenciais,
             'cash_out'              => $cashOut,
@@ -991,6 +1004,7 @@ class ApostaController extends BaseController
             'probabilidade_poisson' => $eval['probPoisson'],
             'ev_percentual'         => $eval['evPercentual'],
             'status_gatekeeper'     => $eval['statusGatekeeper'],
+            'gatekeeper_category'   => $eval['gatekeeperCategory'] ?? null,
             'data_hora_jogo'        => $dataHoraJogo,
             'valor_aposta'          => $aposta->valor_aposta,
             'ganhos_potenciais'     => $aposta->ganhos_potenciais,

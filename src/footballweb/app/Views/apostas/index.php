@@ -1515,8 +1515,14 @@ if (!function_exists('getBookmakerUrl')) {
                         <div style="font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 5px; font-size: 0.78rem;">
                           <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
                         </div>
+                        <?php 
+                          $apGkCat = !empty($aposta->gatekeeper_category) ? trim($aposta->gatekeeper_category) : '';
+                          if (empty($apGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', (string)($detalhadoExibir ?? ''), $mCatA)) {
+                              $apGkCat = trim($mCatA[1]);
+                          }
+                        ?>
                         <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
-                          <i class="bi bi-shield-lock-fill"></i> <?= (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic') ?>
+                          <i class="bi bi-shield-lock-fill"></i> <?= !empty($apGkCat) ? htmlspecialchars($apGkCat) : ((stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic')) ?>
                         </span>
                       </div>
                       <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
@@ -1551,14 +1557,22 @@ if (!function_exists('getBookmakerUrl')) {
             </div>
 
             <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
+              <?php 
+                if (empty($apGkCat)) {
+                    $apGkCat = !empty($aposta->gatekeeper_category) ? trim($aposta->gatekeeper_category) : '';
+                    if (empty($apGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', (string)($detalhadoExibir ?? ''), $mCatA)) {
+                        $apGkCat = trim($mCatA[1]);
+                    }
+                }
+              ?>
               <div class="bet-card-gk-row mt-2 d-flex align-items-center gap-2 flex-wrap w-100" style="font-size: 0.78rem;">
                 <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
                   <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" onclick="toggleApostaGk(<?= $aposta->id ?>)" style="cursor: pointer;" title="Clique para ver detalhes do Gatekeeper">
-                    <i class="bi bi-shield-check me-1"></i> Gatekeeper: <?= lang('App.ev_approved') ?>
+                    <i class="bi bi-shield-check me-1"></i> <?= !empty($apGkCat) ? htmlspecialchars($apGkCat) : ('Gatekeeper: ' . lang('App.ev_approved')) ?>
                   </span>
                 <?php elseif ($aposta->status_gatekeeper === 'NO_BET'): ?>
                   <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1" onclick="toggleApostaGk(<?= $aposta->id ?>)" style="cursor: pointer;" title="Clique para ver detalhes do Gatekeeper">
-                    <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET
+                    <i class="bi bi-shield-x me-1"></i> <?= !empty($apGkCat) ? htmlspecialchars($apGkCat) : 'Gatekeeper: NO_BET' ?>
                   </span>
                 <?php endif; ?>
 

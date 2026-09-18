@@ -3585,11 +3585,16 @@ def main():
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
 
-            if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
+            is_ah_bet_approved = existing_ah_aposta and (
+                existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' or
+                'STATUS GK: APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '') or
+                'GATEKEEPER AH APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '')
+            )
+            if existing_ah_aposta and is_ah_bet_approved and existing_ah_aposta.get('palpite'):
                 ah_suggestion = existing_ah_aposta['palpite']
                 ah_confidence = float(existing_ah_aposta.get('probabilidade_poisson') or 74.0)
                 from asian_handicap_engine import compose_compound_ah_reasoning
@@ -4606,11 +4611,16 @@ def update_oddspedia_odds(conn):
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
 
-                if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
+                is_ah_bet_approved = existing_ah_aposta and (
+                    existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' or
+                    'STATUS GK: APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '') or
+                    'GATEKEEPER AH APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '')
+                )
+                if existing_ah_aposta and is_ah_bet_approved and existing_ah_aposta.get('palpite'):
                     sug = existing_ah_aposta['palpite']
                     conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                     from asian_handicap_engine import compose_compound_ah_reasoning
@@ -4866,10 +4876,15 @@ def enrich_fixtures_standings(conn):
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
-            if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
+            is_ah_bet_approved = existing_ah_aposta and (
+                existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' or
+                'STATUS GK: APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '') or
+                'GATEKEEPER AH APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '')
+            )
+            if existing_ah_aposta and is_ah_bet_approved and existing_ah_aposta.get('palpite'):
                 sug = existing_ah_aposta['palpite']
                 conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                 from asian_handicap_engine import compose_compound_ah_reasoning
@@ -4965,10 +4980,15 @@ def recalculate_inconsistent_odds_predictions(conn):
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO') DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
-                if existing_ah_aposta and existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' and existing_ah_aposta.get('palpite'):
+                is_ah_bet_approved = existing_ah_aposta and (
+                    existing_ah_aposta.get('status_gatekeeper') == 'APROVADO' or
+                    'STATUS GK: APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '') or
+                    'GATEKEEPER AH APROVADO' in str(existing_ah_aposta.get('resultado_detalhado') or '')
+                )
+                if existing_ah_aposta and is_ah_bet_approved and existing_ah_aposta.get('palpite'):
                     sug = existing_ah_aposta['palpite']
                     conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
                     from asian_handicap_engine import compose_compound_ah_reasoning

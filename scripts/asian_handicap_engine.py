@@ -2497,3 +2497,98 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         print(f"🚫 [Aposta Handicap Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
 
     return canceladas_detalhes
+
+
+def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, away_team: str = None, palpite: str = None, odd: float = None):
+    """
+    Ponto de entrada CLI para avaliação instantânea de aposta/palpite de AH via Gatekeeper.
+    Consumido pelo ApostaController (PHP) e ferramentas de auditoria.
+    """
+    from checar_odds_ah_fixture import get_db_connection
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            fix = None
+            if fixture_id:
+                cur.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s LIMIT 1", (fixture_id,))
+                fix = cur.fetchone()
+            if not fix and home_team and away_team:
+                cur.execute("""
+                    SELECT * FROM fixtures_trends 
+                    WHERE (home_team LIKE %s OR away_team LIKE %s) 
+                      AND (home_team LIKE %s OR away_team LIKE %s) 
+                    ORDER BY fixture_date DESC LIMIT 1
+                """, (f"%{home_team}%", f"%{home_team}%", f"%{away_team}%", f"%{away_team}%"))
+                fix = cur.fetchone()
+            
+            if not fix:
+                return {
+                    "fixtureId": fixture_id,
+                    "statusGatekeeper": "NAO_ANALISADO",
+                    "gatekeeperMsg": "Partida não encontrada no banco de dados local.",
+                    "destaque": 0
+                }
+
+            m = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite or '')
+            line = float(m.group(1)) if m else 0.0
+            h_name = fix.get('home_team') or home_team or ''
+            a_name = fix.get('away_team') or away_team or ''
+            is_away = determine_bet_side(h_name, a_name, palpite)
+
+            c_odd = float(odd) if (odd is not None and float(odd) > 0) else 1.80
+            candidate = [{'line': line, 'odd': c_odd, 'is_away': is_away, 'palpite_str': palpite}]
+            status, sug, conf, reason, best_cand, approved = calculate_unified_handicap_recommendation(
+                fixture_dict=fix,
+                betano_lines=candidate,
+                allow_api_fetch=False,
+                cursor=cur
+            )
+
+            odd_justa = None
+            prob_poisson = None
+            ev_perc = None
+            destaque = 0
+            if best_cand and best_cand.get('eval'):
+                ev_data = best_cand['eval']
+                odd_justa = ev_data.get('odd_justa')
+                prob_poisson = ev_data.get('prob_eff')
+                ev_perc = ev_data.get('ev_percent')
+                destaque = 1 if (best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1) else 0
+                msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
+            else:
+                msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."
+
+            return {
+                "fixtureId": fix['fixture_id'],
+                "oddJusta": odd_justa,
+                "probPoisson": prob_poisson,
+                "evPercentual": ev_perc,
+                "statusGatekeeper": status,
+                "gatekeeperMsg": msg,
+                "destaque": destaque
+            }
+    finally:
+        conn.close()
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Motor canônico de Handicap Asiático")
+    parser.add_argument("--eval_bet", action="store_true", help="Avaliar aposta específica via Gatekeeper")
+    parser.add_argument("--fixture_id", type=int, default=None, help="ID da partida")
+    parser.add_argument("--home_team", type=str, default="", help="Time mandante")
+    parser.add_argument("--away_team", type=str, default="", help="Time visitante")
+    parser.add_argument("--palpite", type=str, required=False, default="", help="Linha/Palpite de AH")
+    parser.add_argument("--odd", type=float, required=False, default=1.80, help="Cotação da aposta")
+    args = parser.parse_args()
+
+    if args.eval_bet:
+        res = cli_evaluate_handicap_bet(
+            fixture_id=args.fixture_id,
+            home_team=args.home_team,
+            away_team=args.away_team,
+            palpite=args.palpite,
+            odd=args.odd
+        )
+        print(json.dumps(res, ensure_ascii=False))
+

@@ -516,240 +516,13 @@ class ApostaController extends BaseController
         }
 
         // =========================================================================
-        // RAMO 1: GATEKEEPER PARA HANDICAP ASIÁTICO (MATRIZ BIVARIADA DE POISSON)
+        // RAMO 1: GATEKEEPER PARA HANDICAP ASIÁTICO (DELEGAÇÃO CANÔNICA AO PYTHON)
         // =========================================================================
         if ($isHandicap) {
-            preg_match('/([+-]?\d+(?:\.\d+)?)/', $palpite, $matchesLine);
-            $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 0.0;
-
-            $isAway = (stripos($palpite, $timeFora) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
-
-            $oddHome = ($fixture && !empty($fixture->odd_home)) ? (float)$fixture->odd_home : 0.0;
-            $oddAway = ($fixture && !empty($fixture->odd_away)) ? (float)$fixture->odd_away : 0.0;
-
-            $xgHome = ($fixture && !empty($fixture->xg_home)) ? (float)$fixture->xg_home : 0.0;
-            $xgAway = ($fixture && !empty($fixture->xg_away)) ? (float)$fixture->xg_away : 0.0;
-
-            if ($xgHome <= 0.1 || $xgAway <= 0.1) {
-                if ($fixture && !empty($fixture->ah_reasoning)) {
-                    if (preg_match('/\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mH)) {
-                        $xgHome = (float)$mH[1];
-                    }
-                    if (preg_match('/\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mA)) {
-                        $xgAway = (float)$mA[1];
-                    }
-                }
+            $evalPy = $this->evaluateHandicapGatekeeperPython($fixtureId, $timeCasa, $timeFora, $palpite, $odd);
+            if ($evalPy !== null) {
+                return $evalPy;
             }
-            if ($xgHome <= 0.1) $xgHome = 1.30;
-            if ($xgAway <= 0.1) $xgAway = 1.10;
-
-            // Bloqueio Estrutural de Linhas Positivas de Azarão (+AH > 0.0)
-            if ($line > 0.0) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Entradas em linhas de handicap positivo (+AH) a favor de azarões estão desativadas por expectativa matemática negativa comprovada. O modelo foca estritamente em Favoritos (-AH) e Empate Anula (0.0 AH).";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-            }
-
-            // Regra Mandatória de Mando de Campo: Bloqueia linhas esticadas (< -0.25 AH) fora de casa
-            if ($isAway && $line < -0.25) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando de Campo): Linhas negativas esticadas (< -0.25 AH) fora de casa são proibidas. Para equipes visitantes, o teto de agressividade é -0.25 AH com tolerância de empate.";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-            }
-
-            // Regra Estrutural de -0.25 AH: Restrição a Mandantes Favoritos Sólidos (1X2 <= 1.75 e odd <= 1.85)
-            if (abs($line - (-0.25)) < 0.001) {
-                if ($isAway && !$isCandT1) {
-                    $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando de Campo): A linha -0.25 AH é reservada a mandantes ou super-favoritos de elite fora de casa. Risco excessivo de empate/meio-red fora de casa.";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                }
-                if ($odd > 1.85) {
-                    $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Teto de odd excedido para -0.25 AH (máximo @ 1.85). Odds acima de 1.85 indicam favoritismo frágil da banca com alto risco de meio-red.";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                }
-                $cand1x2 = $isAway ? $oddAway : $oddHome;
-                if ($cand1x2 > 1.75) {
-                    $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Equilíbrio de Mercado): Linha -0.25 AH bloqueada para equipes com odd 1X2 superior a 1.75 (@ {$cand1x2}). Em jogos equilibrados, a proteção mandatória de capital é Empate Anula (0.0 AH).";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                }
-
-                // Trava de Adversário Competitivo no U5J (>= 10 pts ou >= 3V)
-                $oppKey = $isAway ? 'home' : 'away';
-                if ($fixture && !empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
-                    $u5Arr = json_decode($mU5[1], true);
-                    if (!empty($u5Arr[$oppKey])) {
-                        $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
-                        $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
-                        if ($oppPts >= 10 || $oppV >= 3) {
-                            $statusGatekeeper = 'NO_BET';
-                            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Adversário Competitivo): Linha -0.25 AH bloqueada contra adversário em boa fase no U5J ({$oppPts} pts / {$oppV}V). Proteção mandatória via 0.0 AH.";
-                            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                        }
-                    }
-                }
-            }
-
-            // Regra para Linhas Negativas Esticadas (< -0.25 AH)
-            if ($line < -0.25) {
-                if (abs($line - (-0.5)) < 0.001) {
-                    // Linha -0.5 AH: permitida para Mandantes com Dominância de Poisson e 1X2 deprimida
-                    $isHomePoissonDom = (!$isAway && ($oddHome <= 1.50 || ($isCandT1 && $oddHome <= 1.55)) && $xgHome >= 2.40 && ($xgHome - $xgAway) >= 1.40 && !$isOppT1);
-                    if (!$isHomePoissonDom && !$isCandT1) {
-                        $statusGatekeeper = 'NO_BET';
-                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linha -0.5 AH reservada exclusivamente a mandantes com dominância indiscutível de Poisson e cotação 1X2 deprimida, ou Super-Favoritos Tier 1.";
-                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                    }
-                } else {
-                    // Linhas mais profundas (< -0.5 AH, como -0.75 e -1.0): NUNCA destravadas por Poisson isolado (destravando -0.5 AH APENAS)
-                    if (!$isCandT1) {
-                        $statusGatekeeper = 'NO_BET';
-                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas mais agressivas que -0.5 AH (-0.75, -1.0) são restritas estritamente a Super-Favoritos Tier 1 em massacre.";
-                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                    }
-                }
-            }
-
-            // 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
-            // Bloqueia handicap positivo a favor do visitante quando o mandante é favorito sólido de mercado
-            if ($isAway && $line > 0.0) {
-                if ($oddHome > 1.0 && $oddHome <= 2.00 && ($oddAway >= 3.80 || ($oddAway / $oddHome) >= 2.0)) {
-                    $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando Consagrado): Entrada de handicap positivo a favor da zebra visitante bloqueada contra mandante favorito consolidado em casa (Odd Mandante: {$oddHome}).";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                }
-            }
-
-            // 1.1 Trava de Time em Crise (Anti-Zebra em Crise Severa):
-            // Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J) em situação de zebra contra favorito
-            $u5j = null;
-            if ($fixture && !empty($fixture->ah_reasoning) && strpos($fixture->ah_reasoning, 'U5J_DATA:') !== false) {
-                $parts = explode('U5J_DATA:', $fixture->ah_reasoning);
-                $jsonStr = trim(explode('||', $parts[1])[0]);
-                $u5j = json_decode($jsonStr, true);
-            }
-            if ($u5j) {
-                $candL5 = $isAway ? ($u5j['away'] ?? null) : ($u5j['home'] ?? null);
-                if ($candL5 && isset($candL5['v']) && (int)$candL5['v'] === 0) {
-                    $candOdd = $isAway ? $oddAway : $oddHome;
-                    $oppOdd = $isAway ? $oddHome : $oddAway;
-                    if ($candOdd >= 2.20 || ($oppOdd > 1.0 && $oppOdd <= 2.10)) {
-                        $candName = $isAway ? $timeFora : $timeCasa;
-                        $statusGatekeeper = 'NO_BET';
-                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Time em Crise): Entrada de handicap a favor de equipe sem vitórias recentes nos últimos 5 jogos (0V para {$candName}) em situação de zebra contra favorito de mercado.";
-                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                    }
-                }
-            }
-
-            $minOddFloor = (abs($line - (-0.5)) < 0.001 && !$isAway) ? 1.35 : 1.45;
-            if ($odd < $minOddFloor) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< {$minOddFloor}) para Handicap Asiático. Sem margem de valor esperado (+EV).";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-            }
-
-            $pWin = 0.0;
-            $pHalfWin = 0.0;
-            $pPush = 0.0;
-            $pHalfLoss = 0.0;
-            $pLoss = 0.0;
-            $totalP = 0.0;
-            $matrix = [];
-
-            for ($x = 0; $x <= 9; $x++) {
-                $px = (pow($xgHome, $x) * exp(-$xgHome)) / $this->factorial($x);
-                for ($y = 0; $y <= 9; $y++) {
-                    $py = (pow($xgAway, $y) * exp(-$xgAway)) / $this->factorial($y);
-                    $p = $px * $py;
-                    $matrix[] = ['x' => $x, 'y' => $y, 'p' => $p];
-                    $totalP += $p;
-                }
-            }
-
-            foreach ($matrix as $cell) {
-                $p = ($totalP > 0) ? ($cell['p'] / $totalP) : $cell['p'];
-                $diff = $isAway ? ($cell['y'] - $cell['x']) : ($cell['x'] - $cell['y']);
-                $adj = $diff + $line;
-
-                if ($adj > 0.25) {
-                    $pWin += $p;
-                } elseif (abs($adj - 0.25) < 0.0001) {
-                    $pHalfWin += $p;
-                } elseif (abs($adj) < 0.0001) {
-                    $pPush += $p;
-                } elseif (abs($adj - (-0.25)) < 0.0001) {
-                    $pHalfLoss += $p;
-                } else {
-                    $pLoss += $p;
-                }
-            }
-
-            $expectedPayoff = ($pWin * $odd) + ($pHalfWin * (($odd + 1.0) / 2.0)) + ($pPush * 1.0) + ($pHalfLoss * 0.5);
-            $evPercentual = round(($expectedPayoff - 1.0) * 100.0, 2);
-
-            $num = 1.0 - ($pHalfWin / 2.0 + $pPush + 0.5 * $pHalfLoss);
-            $den = $pWin + ($pHalfWin / 2.0);
-
-            if ($den > 0 && $num > 0) {
-                $oddJusta = round($num / $den, 2);
-                $probPoisson = round(min(100.0, max(0.0, 100.0 / $oddJusta)), 2);
-            } else {
-                $oddJusta = 99.00;
-                $probPoisson = 1.00;
-            }
-
-            // Trava de Sanidade de Mercado em PHP: se a probabilidade da plataforma divergir excessivamente do mercado 1X2
-            if ($oddHome > 1.0 && $oddAway > 1.0) {
-                $candOdd = $isAway ? $oddAway : $oddHome;
-                $oppOdd = $isAway ? $oddHome : $oddAway;
-                $mktProb = (1.0 / $candOdd) / ((1.0 / $candOdd) + (1.0 / $oppOdd)) * 100.0;
-                $pureWinProb = 0.0;
-                foreach ($matrix as $c) {
-                    $diffG = $isAway ? ($c['y'] - $c['x']) : ($c['x'] - $c['y']);
-                    if ($diffG > 0) {
-                        $pureWinProb += (($totalP > 0) ? ($c['p'] / $totalP) : $c['p']) * 100.0;
-                    }
-                }
-                if (($pureWinProb - $mktProb) > 25.0) {
-                    $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Divergência excessiva entre probabilidade calculada e cotações reais de mercado.";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
-                }
-            }
-
-            // Teto de sanidade para probabilidade efetiva em linhas comerciais (Odd >= 1.45)
-            if ($odd >= 1.45 && $probPoisson > 82.0) {
-                $probPoisson = 82.0;
-                $evPercentual = round(($probPoisson / 100.0 * $odd - 1.0) * 100.0, 2);
-            }
-
-            // Limiares Calibrados de Gatekeeper Alinhados com asian_handicap_engine.py
-            if (abs($line - (-0.25)) < 0.001) {
-                $minProbReq = 62.0;
-                $minEvReq = 8.0;
-            } elseif (abs($line - (-0.5)) < 0.001) {
-                $minProbReq = 60.0;
-                $minEvReq = 5.0;
-            } elseif ($line < -0.5) {
-                $minProbReq = 65.0;
-                $minEvReq = 12.0;
-            } else {
-                $minProbReq = 58.0;
-                $minEvReq = 5.0;
-            }
-
-            if ($evPercentual >= $minEvReq && $probPoisson >= $minProbReq) {
-                $statusGatekeeper = 'APROVADO';
-                $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +{$minEvReq}%) | Prob. Efetiva: {$probPoisson}% (Mínimo: {$minProbReq}%).";
-            } else {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem margem de valor ou probabilidade insuficiente (EV: {$evPercentual}% vs Mínimo: +{$minEvReq}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
-            }
-
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         // =========================================================================
@@ -876,6 +649,48 @@ class ApostaController extends BaseController
         }
 
         return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+    }
+
+    /**
+     * Invoca o motor canônico em Python (asian_handicap_engine.py) como Fonte Única da Verdade (SSOT).
+     */
+    private function evaluateHandicapGatekeeperPython(?int $fixtureId, string $timeCasa, string $timeFora, string $palpite, float $odd): ?array
+    {
+        $scriptPath = '/datalake-root/scripts/asian_handicap_engine.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/asian_handicap_engine.py';
+        }
+        if (!file_exists($scriptPath)) {
+            return null;
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --eval_bet"
+             . " --fixture_id=" . escapeshellarg((string)($fixtureId ?? 0))
+             . " --home_team=" . escapeshellarg($timeCasa)
+             . " --away_team=" . escapeshellarg($timeFora)
+             . " --palpite=" . escapeshellarg($palpite)
+             . " --odd=" . escapeshellarg((string)$odd)
+             . " 2>/dev/null";
+
+        $output = shell_exec($cmd);
+        if (empty($output)) {
+            return null;
+        }
+
+        $res = json_decode(trim($output), true);
+        if (!$res || !isset($res['statusGatekeeper'])) {
+            return null;
+        }
+
+        return [
+            'fixtureId'        => $res['fixtureId'] ?? $fixtureId,
+            'oddJusta'         => $res['oddJusta'] ?? null,
+            'probPoisson'      => $res['probPoisson'] ?? null,
+            'evPercentual'     => $res['evPercentual'] ?? null,
+            'statusGatekeeper' => $res['statusGatekeeper'],
+            'gatekeeperMsg'    => $res['gatekeeperMsg'] ?? '',
+            'destaque'         => (int)($res['destaque'] ?? 0)
+        ];
     }
 
     /**

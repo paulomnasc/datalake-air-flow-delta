@@ -212,7 +212,9 @@ GATEKEEPER_DIDACTIC_MAP = {
     'Odds de Mercado Indisponíveis': 'Ausência de cotações 1X2 de mercado para precificação da partida.',
     'Super-Favorito Dominante': 'Equipe de elite (Tier 1) com alta dominância técnica, histórico consistente e linha de proteção ajustada dentro da margem de segurança da banca.',
     'Valor Esperado Positivo (+EV)': 'Assimetria estatística identificada: a probabilidade de vitória/cobertura calculada pelo modelo Poisson supera a probabilidade precificada pela casa de apostas.',
-    'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.'
+    'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.',
+    'Sobrevivência do Mandante': 'Mandante em situação crítica ou na segunda metade da tabela atuando em casa contra visitante em duelo parelho; abstenção por risco de sobrevivência.',
+    'Mando de Campo Soberano': 'As casas de apostas precificam o mandante como favorito no 1X2, neutralizando a superioridade teórica do visitante.'
 }
 
 
@@ -234,6 +236,10 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
         return 'Valor Esperado Positivo (+EV)'
 
     # Categorias de Abstenção (NO_BET)
+    if any(k in r_text for k in ['Sobrevivência do Mandante', 'pressão crítica na tabela']):
+        return 'Sobrevivência do Mandante'
+    if any(k in r_text for k in ['Mando de Campo Soberano', 'divergência de mercado']):
+        return 'Mando de Campo Soberano'
     if any(k in r_text for k in ['Duelo de Crises', 'crise severa', 'ambas as equipes em momento técnico desfavorável']):
         return 'Duelo de Crises'
     if any(k in r_text for k in ['Queda de Rendimento', 'CURVA_DESCENDENTE']):
@@ -590,7 +596,14 @@ def evaluate_and_select_best_ah_candidate(
     home_last5: dict = None,
     away_last5: dict = None,
     xg_home: float = None,
-    xg_away: float = None
+    xg_away: float = None,
+    home_rank: int = None,
+    away_rank: int = None,
+    home_ppg: float = None,
+    away_ppg: float = None,
+    home_zone: str = None,
+    away_zone: str = None,
+    standings_motivation_score: float = None
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
@@ -599,11 +612,8 @@ def evaluate_and_select_best_ah_candidate(
     - Trava de Mando de Campo (Opção B): Para Visitantes (Away), o teto de agressividade é -0.25 AH (com proteção de empate). Linhas < -0.25 AH (-0.5, -0.75, -1.0) são estritamente proibidas fora de casa.
     - Proibição Absoluta: Nenhuma linha mais agressiva que -1.0 AH (-1.25, -1.5, -1.75, -2.0) é tolerada.
     - Teto de cotação para -0.25 AH: máximo @ 1.85 (odds > 1.85 indicam favoritismo frágil da banca).
-    - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
-      bloqueia terminantemente entradas em +AH na zebra visitante, EXCETO quando o visitante estiver
-      invicto no U5J (0D), em Curva Ascendente e com xG superior (Distorção de Mercado), onde prevalece o +1.0 AH / +0.5 AH.
-    - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
-      em situação de zebra contra favoritos de mercado.
+    - Trava de Sobrevivência do Mandante (Anti-Caldeirão da Degola): Bloqueia apoio a visitante em linha curta (0.0 AH ou -0.25 AH) quando mandante está na zona de degola ou sob pressão crítica de tabela com abismo de posições em jogo parelho.
+    - Trava de Divergência de Mando (Anti-Fake Dog): Bloqueia apoio a visitante em linha curta se o mercado precifica o mandante como favorito no 1X2 (odd_home < odd_away).
     - Faixa de odd segura: 1.50 a 2.10 (1.40 a 1.95 para super-favoritos negativos).
     - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0.
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
@@ -645,6 +655,53 @@ def evaluate_and_select_best_ah_candidate(
     xg_a_val = 0.0
     xg_diff = 0.0
     is_home_poisson_dominant_minus_half = False
+
+    h_rank_val = 0
+    a_rank_val = 0
+    h_ppg_val = 0.0
+    a_ppg_val = 0.0
+    standings_mot_val = 0.0
+    is_home_in_relegation = False
+    is_home_under_threat = False
+
+    try:
+        if home_rank is not None and str(home_rank).strip():
+            h_rank_val = int(home_rank)
+    except Exception:
+        h_rank_val = 0
+
+    try:
+        if away_rank is not None and str(away_rank).strip():
+            a_rank_val = int(away_rank)
+    except Exception:
+        a_rank_val = 0
+
+    try:
+        if home_ppg is not None and str(home_ppg).strip():
+            h_ppg_val = float(home_ppg)
+    except Exception:
+        h_ppg_val = 0.0
+
+    try:
+        if away_ppg is not None and str(away_ppg).strip():
+            a_ppg_val = float(away_ppg)
+    except Exception:
+        a_ppg_val = 0.0
+
+    try:
+        if standings_motivation_score is not None and str(standings_motivation_score).strip():
+            standings_mot_val = float(standings_motivation_score)
+    except Exception:
+        standings_mot_val = 0.0
+
+    h_zone_str = str(home_zone or '').lower()
+    is_home_in_relegation = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
+    is_home_under_threat = (
+        is_home_in_relegation or
+        (h_rank_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
+        (h_rank_val >= 12 and standings_mot_val >= 3.0) or
+        (h_rank_val >= 12 and a_rank_val > 0 and (h_rank_val - a_rank_val >= 6 or a_rank_val <= 6))
+    )
 
     if (xg_home is None or xg_away is None) and poisson_matrix:
         try:
@@ -760,6 +817,34 @@ def evaluate_and_select_best_ah_candidate(
         # =========================================================================
         if opp_trend == "CURVA_ASCENDENTE" and cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and c_line <= 0.0:
             continue
+
+        # =========================================================================
+        # REGRA ESTRUTURAL ANTI-EMBOSCADA 1: TRAVA DE SOBREVIVÊNCIA DO MANDANTE
+        # (Anti-Caldeirão da Degola / Abismo de Tabela)
+        # Quando o candidato é o Visitante em linha curta (c_line <= 0.0) e o mandante
+        # está sob pressão extrema na tabela (rebaixamento, fragilidade ou abismo),
+        # o fator campo e a urgência de sobrevivência neutralizam a superioridade teórica.
+        # Em jogos competitivos (cand_odd >= 2.10) sem dominância Tier 1, ABSTENÇÃO MANDATÓRIA!
+        # =========================================================================
+        if c_is_away and c_line <= 0.0 and not is_tier1 and cand_odd >= 2.10:
+            if is_home_in_relegation:
+                continue
+            if h_rank_val >= 12 and (a_rank_val > 0 and (h_rank_val - a_rank_val >= 6 or a_rank_val <= 6)):
+                continue
+            if h_rank_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25:
+                continue
+
+        # =========================================================================
+        # REGRA ESTRUTURAL ANTI-EMBOSCADA 2: TRAVA DE DIVERGÊNCIA DE MANDO (ANTI-FAKE DOG)
+        # Quando as casas de apostas precificam o mandante como favorito no 1X2
+        # (raw_h_odd < raw_a_odd com margem >= 0.15), o mercado alerta sobre a força e
+        # adaptação do mandante em seus domínios.
+        # É expressamente PROIBIDO forçar aposta no visitante em linha curta (c_line <= 0.0)
+        # apenas pelo momento recente do U5J, respeitando a precificação da banca.
+        # =========================================================================
+        if c_is_away and c_line <= 0.0 and not is_tier1:
+            if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15:
+                continue
 
         # =========================================================================
         # CRITÉRIO PRIMÁRIO MANDATÓRIO: SOBERANIA DA PERFORMANCE REAL (U5J) SOBRE AS ODDS
@@ -1442,12 +1527,55 @@ def calculate_unified_handicap_recommendation(
             a_l5['trend'] = a_tr_info.get('trend')
             a_l5['trend_desc'] = a_tr_info.get('trend_desc')
 
+    h_rk_val = 0
+    a_rk_val = 0
+    h_ppg_val = 0.0
+    a_ppg_val = 0.0
+    standings_mot_val = 0.0
+
+    try:
+        if fixture_dict.get('home_rank') is not None and str(fixture_dict.get('home_rank')).strip():
+            h_rk_val = int(fixture_dict.get('home_rank'))
+    except Exception:
+        h_rk_val = 0
+
+    try:
+        if fixture_dict.get('away_rank') is not None and str(fixture_dict.get('away_rank')).strip():
+            a_rk_val = int(fixture_dict.get('away_rank'))
+    except Exception:
+        a_rk_val = 0
+
+    try:
+        if fixture_dict.get('home_ppg') is not None and str(fixture_dict.get('home_ppg')).strip():
+            h_ppg_val = float(fixture_dict.get('home_ppg'))
+    except Exception:
+        h_ppg_val = 0.0
+
+    try:
+        if fixture_dict.get('away_ppg') is not None and str(fixture_dict.get('away_ppg')).strip():
+            a_ppg_val = float(fixture_dict.get('away_ppg'))
+    except Exception:
+        a_ppg_val = 0.0
+
+    try:
+        if fixture_dict.get('standings_motivation_score') is not None and str(fixture_dict.get('standings_motivation_score')).strip():
+            standings_mot_val = float(fixture_dict.get('standings_motivation_score'))
+    except Exception:
+        standings_mot_val = 0.0
+
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
         min_ev=5.0, min_prob=58.0,
         home_team_id=h_tid, away_team_id=a_tid,
         home_last5=h_l5, away_last5=a_l5,
-        xg_home=xg_h, xg_away=xg_a
+        xg_home=xg_h, xg_away=xg_a,
+        home_rank=h_rk_val,
+        away_rank=a_rk_val,
+        home_ppg=h_ppg_val,
+        away_ppg=a_ppg_val,
+        home_zone=fixture_dict.get('home_zone'),
+        away_zone=fixture_dict.get('away_zone'),
+        standings_motivation_score=standings_mot_val
     )
 
     if not best_cand:
@@ -1478,12 +1606,37 @@ def calculate_unified_handicap_recommendation(
         dog_pts = dog_l5.get('pts', 0) if (dog_l5 and isinstance(dog_l5, dict)) else 0
         fav_in_form = (fav_pts >= 12 or fav_eff >= 9.0) and ((fav_eff - dog_eff) >= 3.0 or (fav_pts - dog_pts) >= 4)
 
+        h_zone_str = str(fixture_dict.get('home_zone') or '').lower()
+        is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
+        is_h_under_threat = (
+            is_h_rel or
+            (h_rk_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
+            (h_rk_val >= 12 and standings_mot_val >= 3.0) or
+            (h_rk_val >= 12 and a_rk_val > 0 and (h_rk_val - a_rk_val >= 6 or a_rk_val <= 6))
+        )
+
         is_crisis_clash = (
             (fav_eff <= 3.0 and dog_eff <= 3.0) or
             (h_l5 and a_l5 and isinstance(h_l5, dict) and isinstance(a_l5, dict) and h_l5.get('v', 0) <= 1 and a_l5.get('v', 0) <= 1 and fav_pts <= 4 and dog_pts <= 4)
         )
 
-        if is_crisis_clash:
+        has_away_cand = any(c.get('is_away') for c in betano_lines) if betano_lines else False
+        away_has_better_metrics = (dog_eff > fav_eff) or (a_rk_val > 0 and h_rk_val > 0 and h_rk_val > a_rk_val)
+
+        if not fav_is_home and not is_t1 and (odd_a >= 2.10) and is_h_under_threat:
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
+                f"Mandante {home_team} ({h_rk_val}º colocado) sob pressão crítica na tabela atuando em seus domínios "
+                f"contra visitante {away_team} ({a_rk_val}º colocado) em confronto de mercado parelho (Odd Fora: {odd_a:.2f}). "
+                f"O fator campo e a urgência de sobrevivência do mandante anulam a vantagem teórica. Abstenção mandatória."
+            )
+        elif fav_is_home and not is_t1 and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano] Partida {home_team} vs {away_team} -> "
+                f"O mercado precifica o mandante ({home_team} @ {odd_h:.2f}) como favorito sobre o visitante "
+                f"({away_team} @ {odd_a:.2f}), neutralizando a superioridade teórica recente. Abstenção mandatória por divergência de mercado."
+            )
+        elif is_crisis_clash:
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Duelo de Crises] Partida {home_team} vs {away_team} -> "
                 f"Ambas as equipes em momento técnico desfavorável no U5J ({home_team} {fav_eff if fav_is_home else dog_eff:.1f} pts vs {away_team} {dog_eff if fav_is_home else fav_eff:.1f} pts). "

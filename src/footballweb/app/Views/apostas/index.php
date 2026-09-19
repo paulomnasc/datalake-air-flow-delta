@@ -1348,6 +1348,17 @@ if (!function_exists('getBookmakerUrl')) {
               if ($isAbstencaoBloqueada) {
                 if (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
                   $abstencaoTexto = $detalhadoExibir;
+                  // Higienização de UX (Regra 17)
+                  if (preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $abstencaoTexto, $mReasA)) {
+                    $abstencaoTexto = trim($mReasA[1]);
+                  } else {
+                    $abstencaoTexto = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $abstencaoTexto);
+                    $abstencaoTexto = preg_replace('/\s*\|\|\s*U5J_DATA:.*$/isu', '', $abstencaoTexto);
+                    $abstencaoTexto = preg_replace('/\s*\|\|\s*PROBABILIDADES_1X2:.*$/isu', '', $abstencaoTexto);
+                    $abstencaoTexto = preg_replace('/^\|\|\s*EXPLICACAO:\s*/isu', '', $abstencaoTexto);
+                    $abstencaoTexto = preg_replace('/\|\|\s*MOTIVACAO:\s*/isu', "\n\n", $abstencaoTexto);
+                  }
+                  $abstencaoTexto = rtrim(trim($abstencaoTexto), '| ');
                 } elseif (!empty($aposta->odd_home) && !empty($aposta->odd_draw) && !empty($aposta->odd_away)) {
                   $abstencaoTexto = sprintf(
                     lang('App.ai_abstain_with_odds'),

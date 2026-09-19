@@ -60,7 +60,8 @@ def run_remediation():
         FROM fixtures_trends
         WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY
           AND (
-              ah_reasoning NOT LIKE '%|| U5J_DATA:%'
+              ah_reasoning IS NULL
+              OR ah_reasoning NOT LIKE '%|| U5J_DATA:%'
               OR ah_reasoning LIKE '%APOSTA CANCELADA%'
           )
         ORDER BY fixture_date ASC

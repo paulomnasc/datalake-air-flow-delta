@@ -213,8 +213,8 @@ GATEKEEPER_DIDACTIC_MAP = {
     'Super-Favorito Dominante': 'Equipe de elite (Tier 1) com alta dominância técnica, histórico consistente e linha de proteção ajustada dentro da margem de segurança da banca.',
     'Valor Esperado Positivo (+EV)': 'Assimetria estatística identificada: a probabilidade de vitória/cobertura calculada pelo modelo Poisson supera a probabilidade precificada pela casa de apostas.',
     'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.',
-    'Sobrevivência do Mandante': 'Mandante em situação crítica ou na segunda metade da tabela atuando em casa contra visitante em duelo parelho; abstenção por risco de sobrevivência.',
-    'Mando de Campo Soberano': 'As casas de apostas precificam o mandante como favorito no 1X2, neutralizando a superioridade teórica do visitante.'
+    'Sobrevivência do Mandante': 'Caldeirão da Degola / Sobrevivência do Mandante: O mandante está afundado no Z-4 ou próximo da degola, mas joga a vida em seus domínios contra visitante do topo em jogo equilibrado; abstenção por risco de caldeirão.',
+    'Mando de Campo Soberano': 'Mando de Campo Soberano / Divergência de Mercado: As casas de apostas alertam que o mandante é o favorito nas cotações, indicando que a força e adaptação do estádio local superam o momento do visitante.'
 }
 
 
@@ -236,9 +236,9 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
         return 'Valor Esperado Positivo (+EV)'
 
     # Categorias de Abstenção (NO_BET)
-    if any(k in r_text for k in ['Sobrevivência do Mandante', 'pressão crítica na tabela']):
+    if any(k in r_text for k in ['Sobrevivência do Mandante', 'Caldeirão da Degola', 'pressão crítica na tabela']):
         return 'Sobrevivência do Mandante'
-    if any(k in r_text for k in ['Mando de Campo Soberano', 'divergência de mercado']):
+    if any(k in r_text for k in ['Mando de Campo Soberano', 'Divergência de Mercado', 'divergência de mercado']):
         return 'Mando de Campo Soberano'
     if any(k in r_text for k in ['Duelo de Crises', 'crise severa', 'ambas as equipes em momento técnico desfavorável']):
         return 'Duelo de Crises'
@@ -1490,11 +1490,11 @@ def calculate_unified_handicap_recommendation(
             return 'APROVADO', sug_preserved, conf_preserved, reason_preserved, preserved_cand, [preserved_cand]
 
         # Partida sem nenhuma linha da API e sem nenhum dado gravado no banco: Abstenção Mandatória
-        has_real_1x2_odds = bool(odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0)
+        has_real_1x2_odds = bool(odd_h and odd_a and float(odd_h) > 1.0 and float(odd_a) > 1.0)
         if has_real_1x2_odds:
             reason_no_odds = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
-                f"Cotações de mercado 1X2 (Casa: {float(odd_home):.2f}, Fora: {float(odd_away):.2f}) analisadas. "
+                f"Cotações de mercado 1X2 (Casa: {float(odd_h):.2f}, Fora: {float(odd_a):.2f}) analisadas. "
                 f"Nenhuma linha de Handicap Asiático atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 58.0%). "
                 f"Abstenção mandatória pelo Gatekeeper para proteção de banca."
             )
@@ -1625,16 +1625,18 @@ def calculate_unified_handicap_recommendation(
 
         if not fav_is_home and not is_t1 and (odd_a >= 2.10) and is_h_under_threat:
             reason = (
-                f"🛡️ [Gatekeeper AH NO_BET / Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
-                f"Mandante {home_team} ({h_rk_val}º colocado) sob pressão crítica na tabela atuando em seus domínios "
-                f"contra visitante {away_team} ({a_rk_val}º colocado) em confronto de mercado parelho (Odd Fora: {odd_a:.2f}). "
-                f"O fator campo e a urgência de sobrevivência do mandante anulam a vantagem teórica. Abstenção mandatória."
+                f"🚨 [Gatekeeper AH NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
+                f"O mandante ({home_team}) está afundado na zona de rebaixamento ou perigosamente próximo da degola ({h_rk_val}º colocado), "
+                f"mas joga a vida em seus domínios contra um visitante da parte de cima da tabela ({away_team}, {a_rk_val}º colocado) "
+                f"em jogo com odds de equilíbrio (Visitante @ {odd_a:.2f}). O fator campo, a pressão das arquibancadas e a urgência extrema por pontos "
+                f"neutralizam a superioridade teórica do visitante. Abstenção mandatória por risco de caldeirão."
             )
         elif fav_is_home and not is_t1 and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
             reason = (
-                f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano] Partida {home_team} vs {away_team} -> "
-                f"O mercado precifica o mandante ({home_team} @ {odd_h:.2f}) como favorito sobre o visitante "
-                f"({away_team} @ {odd_a:.2f}), neutralizando a superioridade teórica recente. Abstenção mandatória por divergência de mercado."
+                f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano - Divergência de Mercado] Partida {home_team} vs {away_team} -> "
+                f"O visitante ({away_team}) está melhor ranqueado na tabela ou possui melhor sequência recente, mas as casas de apostas alertam "
+                f"que o mandante ({home_team} @ {odd_h:.2f} vs {away_team} @ {odd_a:.2f}) é o favorito nas cotações, indicando que a força, "
+                f"tradição e adaptação ao estádio do mandante superam o momento recente do visitante. Abstenção mandatória por divergência de mercado."
             )
         elif is_crisis_clash:
             reason = (
@@ -1850,6 +1852,43 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
                     break
         except Exception as e:
             print(f"⚠️ [U5J DB Fetch] Erro ao buscar últimos 5 jogos de '{team_name}' (#{team_id}): {e}")
+
+    # 3. Salvaguarda Resiliente de Contingência no team_last5_cache sem restrição de TTL (Regra 16)
+    if len(matches) < 5 and cursor and team_id:
+        try:
+            cursor.execute("""
+                SELECT form_json FROM team_last5_cache 
+                WHERE team_id = %s
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, (team_id,))
+            c_row_any = cursor.fetchone()
+            if c_row_any and c_row_any.get('form_json'):
+                c_matches_any = json.loads(c_row_any['form_json']) if isinstance(c_row_any['form_json'], str) else c_row_any['form_json']
+                if isinstance(c_matches_any, list):
+                    for cm in c_matches_any:
+                        c_dt = str(cm.get('date', '')).strip()
+                        if '/' in c_dt and len(c_dt) > 5:
+                            c_dt = '/'.join(c_dt.split('/')[:2])
+                        cand = {
+                            "opponent": cm.get('opponent'),
+                            "score": str(cm.get('score', '')).strip().replace('-', 'x'),
+                            "result": cm.get('result'),
+                            "is_home": cm.get('is_home'),
+                            "date": c_dt,
+                            "fixture_id": cm.get('fixture_id')
+                        }
+                        is_dup = any(
+                            (m.get('fixture_id') and cand.get('fixture_id') and m.get('fixture_id') == cand.get('fixture_id'))
+                            or (m.get('date') == cand.get('date') and str(m.get('opponent', '')).lower() == str(cand.get('opponent', '')).lower())
+                            for m in matches
+                        )
+                        if not is_dup:
+                            matches.append(cand)
+                        if len(matches) >= 5:
+                            break
+        except Exception:
+            pass
 
     num_v = sum(1 for m in matches if m.get("result") == "V")
     num_e = sum(1 for m in matches if m.get("result") == "E")

@@ -34,7 +34,9 @@ try:
         evaluate_and_select_best_ah_candidate as ah_evaluate_and_select_best_candidate,
         build_fallback_lines_from_odds as ah_build_fallback_lines,
         fetch_all_betano_ah_lines as ah_fetch_all_betano_ah_lines,
-        compute_team_u5j_efficiency
+        compute_team_u5j_efficiency,
+        compose_compound_ah_reasoning,
+        determine_gatekeeper_category
     )
 except Exception:
     ah_calculate_bivariate_poisson_matrix = None
@@ -43,6 +45,9 @@ except Exception:
     ah_build_fallback_lines = None
     ah_fetch_all_betano_ah_lines = None
     compute_team_u5j_efficiency = None
+    compose_compound_ah_reasoning = None
+    def determine_gatekeeper_category(status_gk, suggestion, reason, best_cand=None):
+        return 'Valor Esperado Positivo (+EV)' if status_gk == 'APROVADO' else 'NO_BET'
 
 try:
     from cards_engine import (
@@ -469,7 +474,8 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     seguida de fallback na API-Sports e Futbol24.
     Garante sincronização total entre v, e, d, pts e a lista visual de partidas (matches).
     """
-    cache_key = (str(team_id or '').strip(), str(team_name or '').lower().strip(), str(league_id or '').strip())
+    # A forma recente (U5J) é estritamente do time e agnóstica à liga (Regra 16)
+    cache_key = (str(team_id or '').strip(), str(team_name or '').lower().strip())
     if cache_key in _team_last5_form_cache:
         return _team_last5_form_cache[cache_key]
 
@@ -571,26 +577,10 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_sql_id:
             print(f"Aviso na busca SQL por ID de forma para '{team_name}' (#{team_id}): {e_sql_id}")
 
-    # 4. Fallback no banco MySQL local por Nome (+ Filtro de Liga/País) se ainda < 5 partidas
+    # 4. Fallback no banco MySQL local por Nome (Multi-Competições, agnóstico à liga - Regra 16)
     if cursor is not None and len(matches) < 5:
         try:
             clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
-            queries_to_try = []
-            if league_id and str(league_id).strip():
-                sql_league = """
-                    SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
-                    FROM fixtures_trends
-                    WHERE status IN ('FT', 'AET', 'PEN')
-                      AND goals_home IS NOT NULL
-                      AND goals_away IS NOT NULL
-                      AND league_id = %s
-                      AND (league_id NOT IN (667, 10) AND (league_name IS NULL OR (LOWER(league_name) NOT LIKE '%%friendl%%' AND LOWER(league_name) NOT LIKE '%%amistoso%%')))
-                      AND (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
-                    ORDER BY fixture_date DESC
-                    LIMIT 30
-                """
-                queries_to_try.append((sql_league, (league_id, clean_search, clean_search)))
-
             sql_all = """
                 SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
                 FROM fixtures_trends
@@ -602,17 +592,14 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 ORDER BY fixture_date DESC
                 LIMIT 30
             """
-            queries_to_try.append((sql_all, (clean_search, clean_search)))
-
-            for sql_query, params in queries_to_try:
+            cursor.execute(sql_all, (clean_search, clean_search))
+            rows = cursor.fetchall()
+            for r in rows:
                 if len(matches) >= 5:
                     break
-                cursor.execute(sql_query, params)
-                rows = cursor.fetchall()
-                for r in rows:
-                    fid = r.get('fixture_id')
-                    if fid in seen_fixtures:
-                        continue
+                fid = r.get('fixture_id')
+                if fid in seen_fixtures:
+                    continue
                     h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
                     a_match = _is_team_match(team_name, r['away_team'], team_id, r.get('away_team_id'))
                     if h_match or a_match:
@@ -678,6 +665,27 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 if len(matches) >= 5:
                     break
         except Exception as e_prev:
+            pass
+
+    # 4.6 Salvaguarda Resiliente de Contingência (Regra 16): team_last5_cache sem restrição de TTL se ainda < 5 jogos
+    if cursor is not None and len(matches) < 5 and team_id and str(team_id).strip():
+        try:
+            cursor.execute("""
+                SELECT form_json FROM team_last5_cache 
+                WHERE team_id = %s
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, (team_id,))
+            c_row_any = cursor.fetchone()
+            if c_row_any and c_row_any.get('form_json'):
+                c_matches_any = json.loads(c_row_any['form_json']) if isinstance(c_row_any['form_json'], str) else c_row_any['form_json']
+                if isinstance(c_matches_any, list):
+                    for am in c_matches_any:
+                        if not _is_match_duplicate(am, matches):
+                            matches.append(am)
+                        if len(matches) >= 5:
+                            break
+        except Exception as e_c_any:
             pass
 
     # 4. Fallback no Futbol24 se o banco e a API-Sports estiverem sem cota / < 5 jogos
@@ -3583,7 +3591,7 @@ def main():
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%%STATUS GK: APROVADO%%') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
 
@@ -4611,7 +4619,7 @@ def update_oddspedia_odds(conn):
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%%STATUS GK: APROVADO%%') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
 
@@ -4877,7 +4885,7 @@ def enrich_fixtures_standings(conn):
                 WHERE fixture_id = %s 
                   AND status != 'Não Confirmada'
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%%STATUS GK: APROVADO%%') DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
             is_ah_bet_approved = existing_ah_aposta and (
@@ -4981,7 +4989,7 @@ def recalculate_inconsistent_odds_predictions(conn):
                     WHERE fixture_id = %s 
                       AND status != 'Não Confirmada'
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%STATUS GK: APROVADO%') DESC, confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, (status_gatekeeper = 'APROVADO' OR resultado_detalhado LIKE '%%STATUS GK: APROVADO%%') DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
                 is_ah_bet_approved = existing_ah_aposta and (

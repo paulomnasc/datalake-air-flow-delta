@@ -3618,6 +3618,19 @@ if (!function_exists('getBetDecisionTree')) {
                                             if (preg_match('/\[Avisos:\s*([^\]]+)\]/iu', $rText, $mAvisos)) {
                                                 $ah_block_detail = trim($mAvisos[1]);
                                             }
+
+                                            // Higienização de UX (Regra 17): Extrai a explicação limpa e suprime vazamentos de MEMÓRIA DE CÁLCULO e U5J_DATA
+                                            if (preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $ah_block_desc, $mReas)) {
+                                                $ah_block_desc = trim($mReas[1]);
+                                            } else {
+                                                $ah_block_desc = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $ah_block_desc);
+                                                $ah_block_desc = preg_replace('/\s*\|\|\s*U5J_DATA:.*$/isu', '', $ah_block_desc);
+                                                $ah_block_desc = preg_replace('/\s*\|\|\s*PROBABILIDADES_1X2:.*$/isu', '', $ah_block_desc);
+                                                $ah_block_desc = preg_replace('/^\|\|\s*EXPLICACAO:\s*/isu', '', $ah_block_desc);
+                                                $ah_block_desc = preg_replace('/\|\|\s*MOTIVACAO:\s*/isu', "\n\n", $ah_block_desc);
+                                            }
+                                            $ah_block_desc = rtrim(trim($ah_block_desc), '| ');
+
                                             $nl_explanation = $ah_block_desc;
                                         }
                                     ?>

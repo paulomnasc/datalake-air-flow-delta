@@ -158,3 +158,32 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
 - **Proteção da Banca contra Estados Corrompidos (Fail-Fast):**
   - O sistema nunca deve prosseguir como se uma gravação tivesse sido realizada com sucesso quando a camada de banco rejeitou a operação.
   - Se um dado indispensável não puder ser persistido devido a uma falha de modelo, a aposta ou predição correspondente deve ser imediatamente suspensa (`NO_BET` / Abstenção por Falha Relacional), evitando que apostas financeiras reais sejam emitidas sobre premissas estatísticas incompletas ou ausentes.
+
+---
+
+## 16. Preservação Obrigatória e Integridade Estrutural do Histórico Recente (Payload U5J) em Cards e Apostas
+- **Obrigatoriedade e Imutabilidade do Payload `|| U5J_DATA:`:**
+  - O histórico dos últimos 5 jogos (U5J) é a espinha dorsal analítica e visual do dashboard e dos motores preditivos. É terminantemente proibido gravar ou atualizar a coluna `fixtures_trends.ah_reasoning` ou `apostas.resultado_detalhado` sem que o bloco estruturado `|| U5J_DATA: {"home": {...}, "away": {...}}` esteja devidamente anexado e íntegro.
+- **Proibição Absoluta de Sobrescrita Destrutiva em Atualizações e Cancelamentos:**
+  - Toda e qualquer rotina que atualize o texto de raciocínio de uma partida (seja por cancelamento de aposta, abstenção da IA, recálculo de odds Betano ou ingestão de dados em `scripts/football_ingest_trends.py`, `scripts/asian_handicap_engine.py`, `scripts/criar_apostas_handicap_diario.py`, etc.) **DEVE OBRIGATORIAMENTE utilizar a função canônica `compose_compound_ah_reasoning`** para preservar ou recompor o payload `|| U5J_DATA:`.
+  - É expressamente proibido executar `UPDATE fixtures_trends SET ah_reasoning = ...` com mensagens parciais (ex: apenas "Aposta Cancelada" ou "Sem odds Betano") que descartem ou trunquem o bloco `|| U5J_DATA:`.
+- **Garantia de Amostragem Multi-Competições e Independência de Liga no Cache (`team_last5_cache`):**
+  - O histórico de 5 jogos recentes de um time reflete sua forma esportiva recente geral (multi-competições). É expressamente proibido descartar ou desconsiderar o cache de um time em `team_last5_cache` pelo fato da partida do dia pertencer a uma liga diferente (ex: Santos e Vasco disputando a Série A com partidas recentes de Copa do Brasil registradas no cache). A busca por `team_id` deve prevalecer de forma soberana e agnóstica à liga da partida.
+- **Fail-Safe de Recomposição Imediata:**
+  - Se, durante qualquer processamento, uma partida for identificada com ausência do bloco `|| U5J_DATA:` ou histórico corrompido, a esteira deve obrigatoriamente acionar a recomposição via `get_team_u5j_from_db` / `team_last5_cache` e API oficial antes de persistir o registro, impedindo que cards sem U5J sejam exibidos na plataforma.
+
+---
+
+## 17. Blindagem e Higienização Visual da UX (Proibição Absoluta de Vazamento de Memória de Cálculo, Fórmulas e Payloads Técnicos)
+- **Experiência do Usuário (UX) Limpa e Focada no Negócio:**
+  - A interface com o usuário final (cards do dashboard, telas de apostas, modais e notificações) deve apresentar exclusivamente análises, diagnósticos e motivações em **linguagem natural clara, elegante e compreensível**, respeitando a Regra 13.
+- **Proibição Absoluta de Vazamento de Payloads e Delimitadores Internos:**
+  - É expressamente proibido exibir na interface visual qualquer trecho contendo:
+    1. Delimitadores estruturados de backend (ex: `|| MEMÓRIA DE CÁLCULO ||`, `|| U5J_DATA:`, `|| PROBABILIDADES_1X2:`, `|| EXPLICACAO:`, `|| MOTIVACAO:`);
+    2. JSONs crus ou fragmentos de dicionários serializados (ex: `{"home": {"v": 0, "e": 1...}}`);
+    3. Fórmulas matemáticas brutas, lambdas de Poisson, probabilidades fracionárias brutas ou sequências aritméticas de cálculo.
+- **Isolamento Estrito de Camadas (Auditoria no Backend vs. Clareza no Frontend):**
+  - Toda a complexidade técnica, memória de cálculo detalhada e payloads JSON estruturados pertencem **exclusivamente à camada de banco de dados** (colunas de auditoria no MySQL) para alimentar os algoritmos da IA, motores analíticos e históricos preditivos.
+  - A camada de apresentação (views e controllers PHP) deve obrigatoriamente higienizar todo texto antes de exibi-lo em tela, extraindo estritamente a síntese em linguagem natural (ex: o bloco `REASON:`) e suprimindo de forma irrestrita qualquer bloco que contenha `|| MEMÓRIA DE CÁLCULO` ou tags técnicas internas.
+
+

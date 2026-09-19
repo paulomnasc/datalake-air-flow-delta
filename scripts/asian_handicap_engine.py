@@ -2514,7 +2514,8 @@ def sync_fixture_and_bet_handicap(
     detalhe_calculo: str,
     user_ids: list,
     confirmada_val: int = 0,
-    destaque_val: int = 0
+    destaque_val: int = 0,
+    best_cand: dict = None
 ):
     """
     Sincroniza atômica e simultaneamente o Card (fixtures_trends) e a Aposta (apostas).

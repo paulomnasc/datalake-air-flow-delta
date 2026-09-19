@@ -2890,17 +2890,198 @@ class ApostaController extends BaseController
             unset($ap);
         }
 
+        $gatekeeperStats = $this->computeGatekeeperCategoryStats();
+
         $data = [
-            'title'       => 'Análise de Desempenho | Gestão de Riscos & Palpites',
-            'user'        => $access['user'],
-            'hasTokens'   => $hasTokens,
-            'userCredits' => $userCredits,
-            'apostas'     => $apostas
+            'title'           => 'Análise de Desempenho | Gestão de Riscos & Palpites',
+            'user'            => $access['user'],
+            'hasTokens'       => $hasTokens,
+            'userCredits'     => $userCredits,
+            'apostas'         => $apostas,
+            'gatekeeperStats' => $gatekeeperStats
         ];
 
         return view('header', $data)
              . view('apostas/analise_desempenho', $data)
              . view('footer');
+    }
+
+    /**
+     * Calcula as métricas consolidadas de cada categoria do Gatekeeper (BET vs NO_BET),
+     * incluindo volume de ocorrência, taxa de Green/Red reais nas apostas ativas e Green/Red
+     * reprimidos nas partidas bloqueadas pelo Gatekeeper.
+     */
+    private function computeGatekeeperCategoryStats(): array
+    {
+        $db = \Config\Database::connect('default');
+        try {
+            $db->setDatabase('footballweb');
+        } catch (\Throwable $e) {
+            // Mantém base atual se setDatabase não for suportado
+        }
+        $builder = $db->table('fixtures_trends')
+            ->select('fixture_id, home_team, away_team, status, goals_home, goals_away, ah_suggestion, ah_reasoning, gatekeeper_category')
+            ->where('gatekeeper_category IS NOT NULL')
+            ->where('gatekeeper_category !=', '');
+        
+        $rows = $builder->get()->getResultArray();
+        $totalAll = count($rows);
+
+        $categories = [];
+
+        foreach ($rows as $row) {
+            $cat = trim($row['gatekeeper_category'] ?? '');
+            if ($cat === '') {
+                continue;
+            }
+
+            $sug = trim($row['ah_suggestion'] ?? '');
+            $isNoBet = (stripos($sug, 'Abstenção') !== false || stripos($sug, 'Sem Entrada') !== false || stripos($sug, 'NO_BET') !== false);
+            $tipo = $isNoBet ? 'NO_BET' : 'BET';
+
+            if (!isset($categories[$cat])) {
+                $categories[$cat] = [
+                    'categoria'   => $cat,
+                    'tipo'        => $tipo,
+                    'total'       => 0,
+                    'ft'          => 0,
+                    'greens'      => 0,
+                    'reds'        => 0,
+                    'voids'       => 0,
+                    'sem_palpite' => 0
+                ];
+            }
+
+            $categories[$cat]['total']++;
+
+            $status = strtoupper(trim($row['status'] ?? ''));
+            if ($status === 'FT' && $row['goals_home'] !== null && $row['goals_away'] !== null) {
+                $categories[$cat]['ft']++;
+                $gh = (int)$row['goals_home'];
+                $ga = (int)$row['goals_away'];
+                $homeTeam = trim($row['home_team'] ?? '');
+                $awayTeam = trim($row['away_team'] ?? '');
+                $reasoning = $row['ah_reasoning'] ?? '';
+
+                $targetTeam = null;
+                $line = 0.0;
+
+                if (!$isNoBet) {
+                    // Palpite BET Oficial
+                    if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $sug, $mLine)) {
+                        $line = (float)str_replace(',', '.', $mLine[1]);
+                    }
+                    if ($awayTeam !== '' && stripos($sug, $awayTeam) !== false) {
+                        $targetTeam = $awayTeam;
+                    } else {
+                        $targetTeam = $homeTeam;
+                    }
+                } else {
+                    // NO_BET: Extração do palpite reprimido que a IA avaliou
+                    if (preg_match('/Vitória do ([^:\n\r]+):/u', $reasoning, $mExp)) {
+                        $candName = trim($mExp[1]);
+                        if ($awayTeam !== '' && stripos($candName, $awayTeam) !== false) {
+                            $targetTeam = $awayTeam;
+                        } elseif ($homeTeam !== '' && stripos($candName, $homeTeam) !== false) {
+                            $targetTeam = $homeTeam;
+                        } else {
+                            $targetTeam = $candName;
+                        }
+                    }
+
+                    // Linha reprimida associada
+                    if (preg_match('/\(.*?\s+([+-]?\d+(?:\.\d+)?)\s*AH/i', $reasoning, $mDnb)) {
+                        $line = (float)$mDnb[1];
+                    } elseif (stripos($reasoning, '0.0 AH') !== false || stripos($reasoning, 'DNB') !== false) {
+                        $line = 0.0;
+                    } elseif (stripos($reasoning, '-0.25 AH') !== false) {
+                        $line = -0.25;
+                    } elseif (stripos($reasoning, '+0.25 AH') !== false) {
+                        $line = 0.25;
+                    } else {
+                        $line = 0.0;
+                    }
+                }
+
+                if (!$targetTeam) {
+                    $categories[$cat]['sem_palpite']++;
+                    continue;
+                }
+
+                $isAway = ($targetTeam === $awayTeam);
+                $diff = $isAway ? ($ga - $gh) : ($gh - $ga);
+                $adj = $diff + $line;
+
+                if ($adj > 0.25) {
+                    $categories[$cat]['greens']++;
+                } elseif (abs($adj - 0.25) < 0.01) {
+                    $categories[$cat]['greens']++; // Meio green considerado vitória
+                } elseif (abs($adj) < 0.01) {
+                    $categories[$cat]['voids']++;
+                } elseif (abs($adj - (-0.25)) < 0.01) {
+                    $categories[$cat]['reds']++; // Meio red considerado perda
+                } else {
+                    $categories[$cat]['reds']++;
+                }
+            }
+        }
+
+        // Ordena categorias pelo volume total de ocorrências
+        uasort($categories, function ($a, $b) {
+            return $b['total'] <=> $a['total'];
+        });
+
+        // Formata percentuais finais
+        $formatted = [];
+        $totalBets = 0;
+        $totalNoBets = 0;
+        $totalGreens = 0;
+        $totalReds = 0;
+        $totalVoids = 0;
+        $totalReprimidosGreen = 0;
+        $totalReprimidosRed = 0;
+        $totalReprimidosVoid = 0;
+
+        foreach ($categories as $k => $c) {
+            $pctOcc = ($totalAll > 0) ? round(($c['total'] / $totalAll) * 100, 1) : 0.0;
+            $validFt = $c['ft'] - $c['sem_palpite'];
+            $pctGreen = ($validFt > 0) ? round(($c['greens'] / $validFt) * 100, 1) : 0.0;
+            $pctRed   = ($validFt > 0) ? round(($c['reds'] / $validFt) * 100, 1) : 0.0;
+            $pctVoid  = ($validFt > 0) ? round(($c['voids'] / $validFt) * 100, 1) : 0.0;
+
+            if ($c['tipo'] === 'BET') {
+                $totalBets += $c['total'];
+                $totalGreens += $c['greens'];
+                $totalReds += $c['reds'];
+                $totalVoids += $c['voids'];
+            } else {
+                $totalNoBets += $c['total'];
+                $totalReprimidosGreen += $c['greens'];
+                $totalReprimidosRed += $c['reds'];
+                $totalReprimidosVoid += $c['voids'];
+            }
+
+            $formatted[] = array_merge($c, [
+                'pct_ocorrencia' => $pctOcc,
+                'jogos_validos'  => $validFt,
+                'pct_green'      => $pctGreen,
+                'pct_red'        => $pctRed,
+                'pct_void'       => $pctVoid
+            ]);
+        }
+
+        return [
+            'total_partidas'          => $totalAll,
+            'total_bets'              => $totalBets,
+            'total_no_bets'           => $totalNoBets,
+            'total_greens'            => $totalGreens,
+            'total_reds'              => $totalReds,
+            'total_voids'             => $totalVoids,
+            'total_reprimidos_green'  => $totalReprimidosGreen,
+            'total_reprimidos_red'    => $totalReprimidosRed,
+            'total_reprimidos_void'   => $totalReprimidosVoid,
+            'categorias'              => $formatted
+        ];
     }
 
     /**

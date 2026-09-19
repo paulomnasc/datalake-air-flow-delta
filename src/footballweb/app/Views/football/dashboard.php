@@ -3479,8 +3479,15 @@ if (!function_exists('getBetDecisionTree')) {
 
                                             // Categoria do Gatekeeper (Prioridade Máxima)
                                             $dbGkCat = !empty($fix->gatekeeper_category) ? trim($fix->gatekeeper_category) : '';
+                                            $approvedGkCats = ['Valor Esperado Positivo (+EV)', 'Super-Favorito Dominante', 'Cobertura de Azarão em Alta'];
+                                            if (in_array($dbGkCat, $approvedGkCats, true)) {
+                                                $dbGkCat = '';
+                                            }
                                             if (empty($dbGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? ''), $mCat)) {
                                                 $dbGkCat = trim($mCat[1]);
+                                                if (in_array($dbGkCat, $approvedGkCats, true)) {
+                                                    $dbGkCat = '';
+                                                }
                                             }
 
                                             if (!empty($dbGkCat)) {

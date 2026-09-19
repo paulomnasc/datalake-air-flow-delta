@@ -1528,8 +1528,15 @@ if (!function_exists('getBookmakerUrl')) {
                         </div>
                         <?php 
                           $apGkCat = !empty($aposta->gatekeeper_category) ? trim($aposta->gatekeeper_category) : '';
+                          $approvedGkCats = ['Valor Esperado Positivo (+EV)', 'Super-Favorito Dominante', 'Cobertura de Azarão em Alta'];
+                          if (in_array($apGkCat, $approvedGkCats, true)) {
+                              $apGkCat = '';
+                          }
                           if (empty($apGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', (string)($detalhadoExibir ?? ''), $mCatA)) {
                               $apGkCat = trim($mCatA[1]);
+                              if (in_array($apGkCat, $approvedGkCats, true)) {
+                                  $apGkCat = '';
+                              }
                           }
                         ?>
                         <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">

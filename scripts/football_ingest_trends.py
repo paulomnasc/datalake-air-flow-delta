@@ -4912,15 +4912,19 @@ def enrich_fixtures_standings(conn):
                     existing_reasoning=existing_f_reasoning
                 )
 
+            from asian_handicap_engine import determine_gatekeeper_category
+            gk_cat = determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(sug) else 'APROVADO', sug, reason)
+
             cursor.execute("""
                 UPDATE fixtures_trends SET
                     home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
                     home_zone = %s, away_zone = %s, standings_motivation_score = %s,
                     xg_home = IF(xg_home <= 0, %s, xg_home),
                     xg_away = IF(xg_away <= 0, %s, xg_away),
-                    ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
+                    ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
+                    gatekeeper_category = %s
                 WHERE fixture_id = %s
-            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, proj_h, proj_a, sug, conf, reason, fix_id))
+            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, proj_h, proj_a, sug, conf, reason, gk_cat, fix_id))
             if is_abstain_suggestion(sug):
                 cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
         else:

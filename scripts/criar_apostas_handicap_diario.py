@@ -669,6 +669,9 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 existing_reasoning=existing_r
             )
 
+            from asian_handicap_engine import determine_gatekeeper_category
+            cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo or compound_reasoning)
+
             from asian_handicap_engine import get_cached_betano_1x2
             b1x2 = get_cached_betano_1x2(fixture_id)
             if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
@@ -678,6 +681,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                         ah_suggestion = 'Sem Entrada (Abstenção)',
                         ah_confidence = 50.00,
                         ah_reasoning = %s,
+                        gatekeeper_category = %s,
                         odd_home = %s,
                         casa_odd_home = %s,
                         odd_draw = %s,
@@ -686,16 +690,17 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                         casa_odd_away = %s,
                         updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (compound_reasoning, b1x2['casa'], bm_label, b1x2['empate'], bm_label, b1x2['visitante'], bm_label, fixture_id))
+                """, (compound_reasoning, cat_desc, b1x2['casa'], bm_label, b1x2['empate'], bm_label, b1x2['visitante'], bm_label, fixture_id))
             else:
                 cursor.execute("""
                     UPDATE fixtures_trends SET
                         ah_suggestion = 'Sem Entrada (Abstenção)',
                         ah_confidence = 50.00,
                         ah_reasoning = %s,
+                        gatekeeper_category = %s,
                         updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (compound_reasoning, fixture_id))
+                """, (compound_reasoning, cat_desc, fixture_id))
             continue
 
         eval_res = best_cand['eval']

@@ -236,23 +236,34 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
         return 'Valor Esperado Positivo (+EV)'
 
     # Categorias de Abstenção (NO_BET)
-    if any(k in r_text for k in ['Sobrevivência do Mandante', 'Caldeirão da Degola', 'pressão crítica na tabela']):
+    # Isola o bloco principal do Gatekeeper para evitar vazamento de termos de '|| MOTIVACAO:' ou '|| EXPLICACAO:'
+    main_text = r_text.split(" || EXPLICACAO:")[0].split(" || MOTIVACAO:")[0].split(" || MEMÓRIA DE CÁLCULO")[0]
+
+    # 1. Se o cabeçalho já trouxer a categoria explicitada (ex: 'CATEGORIA: Duelo de Crises')
+    m_cat = re.search(r'CATEGORIA:\s*([^\r\n]+)', main_text)
+    if m_cat:
+        cand_cat = m_cat.group(1).strip()
+        if cand_cat in GATEKEEPER_DIDACTIC_MAP:
+            return cand_cat
+
+    # 2. Busca pelas tags formais no bloco principal do Gatekeeper
+    if any(k in main_text for k in ['Sobrevivência do Mandante', 'Caldeirão da Degola', 'pressão crítica na tabela']):
         return 'Sobrevivência do Mandante'
-    if any(k in r_text for k in ['Mando de Campo Soberano', 'Divergência de Mercado', 'divergência de mercado']):
-        return 'Mando de Campo Soberano'
-    if any(k in r_text for k in ['Duelo de Crises', 'crise severa', 'ambas as equipes em momento técnico desfavorável']):
+    if any(k in main_text for k in ['Duelo de Crises', 'crise severa', 'ambas as equipes em momento técnico desfavorável']):
         return 'Duelo de Crises'
-    if any(k in r_text for k in ['Queda de Rendimento', 'CURVA_DESCENDENTE']):
+    if any(k in main_text for k in ['Mando de Campo Soberano', 'Divergência de Mercado']):
+        return 'Mando de Campo Soberano'
+    if any(k in main_text for k in ['Queda de Rendimento', 'CURVA_DESCENDENTE']):
         return 'Queda de Rendimento Recente'
-    if any(k in r_text for k in ['Odd Abaixo do Piso', 'abaixo do piso mínimo']):
+    if any(k in main_text for k in ['Odd Abaixo do Piso', 'abaixo do piso mínimo']):
         return 'Odd Abaixo do Piso Mínimo'
-    if any(k in r_text for k in ['Amostragem Insuficiente', 'Histórico recente incompleto', '< 5 partidas']):
+    if any(k in main_text for k in ['Amostragem Insuficiente', 'Histórico recente incompleto', '< 5 partidas']):
         return 'Amostragem Insuficiente'
-    if any(k in r_text for k in ['Ausência de Linhas Reais', 'aguardando abertura']):
+    if any(k in main_text for k in ['Ausência de Linhas Reais', 'aguardando abertura']):
         return 'Aguardando Abertura de Mercado'
-    if any(k in r_text for k in ['Odds 1X2 Ausentes', 'Ausência de cotações 1X2']):
+    if any(k in main_text for k in ['Odds 1X2 Ausentes', 'Ausência de cotações 1X2', 'Odds de Mercado Indisponíveis']):
         return 'Odds de Mercado Indisponíveis'
-    if any(k in r_text for k in ['Sem EV+', 'limiares de rentabilidade', 'não atingiram os limiares']):
+    if any(k in main_text for k in ['Sem EV+', 'limiares de rentabilidade', 'não atingiram os limiares', 'Falta de Valor Esperado']):
         return 'Falta de Valor Esperado (+EV)'
 
     return 'Equilíbrio Excessivo ou Inconsistência'
@@ -820,13 +831,17 @@ def evaluate_and_select_best_ah_candidate(
 
         # =========================================================================
         # REGRA ESTRUTURAL ANTI-EMBOSCADA 1: TRAVA DE SOBREVIVÊNCIA DO MANDANTE
-        # (Anti-Caldeirão da Degola / Abismo de Tabela)
+        # (Caldeirão da Degola / Sobrevivência do Mandante)
         # Quando o candidato é o Visitante em linha curta (c_line <= 0.0) e o mandante
         # está sob pressão extrema na tabela (rebaixamento, fragilidade ou abismo),
         # o fator campo e a urgência de sobrevivência neutralizam a superioridade teórica.
-        # Em jogos competitivos (cand_odd >= 2.10) sem dominância Tier 1, ABSTENÇÃO MANDATÓRIA!
+        # Clubes de elite (Tier 1) só são isentos se forem super-favoritos absolutos (odd 1X2 < 1.65).
+        # Em jogos competitivos (odd 1X2 do visitante >= 2.00 ou cand_odd >= 2.00), ABSTENÇÃO MANDATÓRIA!
         # =========================================================================
-        if c_is_away and c_line <= 0.0 and not is_tier1 and cand_odd >= 2.10:
+        away_is_competitive = (raw_a_odd >= 2.00) or (cand_odd >= 2.00)
+        is_tier1_heavily_favored = is_tier1 and (raw_a_odd > 0 and raw_a_odd < 1.65)
+
+        if c_is_away and c_line <= 0.0 and away_is_competitive and not is_tier1_heavily_favored:
             if is_home_in_relegation:
                 continue
             if h_rank_val >= 12 and (a_rank_val > 0 and (h_rank_val - a_rank_val >= 6 or a_rank_val <= 6)):
@@ -842,7 +857,7 @@ def evaluate_and_select_best_ah_candidate(
         # É expressamente PROIBIDO forçar aposta no visitante em linha curta (c_line <= 0.0)
         # apenas pelo momento recente do U5J, respeitando a precificação da banca.
         # =========================================================================
-        if c_is_away and c_line <= 0.0 and not is_tier1:
+        if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
             if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15:
                 continue
 
@@ -1489,24 +1504,17 @@ def calculate_unified_handicap_recommendation(
             preserved_cand['gatekeeper_category'] = app_cat
             return 'APROVADO', sug_preserved, conf_preserved, reason_preserved, preserved_cand, [preserved_cand]
 
-        # Partida sem nenhuma linha da API e sem nenhum dado gravado no banco: Abstenção Mandatória
+        # Partida sem linhas da Betano e sem cotações 1X2 válidas: Abstenção por ausência de cotações
         has_real_1x2_odds = bool(odd_h and odd_a and float(odd_h) > 1.0 and float(odd_a) > 1.0)
-        if has_real_1x2_odds:
-            reason_no_odds = (
-                f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
-                f"Cotações de mercado 1X2 (Casa: {float(odd_h):.2f}, Fora: {float(odd_a):.2f}) analisadas. "
-                f"Nenhuma linha de Handicap Asiático atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 58.0%). "
-                f"Abstenção mandatória pelo Gatekeeper para proteção de banca."
-            )
-        else:
+        if not has_real_1x2_odds:
             reason_no_odds = (
                 f"🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações oficiais de Handicap Asiático indisponíveis "
                 f"na API-Football e na The Odds API para {home_team} vs {away_team}. "
                 f"Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
             )
-        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds)
-        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
+            clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds, category='Odds de Mercado Indisponíveis')
+            compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
+            return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
     # 3. Avaliação do Gatekeeper
     h_tid = fixture_dict.get('home_team_id')
@@ -1623,7 +1631,10 @@ def calculate_unified_handicap_recommendation(
         has_away_cand = any(c.get('is_away') for c in betano_lines) if betano_lines else False
         away_has_better_metrics = (dog_eff > fav_eff) or (a_rk_val > 0 and h_rk_val > 0 and h_rk_val > a_rk_val)
 
-        if not fav_is_home and not is_t1 and (odd_a >= 2.10) and is_h_under_threat:
+        is_tier1_heavily_favored = is_t1 and (odd_a > 0 and odd_a < 1.65)
+        away_is_competitive = (odd_a >= 2.00)
+
+        if away_is_competitive and not is_tier1_heavily_favored and is_h_under_threat:
             reason = (
                 f"🚨 [Gatekeeper AH NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
                 f"O mandante ({home_team}) está afundado na zona de rebaixamento ou perigosamente próximo da degola ({h_rk_val}º colocado), "
@@ -1631,7 +1642,7 @@ def calculate_unified_handicap_recommendation(
                 f"em jogo com odds de equilíbrio (Visitante @ {odd_a:.2f}). O fator campo, a pressão das arquibancadas e a urgência extrema por pontos "
                 f"neutralizam a superioridade teórica do visitante. Abstenção mandatória por risco de caldeirão."
             )
-        elif fav_is_home and not is_t1 and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
+        elif fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano - Divergência de Mercado] Partida {home_team} vs {away_team} -> "
                 f"O visitante ({away_team}) está melhor ranqueado na tabela ou possui melhor sequência recente, mas as casas de apostas alertam "

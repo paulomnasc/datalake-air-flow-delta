@@ -697,6 +697,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span>Extrato & Conta Corrente</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('metas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #38bdf8;" title="Metas Diárias & Ciclos Rotativos">
+                        <i class="bi bi-bullseye" style="font-size: 19px;"></i>
+                        <span>Metas Diárias</span>
+                    </a>
+                </li>
                 <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">

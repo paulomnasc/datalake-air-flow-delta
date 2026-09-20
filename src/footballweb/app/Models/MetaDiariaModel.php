@@ -116,10 +116,40 @@ class MetaDiariaModel extends Model
                 ->getRowArray();
 
             if ($cache) {
-                // Se o cache tem menos de 3 minutos ou a data for passada (concluída), entrega instantaneamente
-                $updatedTimestamp = strtotime($cache['updated_at'] ?? '2000-01-01');
+                $cacheUpdated = strtotime($cache['updated_at'] ?? '2000-01-01');
                 $isHoje = ($dataReferencia === date('Y-m-d'));
-                if (!$isHoje || (time() - $updatedTimestamp) < 180) {
+                $temPendentes = ((int)($cache['pendentes_count'] ?? 0) > 0);
+
+                // Consulta leve no banco para verificar integridade e frescor das apostas
+                $betCheck = $db->query("
+                    SELECT 
+                        COUNT(*) as total_apostas,
+                        MAX(updated_at) as max_updated_at
+                    FROM apostas
+                    WHERE usuario_id = ?
+                      AND status NOT IN ('Cancelada', 'CANCELADA')
+                      AND DATE(DATE_SUB(COALESCE(data_hora_jogo, criado_em), INTERVAL 3 HOUR)) = ?
+                ", [$usuarioId, $dataReferencia])->getRowArray();
+
+                $totalApostas = (int)($betCheck['total_apostas'] ?? 0);
+                $maxUpdated = !empty($betCheck['max_updated_at']) ? strtotime($betCheck['max_updated_at']) : 0;
+
+                // Cache é válido somente se:
+                // 1) Total de apostas for idêntico ao cadastrado
+                // 2) Nenhuma aposta foi alterada/liquidada após a data do cache (max_updated_at <= cacheUpdated)
+                // 3) Se tinha pendentes gravados, não pode ser dia passado (jogos encerraram após o cache) nem passar de 180s em dia de hoje
+                $cacheValido = ($totalApostas === (int)($cache['total_apostas_cadastradas'] ?? 0))
+                            && ($maxUpdated <= $cacheUpdated);
+
+                if ($cacheValido) {
+                    if ($isHoje && $temPendentes && (time() - $cacheUpdated) >= 180) {
+                        $cacheValido = false;
+                    } elseif (!$isHoje && $temPendentes) {
+                        $cacheValido = false;
+                    }
+                }
+
+                if ($cacheValido) {
                     return $cache;
                 }
             }
@@ -143,7 +173,7 @@ class MetaDiariaModel extends Model
                 SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN 1 ELSE 0 END) as total_liquidadas,
                 SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
                 SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha') THEN 1 ELSE 0 END) as greens,
-                SUM(CASE WHEN status = 'ANULADA' THEN 1 ELSE 0 END) as pushes,
+                SUM(CASE WHEN status IN ('ANULADA', 'Anulada') THEN 1 ELSE 0 END) as pushes,
                 SUM(CASE WHEN status IN ('Perdida', 'Meio Perdida') THEN 1 ELSE 0 END) as reds,
                 COALESCE(AVG(odd), 0) as odd_media,
                 COALESCE(SUM(valor_aposta), 0) as total_apostado,
@@ -151,7 +181,7 @@ class MetaDiariaModel extends Model
                 COALESCE(SUM(CASE 
                     WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
                     WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))
-                    WHEN status = 'ANULADA' THEN valor_aposta
+                    WHEN status IN ('ANULADA', 'Anulada') THEN valor_aposta
                     WHEN status = 'Meio Perdida' THEN (valor_aposta * 0.5)
                     WHEN status = 'Cashout' THEN COALESCE(NULLIF(cash_out, 0), COALESCE(NULLIF(ganhos_potenciais, 0), valor_aposta))
                     ELSE 0 
@@ -279,7 +309,7 @@ class MetaDiariaModel extends Model
                 if (in_array($st, ['Ganha', 'Meio Ganha'])) {
                     $greens++;
                     $retornos += ($st === 'Ganha') ? ($val * $odd) : ($val + (($val * $odd - $val) / 2));
-                } elseif ($st === 'ANULADA') {
+                } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                     $pushes++;
                     $retornos += $val;
                 } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
@@ -325,6 +355,20 @@ class MetaDiariaModel extends Model
     public function getHistoricoDias(int $usuarioId, int $limite = 30): array
     {
         $db = \Config\Database::connect();
+
+        // Identifica no cache se existem dias passados gravados com jogos pendentes que já foram finalizados
+        $diasPendentesPassados = $db->table('metas_diarias_cache')
+            ->select('data_referencia')
+            ->where('usuario_id', $usuarioId)
+            ->where('data_referencia <', date('Y-m-d'))
+            ->where('pendentes_count >', 0)
+            ->get()
+            ->getResultArray();
+
+        foreach ($diasPendentesPassados as $dp) {
+            $this->recalcularCacheDiario($usuarioId, $dp['data_referencia']);
+        }
+
         return $db->table('metas_diarias_cache')
             ->where('usuario_id', $usuarioId)
             ->orderBy('data_referencia', 'DESC')

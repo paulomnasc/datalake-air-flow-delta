@@ -608,6 +608,66 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
+                // Metadados contextuais da partida para avaliação de partidas conflituosas (Regras AH -> Cartões)
+                $ftRow = null;
+                if ($fixtureId) {
+                    $ftRow = $db->table('fixtures_trends')
+                        ->select('odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score')
+                        ->where('fixture_id', $fixtureId)
+                        ->get()
+                        ->getRowArray();
+                }
+
+                $ftOddH = (float)($ftRow['odd_home'] ?? 0.0);
+                $ftOddA = (float)($ftRow['odd_away'] ?? 0.0);
+                $ftHRank = isset($ftRow['home_rank']) ? (int)$ftRow['home_rank'] : 0;
+                $ftARank = isset($ftRow['away_rank']) ? (int)$ftRow['away_rank'] : 0;
+                $ftHZone = strtolower($ftRow['home_zone'] ?? '');
+                $ftHPpg = (float)($ftRow['home_ppg'] ?? 0.0);
+                $ftStandMot = (float)($ftRow['standings_motivation_score'] ?? 0.0);
+
+                $isHRel = (strpos($ftHZone, 'relegat') !== false || strpos($ftHZone, 'play out') !== false || strpos($ftHZone, 'rebaixamento') !== false);
+                $isHUnderThreat = (
+                    $isHRel ||
+                    ($ftHRank >= 12 && $ftHPpg > 0.0 && $ftHPpg <= 1.25) ||
+                    ($ftHRank >= 12 && $ftStandMot >= 3.0) ||
+                    ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))
+                );
+
+                // 1. Caldeirão da Degola / Sobrevivência
+                if ($isHUnderThreat) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Caldeirão da Degola (Sobrevivência)';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): O mandante está na zona de rebaixamento ou ameaçado pela degola, jogando a vida em seus domínios. A urgência de sobrevivência e tensão de caldeirão elevam o risco de faltas táticas e indisciplina. Abstenção mandatória para Under.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                }
+
+                // 2. Disparidade Técnica Extrema / Massacre (Veto Under 5.5)
+                $isExtremeDisparity = false;
+                if ($ftOddH > 1.0 && $ftOddA > 1.0) {
+                    $minO = min($ftOddH, $ftOddA);
+                    $maxO = max($ftOddH, $ftOddA);
+                    $ratio = ($minO > 0) ? ($maxO / $minO) : 1.0;
+                    if (($minO <= 1.45 && $maxO >= 4.00) || $ratio >= 4.0) {
+                        $isExtremeDisparity = true;
+                    }
+                }
+
+                if ($isExtremeDisparity && abs($line - 5.5) < 0.01) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Disparidade Técnica Extrema';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Partida com acentuado desnível técnico (odds {$ftOddH} vs {$ftOddA}). A equipe em desvantagem técnica tende a cometer faltas de contenção tática repetidas, tornando a linha Under 5.5 vulnerável a estouro.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                }
+
+                // 3. Divergência de Mando / Conflito de Mercado (Veto Under 5.5)
+                if ($ftOddH > 1.0 && $ftOddA > 1.0 && ($ftOddA - $ftOddH) >= 0.15 && $ftHRank > 0 && $ftARank > 0 && $ftHRank > $ftARank && abs($line - 5.5) < 0.01) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Conflito de Mando (Mercado)';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Choque entre a melhor tabela do visitante e o favoritismo de mercado do mandante. Disputa física acirrada no meio-campo incompatível com a linha Under 5.5.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                }
+
                 // Critérios específicos por linha (Under 5.5 e Under 6.5)
                 $minOddReq  = (abs($line - 5.5) < 0.01) ? 1.65 : 1.50;
                 $maxXcReq   = (abs($line - 5.5) < 0.01) ? 4.50 : 5.50;

@@ -215,15 +215,19 @@ def get_league_card_multiplier(league_name="", league_id=None) -> tuple:
     Retorna o multiplicador de expectativa de cartões (lambda_league) e o fator de sobredispersão (phi)
     baseado na região geográfica e histórico disciplinar da liga.
     - América do Sul e América Central (LATAM): lambda_league = 1.18x, phi = 1.28
-    - Europa (todas as ligas europeias): lambda_league = 0.82x, phi = 1.10
+    - Ligas Mediterrâneas / Balcânicas de Alto Atrito (Grécia, Turquia): lambda_league = 1.05x, phi = 1.20
+    - Europa Ocidental / Central (ligas europeias tradicionais): lambda_league = 0.82x, phi = 1.10
     - Outras ligas / Default: lambda_league = 1.00x, phi = 1.15
     """
     # 1. Validação por ID Numérico Oficial da Liga
     if league_id is not None:
         try:
             lid = int(league_id)
-            # Ligas Europeias Oficiais
-            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 203, 179, 197, 2, 3, 848}:
+            # Ligas Mediterrâneas / Balcânicas de Alto Atrito: Grécia Super League 1 (197), Turquia Süper Lig (203)
+            if lid in {197, 203}:
+                return 1.05, 1.20
+            # Ligas Europeias Ocidentais / Centrais Oficiais (Baixo atrito disciplinar)
+            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 179, 2, 3, 848}:
                 return 0.82, 1.10
             # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11)
             if lid in {71, 72, 73, 128, 13, 11}:
@@ -236,18 +240,25 @@ def get_league_card_multiplier(league_name="", league_id=None) -> tuple:
 
     leg_lower = str(league_name).lower().strip()
 
-    # 2. Ligas Europeias (Europa)
+    # 2. Ligas Mediterrâneas / Balcânicas de Alto Atrito
+    mediterranean_keywords = [
+        "greece", "super league 1", "super league gre", "turkey", "super lig", "süper lig"
+    ]
+    if any(kw in leg_lower for kw in mediterranean_keywords):
+        return 1.05, 1.20
+
+    # 3. Ligas Europeias Ocidentais / Centrais (Europa)
     europe_keywords = [
         "premier league", "championship", "la liga", "segunda división", "segunda division",
         "serie a (italy)", "serie a italia", "bundesliga", "ligue 1", "ligue 2",
         "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
-        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
+        "scotland", "belgium", "pro league", "england", "spain", "italy", "germany", "france"
     ]
     if leg_lower == "serie a" or any(kw in leg_lower for kw in europe_keywords):
         if not any(br in leg_lower for br in ["brasil", "brazil", "brasileir"]):
             return 0.82, 1.10
 
-    # 3. Ligas Sul-Americanas e Centro-Americanas (LATAM)
+    # 4. Ligas Sul-Americanas e Centro-Americanas (LATAM)
     latam_keywords = [
         "brazil", "brasil", "brasileirão", "brasileirao", "série a", "série b", "serie b", "série c", "serie c",
         "chile", "primera división", "primera division", "argentina", "liga profesional", "copa de la liga",
@@ -427,7 +438,17 @@ def compute_fixture_expected_cards(cursor, fix: dict) -> tuple:
         'h_eff': h_eff,
         'a_eff': a_eff,
         'friction_mult': friction_mult,
-        'desc': friction_desc
+        'desc': friction_desc,
+        'odd_home': float(fix.get('odd_home') or 0.0),
+        'odd_away': float(fix.get('odd_away') or 0.0),
+        'odd_draw': float(fix.get('odd_draw') or 0.0),
+        'home_rank': fix.get('home_rank'),
+        'away_rank': fix.get('away_rank'),
+        'home_zone': fix.get('home_zone'),
+        'away_zone': fix.get('away_zone'),
+        'home_ppg': fix.get('home_ppg'),
+        'away_ppg': fix.get('away_ppg'),
+        'standings_motivation_score': fix.get('standings_motivation_score')
     }
 
     return exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined
@@ -548,6 +569,132 @@ def fetch_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
 fetch_betano_real_card_odds = fetch_real_card_odds
 
 
+def evaluate_cards_conflict_scenario(
+    home_team: str,
+    away_team: str,
+    odd_home: float = None,
+    odd_away: float = None,
+    h_eff: float = None,
+    a_eff: float = None,
+    home_rank: int = None,
+    away_rank: int = None,
+    home_zone: str = None,
+    home_ppg: float = None,
+    standings_mot: float = None
+) -> tuple:
+    """
+    Avalia os 4 cenários canônicos de partidas conflituosas (migrados do Gatekeeper de AH para Cartões):
+    1. Caldeirão da Degola / Sobrevivência do Mandante: Mandante afundado no Z-4 ou ameaçado de rebaixamento
+       jogando a vida em seus domínios contra adversário superior -> faltas desesperadas de sobrevivência -> veto total Under.
+    2. Duelo de Crises (Colapso Mútuo U5J): Ambas as equipes em momento técnico precário (U5J <= 3.0 pts)
+       -> desorganização tática, erros de tempo de bola e faltas por frustração -> veto total Under.
+    3. Divergência de Mando / Conflito de Mercado (Anti-Fake Dog): O visitante vem melhor na tabela ou momento,
+       mas as cotações apontam o mandante como favorito no 1X2 -> choque de forças e disputa física intensa -> veto Under 5.5.
+    4. Disparidade Técnica Extrema / Massacre (Tier 1 vs Azarão): Super-favorito (odd <= 1.35 ou ratio >= 4.0)
+       contra azarão acuado -> azarão recorre a faltas táticas reiteradas de contenção -> veto Under 5.5.
+
+    Retorna: (is_blocked_under_all: bool, is_blocked_under_55: bool, conflict_reason: str, conflict_badge: str)
+    """
+    # Inicialização explícita de variáveis numéricas locais (Regra 8)
+    h_rk = 0
+    a_rk = 0
+    h_ppg_val = 0.0
+    standings_mot_val = 0.0
+    raw_h_odd = float(odd_home or 0.0)
+    raw_a_odd = float(odd_away or 0.0)
+    h_eff_val = float(h_eff) if h_eff is not None else 5.0
+    a_eff_val = float(a_eff) if a_eff is not None else 5.0
+
+    try:
+        if home_rank is not None and str(home_rank).strip():
+            h_rk = int(home_rank)
+    except Exception:
+        h_rk = 0
+
+    try:
+        if away_rank is not None and str(away_rank).strip():
+            a_rk = int(away_rank)
+    except Exception:
+        a_rk = 0
+
+    try:
+        if home_ppg is not None and str(home_ppg).strip():
+            h_ppg_val = float(home_ppg)
+    except Exception:
+        h_ppg_val = 0.0
+
+    try:
+        if standings_mot is not None and str(standings_mot).strip():
+            standings_mot_val = float(standings_mot)
+    except Exception:
+        standings_mot_val = 0.0
+
+    h_zone_str = str(home_zone or '').lower()
+    is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
+    is_h_under_threat = (
+        is_h_rel or
+        (h_rk >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
+        (h_rk >= 12 and standings_mot_val >= 3.0) or
+        (h_rk >= 12 and a_rk > 0 and (h_rk - a_rk >= 6 or a_rk <= 6))
+    )
+
+    # 1. Caldeirão da Degola / Sobrevivência do Mandante
+    if is_h_under_threat:
+        r = (
+            f"🚨 [Gatekeeper Cartões NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
+            f"O mandante ({home_team}) está na zona de rebaixamento ou sob severa ameaça de degola ({h_rk}º colocado), jogando a vida em seus domínios. "
+            f"A urgência extrema de sobrevivência, a catimba e a pressão da torcida elevam drasticamente o risco de faltas táticas e indisciplina. "
+            f"Abstenção mandatória para estratégias Under."
+        )
+        return True, True, r, "Caldeirão da Degola"
+
+    # 2. Duelo de Crises (Colapso Mútuo U5J)
+    if h_eff is not None and a_eff is not None and h_eff <= 3.0 and a_eff <= 3.0:
+        r = (
+            f"🛡️ [Gatekeeper Cartões NO_BET / Duelo de Crises - Atrito Disciplinar] Partida {home_team} ({h_eff:.1f} pts) vs {away_team} ({a_eff:.1f} pts) -> "
+            f"Ambas as equipes em colapso técnico no U5J (eficiência <= 3.0 pts). "
+            f"Confronto marcado por desorganização tática, erros de posicionamento e faltas por frustração. Abstenção mandatória."
+        )
+        return True, True, r, "Duelo de Crises"
+
+    # 3. Disparidade Técnica Extrema / Massacre (Tier 1 vs Azarão)
+    is_extreme_disparity = False
+    if raw_h_odd > 1.0 and raw_a_odd > 1.0:
+        min_odd = min(raw_h_odd, raw_a_odd)
+        max_odd = max(raw_h_odd, raw_a_odd)
+        ratio = (max_odd / min_odd) if min_odd > 0 else 1.0
+        if (min_odd <= 1.45 and max_odd >= 4.00) or ratio >= 4.0:
+            is_extreme_disparity = True
+    if h_eff is not None and a_eff is not None and abs(h_eff - a_eff) >= 6.0 and (raw_h_odd <= 1.60 or raw_a_odd <= 1.60):
+        is_extreme_disparity = True
+
+    if is_extreme_disparity:
+        fav_name = home_team if (raw_h_odd > 0 and raw_h_odd < raw_a_odd) else away_team
+        dog_name = away_team if fav_name == home_team else home_team
+        min_o = min(raw_h_odd, raw_a_odd) if (raw_h_odd > 0 and raw_a_odd > 0) else 1.30
+        max_o = max(raw_h_odd, raw_a_odd) if (raw_h_odd > 0 and raw_a_odd > 0) else 5.00
+        r = (
+            f"⚡ [Gatekeeper Cartões NO_BET / Disparidade Técnica Extrema] Partida {home_team} vs {away_team} -> "
+            f"Acentuado desnível técnico entre as equipes ({fav_name} @ {min_o:.2f} vs {dog_name} @ {max_o:.2f}). "
+            f"A equipe em desvantagem técnica tende a ser encurralada e cometer faltas de contenção tática reiteradas para frear contra-ataques, "
+            f"tornando a margem de segurança da linha Under 5.5 vulnerável a estouro."
+        )
+        return False, True, r, "Disparidade Técnica"
+
+    # 4. Divergência de Mando / Conflito de Mercado (Anti-Fake Dog)
+    if raw_h_odd > 1.0 and raw_a_odd > 1.0 and (raw_a_odd - raw_h_odd) >= 0.15:
+        away_better = (a_eff_val >= h_eff_val + 1.5) or (h_rk > 0 and a_rk > 0 and h_rk > a_rk)
+        if away_better:
+            r = (
+                f"🛡️ [Gatekeeper Cartões NO_BET / Conflito de Mando - Divergência de Mercado] Partida {home_team} vs {away_team} -> "
+                f"Choque entre o melhor momento/tabela do visitante e a força/favoritismo de mercado do mandante ({home_team} @ {raw_h_odd:.2f} vs {away_team} @ {raw_a_odd:.2f}). "
+                f"Disputa territorial acirrada no meio-campo com risco elevado de faltas táticas para a linha Under 5.5."
+            )
+            return False, True, r, "Conflito de Mando"
+
+    return False, False, "", ""
+
+
 def evaluate_best_card_under_line(
     exp_cards: float,
     fixture_id: int = None,
@@ -557,7 +704,8 @@ def evaluate_best_card_under_line(
     is_knockout: bool = False,
     home_team: str = "",
     away_team: str = "",
-    is_referee_confirmed: bool = True
+    is_referee_confirmed: bool = True,
+    fixture_dict: dict = None
 ):
     """
     Avalia exclusivamente as linhas seguras Under 5.5 e Under 6.5 contra as odds reais da Betano e aplica o Gatekeeper:
@@ -567,8 +715,11 @@ def evaluate_best_card_under_line(
     - Odd Betano >= 1.50 (ou 1.65 para Under 5.5)
     - Valor Esperado Positivo (+EV > 0.0%)
     - Trava de Piso do Árbitro: veta linhas Under se o árbitro tiver média >= (linha - 0.30)
-    - Trava de Atrito Disciplinar U5J: se ambas as equipes tiverem pontuação U5J <= 3.0 (ou negativa),
-      bloqueia estratégia Under por risco de estouro de cartões decorrente de faltas táticas/frustração.
+    - Catálogo de 4 Cenários de Partidas Conflituosas (Migrado do Gatekeeper de AH):
+        1. Caldeirão da Degola / Sobrevivência do Mandante (Veto Total Under)
+        2. Duelo de Crises U5J (Veto Total Under)
+        3. Disparidade Técnica Extrema / Massacre (Veto Under 5.5)
+        4. Divergência de Mando / Conflito de Mercado (Veto Under 5.5)
     - Trava de Mata-Mata Oitavas+: se for partida eliminatória a partir das oitavas com xC elevado, bloqueia Under
       devido à catimba, tensão e faltas táticas eliminatórias.
     Retorna: (best_candidate, all_candidates, prediction_text, over_cards_prob)
@@ -592,6 +743,36 @@ def evaluate_best_card_under_line(
     friction_desc = u5j_friction_info.get('desc', '') if u5j_friction_info else ''
     h_eff = u5j_friction_info.get('h_eff') if u5j_friction_info else None
     a_eff = u5j_friction_info.get('a_eff') if u5j_friction_info else None
+
+    # Extração de metadados contextuais para avaliação de partidas conflituosas
+    ctx = fixture_dict or u5j_friction_info or {}
+    odd_home = float(ctx.get('odd_home') or 0.0)
+    odd_away = float(ctx.get('odd_away') or 0.0)
+    home_rank = ctx.get('home_rank')
+    away_rank = ctx.get('away_rank')
+    home_zone = ctx.get('home_zone')
+    home_ppg = ctx.get('home_ppg')
+    standings_mot = ctx.get('standings_motivation_score')
+
+    # Avaliação do catálogo de 4 cenários de partidas conflituosas (Regras AH -> Cartões)
+    is_blocked_under_all, is_blocked_under_55, conflict_reason, conflict_badge = evaluate_cards_conflict_scenario(
+        home_team=home_team,
+        away_team=away_team,
+        odd_home=odd_home,
+        odd_away=odd_away,
+        h_eff=h_eff,
+        a_eff=a_eff,
+        home_rank=home_rank,
+        away_rank=away_rank,
+        home_zone=home_zone,
+        home_ppg=home_ppg,
+        standings_mot=standings_mot
+    )
+
+    # Bloqueio total por conflito severo (Caldeirão da Degola ou Duelo de Crises)
+    if is_blocked_under_all:
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', conflict_reason)
+        return None, [], pred_text, over_cards_prob
 
     is_severe_u5j_risk = (h_eff is not None and a_eff is not None and (h_eff <= 3.0 and a_eff <= 3.0)) or (friction_mult >= 1.20)
     has_elevated_friction = is_severe_u5j_risk or (friction_mult >= 1.15 and exp_cards >= 4.50)
@@ -629,7 +810,10 @@ def evaluate_best_card_under_line(
 
         # Crivo de status estrito do Gatekeeper exclusivo para Under 5.5 e Under 6.5
         if abs(line_val - 5.5) < 0.01:
-            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
+            if is_blocked_under_55:
+                status_gk = 'NO_BET'
+            else:
+                status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
         elif abs(line_val - 6.5) < 0.01:
             status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob >= 60.0) else 'NO_BET'
         else:
@@ -706,7 +890,9 @@ def evaluate_best_card_under_line(
             extra_note += " [Mata-Mata Oitavas+]"
         pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
     else:
-        if referee_cards_avg and float(referee_cards_avg) >= 5.20:
+        if conflict_reason:
+            reason = conflict_reason
+        elif referee_cards_avg and float(referee_cards_avg) >= 5.20:
             reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under 5.5/6.5. Entrada bloqueada."
         elif is_severe_u5j_risk:
             h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"

@@ -77,15 +77,19 @@ def get_league_card_multiplier(league_name="", league_id=None):
     Retorna o multiplicador de expectativa de cartões (lambda_league) e o fator de sobredispersão (phi)
     baseado na região geográfica e histórico disciplinar da liga.
     - América do Sul e América Central (LATAM): lambda_league = 1.18x, phi = 1.28
-    - Europa (todas as ligas europeias): lambda_league = 0.82x, phi = 1.10
+    - Ligas Mediterrâneas / Balcânicas de Alto Atrito (Grécia, Turquia): lambda_league = 1.05x, phi = 1.20
+    - Europa Ocidental / Central (ligas europeias tradicionais): lambda_league = 0.82x, phi = 1.10
     - Outras ligas / Default: lambda_league = 1.00x, phi = 1.15
     """
     # 1. Validação por ID Numérico Oficial da Liga
     if league_id is not None:
         try:
             lid = int(league_id)
-            # Ligas Europeias Oficiais: Itália Serie A (135), Inglaterra (39), Espanha (140), Alemanha (78), França (61), etc.
-            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 203, 179, 197, 2, 3, 848}:
+            # Ligas Mediterrâneas / Balcânicas de Alto Atrito: Grécia Super League 1 (197), Turquia Süper Lig (203)
+            if lid in {197, 203}:
+                return 1.05, 1.20
+            # Ligas Europeias Ocidentais / Centrais Oficiais (Baixo atrito disciplinar)
+            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 179, 2, 3, 848}:
                 return 0.82, 1.10
             # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11)
             if lid in {71, 72, 73, 128, 13, 11}:
@@ -98,19 +102,26 @@ def get_league_card_multiplier(league_name="", league_id=None):
 
     leg_lower = str(league_name).lower().strip()
 
-    # 2. Ligas Europeias (Europa)
+    # 2. Ligas Mediterrâneas / Balcânicas de Alto Atrito
+    mediterranean_keywords = [
+        "greece", "super league 1", "super league gre", "turkey", "super lig", "süper lig"
+    ]
+    if any(kw in leg_lower for kw in mediterranean_keywords):
+        return 1.05, 1.20
+
+    # 3. Ligas Europeias Ocidentais / Centrais (Europa)
     europe_keywords = [
         "premier league", "championship", "la liga", "segunda división", "segunda division",
         "serie a (italy)", "serie a italia", "bundesliga", "ligue 1", "ligue 2",
         "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
-        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
+        "scotland", "belgium", "pro league", "england", "spain", "italy", "germany", "france"
     ]
     # Se for exatamente "serie a" ou contiver termo europeu, e não mencionar explicitamente Brasil, classifica como Europa
     if leg_lower == "serie a" or any(kw in leg_lower for kw in europe_keywords):
         if not any(br in leg_lower for br in ["brasil", "brazil", "brasileir"]):
             return 0.82, 1.10
 
-    # 3. Ligas Sul-Americanas e Centro-Americanas (LATAM)
+    # 4. Ligas Sul-Americanas e Centro-Americanas (LATAM)
     latam_keywords = [
         "brazil", "brasil", "brasileirão", "brasileirao", "série a", "série b", "serie b", "série c", "serie c",
         "chile", "primera división", "primera division", "argentina", "liga profesional", "copa de la liga",

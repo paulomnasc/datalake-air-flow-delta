@@ -1062,10 +1062,21 @@ if (!function_exists('getBetDecisionTree')) {
             ];
         }
 
+        $oddH = (float)($fix->odd_home ?? 0.0);
+        $oddA = (float)($fix->odd_away ?? 0.0);
+        $hasDisparity = false;
+        if ($oddH > 1.0 && $oddA > 1.0) {
+            $minO = min($oddH, $oddA);
+            $maxO = max($oddH, $oddA);
+            if (($minO <= 1.45 && $maxO >= 4.00) || ($minO > 0 && $maxO / $minO >= 4.0)) {
+                $hasDisparity = true;
+            }
+        }
+
         if ($xc <= 3.30 && $u45 >= 75.0) {
             $lineTag = 'UNDER 4.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '4.5', $u45, '5.5', $u55);
-        } elseif ($xc <= 4.20 && $u55 >= 60.0) {
+        } elseif (!$hasDisparity && $xc <= 4.50 && $u55 >= 60.0) {
             $lineTag = 'UNDER 5.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '5.5', $u55, '6.5', $u65);
         } elseif ($xc <= 5.80 && $u65 >= 60.0) {

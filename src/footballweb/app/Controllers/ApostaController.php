@@ -2119,7 +2119,7 @@ class ApostaController extends BaseController
         $leagueFilter = $this->request->getVar('league');
         $marketFilter = $this->request->getVar('market');
         $statusFilter = $this->request->getVar('status');
-        $confirmedFilter = $this->request->getVar('confirmed') ?? '1';
+        $confirmedFilter = $this->request->getVar('confirmed') ?? 'all';
 
         if (empty($startDate) && empty($endDate)) {
             // Se foi enviada uma requisição de filtro (market/league/status/confirmed), permite buscar Todo o Período

@@ -274,9 +274,9 @@
                     <i class="bi bi-shield-check text-success"></i> Apostas Confirmadas:
                 </label>
                 <div class="bet-slide-toggle" id="confirmedSlideToggle">
-                    <input type="hidden" name="confirmed" id="confirmedFilterInput" value="<?= esc($confirmedFilter ?? '1') ?>">
-                    <button type="button" class="slide-btn <?= ($confirmedFilter === 'all') ? 'active' : '' ?>" data-val="all" onclick="setEficienciaConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
-                    <button type="button" class="slide-btn <?= ($confirmedFilter === '1' || empty($confirmedFilter)) ? 'active' : '' ?>" data-val="1" onclick="setEficienciaConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+                    <input type="hidden" name="confirmed" id="confirmedFilterInput" value="<?= esc($confirmedFilter ?? 'all') ?>">
+                    <button type="button" class="slide-btn <?= ($confirmedFilter === 'all' || empty($confirmedFilter)) ? 'active' : '' ?>" data-val="all" onclick="setEficienciaConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+                    <button type="button" class="slide-btn <?= ($confirmedFilter === '1') ? 'active' : '' ?>" data-val="1" onclick="setEficienciaConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
                     <button type="button" class="slide-btn <?= ($confirmedFilter === '0') ? 'active-no' : '' ?>" data-val="0" onclick="setEficienciaConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
                 </div>
             </div>

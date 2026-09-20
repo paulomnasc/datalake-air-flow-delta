@@ -989,8 +989,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             msgEl.textContent = notif.mensagem;
 
             const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
+            const isStopLoss = (notif.tipo === 'STOP_LOSS_DIARIO');
+
             if (badgeEl) {
-                if (isAprovada) {
+                if (isStopLoss) {
+                    badgeEl.className = 'badge bg-danger text-white d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-shield-slash-fill"></i> ⚠️ GESTÃO DE RISCO (STOP LOSS)';
+                } else if (isAprovada) {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
                 } else {
@@ -1000,7 +1005,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }
 
             if (linkEl) {
-                if (isAprovada) {
+                if (isStopLoss) {
+                    linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-sliders"></i> Ver Painel de Metas & Proteger Banca';
+                } else if (isAprovada) {
                     linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
                     linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
                 } else {
@@ -1009,7 +1017,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
             }
 
-            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
+            const defaultLink = isStopLoss ? '<?= base_url('metas') ?>' : (isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>');
             const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 

@@ -3218,6 +3218,14 @@ class ApostaController extends BaseController
         $userId = $access['user_id'];
         $db = \Config\Database::connect();
 
+        // Checagem ativa de Stop Loss para o dia de hoje (em background)
+        try {
+            $metaDiariaModel = new \App\Models\MetaDiariaModel();
+            $metaDiariaModel->verificarEGerarAlertaStopLoss($userId, date('Y-m-d'));
+        } catch (\Throwable $e) {
+            log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
+        }
+
         // Contar total de não lidas para o usuário
         $totalNaoLidas = $db->table('notificacoes_usuario n')
             ->where('n.usuario_id', $userId)

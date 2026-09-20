@@ -260,7 +260,68 @@ class MetaDiariaModel extends Model
         // Gravação idempotente com INSERT ... ON DUPLICATE KEY UPDATE no MySQL
         $db->table('metas_diarias_cache')->upsert($cacheData);
 
+        if ($statusDia === 'STOP_LOSS_ATINGIDO') {
+            $this->verificarEGerarAlertaStopLoss($usuarioId, $dataReferencia, $cacheData);
+        }
+
         return $cacheData;
+    }
+
+    /**
+     * Verifica se a meta do dia atingiu o Stop Loss e gera notificação no sininho (notificacoes_usuario),
+     * evitando duplicidades no mesmo dia de referência.
+     */
+    public function verificarEGerarAlertaStopLoss(int $usuarioId, string $dataReferencia = null, array $snapshot = null): bool
+    {
+        $db = \Config\Database::connect();
+        if ($dataReferencia === null) {
+            $dataReferencia = date('Y-m-d');
+        }
+
+        if ($snapshot === null) {
+            $snapshot = $this->getProgressoDiario($usuarioId, $dataReferencia);
+        }
+
+        if (($snapshot['status_dia'] ?? '') !== 'STOP_LOSS_ATINGIDO') {
+            return false;
+        }
+
+        // Evita disparos duplicados para a mesma data de referência no mesmo dia
+        $jaNotificado = $db->table('notificacoes_usuario')
+            ->where('usuario_id', $usuarioId)
+            ->where('tipo', 'STOP_LOSS_DIARIO')
+            ->where('DATE(criado_em)', date('Y-m-d'))
+            ->countAllResults();
+
+        if ($jaNotificado > 0) {
+            return false;
+        }
+
+        $reds = (int)($snapshot['reds_count'] ?? 0);
+        $lucro = (float)($snapshot['lucro_liquido'] ?? 0);
+        $lucroFmt = ($lucro >= 0 ? '+' : '') . 'R$ ' . number_format($lucro, 2, ',', '.');
+        $dataFmt = date('d/m/Y', strtotime($dataReferencia));
+
+        $titulo = '⚠️ Stop Loss Diário Atingido!';
+        $msg = "Atenção: O limite de segurança do dia ({$dataFmt}) foi atingido ({$reds} Reds / Saldo: {$lucroFmt}). Recomendado pausar novas apostas hoje para proteger sua banca.";
+        $link = '/metas?data=' . $dataReferencia;
+
+        try {
+            return (bool)$db->table('notificacoes_usuario')->insert([
+                'usuario_id'  => $usuarioId,
+                'aposta_id'   => null,
+                'fixture_id'  => null,
+                'tipo'        => 'STOP_LOSS_DIARIO',
+                'titulo'      => $titulo,
+                'mensagem'    => $msg,
+                'link'        => $link,
+                'lida'        => 0,
+                'criado_em'   => date('Y-m-d H:i:s')
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', "[StopLoss Alerta] Erro ao gravar notificacao de Stop Loss para usuario {$usuarioId}: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**

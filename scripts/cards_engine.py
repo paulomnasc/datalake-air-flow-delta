@@ -28,6 +28,18 @@ _betano_cards_odds_cache = _cards_odds_cache
 _betano_cards_raw_fixture_cache = _cards_raw_fixture_cache
 _betano_cards_api_disabled = _cards_api_disabled
 
+# Ligas excluídas pelo Gatekeeper de Cartões por apresentarem taxa histórica de Reds > 10.0%
+CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS = {
+    265,  # Primera División (Chile) - 100.0% Reds
+    197,  # Super League 1 (Grécia) - 66.7% Reds
+    239,  # Primera A (Colômbia) - 100.0% Reds
+    39,   # Premier League (Inglaterra) - 33.3% Reds
+    3,    # UEFA Europa League - 33.3% Reds
+    135,  # Serie A (Itália) - 25.0% Reds
+    140,  # La Liga (Espanha) - 16.7% Reds
+    128,  # Liga Profesional (Argentina) - 16.7% Reds
+}
+
 
 def get_live_env_vars():
     env_paths = [
@@ -730,13 +742,24 @@ def evaluate_best_card_under_line(
         pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
         return None, [], pred_text, 50.0
 
+    # 0.1 Trava de Liga por Sinistralidade Histórica (Taxa de Reds > 10% no modelo Under Cartões)
+    league_id = (fixture_dict or {}).get('league_id')
+    if league_id and int(league_id) in CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS:
+        league_name = (fixture_dict or {}).get('league_name') or f"ID #{league_id}"
+        reason = (
+            f"🛡️ [Gatekeeper Cartões NO_BET / Liga com Alta Taxa de Reds] A liga '{league_name}' (ID {league_id}) "
+            f"possui histórico de taxa de Reds > 10% no modelo Under Cartões. Entrada bloqueada para salvaguarda de banca."
+        )
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
+        return None, [], pred_text, 50.0
+
     under_probs = calculate_poisson_under_lines(exp_cards)
     
     # Probabilidade de Over 4.5 como referência de over_cards_probability
     over_cards_prob = round(100.0 - under_probs.get(4.5, 50.0), 2)
 
-    # Restrição Canônica Exclusiva: Apenas Under 5.5 e Under 6.5
-    standard_lines = [5.5, 6.5]
+    # Restrição Canônica Exclusiva: Apenas Under 6.5, Under 7.5, Under 8.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
+    standard_lines = [6.5, 7.5, 8.5]
     candidates = []
 
     friction_mult = u5j_friction_info.get('friction_mult', 1.0) if u5j_friction_info else 1.0
@@ -808,14 +831,10 @@ def evaluate_best_card_under_line(
         odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
         palpite_str = f"Menos de {line_val} Cartões"
 
-        # Crivo de status estrito do Gatekeeper exclusivo para Under 5.5 e Under 6.5
-        if abs(line_val - 5.5) < 0.01:
-            if is_blocked_under_55:
-                status_gk = 'NO_BET'
-            else:
-                status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
-        elif abs(line_val - 6.5) < 0.01:
-            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob >= 60.0) else 'NO_BET'
+        # Crivo de status estrito do Gatekeeper: Apenas linhas >= 6.5 com margem de segurança de pelo menos 1.0 cartão
+        if line_val >= 6.49:
+            max_xc_allowed = line_val - 1.00
+            status_gk = 'APROVADO' if (exp_cards <= max_xc_allowed and prob >= 60.0) else 'NO_BET'
         else:
             status_gk = 'NO_BET'
 
@@ -856,7 +875,8 @@ def evaluate_best_card_under_line(
             else:
                 continue
 
-        min_odd_req = 1.65 if abs(line_val - 5.5) < 0.01 else 1.50
+        # Piso de odd viável: >= 1.50 para Under 6.5, 7.5, 8.5 ou maiores
+        min_odd_req = 1.50
         if real_odd < min_odd_req:
             continue
 
@@ -892,14 +912,14 @@ def evaluate_best_card_under_line(
     else:
         if conflict_reason:
             reason = conflict_reason
-        elif referee_cards_avg and float(referee_cards_avg) >= 5.20:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under 5.5/6.5. Entrada bloqueada."
+        elif referee_cards_avg and float(referee_cards_avg) >= 6.20:
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under 6.5+. Entrada bloqueada."
         elif is_severe_u5j_risk:
             h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
             reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas de Under bloqueadas. Abstenção mandatória."
         else:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 5.5 e 6.5). Abstenção mandatória."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 6.5, 7.5 ou 8.5). Abstenção mandatória."
         pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob

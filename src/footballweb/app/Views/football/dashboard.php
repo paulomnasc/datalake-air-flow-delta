@@ -1046,7 +1046,13 @@ if (!function_exists('getBetDecisionTree')) {
             ($awayAvg <= 1.0 && isset($fix->away_avg_goals_scored) && (float)$fix->away_avg_goals_scored == 0.0)
         );
 
-        if ($isNoBet || $hasInsufficientStats || $xc > 6.50) {
+        $isExcludedCardsLeague = isset($fix->league_id) && in_array((int)$fix->league_id, [265, 197, 239, 39, 3, 135, 140, 128], true);
+
+        if ($isNoBet || $hasInsufficientStats || $isExcludedCardsLeague || $xc > 6.50) {
+            $rat = sprintf(lang('App.rat_no_bet_gatekeeper'), number_format($xc, 2));
+            if ($isExcludedCardsLeague) {
+                $rat = "Liga com taxa histórica de Reds > 10% no modelo Under Cartões. Abstenção mandatória pelo Gatekeeper.";
+            }
             return [
                 'market'        => lang('App.entry_not_recommended'),
                 'line_tag'      => 'NO BET 🚫',
@@ -1058,7 +1064,7 @@ if (!function_exists('getBetDecisionTree')) {
                 'foul_short'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ')',
                 'referee'       => lang('App.referee') . ' (' . number_format($refAvg, 1) . ' c/j)',
                 'referee_short' => lang('App.referee') . ' (' . number_format($refAvg, 1) . ')',
-                'rationale'     => sprintf(lang('App.rat_no_bet_gatekeeper'), number_format($xc, 2))
+                'rationale'     => $rat
             ];
         }
 
@@ -1073,18 +1079,15 @@ if (!function_exists('getBetDecisionTree')) {
             }
         }
 
-        if ($xc <= 3.30 && $u45 >= 75.0) {
-            $lineTag = 'UNDER 4.5 🛡️';
-            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '4.5', $u45, '5.5', $u55);
-        } elseif (!$hasDisparity && $xc <= 4.50 && $u55 >= 60.0) {
-            $lineTag = 'UNDER 5.5 🛡️';
-            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '5.5', $u55, '6.5', $u65);
-        } elseif ($xc <= 5.80 && $u65 >= 60.0) {
+        if ($xc <= 5.50 && $u65 >= 60.0) {
             $lineTag = 'UNDER 6.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '6.5', $u65, '7.5', $u75);
         } elseif ($xc <= 6.50 && $u75 >= 60.0) {
             $lineTag = 'UNDER 7.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '7.5', $u75, '8.5', $u85);
+        } elseif ($xc <= 7.50 && $u85 >= 60.0) {
+            $lineTag = 'UNDER 8.5 🛡️';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '8.5', $u85, '9.5', $u85);
         } else {
             return [
                 'market'        => lang('App.entry_not_recommended'),

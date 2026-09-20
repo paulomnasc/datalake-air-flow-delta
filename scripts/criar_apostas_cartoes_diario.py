@@ -358,7 +358,8 @@ from cards_engine import (
     format_gatekeeper_result,
     is_knockout_round_advanced,
     calculate_u5j_card_friction,
-    get_team_u5j_efficiency_cards
+    get_team_u5j_efficiency_cards,
+    CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS
 )
 
 def criar_apostas_cartoes_diario(target_date_str=None):
@@ -492,6 +493,18 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         if not is_allowed_league(league_id, league_name, fixture_date):
             print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
             cancelar_apostas_pendentes_existentes("Liga/Copa fora do escopo global monitorado")
+            continue
+
+        if league_id and int(league_id) in CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS:
+            print(f"🛡️ [Gatekeeper NO_BET / Liga Excluída Cartões] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) -> Liga com taxa histórica de Reds > 10%.")
+            cancelar_apostas_pendentes_existentes(f"Liga com taxa histórica de Reds > 10% ({league_name})")
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (f"REASON: 🛡️ [Gatekeeper Cartões NO_BET / Liga com Alta Taxa de Reds] A liga '{league_name}' (ID {league_id}) possui histórico de taxa de Reds > 10% no modelo Under Cartões. Entrada bloqueada para salvaguarda de banca.", fixture_id))
+            apostas_abstencao += 1
             continue
 
 

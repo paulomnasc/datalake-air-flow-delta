@@ -783,9 +783,31 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
     <div id="error-message" class="alert alert-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
 
-    <!-- Toast Pop-up Flutuante de Alerta em Tempo Real (Abstenções e Cash Out Betano) -->
-    <div id="toast-notificacao-popup" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-popup-card shadow-lg">
+    <!-- Toast Pop-ups Flutuantes em Stack Vertical: Stop Loss Pinado no Topo + 1 Notificação Recente Logo Abaixo -->
+    <div id="toast-container-stack" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
+        <!-- Card 1: Stop Loss Pinado no Topo -->
+        <div id="toast-stoploss-popup" class="toast-popup-card shadow-lg mb-2" style="display: none; border: 2px solid #ef4444; background: linear-gradient(135deg, #450a0a 0%, #1e1b4b 60%, #0f172a 100%);">
+            <div class="toast-popup-header">
+                <span class="badge bg-danger text-white d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-pin-angle-fill"></i> 📌 PINADO | STOP LOSS DIÁRIO
+                </span>
+                <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast-stoploss" aria-label="Close" style="font-size: 0.75rem;"></button>
+            </div>
+            <div class="toast-popup-body">
+                <h6 id="toast-stoploss-titulo" class="fw-bold text-danger mb-1" style="font-size: 0.92rem;">⚠️ Stop Loss Diário Atingido!</h6>
+                <p id="toast-stoploss-mensagem" class="text-light mb-2" style="font-size: 0.82rem; line-height: 1.35; color: #fecaca !important;">
+                    Atenção: O limite de segurança diário foi atingido. Recomendado pausar novas apostas hoje para salvaguarda de banca.
+                </p>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <a href="<?= base_url('metas') ?>" id="toast-stoploss-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
+                        <i class="bi bi-sliders"></i> Ver Painel de Metas & Proteger Banca
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Notificação Recente (Logo Abaixo do Stop Loss) -->
+        <div id="toast-notificacao-popup" class="toast-popup-card shadow-lg" style="display: none;">
             <div class="toast-popup-header">
                 <span id="toast-notif-badge" class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
                     <i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)
@@ -814,6 +836,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         z-index: 10999;
         max-width: 420px;
         width: calc(100vw - 48px);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
         animation: slideInRightToast 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     @keyframes slideInRightToast {
@@ -856,6 +881,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     .notif-item.nao-lida {
         background-color: rgba(239, 68, 68, 0.15);
         border-left: 3px solid #ef4444;
+    }
+    .notif-item.pinada {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+        border-left: 4px solid #ef4444 !important;
+        border-bottom: 1px solid rgba(239, 68, 68, 0.4) !important;
     }
     .notif-item .notif-time {
         font-size: 0.72rem;
@@ -904,28 +934,45 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     }
                 }
 
-                // Renderizar dropdown
+                // Renderizar dropdown (Stop Loss sempre pinado no topo)
                 const container = document.getElementById('lista-notificacoes-container');
                 if (container && data.notificacoes && data.notificacoes.length > 0) {
                     let html = '';
                     data.notificacoes.forEach(n => {
                         const isUnread = (parseInt(n.lida) === 0);
+                        const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
                         const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
 
-                        html += `
-                            <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
-                                        ${n.titulo}
-                                    </strong>
-                                    <span class="notif-time">${timeStr}</span>
-                                </div>
-                                <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
-                                    ${n.mensagem}
-                                </div>
-                            </a>
-                        `;
+                        if (isStopLoss) {
+                            html += `
+                                <a href="${linkHref}" class="notif-item pinada ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <strong style="font-size: 0.85rem; color: #ef4444;" class="d-flex align-items-center gap-1">
+                                            <i class="bi bi-pin-angle-fill text-danger"></i> ${n.titulo}
+                                        </strong>
+                                        <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
+                                        ${n.mensagem}
+                                    </div>
+                                </a>
+                            `;
+                        } else {
+                            html += `
+                                <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
+                                            ${n.titulo}
+                                        </strong>
+                                        <span class="notif-time">${timeStr}</span>
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
+                                        ${n.mensagem}
+                                    </div>
+                                </a>
+                            `;
+                        }
                     });
                     container.innerHTML = html;
 
@@ -961,20 +1008,73 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     });
                 }
 
-                // Disparo de Pop-up Toast na tela para notificação de cancelamento recente não lida
-                if (data.notificacoes && data.notificacoes.length > 0) {
-                    const naoLidas = data.notificacoes.filter(n => parseInt(n.lida) === 0);
-                    if (naoLidas.length > 0) {
-                        const maisRecente = naoLidas[0];
-                        if (!popupsExibidos.has(maisRecente.id)) {
-                            popupsExibidos.add(maisRecente.id);
-                            salvarPopupsExibidos();
-                            exibirToastPopup(maisRecente);
-                        }
+                // Disparo dos Pop-ups Toast Flutuantes na tela:
+                // 1) Stop Loss Diário (Pinado no topo da stack)
+                // 2) Exatamente 1 Notificação Recente adicional logo abaixo
+                const stopLossNotif = (data.notificacoes || []).find(n => n.tipo === 'STOP_LOSS_DIARIO');
+                const outrasNaoLidas = (data.notificacoes || []).filter(n => n.tipo !== 'STOP_LOSS_DIARIO' && parseInt(n.lida) === 0);
+
+                let showSl = false;
+                let showOutra = false;
+
+                if (stopLossNotif) {
+                    const keySl = 'stoploss_' + stopLossNotif.id;
+                    if (!popupsExibidos.has(keySl)) {
+                        exibirToastStopLoss(stopLossNotif);
+                        showSl = true;
                     }
+                }
+
+                if (outrasNaoLidas.length > 0) {
+                    const maisRecente = outrasNaoLidas[0];
+                    const keyOutra = 'notif_' + maisRecente.id;
+                    if (!popupsExibidos.has(keyOutra)) {
+                        exibirToastPopup(maisRecente);
+                        showOutra = true;
+                    }
+                }
+
+                const stackContainer = document.getElementById('toast-container-stack');
+                if (stackContainer) {
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    const normEl = document.getElementById('toast-notificacao-popup');
+                    const hasVisible = (slEl && slEl.style.display !== 'none') || (normEl && normEl.style.display !== 'none');
+                    stackContainer.style.display = hasVisible ? 'flex' : 'none';
                 }
             })
             .catch(err => {});
+        }
+
+        function exibirToastStopLoss(notif) {
+            const slToast = document.getElementById('toast-stoploss-popup');
+            const slTitulo = document.getElementById('toast-stoploss-titulo');
+            const slMsg = document.getElementById('toast-stoploss-mensagem');
+            const slLink = document.getElementById('toast-stoploss-link');
+            const stackContainer = document.getElementById('toast-container-stack');
+            if (!slToast || !slTitulo || !slMsg) return;
+
+            slTitulo.textContent = notif.titulo;
+            slMsg.textContent = notif.mensagem;
+
+            if (slLink && notif.link) {
+                slLink.href = notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link);
+            }
+
+            const btnCloseSl = document.getElementById('btn-fechar-toast-stoploss');
+            if (btnCloseSl) {
+                btnCloseSl.onclick = function() {
+                    popupsExibidos.add('stoploss_' + notif.id);
+                    salvarPopupsExibidos();
+                    slToast.style.display = 'none';
+                    const normEl = document.getElementById('toast-notificacao-popup');
+                    if (!normEl || normEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
+                };
+            }
+
+            slToast.style.display = 'block';
+            if (stackContainer) stackContainer.style.display = 'flex';
         }
 
         function exibirToastPopup(notif) {
@@ -983,19 +1083,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const tituloEl = document.getElementById('toast-notif-titulo');
             const msgEl = document.getElementById('toast-notif-mensagem');
             const linkEl = document.getElementById('toast-notif-link');
+            const stackContainer = document.getElementById('toast-container-stack');
             if (!toastEl || !tituloEl || !msgEl || !linkEl) return;
 
             tituloEl.textContent = notif.titulo;
             msgEl.textContent = notif.mensagem;
 
             const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
-            const isStopLoss = (notif.tipo === 'STOP_LOSS_DIARIO');
 
             if (badgeEl) {
-                if (isStopLoss) {
-                    badgeEl.className = 'badge bg-danger text-white d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-shield-slash-fill"></i> ⚠️ GESTÃO DE RISCO (STOP LOSS)';
-                } else if (isAprovada) {
+                if (isAprovada) {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
                 } else {
@@ -1005,10 +1102,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }
 
             if (linkEl) {
-                if (isStopLoss) {
-                    linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
-                    linkEl.innerHTML = '<i class="bi bi-sliders"></i> Ver Painel de Metas & Proteger Banca';
-                } else if (isAprovada) {
+                if (isAprovada) {
                     linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
                     linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
                 } else {
@@ -1017,13 +1111,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
             }
 
-            const defaultLink = isStopLoss ? '<?= base_url('metas') ?>' : (isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>');
+            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
             const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 
             linkEl.onclick = function(e) {
                 fetch(markReadUrl + '/' + notif.id, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                popupsExibidos.add('notif_' + notif.id);
+                salvarPopupsExibidos();
                 toastEl.style.display = 'none';
+                const slEl = document.getElementById('toast-stoploss-popup');
+                if (!slEl || slEl.style.display === 'none') {
+                    if (stackContainer) stackContainer.style.display = 'none';
+                }
 
                 if (linkHref && typeof window.destacarApostaPorId === 'function') {
                     try {
@@ -1042,16 +1142,27 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const btnClose = document.getElementById('btn-fechar-toast');
             if (btnClose) {
                 btnClose.onclick = function() {
+                    popupsExibidos.add('notif_' + notif.id);
+                    salvarPopupsExibidos();
                     toastEl.style.display = 'none';
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    if (!slEl || slEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
                 };
             }
 
             toastEl.style.display = 'block';
+            if (stackContainer) stackContainer.style.display = 'flex';
 
-            // Auto-ocultar após 18 segundos se não interagido
+            // Auto-ocultar a notificação secundária após 18 segundos se não interagido
             setTimeout(function() {
                 if (toastEl.style.display === 'block') {
                     toastEl.style.display = 'none';
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    if (!slEl || slEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
                 }
             }, 18000);
         }

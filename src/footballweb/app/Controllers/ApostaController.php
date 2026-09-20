@@ -600,11 +600,11 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Regra Canônica Exclusiva: Apenas Under 5.5 e Under 6.5
-                if (abs($line - 5.5) > 0.01 && abs($line - 6.5) > 0.01) {
+                // Regra Canônica Exclusiva: Apenas Under 6.5, Under 7.5, Under 8.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
+                if ($line < 6.49) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Linha de Cartões Não Autorizada';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas linhas Under 6.5, Under 7.5, Under 8.5 ou maiores são autorizadas no mercado de cartões. Linhas Under 5.5 e inferiores bloqueadas por gestão de risco.";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
@@ -612,10 +612,20 @@ class ApostaController extends BaseController
                 $ftRow = null;
                 if ($fixtureId) {
                     $ftRow = $db->table('fixtures_trends')
-                        ->select('odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score')
+                        ->select('league_id, league_name, odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score')
                         ->where('fixture_id', $fixtureId)
                         ->get()
                         ->getRowArray();
+                }
+
+                // Trava de Liga por Sinistralidade Histórica (Taxa de Reds > 10% no modelo Under Cartões)
+                $excludedCardsLeagueIds = [265, 197, 239, 39, 3, 135, 140, 128];
+                if ($ftRow && isset($ftRow['league_id']) && in_array((int)$ftRow['league_id'], $excludedCardsLeagueIds, true)) {
+                    $leagueName = $ftRow['league_name'] ?? ('ID #' . $ftRow['league_id']);
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Liga com Alta Taxa de Reds';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): A liga '{$leagueName}' possui histórico de taxa de Reds > 10% no modelo Under Cartões. Entrada bloqueada pelo Gatekeeper.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
                 $ftOddH = (float)($ftRow['odd_home'] ?? 0.0);
@@ -668,9 +678,9 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 5.5 e Under 6.5)
-                $minOddReq  = (abs($line - 5.5) < 0.01) ? 1.65 : 1.50;
-                $maxXcReq   = (abs($line - 5.5) < 0.01) ? 4.50 : 5.50;
+                // Critérios específicos por linha (Under 6.5, Under 7.5, Under 8.5 ou maiores)
+                $minOddReq  = 1.50;
+                $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;
 
@@ -3232,20 +3242,30 @@ class ApostaController extends BaseController
             ->where('n.lida', 0)
             ->countAllResults();
 
-        // Buscar as últimas 15 notificações (não lidas primeiro, depois por data mais recente)
+        // Buscar as últimas 15 notificações (Stop Loss sempre no topo absoluto, depois não lidas, depois mais recentes)
         $notificacoes = $db->table('notificacoes_usuario n')
             ->select('n.*')
             ->where('n.usuario_id', $userId)
+            ->orderBy("CASE WHEN n.tipo = 'STOP_LOSS_DIARIO' THEN 0 ELSE 1 END", 'ASC', false)
             ->orderBy('n.lida', 'ASC')
             ->orderBy('n.criado_em', 'DESC')
             ->limit(15)
             ->get()
             ->getResultArray();
 
+        $stopLossNotif = null;
+        foreach ($notificacoes as $n) {
+            if ($n['tipo'] === 'STOP_LOSS_DIARIO') {
+                $stopLossNotif = $n;
+                break;
+            }
+        }
+
         return $this->response->setJSON([
-            'success' => true,
+            'success'         => true,
             'total_nao_lidas' => (int)$totalNaoLidas,
-            'notificacoes' => $notificacoes
+            'stop_loss_notif' => $stopLossNotif,
+            'notificacoes'    => $notificacoes
         ]);
     }
 

@@ -1054,6 +1054,21 @@ def evaluate_and_select_best_ah_candidate(
         if cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA"):
             required_ev += 2.0
 
+        # Filtro de Qualidade Reforçado na Faixa Crítica (1.61 a 1.85):
+        # Diagnóstico de Sinistralidade: Faixa com menor conversão histórica decorrente de equilíbrio disfarçado e empates forçados.
+        if 1.61 <= c_odd <= 1.85:
+            # 1. Margem mínima de EV elevada para 15.0% (evita apostas com margem marginal vulnerável a volatilidade)
+            required_ev = max(required_ev, 15.0)
+            # 2. Exigência de Histórico Impecável no U5J (Prevenção de Partidas Traiçoeiras)
+            if cand_trend == "CURVA_DESCENDENTE":
+                continue
+            if cand_pts < 8:
+                continue
+            if cand_d > 1:
+                continue
+            if opp_pts >= 10 and cand_pts <= opp_pts:
+                continue
+
         if c_line in moderate_negative_lines:
             # -0.5 AH pode ser liberado para mandantes com dominância de Poisson OU super-favoritos/assimetria
             # Linhas mais profundas (-0.75 AH e -1.0 AH) permanecem terminantemente restritas a Super-Favoritos ou Tier 1 Dominante

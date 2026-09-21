@@ -79,6 +79,8 @@ $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as'
 $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
 $routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
 $routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
+$routes->post('/notificacoes/despinar/(:num)', 'ApostaController::despinarNotificacao/$1', ['as' => 'notificacoes.despinar']);
+
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);

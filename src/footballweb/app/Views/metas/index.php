@@ -206,6 +206,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 .status-superavitario { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
 .status-em-andamento { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
 .status-stop-loss { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.status-deficitario { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
 .status-neutro { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); }
 .status-sem-apostas { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
 
@@ -373,6 +374,18 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   background: rgba(255, 255, 255, 0.02);
 }
 
+.history-table tfoot tr.history-table-total-row {
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 2px solid var(--meta-border);
+  font-weight: 700;
+}
+
+.history-table tfoot td {
+  padding: 0.9rem 1rem;
+  font-size: 0.95rem;
+  border-bottom: none;
+}
+
 /* Modal Styling */
 .modal-overlay {
   display: none;
@@ -513,6 +526,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
             } elseif ($statusDia === 'STOP_LOSS_ATINGIDO') {
                 $badgeClass = 'status-stop-loss';
                 $badgeText = '⚠️ Stop Loss';
+            } elseif ($statusDia === 'DEFICITARIO') {
+                $badgeClass = 'status-deficitario';
+                $badgeText = '📉 Deficitário';
             } elseif ($statusDia === 'NEUTRO') {
                 $badgeClass = 'status-neutro';
                 $badgeText = '🛡️ Neutro / Protegido';
@@ -728,10 +744,33 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
         </thead>
         <tbody>
           <?php if (!empty($historico)): ?>
+            <?php 
+              $totCadastradas = 0;
+              $totGreens = 0;
+              $totPushes = 0;
+              $totReds = 0;
+              $totInvestido = 0.0;
+              $totLucro = 0.0;
+              $sumOddWeight = 0.0;
+              $countOddWeight = 0;
+            ?>
             <?php foreach ($historico as $h): 
                 $hLucro = (float)($h['lucro_liquido'] ?? 0);
                 $hRoi   = (float)($h['roi_pct'] ?? 0);
                 $hSt    = $h['status_dia'] ?? 'EM_ANDAMENTO';
+                $cadDia = (int)($h['total_apostas_cadastradas'] ?? 0);
+                $oddDia = (float)($h['odd_media_real'] ?? 0);
+
+                $totCadastradas += $cadDia;
+                $totGreens      += (int)($h['greens_count'] ?? 0);
+                $totPushes      += (int)($h['pushes_count'] ?? 0);
+                $totReds        += (int)($h['reds_count'] ?? 0);
+                $totInvestido   += (float)($h['total_apostado'] ?? 0);
+                $totLucro       += $hLucro;
+                if ($oddDia > 0 && $cadDia > 0) {
+                    $sumOddWeight += ($oddDia * $cadDia);
+                    $countOddWeight += $cadDia;
+                }
             ?>
               <tr>
                 <td>
@@ -759,6 +798,8 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
                     <span class="status-badge status-superavitario">🚀 Lucro</span>
                   <?php elseif ($hSt === 'STOP_LOSS_ATINGIDO'): ?>
                     <span class="status-badge status-stop-loss">⚠️ Stop</span>
+                  <?php elseif ($hSt === 'DEFICITARIO'): ?>
+                    <span class="status-badge status-deficitario">📉 Déficit</span>
                   <?php elseif ($hSt === 'NEUTRO'): ?>
                     <span class="status-badge status-neutro">🛡️ Neutro</span>
                   <?php elseif ($hSt === 'SEM_APOSTAS'): ?>
@@ -782,6 +823,35 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
             </tr>
           <?php endif; ?>
         </tbody>
+        <?php if (!empty($historico)): ?>
+          <?php 
+            $totOddMedia = $countOddWeight > 0 ? ($sumOddWeight / $countOddWeight) : 0.0;
+            $totRoi = $totInvestido > 0 ? (($totLucro / $totInvestido) * 100.0) : 0.0;
+          ?>
+          <tfoot>
+            <tr class="history-table-total-row">
+              <td><strong>TOTAL</strong></td>
+              <td><strong><?= $totCadastradas ?></strong></td>
+              <td style="color: #10b981; font-weight: 700;"><?= $totGreens ?></td>
+              <td style="color: #cbd5e1; font-weight: 700;"><?= $totPushes ?></td>
+              <td style="color: #ef4444; font-weight: 700;"><?= $totReds ?></td>
+              <td><strong><?= $totOddMedia > 0 ? number_format($totOddMedia, 2) : '-' ?></strong></td>
+              <td><strong>R$ <?= number_format($totInvestido, 2, ',', '.') ?></strong></td>
+              <td style="font-weight: 700;" class="<?= $totLucro > 0 ? 'val-green' : ($totLucro < 0 ? 'val-red' : '') ?>">
+                <?= ($totLucro > 0 ? '+' : '') ?>R$ <?= number_format($totLucro, 2, ',', '.') ?>
+              </td>
+              <td style="font-weight: 700;" class="<?= $totRoi > 0 ? 'val-green' : ($totRoi < 0 ? 'val-red' : '') ?>">
+                <?= ($totRoi > 0 ? '+' : '') ?><?= number_format($totRoi, 1, ',', '.') ?>%
+              </td>
+              <td>
+                <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.72rem; padding: 0.25rem 0.6rem;">
+                  TOTAL GERAL
+                </span>
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        <?php endif; ?>
       </table>
     </div>
   </div>

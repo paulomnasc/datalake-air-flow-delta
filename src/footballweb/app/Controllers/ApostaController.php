@@ -3242,11 +3242,11 @@ class ApostaController extends BaseController
             ->where('n.lida', 0)
             ->countAllResults();
 
-        // Buscar as últimas 15 notificações (Stop Loss sempre no topo absoluto, depois não lidas, depois mais recentes)
+        // Buscar as últimas 15 notificações (Pinadas e não lidas no topo absoluto, depois não lidas, depois mais recentes)
         $notificacoes = $db->table('notificacoes_usuario n')
             ->select('n.*')
             ->where('n.usuario_id', $userId)
-            ->orderBy("CASE WHEN n.tipo = 'STOP_LOSS_DIARIO' THEN 0 ELSE 1 END", 'ASC', false)
+            ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
             ->orderBy('n.lida', 'ASC')
             ->orderBy('n.criado_em', 'DESC')
             ->limit(15)
@@ -3255,7 +3255,7 @@ class ApostaController extends BaseController
 
         $stopLossNotif = null;
         foreach ($notificacoes as $n) {
-            if ($n['tipo'] === 'STOP_LOSS_DIARIO') {
+            if ($n['tipo'] === 'STOP_LOSS_DIARIO' && (int)($n['pinada'] ?? 0) === 1 && (int)($n['lida'] ?? 0) === 0) {
                 $stopLossNotif = $n;
                 break;
             }
@@ -3310,6 +3310,32 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON(['success' => true]);
     }
+
+    /**
+     * Despina uma notificação (pinada = 0 e lida = 1) para não ser mais reexibida a cada load de página.
+     */
+    public function despinarNotificacao($id = null)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $id = (int)$id;
+
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('id', $id)
+            ->where('usuario_id', $userId)
+            ->update([
+                'pinada' => 0,
+                'lida'   => 1
+            ]);
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Alerta despinado com sucesso']);
+    }
+
 
     /**
      * Relatório Analítico de Abstenções (NO_BET)

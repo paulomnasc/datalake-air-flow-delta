@@ -429,6 +429,35 @@ def processar_apostas_cartoes_encerradas():
         now = datetime.now()
 
         finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
+        cancelled_statuses = ['PST', 'CANC', 'POSTPONED', 'CANCELLED', 'ABD']
+
+        if status_fix in cancelled_statuses:
+            novo_status = 'ANULADA'
+            valor_computado = float(aposta.get('valor_aposta', 0.0) or 0.0)
+            detalhe = f"Partida adiada/cancelada oficialmente (status '{status_fix}') -> Aposta ANULADA (Reembolso de R$ {valor_computado:.2f})"
+            print(f"⏸️ {detalhe}. Liquidando aposta #{aposta_id}...")
+
+            cursor.execute("""
+                UPDATE apostas
+                SET status = %s,
+                    resultado_detalhado = %s,
+                    ganhos_potenciais = %s,
+                    processado_em = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (novo_status, detalhe, valor_computado, aposta_id))
+
+            is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+            if is_confirmada:
+                creditar_retorno_aposta(
+                    cursor,
+                    aposta.get('usuario_id'),
+                    aposta_id,
+                    valor_computado,
+                    novo_status,
+                    f"Reembolso Aposta #{aposta_id} ({time_casa} x {time_fora} - ANULADA/{status_fix})"
+                )
+            continue
 
         # Se a partida ainda não foi encerrada (e menos de 110 min se passaram), pula
         if status_fix not in finished_statuses:

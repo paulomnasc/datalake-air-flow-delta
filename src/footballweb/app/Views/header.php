@@ -802,9 +802,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="<?= base_url('metas') ?>" id="toast-stoploss-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
                         <i class="bi bi-sliders"></i> Ver Painel de Metas & Proteger Banca
                     </a>
+                    <button type="button" id="btn-despinar-toast-stoploss" class="btn btn-sm btn-outline-light text-nowrap d-flex align-items-center gap-1 shadow-sm" title="Despinar e não reexibir este alerta" style="border-radius: 8px; font-size: 0.80rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3);">
+                        <i class="bi bi-pin-angle"></i> Despinar
+                    </button>
                 </div>
             </div>
         </div>
+
 
         <!-- Card 2: Notificação Recente (Logo Abaixo do Stop Loss) -->
         <div id="toast-notificacao-popup" class="toast-popup-card shadow-lg" style="display: none;">
@@ -898,6 +902,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const notifApiUrl = '<?= base_url('notificacoes/nao-lidas') ?>';
         const markReadUrl = '<?= base_url('notificacoes/marcar-lida') ?>';
         const markAllReadUrl = '<?= base_url('notificacoes/marcar-todas-lidas') ?>';
+        const unpinUrl = '<?= base_url('notificacoes/despinar') ?>';
 
         let popupsExibidos = new Set();
         try {
@@ -911,6 +916,33 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             try {
                 sessionStorage.setItem('popups_notificacoes_exibidos', JSON.stringify(Array.from(popupsExibidos)));
             } catch(e) {}
+        }
+
+        function despinarAlerta(id) {
+            if (!id) return;
+            try {
+                localStorage.setItem('notif_despinada_' + id, '1');
+            } catch(e) {}
+            popupsExibidos.add('stoploss_' + id);
+            salvarPopupsExibidos();
+
+            const slToast = document.getElementById('toast-stoploss-popup');
+            if (slToast) slToast.style.display = 'none';
+            const stackContainer = document.getElementById('toast-container-stack');
+            const normEl = document.getElementById('toast-notificacao-popup');
+            if (stackContainer && (!normEl || normEl.style.display === 'none')) {
+                stackContainer.style.display = 'none';
+            }
+
+            fetch(unpinUrl + '/' + id, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(() => {
+                checkNotificacoes();
+            })
+            .catch(() => {});
         }
 
         function checkNotificacoes() {
@@ -934,29 +966,41 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     }
                 }
 
-                // Renderizar dropdown (Stop Loss sempre pinado no topo)
+                // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
                 if (container && data.notificacoes && data.notificacoes.length > 0) {
                     let html = '';
                     data.notificacoes.forEach(n => {
                         const isUnread = (parseInt(n.lida) === 0);
                         const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
+                        const isPinada = (parseInt(n.pinada || 0) === 1);
                         const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
 
                         if (isStopLoss) {
                             html += `
-                                <a href="${linkHref}" class="notif-item pinada ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                <div class="notif-item ${isPinada ? 'pinada' : ''} ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <strong style="font-size: 0.85rem; color: #ef4444;" class="d-flex align-items-center gap-1">
-                                            <i class="bi bi-pin-angle-fill text-danger"></i> ${n.titulo}
-                                        </strong>
-                                        <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
+                                        <a href="${linkHref}" class="text-decoration-none d-flex align-items-center gap-1 flex-grow-1" style="color: inherit;">
+                                            <strong style="font-size: 0.85rem; color: #ef4444;" class="d-flex align-items-center gap-1">
+                                                <i class="bi ${isPinada ? 'bi-pin-angle-fill' : 'bi-shield-exclamation'} text-danger"></i> ${n.titulo}
+                                            </strong>
+                                        </a>
+                                        <div class="d-flex align-items-center gap-1">
+                                            ${isPinada ? `
+                                                <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
+                                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-despinar-item" data-notif-id="${n.id}" title="Despinar alerta para não reexibir" style="font-size: 0.70rem; border-radius: 4px; line-height: 1.2; background: rgba(239,68,68,0.15);">
+                                                    <i class="bi bi-pin-angle"></i> Despinar
+                                                </button>
+                                            ` : `
+                                                <span class="notif-time">${timeStr}</span>
+                                            `}
+                                        </div>
                                     </div>
-                                    <div style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
+                                    <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
                                         ${n.mensagem}
-                                    </div>
-                                </a>
+                                    </a>
+                                </div>
                             `;
                         } else {
                             html += `
@@ -976,15 +1020,27 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     });
                     container.innerHTML = html;
 
+                    // Despinar no clique do botão despinar dentro do dropdown
+                    container.querySelectorAll('.btn-despinar-item').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nid = this.getAttribute('data-notif-id');
+                            despinarAlerta(nid);
+                        });
+                    });
+
                     // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
+                            if (e.target.closest('.btn-despinar-item')) return;
+
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
                                 fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                             }
 
-                            const href = this.getAttribute('href');
+                            const href = this.getAttribute('href') || this.getAttribute('data-href');
                             if (href && typeof window.destacarApostaPorId === 'function') {
                                 try {
                                     const parsedUrl = new URL(href, window.location.origin);
@@ -1009,17 +1065,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
 
                 // Disparo dos Pop-ups Toast Flutuantes na tela:
-                // 1) Stop Loss Diário (Pinado no topo da stack)
+                // 1) Stop Loss Diário (Pinado no topo da stack, apenas se pinada = 1 e não lida)
                 // 2) Exatamente 1 Notificação Recente adicional logo abaixo
-                const stopLossNotif = (data.notificacoes || []).find(n => n.tipo === 'STOP_LOSS_DIARIO');
+                const stopLossNotif = data.stop_loss_notif || (data.notificacoes || []).find(n => n.tipo === 'STOP_LOSS_DIARIO' && parseInt(n.pinada || 0) === 1 && parseInt(n.lida || 0) === 0);
                 const outrasNaoLidas = (data.notificacoes || []).filter(n => n.tipo !== 'STOP_LOSS_DIARIO' && parseInt(n.lida) === 0);
 
                 let showSl = false;
                 let showOutra = false;
 
                 if (stopLossNotif) {
+                    const isDespinadaLocal = (localStorage.getItem('notif_despinada_' + stopLossNotif.id) === '1');
                     const keySl = 'stoploss_' + stopLossNotif.id;
-                    if (!popupsExibidos.has(keySl)) {
+                    if (!isDespinadaLocal && !popupsExibidos.has(keySl)) {
                         exibirToastStopLoss(stopLossNotif);
                         showSl = true;
                     }
@@ -1070,6 +1127,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (!normEl || normEl.style.display === 'none') {
                         if (stackContainer) stackContainer.style.display = 'none';
                     }
+                };
+            }
+
+            const btnDespinarSl = document.getElementById('btn-despinar-toast-stoploss');
+            if (btnDespinarSl) {
+                btnDespinarSl.onclick = function() {
+                    despinarAlerta(notif.id);
                 };
             }
 

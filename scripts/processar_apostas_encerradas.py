@@ -568,7 +568,31 @@ def process_pending_bets():
             if status_curr == 'NS':
                 print(f"⏳ Partida {time_casa} vs {time_fora} agendada para {fix_date} (status 'NS' - Não iniciada). Aposta #{aposta_id} permanece Pendente.")
             elif status_curr in ('PST', 'CANCELLED', 'POSTPONED', 'CANC', 'ABD'):
-                print(f"⏸️ Partida {time_casa} vs {time_fora} adiada/cancelada (status '{status_curr}'). Aposta #{aposta_id} permanece Pendente.")
+                novo_status = 'ANULADA'
+                valor_computado = float(aposta.get('valor_aposta', 0.0) or 0.0)
+                detalhe = f"Partida adiada/cancelada oficialmente (status '{status_curr}') -> Aposta ANULADA (Reembolso de R$ {valor_computado:.2f})"
+                print(f"⏸️ {detalhe}. Liquidando aposta #{aposta_id}...")
+                
+                cursor.execute("""
+                    UPDATE apostas
+                    SET status = %s,
+                        resultado_detalhado = %s,
+                        ganhos_potenciais = %s,
+                        processado_em = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (novo_status, detalhe, valor_computado, aposta_id))
+
+                is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+                if is_confirmada:
+                    creditar_retorno_aposta(
+                        cursor,
+                        aposta.get('usuario_id'),
+                        aposta_id,
+                        valor_computado,
+                        novo_status,
+                        f"Reembolso Aposta #{aposta_id} ({time_casa} x {time_fora} - ANULADA/{status_curr})"
+                    )
             elif status_curr in ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY'):
                 print(f"🔴 Partida {time_casa} vs {time_fora} em andamento (status '{status_curr}'). Aposta #{aposta_id} permanece Pendente.")
             else:

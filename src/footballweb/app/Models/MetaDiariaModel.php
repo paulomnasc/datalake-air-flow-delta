@@ -316,6 +316,7 @@ class MetaDiariaModel extends Model
                 'mensagem'    => $msg,
                 'link'        => $link,
                 'lida'        => 0,
+                'pinada'      => 1,
                 'criado_em'   => date('Y-m-d H:i:s')
             ]);
         } catch (\Throwable $e) {

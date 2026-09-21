@@ -183,19 +183,27 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
         res_st = requests.get(url_st, headers=headers, timeout=10)
         if res_st.status_code == 200:
             st_json = res_st.json()
-            st_data = st_json.get("response", [])
+            team_stats = {}
             for idx, team_st in enumerate(st_data):
                 t_id = team_st.get("team", {}).get("id")
                 is_home = (t_id == home_team_id) if home_team_id else (idx == 0)
+                t_key = 'home' if is_home else 'away'
+                team_stats[t_key] = {'team_id': t_id, 'yc': 0, 'rc': 0, 'ck': 0}
                 for s in team_st.get("statistics", []):
                     s_type = (s.get("type") or "").strip()
                     s_val = s.get("value")
                     if s_type == "Yellow Cards" and s_val is not None:
-                        if is_home: yh = int(s_val)
-                        else: ya = int(s_val)
+                        team_stats[t_key]['yc'] = int(s_val)
                     elif s_type == "Red Cards" and s_val is not None:
-                        if is_home: rh = int(s_val)
-                        else: ra = int(s_val)
+                        team_stats[t_key]['rc'] = int(s_val)
+                    elif s_type == "Corner Kicks" and s_val is not None:
+                        team_stats[t_key]['ck'] = int(s_val)
+
+            yh = team_stats.get('home', {}).get('yc')
+            ya = team_stats.get('away', {}).get('yc')
+            rh = team_stats.get('home', {}).get('rc')
+            ra = team_stats.get('away', {}).get('rc')
+
             if yh is not None and ya is not None:
                 api_success = True
     except Exception as e:
@@ -216,12 +224,18 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 
     if cursor is not None and fixture_id and api_success:
         try:
-            if home_team_id:
-                cursor.execute("""
-                    INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
-                    VALUES (%s, %s, 0, %s, %s)
-                    ON DUPLICATE KEY UPDATE yellow_cards = VALUES(yellow_cards), red_cards = VALUES(red_cards)
-                """, (fixture_id, home_team_id, res_tuple[0], res_tuple[2]))
+            # Salva ambos os times (mandante e visitante) no cache consolidado
+            for t_key in ['home', 'away']:
+                t_info = team_stats.get(t_key)
+                if t_info and t_info['team_id']:
+                    cursor.execute("""
+                        INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE 
+                            corners = VALUES(corners),
+                            yellow_cards = VALUES(yellow_cards), 
+                            red_cards = VALUES(red_cards)
+                    """, (fixture_id, t_info['team_id'], t_info['ck'], t_info['yc'], t_info['rc']))
 
             total_c = (res_tuple[0] + res_tuple[1] + res_tuple[2] + res_tuple[3])
             if total_c > 0:
@@ -264,10 +278,6 @@ def get_fixture_stats(fixture, cursor=None):
         cards_res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
         if cards_res is not None:
             yh, ya, rh, ra = cards_res
-        else:
-            yh, ya, rh, ra = None, None, None, None
-
-        if yh is not None:
             yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra
             if cursor:
                 cursor.execute("""
@@ -279,9 +289,16 @@ def get_fixture_stats(fixture, cursor=None):
                         updated_at = NOW()
                     WHERE fixture_id = %s
                 """, (yellow_home, yellow_away, red_home, red_away, fid))
+        else:
+            # Estatísticas oficiais ainda pendentes / em cooldown na API: NÃO assumir 0 cartões!
+            yellow_home = None
+            yellow_away = None
+            red_home = None
+            red_away = None
 
     if yellow_home is not None and yellow_away is not None:
-        total_cards = (yellow_home or 0) + (yellow_away or 0) + (red_home or 0) + (red_away or 0)
+        # Regra Oficial de Negócio: 1 Cartão Vermelho conta como 2 Cartões para liquidação
+        total_cards = (yellow_home or 0) + (yellow_away or 0) + ((red_home or 0) * 2) + ((red_away or 0) * 2)
     else:
         yellow_home = None
         yellow_away = None
@@ -394,8 +411,14 @@ def evaluate_bet(aposta, stats):
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
         threshold = float(match_thresh.group(1)) if match_thresh else 5.5
         
-        cards_home = (stats.get('yellow_cards_home') or 0) + (stats.get('red_cards_home') or 0)
-        cards_away = (stats.get('yellow_cards_away') or 0) + (stats.get('red_cards_away') or 0)
+        # Regra Oficial: 1 Cartão Vermelho conta como 2 Cartões
+        yh = stats.get('yellow_cards_home') or 0
+        ya = stats.get('yellow_cards_away') or 0
+        rh = stats.get('red_cards_home') or 0
+        ra = stats.get('red_cards_away') or 0
+
+        cards_home = yh + (rh * 2)
+        cards_away = ya + (ra * 2)
 
         tc_lower = (time_casa or '').lower()
         tf_lower = (time_fora or '').lower()
@@ -411,12 +434,17 @@ def evaluate_bet(aposta, stats):
         if is_home_target:
             actual_cards = cards_home
             target_name = f"Cartões Time Casa ({time_casa})"
+            breakdown = f"{yh} Amarelos + {rh} Vermelhos [peso 2]" if rh > 0 else f"{yh} Amarelos"
         elif is_away_target:
             actual_cards = cards_away
             target_name = f"Cartões Time Fora ({time_fora})"
+            breakdown = f"{ya} Amarelos + {ra} Vermelhos [peso 2]" if ra > 0 else f"{ya} Amarelos"
         else:
             actual_cards = total_cards
             target_name = "Total Cartões Jogo"
+            tot_y = yh + ya
+            tot_r = rh + ra
+            breakdown = f"{tot_y} Amarelos + {tot_r} Vermelhos [peso 2]" if tot_r > 0 else f"{tot_y} Amarelos"
 
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
@@ -429,7 +457,7 @@ def evaluate_bet(aposta, stats):
             comp = "<" if won else ">="
 
         status_str = 'Ganha' if won else 'Perdida'
-        detalhe = f"FT | {target_name}: {actual_cards} {comp} Limite {threshold} -> Aposta {status_str.upper()}"
+        detalhe = f"FT | {target_name}: {actual_cards} ({breakdown}) {comp} Limite {threshold} -> Aposta {status_str.upper()}"
         return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")

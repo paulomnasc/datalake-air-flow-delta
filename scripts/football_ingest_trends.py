@@ -2825,36 +2825,41 @@ def sync_pending_past_fixtures(conn, headers):
                         rc_h, rc_a = 0, 0
                         ck_h, ck_a = 0, 0
                         
-                        if st_data:
-                            for team_st in st_data:
-                                tid = team_st.get("team", {}).get("id")
-                                is_home = (tid == h_id)
-                                s_list = team_st.get("statistics", [])
-                                yc, rc, ck = 0, 0, 0
-                                for s in s_list:
-                                    st_type = (s.get("type") or "").strip()
-                                    st_val = s.get("value")
-                                    if st_type == "Yellow Cards" and st_val is not None:
-                                        yc = int(st_val)
-                                    elif st_type == "Red Cards" and st_val is not None:
-                                        rc = int(st_val)
-                                    elif st_type == "Corner Kicks" and st_val is not None:
-                                        ck = int(st_val)
+                        if not st_data:
+                            # Estatísticas oficiais ainda não publicadas pela API-Sports para a partida encerrada
+                            # Incrementa retry e NÃO sobrescreve com zeros nem remove o estado NULL!
+                            cursor.execute("UPDATE fixtures_trends SET cards_api_retry_count = cards_api_retry_count + 1 WHERE fixture_id = %s", (fid,))
+                            continue
+
+                        for team_st in st_data:
+                            tid = team_st.get("team", {}).get("id")
+                            is_home = (tid == h_id)
+                            s_list = team_st.get("statistics", [])
+                            yc, rc, ck = 0, 0, 0
+                            for s in s_list:
+                                st_type = (s.get("type") or "").strip()
+                                st_val = s.get("value")
+                                if st_type == "Yellow Cards" and st_val is not None:
+                                    yc = int(st_val)
+                                elif st_type == "Red Cards" and st_val is not None:
+                                    rc = int(st_val)
+                                elif st_type == "Corner Kicks" and st_val is not None:
+                                    ck = int(st_val)
+                            
+                            if is_home:
+                                yc_h, rc_h, ck_h = yc, rc, ck
+                            else:
+                                yc_a, rc_a, ck_a = yc, rc, ck
                                 
-                                if is_home:
-                                    yc_h, rc_h, ck_h = yc, rc, ck
-                                else:
-                                    yc_a, rc_a, ck_a = yc, rc, ck
-                                    
-                                if tid:
-                                    cursor.execute("""
-                                        INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
-                                        VALUES (%s, %s, %s, %s, %s)
-                                        ON DUPLICATE KEY UPDATE 
-                                            corners = VALUES(corners),
-                                            yellow_cards = VALUES(yellow_cards),
-                                            red_cards = VALUES(red_cards)
-                                    """, (fid, tid, ck, yc, rc))
+                            if tid:
+                                cursor.execute("""
+                                    INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                    ON DUPLICATE KEY UPDATE 
+                                        corners = VALUES(corners),
+                                        yellow_cards = VALUES(yellow_cards),
+                                        red_cards = VALUES(red_cards)
+                                """, (fid, tid, ck, yc, rc))
                         
                         cursor.execute("""
                             UPDATE fixtures_trends
@@ -2864,6 +2869,8 @@ def sync_pending_past_fixtures(conn, headers):
                                 red_cards_away = %s,
                                 corners_home = %s,
                                 corners_away = %s,
+                                cards_api_checked_at = NOW(),
+                                cards_api_retry_count = 0,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
                         """, (yc_h, yc_a, rc_h, rc_a, ck_h, ck_a, fid))
@@ -4082,7 +4089,7 @@ def main():
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
                             score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
-                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
+                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(yellow_cards_home) IS NOT NULL OR yellow_cards_home IS NOT NULL OR VALUES(last_event) IS NOT NULL OR last_event IS NOT NULL), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),

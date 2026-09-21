@@ -3035,7 +3035,8 @@ if (!function_exists('getBetDecisionTree')) {
                              $procTooltip = 'Partida em andamento ou aguardando apuração da DAG/Worker pós-jogo.';
 
                              if ($isFinishedCard) {
-                                 $hasDetailedStats = ($fix->yellow_cards_home !== null || $fix->yellow_cards_away !== null || !empty($fix->cards_api_checked_at));
+                                 $totalCardsConfirmed = ((int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0));
+                                 $hasDetailedStats = ($totalCardsConfirmed > 0 || !empty($fix->last_event) || (!empty($fix->cards_api_checked_at) && $fix->yellow_cards_home !== null && $fix->yellow_cards_away !== null && ((int)($fix->cards_api_retry_count ?? 0) === 0)));
                                  if (!$hasDetailedStats) {
                                      $procText = 'Processamento: 🌗 Parcial';
                                      $procClass = 'proc-partial';

@@ -338,7 +338,7 @@ class MetaDiariaModel extends Model
         $q = $db->table('apostas')
             ->where('usuario_id', $usuarioId)
             ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'DESC')
+            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'DESC', false)
             ->orderBy('id', 'DESC')
             ->limit($tamanho)
             ->get();

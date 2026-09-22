@@ -3226,6 +3226,12 @@ class ApostaController extends BaseController
         }
 
         $userId = $access['user_id'];
+
+        // Libera a trava exclusiva do arquivo de sessão imediatamente para não bloquear requisições simultâneas na Home
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $db = \Config\Database::connect();
 
         // Checagem ativa de Stop Loss para o dia de hoje (em background)

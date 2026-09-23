@@ -68,21 +68,25 @@ class MetaController extends BaseController
         }
 
         $forceRecalc = (bool)$this->request->getGet('recalc');
+        $cicloParam  = $this->request->getGet('ciclo');
+        $numeroCiclo = (!empty($cicloParam) && is_numeric($cicloParam)) ? (int)$cicloParam : null;
 
-        $metaConfig = $this->metaDiariaModel->getMetaAtiva($userId);
-        $progressoHoje = $this->metaDiariaModel->getProgressoDiario($userId, $dataRef, $forceRecalc);
-        $cicloAtivo = $this->metaDiariaModel->getCicloAtivoAcumulado($userId, (int)($metaConfig->total_apostas_alvo ?? 10));
-        $historicoDias = $this->metaDiariaModel->getHistoricoDias($userId, 30);
+        $metaConfig      = $this->metaDiariaModel->getMetaAtiva($userId);
+        $progressoHoje   = $this->metaDiariaModel->getProgressoDiario($userId, $dataRef, $forceRecalc);
+        $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo);
+        $historicoCiclos = $this->metaDiariaModel->getHistoricoCiclos($userId, 15, (int)($metaConfig->total_apostas_alvo ?? 10));
+        $historicoDias   = $this->metaDiariaModel->getHistoricoDias($userId, 30);
 
         $data = [
-            'title'          => 'Gestão de Metas Diárias & Ciclos Rotativos | Smart Betting',
-            'user'           => $access['user'],
-            'metaConfig'     => $metaConfig,
-            'progressoHoje'  => $progressoHoje,
-            'cicloAtivo'     => $cicloAtivo,
-            'historicoDias'  => $historicoDias,
-            'dataRef'        => $dataRef,
-            'isHoje'         => ($dataRef === date('Y-m-d'))
+            'title'            => 'Gestão de Metas Diárias & Ciclos Rotativos | Smart Betting',
+            'user'             => $access['user'],
+            'metaConfig'       => $metaConfig,
+            'progressoHoje'    => $progressoHoje,
+            'cicloAtivo'       => $cicloAtivo,
+            'historicoCiclos'  => $historicoCiclos,
+            'historicoDias'    => $historicoDias,
+            'dataRef'          => $dataRef,
+            'isHoje'           => ($dataRef === date('Y-m-d'))
         ];
 
         return view('header', $data)

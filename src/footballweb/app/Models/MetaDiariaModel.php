@@ -326,37 +326,101 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o Ciclo Rotativo Ativo de 10 Apostas (Rolling Cycle contínuo entre dias).
+     * Retorna o Ciclo Sequencial Fechado (Bloco Fixo de 10 Apostas).
+     * Se $numeroCiclo for null, retorna o ciclo ativo corrente.
      */
-    public function getCicloAtivoAcumulado(int $usuarioId, int $tamanhoCiclo = 10): array
+    public function getCicloSequencial(int $usuarioId, int $tamanhoCiclo = 10, ?int $numeroCiclo = null): array
     {
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
         $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
 
-        // Busca as últimas N apostas ativas para compor o ciclo corrente
-        $q = $db->table('apostas')
+        // Busca todas as apostas válidas em ordem cronológica
+        $todasApostas = $db->table('apostas')
             ->where('usuario_id', $usuarioId)
             ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'DESC', false)
-            ->orderBy('id', 'DESC')
-            ->limit($tamanho)
-            ->get();
+            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultObject();
 
-        $apostas = $q ? $q->getResultObject() : [];
+        $totalApostas = count($todasApostas);
 
-        $totalCiclo    = count($apostas);
+        if ($totalApostas === 0) {
+            return [
+                'numero_ciclo'        => 1,
+                'total_ciclos'        => 1,
+                'ciclo_ativo_num'     => 1,
+                'is_ativo'            => true,
+                'is_fechado'          => false,
+                'status_ciclo'        => 'EM_ANDAMENTO',
+                'tamanho_ciclo'       => $tamanho,
+                'total_no_ciclo'      => 0,
+                'liquidadas'          => 0,
+                'pendentes'           => 0,
+                'greens'              => 0,
+                'pushes'              => 0,
+                'reds'                => 0,
+                'cashouts'            => 0,
+                'odd_media'           => 0.0,
+                'total_apostado'      => 0.0,
+                'total_liquidado'     => 0.0,
+                'ganhos_totais'       => 0.0,
+                'lucro_liquido'       => 0.0,
+                'roi_pct'             => 0.0,
+                'progresso_pct'       => 0.0,
+                'lucro_alvo'          => (float)($meta->lucro_alvo ?? 7.50),
+                'apostas'             => []
+            ];
+        }
+
+        $numCompletos = (int)floor($totalApostas / $tamanho);
+        $resto = $totalApostas % $tamanho;
+
+        // Se tem sobra, o ciclo ativo é $numCompletos + 1
+        // Se resto == 0, checa se a última aposta do último bloco tem pendentes
+        if ($resto > 0) {
+            $totalCiclosExistentes = $numCompletos + 1;
+            $cicloAtivoNum = $totalCiclosExistentes;
+        } else {
+            $ultimoBloco = array_slice($todasApostas, ($numCompletos - 1) * $tamanho, $tamanho);
+            $temPendentes = false;
+            foreach ($ultimoBloco as $ub) {
+                if ($ub->status === 'Pendente') {
+                    $temPendentes = true;
+                    break;
+                }
+            }
+            if ($temPendentes) {
+                $totalCiclosExistentes = $numCompletos;
+                $cicloAtivoNum = $numCompletos;
+            } else {
+                $totalCiclosExistentes = $numCompletos + 1;
+                $cicloAtivoNum = $totalCiclosExistentes;
+            }
+        }
+
+        // Determina qual ciclo exibir
+        $cicloAlvo = ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes)
+            ? $numeroCiclo
+            : $cicloAtivoNum;
+
+        $offset = ($cicloAlvo - 1) * $tamanho;
+        $apostasCiclo = array_slice($todasApostas, $offset, $tamanho);
+
+        $totalCiclo    = count($apostasCiclo);
         $liquidadas    = 0;
         $greens        = 0;
         $pushes        = 0;
         $reds          = 0;
+        $cashouts      = 0;
         $pendentes     = 0;
         $apostado      = 0.0;
         $liquidado     = 0.0;
         $retornos      = 0.0;
         $somaOdds      = 0.0;
 
-        foreach ($apostas as $ap) {
+        foreach ($apostasCiclo as $ap) {
             $st = $ap->status;
             $val = (float)$ap->valor_aposta;
             $odd = (float)$ap->odd;
@@ -380,6 +444,7 @@ class MetaDiariaModel extends Model
                         $retornos += ($val * 0.5);
                     }
                 } elseif ($st === 'Cashout') {
+                    $cashouts++;
                     $retornos += (float)($ap->cash_out ?? $val);
                 }
             }
@@ -389,8 +454,36 @@ class MetaDiariaModel extends Model
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
         $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
+        $isFechado    = ($totalCiclo >= $tamanho && $pendentes === 0);
+        $isAtivo      = ($cicloAlvo === $cicloAtivoNum);
+
+        $lucroAlvo = (float)($meta->lucro_alvo ?? 7.50);
+        $stopLoss  = (float)($meta->stop_loss_diario ?? -30.00);
+        $maxReds   = (int)($meta->max_reds ?? 3);
+
+        if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
+            $statusCiclo = 'STOP_LOSS_ATINGIDO';
+        } elseif ($lucroLiquido >= $lucroAlvo) {
+            $statusCiclo = 'META_BATIDA';
+        } elseif ($isFechado) {
+            if ($lucroLiquido > 0) {
+                $statusCiclo = 'SUPERAVITARIO';
+            } elseif ($lucroLiquido == 0) {
+                $statusCiclo = 'NEUTRO';
+            } else {
+                $statusCiclo = 'DEFICITARIO';
+            }
+        } else {
+            $statusCiclo = 'EM_ANDAMENTO';
+        }
 
         return [
+            'numero_ciclo'        => $cicloAlvo,
+            'total_ciclos'        => $totalCiclosExistentes,
+            'ciclo_ativo_num'     => $cicloAtivoNum,
+            'is_ativo'            => $isAtivo,
+            'is_fechado'          => $isFechado,
+            'status_ciclo'        => $statusCiclo,
             'tamanho_ciclo'       => $tamanho,
             'total_no_ciclo'      => $totalCiclo,
             'liquidadas'          => $liquidadas,
@@ -398,6 +491,7 @@ class MetaDiariaModel extends Model
             'greens'              => $greens,
             'pushes'              => $pushes,
             'reds'                => $reds,
+            'cashouts'            => $cashouts,
             'odd_media'           => $oddMedia,
             'total_apostado'      => $apostado,
             'total_liquidado'     => $liquidado,
@@ -405,10 +499,122 @@ class MetaDiariaModel extends Model
             'lucro_liquido'       => $lucroLiquido,
             'roi_pct'             => $roiPct,
             'progresso_pct'       => $progressoPct,
-            'lucro_alvo'          => (float)($meta->lucro_alvo ?? 7.50),
-            'is_completo'         => ($totalCiclo >= $tamanho && $pendentes === 0),
-            'apostas'             => $apostas
+            'lucro_alvo'          => $lucroAlvo,
+            'apostas'             => $apostasCiclo
         ];
+    }
+
+    /**
+     * Alias para compatibilidade anterior
+     */
+    public function getCicloAtivoAcumulado(int $usuarioId, int $tamanhoCiclo = 10): array
+    {
+        return $this->getCicloSequencial($usuarioId, $tamanhoCiclo, null);
+    }
+
+    /**
+     * Retorna o resumo dos ciclos fechados anteriores para histórico e auditoria
+     */
+    public function getHistoricoCiclos(int $usuarioId, int $limite = 15, int $tamanhoCiclo = 10): array
+    {
+        $db = \Config\Database::connect();
+        $meta = $this->getMetaAtiva($usuarioId);
+        $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
+
+        $todasApostas = $db->table('apostas')
+            ->where('usuario_id', $usuarioId)
+            ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
+            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultObject();
+
+        $totalApostas = count($todasApostas);
+        if ($totalApostas === 0) {
+            return [];
+        }
+
+        $numCiclos = (int)ceil($totalApostas / $tamanho);
+        $historico = [];
+
+        for ($c = $numCiclos; $c >= 1; $c--) {
+            $offset = ($c - 1) * $tamanho;
+            $bloco = array_slice($todasApostas, $offset, $tamanho);
+            if (empty($bloco)) continue;
+
+            $totalB = count($bloco);
+            $greens = 0; $pushes = 0; $reds = 0; $cashouts = 0; $pendentes = 0;
+            $liquidado = 0.0; $retornos = 0.0;
+
+            $dtInicio = null;
+            $dtFim = null;
+
+            foreach ($bloco as $ap) {
+                $rawDt = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : $ap->criado_em;
+                if ($dtInicio === null) $dtInicio = $rawDt;
+                $dtFim = $rawDt;
+
+                $st = $ap->status;
+                $val = (float)$ap->valor_aposta;
+                $odd = (float)$ap->odd;
+
+                if ($st === 'Pendente') {
+                    $pendentes++;
+                } else {
+                    $liquidado += $val;
+                    if (in_array($st, ['Ganha', 'Meio Ganha'])) {
+                        $greens++;
+                        $retornos += ($st === 'Ganha') ? ($val * $odd) : ($val + (($val * $odd - $val) / 2));
+                    } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
+                        $pushes++;
+                        $retornos += $val;
+                    } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
+                        $reds++;
+                        if ($st === 'Meio Perdida') $retornos += ($val * 0.5);
+                    } elseif ($st === 'Cashout') {
+                        $cashouts++;
+                        $retornos += (float)($ap->cash_out ?? $val);
+                    }
+                }
+            }
+
+            $lucroLiq = round($retornos - $liquidado, 2);
+            $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
+            $isFechado = ($totalB >= $tamanho && $pendentes === 0);
+
+            if ($lucroLiq <= (float)($meta->stop_loss_diario ?? -30.00)) {
+                $status = 'STOP_LOSS_ATINGIDO';
+            } elseif ($lucroLiq >= (float)($meta->lucro_alvo ?? 7.50)) {
+                $status = 'META_BATIDA';
+            } elseif ($isFechado) {
+                $status = ($lucroLiq > 0) ? 'SUPERAVITARIO' : (($lucroLiq < 0) ? 'DEFICITARIO' : 'NEUTRO');
+            } else {
+                $status = 'EM_ANDAMENTO';
+            }
+
+            $historico[] = [
+                'numero_ciclo'   => $c,
+                'total_apostas'  => $totalB,
+                'tamanho_ciclo'  => $tamanho,
+                'data_inicio'    => $dtInicio,
+                'data_fim'       => $dtFim,
+                'greens'         => $greens,
+                'pushes'         => $pushes,
+                'reds'           => $reds,
+                'cashouts'       => $cashouts,
+                'pendentes'      => $pendentes,
+                'lucro_liquido'  => $lucroLiq,
+                'roi_pct'        => $roi,
+                'is_fechado'     => $isFechado,
+                'status'         => $status
+            ];
+
+            if (count($historico) >= $limite) {
+                break;
+            }
+        }
+
+        return $historico;
     }
 
     /**

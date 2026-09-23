@@ -4,6 +4,7 @@ $meta       = $metaConfig ?? (object)[];
 $prog       = $progressoHoje ?? [];
 $ciclo      = $cicloAtivo ?? [];
 $historico  = $historicoDias ?? [];
+$historicoC = $historicoCiclos ?? [];
 
 $stakePadrao = (float)($meta->stake_padrao ?? 10.00);
 $alvoApostas = (int)($meta->total_apostas_alvo ?? 10);
@@ -304,14 +305,32 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0.15rem;
   font-size: 0.8rem;
   font-weight: 700;
   transition: all 0.2s ease;
   position: relative;
 }
 
+.slot-date {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.slot-symbol {
+  font-size: 0.95rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .slot-green {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(160, 230, 200, 0.15);
   border: 1px solid var(--meta-green);
   color: var(--meta-green);
 }
@@ -325,6 +344,11 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   border: 1px solid var(--meta-red);
   color: var(--meta-red);
 }
+.slot-cashout {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid #c084fc;
+  color: #d8b4fe;
+}
 .slot-pending {
   background: rgba(245, 158, 11, 0.2);
   border: 1px solid var(--meta-gold);
@@ -332,6 +356,62 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 .slot-empty {
   color: #475569;
+}
+
+.btn-nav-cycle {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--meta-border);
+  color: var(--meta-text-secondary);
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+.btn-nav-cycle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+.btn-nav-cycle.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Abas do Histórico */
+.history-tabs-container {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--meta-border);
+  margin-bottom: 1.25rem;
+}
+
+.history-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--meta-text-secondary);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.history-tab-btn:hover {
+  color: var(--meta-text-primary);
+}
+
+.history-tab-btn.active {
+  color: var(--meta-blue);
+  border-bottom-color: var(--meta-blue);
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 0.5rem 0.5rem 0 0;
 }
 
 /* Histórico dos Dias */
@@ -609,63 +689,102 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 
     </div>
 
-    <!-- CARD 2: Ciclo Rotativo Ativo (Bloco de 10 Apostas) -->
-    <div class="meta-card">
+    <!-- CARD 2: Ciclo Sequencial Fechado (Bloco Fixo de 10 Apostas) -->
+    <div class="meta-card" id="cardCiclo">
       <div class="meta-card-header">
         <div>
-          <h2 class="meta-card-title">
-            <span>🔄 Ciclo Rotativo Ativo</span>
-            <small style="font-size: 0.85rem; color: #94a3b8; font-weight: normal;">(Bloco de 10 Apostas)</small>
-          </h2>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <h2 class="meta-card-title" style="margin: 0;">
+              <span>🔄 Ciclo Sequencial #<?= ($ciclo['numero_ciclo'] ?? 1) ?></span>
+              <small style="font-size: 0.85rem; color: #94a3b8; font-weight: normal;">(Bloco de <?= ($ciclo['tamanho_ciclo'] ?? 10) ?> Apostas)</small>
+            </h2>
+            <?php if (!empty($ciclo['is_ativo'])): ?>
+              <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
+                🟢 Ativo
+              </span>
+            <?php else: ?>
+              <span class="status-badge" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
+                🏁 Fechado
+              </span>
+            <?php endif; ?>
+          </div>
           <div style="font-size: 0.85rem; color: var(--meta-text-secondary); margin-top: 0.25rem;">
-            Acumula entre dias sem forçar apostas em dias de poucos jogos.
+            Blocos fixos sequenciais auditáveis: nenhum red ou green é descartado por janela deslizante.
           </div>
         </div>
 
-        <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <?php
+            $numC = (int)($ciclo['numero_ciclo'] ?? 1);
+            $totalC = (int)($ciclo['total_ciclos'] ?? 1);
+          ?>
+          <a href="<?= site_url('/metas?data=' . $dataRefStr . '&ciclo=' . ($numC - 1)) ?>#cardCiclo" 
+             class="btn-nav-cycle <?= ($numC <= 1) ? 'disabled' : '' ?>" title="Ciclo Anterior">◀</a>
+
           <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4);">
             Slot <?= ($ciclo['total_no_ciclo'] ?? 0) ?> / <?= ($ciclo['tamanho_ciclo'] ?? 10) ?>
           </span>
+
+          <a href="<?= site_url('/metas?data=' . $dataRefStr . '&ciclo=' . ($numC + 1)) ?>#cardCiclo" 
+             class="btn-nav-cycle <?= ($numC >= $totalC) ? 'disabled' : '' ?>" title="Próximo Ciclo">▶</a>
         </div>
       </div>
 
-      <!-- Grade Visual dos 10 Slots do Ciclo -->
+      <!-- Grade Visual dos 10 Slots do Ciclo (Ordem Cronológica de 1 a 10) -->
       <div class="cycle-slots-grid">
         <?php
           $tamCiclo = (int)($ciclo['tamanho_ciclo'] ?? 10);
           $apostasCiclo = $ciclo['apostas'] ?? [];
-          // Inverte para exibir do mais antigo ao mais recente no bloco
-          $apostasRev = array_reverse($apostasCiclo);
 
           for ($i = 0; $i < $tamCiclo; $i++):
-              $ap = $apostasRev[$i] ?? null;
+              $ap = $apostasCiclo[$i] ?? null;
               $slotClass = 'slot-empty';
               $slotIcon = ($i + 1);
+              $slotDate = '';
               $slotTitle = "Slot #".($i+1)." vazio";
 
               if ($ap) {
+                  $rawDate = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                  if ($rawDate) {
+                      try {
+                          $dt = new \DateTime($rawDate, new \DateTimeZone('UTC'));
+                          $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
+                          $slotDate = $dt->format('d/m');
+                      } catch (\Throwable $e) {
+                          $slotDate = date('d/m', strtotime($rawDate));
+                      }
+                  }
+
                   $st = $ap->status;
                   if (in_array($st, ['Ganha', 'Meio Ganha'])) {
                       $slotClass = 'slot-green';
                       $slotIcon = '✓';
-                      $slotTitle = "#{$ap->id}: {$ap->time_casa} x {$ap->time_fora} ({$st})";
-                  } elseif ($st === 'ANULADA') {
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$ap->time_casa} x {$ap->time_fora} ({$st})";
+                  } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⚪';
-                      $slotTitle = "#{$ap->id}: Reembolso / Push";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: Reembolso / Push";
                   } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
                       $slotClass = 'slot-red';
                       $slotIcon = '✕';
-                      $slotTitle = "#{$ap->id}: {$st}";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$st}";
+                  } elseif ($st === 'Cashout') {
+                      $slotClass = 'slot-cashout';
+                      $slotIcon = '💰';
+                      $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: Cashout ({$valCash})";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';
-                      $slotTitle = "#{$ap->id}: Pendente";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: Pendente";
                   }
               }
         ?>
           <div class="cycle-slot <?= $slotClass ?>" title="<?= htmlspecialchars($slotTitle) ?>">
-            <span><?= $slotIcon ?></span>
+            <?php if (!empty($slotDate)): ?>
+              <span class="slot-date"><?= $slotDate ?></span>
+            <?php endif; ?>
+            <span class="slot-symbol"><?= $slotIcon ?></span>
           </div>
         <?php endfor; ?>
       </div>
@@ -694,12 +813,15 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
         </div>
       </div>
 
-      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--meta-border); border-radius: 0.75rem; padding: 0.85rem; font-size: 0.85rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center;">
+      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--meta-border); border-radius: 0.75rem; padding: 0.85rem; font-size: 0.85rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
         <div>
           <span>Balanço: </span>
           <strong style="color: #10b981;"><?= $ciclo['greens'] ?? 0 ?>V</strong> - 
           <strong style="color: #f1f5f9;"><?= $ciclo['pushes'] ?? 0 ?>E</strong> - 
           <strong style="color: #ef4444;"><?= $ciclo['reds'] ?? 0 ?>D</strong>
+          <?php if (($ciclo['cashouts'] ?? 0) > 0): ?>
+            - <strong style="color: #c084fc;"><?= $ciclo['cashouts'] ?> Cashout</strong>
+          <?php endif; ?>
           <?php if (($ciclo['pendentes'] ?? 0) > 0): ?>
             <span style="color: #f59e0b;">(<?= $ciclo['pendentes'] ?> em jogo)</span>
           <?php endif; ?>
@@ -713,17 +835,29 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 
   </div>
 
-  <!-- SEÇÃO INFERIOR: Histórico de Dias (Cache-First) -->
+  <!-- SEÇÃO INFERIOR: Histórico com Abas (Diário vs Ciclos Sequenciais) -->
   <div class="history-section">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-      <h3 style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-        <span>📊 Histórico de Fechamento Diário</span>
-        <small style="font-size: 0.8rem; color: #94a3b8; font-weight: normal;">(Últimos 30 Dias no Cache)</small>
-      </h3>
-      <span style="font-size: 0.85rem; color: #94a3b8;">
-        ⚡ Leitura instantânea cacheada no MySQL
-      </span>
+    <div class="history-tabs-container">
+      <button type="button" class="history-tab-btn active" id="tabBtnDias" onclick="switchHistoryTab('dias')">
+        <span>📅 Fechamento Diário</span>
+        <small style="opacity: 0.7;">(Últimos 30 Dias)</small>
+      </button>
+      <button type="button" class="history-tab-btn" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
+        <span>🔄 Ciclos Fechados</span>
+        <small style="opacity: 0.7;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
+      </button>
     </div>
+
+    <!-- CONTEÚDO TAB 1: Fechamento Diário -->
+    <div id="tabContentDias">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📊 Histórico de Fechamento Diário</span>
+        </h3>
+        <span style="font-size: 0.85rem; color: #94a3b8;">
+          ⚡ Leitura instantânea cacheada no MySQL
+        </span>
+      </div>
 
     <div class="history-table-wrapper">
       <table class="history-table">
@@ -854,7 +988,103 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
         <?php endif; ?>
       </table>
     </div>
-  </div>
+    </div>
+    <!-- FIM TAB 1: Fechamento Diário -->
+
+    <!-- CONTEÚDO TAB 2: Histórico de Ciclos Sequenciais Fechados -->
+    <div id="tabContentCiclos" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📦 Histórico de Ciclos Sequenciais Fechados</span>
+        </h3>
+        <span style="font-size: 0.85rem; color: #94a3b8;">
+          Auditabilidade total: cada aposta pertence a um único bloco fixo
+        </span>
+      </div>
+
+      <div class="history-table-wrapper">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Ciclo</th>
+              <th>Período</th>
+              <th>Apostas</th>
+              <th>Greens</th>
+              <th>Reembolsos</th>
+              <th>Reds</th>
+              <th>Cashouts</th>
+              <th>Lucro Líquido</th>
+              <th>ROI</th>
+              <th>Status do Ciclo</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (!empty($historicoC)): ?>
+              <?php foreach ($historicoC as $hc): 
+                  $cLucro = (float)($hc['lucro_liquido'] ?? 0);
+                  $cRoi   = (float)($hc['roi_pct'] ?? 0);
+                  $cSt    = $hc['status'] ?? 'EM_ANDAMENTO';
+                  $isAtiv = ((int)($hc['numero_ciclo'] ?? 0) === (int)($ciclo['ciclo_ativo_num'] ?? 0));
+                  
+                  $dtIniFmt = !empty($hc['data_inicio']) ? date('d/m', strtotime($hc['data_inicio'])) : '-';
+                  $dtFimFmt = !empty($hc['data_fim']) ? date('d/m', strtotime($hc['data_fim'])) : '-';
+                  $periodoStr = ($dtIniFmt === $dtFimFmt) ? $dtIniFmt : "{$dtIniFmt} a {$dtFimFmt}";
+              ?>
+                <tr style="<?= $isAtiv ? 'background: rgba(99, 102, 241, 0.08);' : '' ?>">
+                  <td>
+                    <strong>Ciclo #<?= $hc['numero_ciclo'] ?></strong>
+                    <?php if ($isAtiv): ?>
+                      <span style="font-size: 0.7rem; color: #34d399; margin-left: 0.25rem;">(Ativo)</span>
+                    <?php endif; ?>
+                  </td>
+                  <td><?= $periodoStr ?></td>
+                  <td><?= $hc['total_apostas'] ?> / <?= $hc['tamanho_ciclo'] ?></td>
+                  <td style="color: #10b981; font-weight: 700;"><?= $hc['greens'] ?></td>
+                  <td style="color: #cbd5e1; font-weight: 600;"><?= $hc['pushes'] ?></td>
+                  <td style="color: #ef4444; font-weight: 700;"><?= $hc['reds'] ?></td>
+                  <td style="color: #c084fc; font-weight: 600;"><?= $hc['cashouts'] ?></td>
+                  <td style="font-weight: 700;" class="<?= $cLucro > 0 ? 'val-green' : ($cLucro < 0 ? 'val-red' : '') ?>">
+                    <?= ($cLucro > 0 ? '+' : '') ?>R$ <?= number_format($cLucro, 2, ',', '.') ?>
+                  </td>
+                  <td style="font-weight: 700;" class="<?= $cRoi > 0 ? 'val-green' : ($cRoi < 0 ? 'val-red' : '') ?>">
+                    <?= ($cRoi > 0 ? '+' : '') ?><?= number_format($cRoi, 1, ',', '.') ?>%
+                  </td>
+                  <td>
+                    <?php if ($cSt === 'META_BATIDA'): ?>
+                      <span class="status-badge status-meta-batida">🎯 Batida</span>
+                    <?php elseif ($cSt === 'SUPERAVITARIO'): ?>
+                      <span class="status-badge status-superavitario">🚀 Lucro</span>
+                    <?php elseif ($cSt === 'STOP_LOSS_ATINGIDO'): ?>
+                      <span class="status-badge status-stop-loss">⚠️ Stop</span>
+                    <?php elseif ($cSt === 'DEFICITARIO'): ?>
+                      <span class="status-badge status-deficitario">📉 Déficit</span>
+                    <?php elseif ($cSt === 'NEUTRO'): ?>
+                      <span class="status-badge status-neutro">🛡️ Neutro</span>
+                    <?php else: ?>
+                      <span class="status-badge status-em-andamento">⏳ Em curso</span>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <a href="<?= site_url('/metas?data=' . $dataRefStr . '&ciclo=' . $hc['numero_ciclo']) ?>#cardCiclo" 
+                       class="btn-nav-date" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;" title="Inspecionar este ciclo">
+                      Inspecionar
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr>
+                <td colspan="11" style="text-align: center; color: var(--meta-text-secondary); padding: 2rem;">
+                  Nenhum ciclo fechado registrado até o momento.
+                </td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- FIM TAB 2: Ciclos Fechados -->
 
 </div>
 
@@ -992,4 +1222,29 @@ function salvarConfig(e) {
     btn.disabled = false;
   });
 }
+function switchHistoryTab(tabName) {
+  const btnDias = document.getElementById('tabBtnDias');
+  const btnCiclos = document.getElementById('tabBtnCiclos');
+  const contentDias = document.getElementById('tabContentDias');
+  const contentCiclos = document.getElementById('tabContentCiclos');
+
+  if (tabName === 'ciclos') {
+    btnDias.classList.remove('active');
+    btnCiclos.classList.add('active');
+    contentDias.style.display = 'none';
+    contentCiclos.style.display = 'block';
+  } else {
+    btnCiclos.classList.remove('active');
+    btnDias.classList.add('active');
+    contentCiclos.style.display = 'none';
+    contentDias.style.display = 'block';
+  }
+}
+
+// Se o usuário navegou com ?ciclo=, ativa a aba de ciclos automaticamente
+<?php if (!empty($_GET['ciclo'])): ?>
+  document.addEventListener('DOMContentLoaded', function() {
+    switchHistoryTab('ciclos');
+  });
+<?php endif; ?>
 </script>

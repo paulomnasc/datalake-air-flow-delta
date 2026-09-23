@@ -844,9 +844,7 @@ def evaluate_and_select_best_ah_candidate(
         if c_is_away and c_line <= 0.0 and away_is_competitive and not is_tier1_heavily_favored:
             if is_home_in_relegation:
                 continue
-            if h_rank_val >= 12 and (a_rank_val > 0 and (h_rank_val - a_rank_val >= 6 or a_rank_val <= 6)):
-                continue
-            if h_rank_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25:
+            if h_rank_val >= 15 and h_ppg_val > 0.0 and h_ppg_val <= 1.15:
                 continue
 
         # =========================================================================
@@ -854,11 +852,12 @@ def evaluate_and_select_best_ah_candidate(
         # Quando as casas de apostas precificam o mandante como favorito no 1X2
         # (raw_h_odd < raw_a_odd com margem >= 0.15), o mercado alerta sobre a força e
         # adaptação do mandante em seus domínios.
-        # É expressamente PROIBIDO forçar aposta no visitante em linha curta (c_line <= 0.0)
-        # apenas pelo momento recente do U5J, respeitando a precificação da banca.
+        # Exceção de Incoerência de Mercado: Mandante em colapso técnico comprovado no U5J
+        # (eficiência <= 1.0 ou 4+ derrotas) enfrentando visitante invicto/estável de alta performance.
         # =========================================================================
+        is_home_in_true_collapse = (opp_pts_eff <= 1.0 or opp_d >= 4) and (cand_pts_eff >= 8.0 and cand_d <= 1)
         if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
-            if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15:
+            if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15 and not is_home_in_true_collapse:
                 continue
 
         # =========================================================================
@@ -1089,30 +1088,38 @@ def evaluate_and_select_best_ah_candidate(
                 required_prob = 58.0 if is_super_fav_crushed else 65.0
                 required_ev = 8.0 if is_super_fav_crushed else 15.0
         elif c_line == -0.25:
-            # Linha conservadora de -0.25 AH:
-            # 1. Somente para Mandante (Home) ou Super-Favorito comprovado
-            if c_is_away and not is_super_fav_crushed:
+            # Linha de Cobertura de -0.25 AH (Carro-Chefe Histórico de Rentabilidade):
+            # 1. Elegibilidade: Mandantes com superioridade técnica OU Visitantes em alta contra mandantes em crise
+            if c_is_away:
+                is_away_eligible_minus_025 = (cand_pts_eff >= 8.0 and cand_d <= 1 and (opp_pts_eff <= 3.0 or opp_d >= 3))
+                if not (is_super_fav_crushed or is_away_eligible_minus_025):
+                    continue
+
+            # 2. Teto de odd 1X2 da equipe favorita: até @ 2.25 (cobre favoritos legítimos na faixa 1.80 a 2.25 com xG e U5J dominante)
+            if cand_odd > 2.25:
                 continue
-            # 2. Exclusivamente quando a odd 1X2 da equipe favorita for <= 1.75 (favorito sólido de mercado).
-            #    Se a odd 1X2 for > 1.75 (ex: 1.80 a 2.30), o mercado precifica equilíbrio com alto risco de empate;
-            #    nesses cenários, é mandatório operar na linha 0.0 AH (DNB) com proteção total de capital.
-            if cand_odd > 1.75:
+            if cand_odd > 1.80 and not (cand_pts_eff > opp_pts_eff and xg_diff >= 0.40):
                 continue
-            # 3. Trava de Adversário Competitivo no U5J: se o adversário tiver bom aproveitamento (>= 10 pts ou >= 3 vitórias),
-            #    o confronto é parelho e a proteção do empate via 0.0 AH é mandatória.
-            if opp_pts >= 10 or opp_v >= 3:
+
+            # 3. Trava de Adversário Competitivo no U5J: Bloqueia se o adversário tiver pontuação igual ou superior
+            if (opp_pts >= 10 or opp_v >= 3) and (opp_pts_eff >= cand_pts_eff - 1.5):
                 continue
-            # 4. Exige Favorito em Grande Fase comprovada no U5J (ou Super-Favorito)
-            if not (is_fav_in_form or is_eligible_negative):
+
+            # 4. Exige time com bom momento recente ou assimetria positiva
+            if not (is_fav_in_form or is_eligible_negative or (cand_pts_eff >= opp_pts_eff + 2.0)):
                 continue
-            # 5. Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
-            if c_odd < 1.50 or c_odd > 1.85:
+
+            # 5. Faixa de odd segura da linha de handicap: 1.50 a 1.95
+            if c_odd < 1.50 or c_odd > 1.95:
                 continue
-            # 6. Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
+
+            # 6. Proibir terminantemente se a equipe estiver em curva descendente
             if cand_trend == "CURVA_DESCENDENTE":
                 continue
-            required_prob = 62.0  # Calibrado de 55.0% para 62.0% (filtro de alta convicção pré-PR #103)
-            required_ev = 8.0     # Elevado de 5.0% para 8.0% (exige margem real de valor)
+
+            # Parâmetros Canônicos Comprovados da Época de Ouro:
+            required_prob = 55.0  # Retorno ao piso histórico que viabiliza o meio-reembolso
+            required_ev = 5.0     # Retorno ao limiar canônico de Valor Esperado Positivo (+EV)
         elif c_line in standard_allowed_lines:
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:

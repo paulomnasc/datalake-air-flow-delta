@@ -3212,6 +3212,61 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Endpoint AJAX para revalidar odds (1X2, AH e Cartões) e executar Gatekeepers em tempo real.
+     */
+    public function revalidarFixtureGatekeeper()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para auditar odds em tempo real.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+            }
+        }
+
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida (fixture_id) não informado.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $userId = (int)($access['user_id'] ?? 0);
+
+        $scriptPath = '/datalake-root/scripts/revalidar_fixture_gatekeeper.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/revalidar_fixture_gatekeeper.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId}";
+        if ($userId > 0) {
+            $cmd .= " --usuario_id={$userId}";
+        }
+        $cmd .= " 2>&1";
+
+        $output = shell_exec($cmd);
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar auditoria e Gatekeeper: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
      * Retorna a lista de notificações não lidas e recentes do usuário logado.
      */
     public function getNotificacoesNaoLidas()
@@ -3494,6 +3549,14 @@ class ApostaController extends BaseController
                                 $cat = 'Queda Recente de Rendimento e Eficiência';
                                 $regra = 'Deterioração drástica na conversão ofensiva/defensiva recente dos times';
                                 $badgeColor = '#a855f7';
+                            } elseif (stripos($tag, 'Mando de Campo Soberano') !== false || stripos($tag, 'Divergência de Mercado') !== false) {
+                                $cat = 'Mando de Campo Soberano';
+                                $regra = 'Divergência de Mercado: força e adaptação do estádio superam momento do visitante';
+                                $badgeColor = '#06b6d4';
+                            } elseif (stripos($tag, 'Sobrevivência do Mandante') !== false || stripos($tag, 'Caldeirão da Degola') !== false) {
+                                $cat = 'Sobrevivência do Mandante';
+                                $regra = 'Caldeirão da Degola: mandante no Z-4 ou ameaçado joga a vida da temporada';
+                                $badgeColor = '#e11d48';
                             } else {
                                 $cat = 'AH: ' . $tag;
                             }
@@ -3505,6 +3568,14 @@ class ApostaController extends BaseController
                             $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
                             $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
                             $badgeColor = '#f59e0b';
+                        } elseif (stripos($fullAh, 'Mando de Campo Soberano') !== false || stripos($fullAh, 'Divergência de Mercado') !== false) {
+                            $cat = 'Mando de Campo Soberano';
+                            $regra = 'Divergência de Mercado: força e adaptação do estádio superam momento do visitante';
+                            $badgeColor = '#06b6d4';
+                        } elseif (stripos($fullAh, 'Sobrevivência do Mandante') !== false || stripos($fullAh, 'Caldeirão da Degola') !== false) {
+                            $cat = 'Sobrevivência do Mandante';
+                            $regra = 'Caldeirão da Degola: mandante no Z-4 ou ameaçado joga a vida da temporada';
+                            $badgeColor = '#e11d48';
                         } elseif (stripos($fullAh, 'odd nominal esmagada') !== false || stripos($fullAh, 'odd nominal deprimida') !== false || stripos($fullAh, 'linhas agressivas') !== false) {
                             $cat = 'Odd Esmagada / Linha Agressiva Bloqueada';
                             $regra = 'Superfavorito com odd esmagada (@ 1.20-1.40); linhas esticadas bloqueadas para evitar perdas no empate';
@@ -3598,7 +3669,7 @@ class ApostaController extends BaseController
                         $regra = 'Travas de segurança preventiva do Gatekeeper Disciplinar';
                         $badgeColor = '#64748b';
 
-                        if (stripos($ptext, 'zerados ou indisponíveis') !== false) {
+                        if (stripos($ptext, 'zerados ou indisponíveis') !== false || stripos($ptext, 'insuficientes de cartões') !== false || stripos($ptext, 'estatísticos insuficientes') !== false) {
                             $cat = 'Dados de Cartões Zerados ou Indisponíveis';
                             $regra = 'Regra 9: Proibição de fallbacks artificiais; ausência de histórico consolidado no cache';
                             $badgeColor = '#ef4444';
@@ -3606,6 +3677,22 @@ class ApostaController extends BaseController
                             $cat = 'Início de Temporada / Amostragem < 5 Jogos';
                             $regra = 'Regra 9: Menos de 5 partidas registradas na base para calcular médias móveis confiáveis';
                             $badgeColor = '#f59e0b';
+                        } elseif (stripos($ptext, 'Caldeirão da Degola') !== false || stripos($ptext, 'Sobrevivência do Mandante') !== false) {
+                            $cat = 'Caldeirão da Degola (Cartões)';
+                            $regra = 'Mandante no Z-4 sob extrema tensão e urgência, propício a faltas de atrito e catimba';
+                            $badgeColor = '#e11d48';
+                        } elseif (stripos($ptext, 'Liga com Alta Taxa de Reds') !== false) {
+                            $cat = 'Liga com Alta Taxa de Reds';
+                            $regra = 'Competição com histórico de taxa de cartões vermelhos diretos superior a 10%';
+                            $badgeColor = '#dc2626';
+                        } elseif (stripos($ptext, 'Disparidade Técnica Extrema') !== false) {
+                            $cat = 'Disparidade Técnica Extrema';
+                            $regra = 'Grande desnível técnico; azarão tende a apelar para faltas táticas de contenção';
+                            $badgeColor = '#f97316';
+                        } elseif (stripos($ptext, 'Conflito de Mando') !== false) {
+                            $cat = 'Conflito de Mando (Cartões)';
+                            $regra = 'Tensão e pressão local distorcendo os padrões disciplinares habituais';
+                            $badgeColor = '#06b6d4';
                         } elseif (stripos($ptext, 'Trava de Árbitro') !== false || stripos($ptext, 'Rigor do árbitro') !== false) {
                             $cat = 'Trava de Rigor do Árbitro';
                             $regra = 'Árbitro escalado com histórico rigoroso (> 4.80 c/j), incompatível com Under';
@@ -3626,7 +3713,7 @@ class ApostaController extends BaseController
                             $cat = 'Sem Margem Estatística para Under';
                             $regra = 'Expectativa de cartões superior às linhas Under disponíveis no mercado';
                             $badgeColor = '#0284c7';
-                        } elseif (stripos($ptext, 'Sem Árbitro') !== false || stripos($ptext, 'Árbitro não definido') !== false) {
+                        } elseif (stripos($ptext, 'Sem Árbitro') !== false || stripos($ptext, 'Árbitro não definido') !== false || stripos($ptext, 'Árbitro Pendente') !== false) {
                             $cat = 'Árbitro Não Definido a < 48h';
                             $regra = 'Confronto próximo sem confirmação da escala oficial de arbitragem';
                             $badgeColor = '#64748b';

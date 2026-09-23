@@ -513,7 +513,7 @@ if (!function_exists('renderStructuredMotivation')) {
             $num = $index + 1;
             $html .= '<li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.45;">';
             $html .= '<span style="background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-weight: 800; font-size: 0.68rem; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">' . $num . '</span>';
-            $html .= '<span>' . htmlspecialchars($topic) . '</span>';
+            $html .= '<span style="white-space: pre-line;">' . htmlspecialchars($topic) . '</span>';
             $html .= '</li>';
         }
 
@@ -3659,6 +3659,16 @@ if (!function_exists('getBetDecisionTree')) {
 
                                     <!-- Barra de Badges Interativos para Alternar Seções Retráteis -->
                                     <div class="bet-badge-toggle-bar">
+                                        <?php if (!$isFinishedCard && !$isPostponedCard): ?>
+                                            <button type="button" 
+                                                    id="btn-revalidar-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge cyan" 
+                                                    style="background: rgba(6, 182, 212, 0.16) !important; border: 1px solid rgba(6, 182, 212, 0.5) !important; color: #22d3ee !important; font-weight: 700;" 
+                                                    onclick="revalidarOddsEGatekeeper(<?= $fix->fixture_id ?>, this)"
+                                                    title="Consultar odds Betano em tempo real e revalidar Gatekeeper para Handicap e Cartões">
+                                                <i class="bi bi-arrow-repeat me-1 icon-revalidar"></i> Revalidar Odds & IA
+                                            </button>
+                                        <?php endif; ?>
                                         <button type="button" 
                                                 id="btn-cards-<?= $fix->fixture_id ?>" 
                                                 class="bet-toggle-badge yellow" 
@@ -3895,9 +3905,11 @@ if (!function_exists('getBetDecisionTree')) {
 
                                                 <?= renderU5JTimelineTable($u5j_data, $fix) ?>
 
-                                                <?php if (!empty($motivation)): ?>
-                                                    <?= renderStructuredMotivation($motivation, $raw_reasoning, $fix) ?>
-                                                <?php endif; ?>
+                                                <div class="ah-motivation-container-<?= $fix->fixture_id ?>">
+                                                    <?php if (!empty($motivation)): ?>
+                                                        <?= renderStructuredMotivation($motivation, $raw_reasoning, $fix) ?>
+                                                    <?php endif; ?>
+                                                </div>
 
                                                 <?php if (!empty($calc_details)): ?>
                                                     <div style="margin-top: 6px;">
@@ -5166,6 +5178,130 @@ if (!function_exists('getBetDecisionTree')) {
                 btnEl.disabled = false;
                 btnEl.innerHTML = origText;
                 alert('Erro de comunicação com o servidor.');
+            }
+        });
+    }
+
+    // Revalidar Odds Betano e Gatekeepers (Handicap e Cartões) na Dashboard
+    function revalidarOddsEGatekeeper(fixtureId, btnEl) {
+        if (!fixtureId) return;
+        const origText = btnEl.innerHTML;
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Revalidando...';
+
+        $.ajax({
+            url: '<?= base_url('apostas/revalidar-fixture-gatekeeper') ?>',
+            type: 'POST',
+            data: { fixture_id: fixtureId },
+            dataType: 'json',
+            success: function(data) {
+                btnEl.disabled = false;
+                btnEl.innerHTML = origText;
+                if (!data.success) {
+                    alert('⚠️ ' + (data.message || 'Erro ao revalidar odds.'));
+                    return;
+                }
+
+                const card = $('#card-' + fixtureId);
+
+                // 1. Atualiza Odds 1X2 exibidas no card
+                if (data.odds_1x2 && card.length) {
+                    const oddsDivs = card.find('.oddspedia-link-box div[style*="font-size: 0.95rem"]');
+                    if (oddsDivs.length >= 3) {
+                        if (data.odds_1x2.home) $(oddsDivs[0]).text(Number(data.odds_1x2.home).toFixed(2));
+                        if (data.odds_1x2.draw) $(oddsDivs[1]).text(Number(data.odds_1x2.draw).toFixed(2));
+                        if (data.odds_1x2.away) $(oddsDivs[2]).text(Number(data.odds_1x2.away).toFixed(2));
+                    }
+                }
+
+                // 2. Atualiza Handicap Asiático
+                if (data.handicap) {
+                    const ah = data.handicap;
+                    const isBlocked = (ah.status !== 'APROVADO' || !ah.odd);
+                    const ahBtn = $('#btn-ah-' + fixtureId);
+                    const ahBadgeSug = $('.badge-ah-sug-' + fixtureId);
+
+                    if (isBlocked) {
+                        ahBtn.removeClass('blue').addClass('red')
+                             .attr('style', 'background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;')
+                             .html('<i class="bi bi-slash-circle-fill me-1"></i> 🚫 <?= lang('App.ah_blocked_ai_abstain') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
+                        ahBadgeSug.text('🎯 ' + ah.suggestion + ' (' + Number(ah.confidence).toFixed(1) + '%)');
+                    } else {
+                        ahBtn.removeClass('red').addClass('blue')
+                             .removeAttr('style')
+                             .html('<i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>: ' + ah.suggestion + ' <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
+                        ahBadgeSug.text('🎯 ' + ah.suggestion + ' @ ' + Number(ah.odd).toFixed(2) + ' (' + Number(ah.confidence).toFixed(1) + '%)');
+                    }
+                }
+
+                // 3. Atualiza Cartões
+                if (data.cards) {
+                    const c = data.cards;
+                    const prob = Number(c.probability).toFixed(1);
+                    const cardsBtn = $('#btn-cards-' + fixtureId);
+                    if (cardsBtn.length) {
+                        cardsBtn.html('<i class="bi bi-card-amber"></i> <?= lang('App.cards') ?> (' + prob + '%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
+                    }
+                    $('[data-prob-value="' + fixtureId + '"]').text(prob + '%');
+                    $('[data-prob-fill="' + fixtureId + '"]').css('width', prob + '%');
+                }
+
+                // 4. Atualiza Motivação Detalhada no DOM se presente
+                const motContainer = $('.ah-motivation-container-' + fixtureId);
+                if (motContainer.length && data.handicap && data.handicap.lines_read && data.handicap.lines_read.length > 0) {
+                    motContainer.find('.ah-lines-audit-box').remove();
+                    let linesHtml = '<div class="ah-lines-audit-box" style="margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-size: 0.72rem; color: #cbd5e1;">';
+                    linesHtml += '<div style="font-weight: 700; color: #38bdf8; margin-bottom: 6px;"><i class="bi bi-list-check me-1"></i> Linhas de Handicap Asiático Auditadas na ' + (data.bookmaker || 'Betano') + ':</div>';
+                    linesHtml += '<div style="display: flex; flex-direction: column; gap: 4px; font-family: monospace; font-size: 0.70rem;">';
+                    data.handicap.lines_read.forEach(function(l) {
+                        const color = l.aprovada ? '#34d399' : '#f87171';
+                        const tag = l.aprovada ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                        linesHtml += '<div style="padding: 3px 6px; background: rgba(255, 255, 255, 0.03); border-radius: 4px; color: ' + color + ';">';
+                        linesHtml += '<strong>' + tag + ' ' + l.palpite + ' @ ' + Number(l.odd).toFixed(2) + '</strong>';
+                        if (l.motivo) linesHtml += '<div style="color: #94a3b8; font-size: 0.67rem; margin-left: 18px;">↳ ' + l.motivo + '</div>';
+                        linesHtml += '</div>';
+                    });
+                    linesHtml += '</div></div>';
+                    if (motContainer.find('.motivation-structured-box').length) {
+                        motContainer.find('.motivation-structured-box').append(linesHtml);
+                    } else {
+                        motContainer.html(linesHtml);
+                    }
+                }
+
+                // 5. Feedback com Alerta Completo
+                let msg = '🔄 ' + (data.message || 'Revalidação concluída com sucesso!') + '\n\n';
+                if (data.odds_1x2 && data.odds_1x2.home) {
+                    msg += '• Odds 1X2 (' + (data.bookmaker || 'Betano') + '): Casa @ ' + Number(data.odds_1x2.home).toFixed(2) + ' | Empate @ ' + Number(data.odds_1x2.draw).toFixed(2) + ' | Fora @ ' + Number(data.odds_1x2.away).toFixed(2) + '\n\n';
+                }
+                if (data.handicap) {
+                    msg += '• Handicap Asiático: ' + data.handicap.suggestion + (data.handicap.odd ? ' @ ' + Number(data.handicap.odd).toFixed(2) : '') + ' [' + data.handicap.status + ']\n';
+                    if (data.handicap.reason_clean) {
+                        msg += '  ↳ Diagnóstico: ' + data.handicap.reason_clean + '\n';
+                    }
+                    if (data.handicap.lines_read && data.handicap.lines_read.length > 0) {
+                        msg += '\n  ↳ Linhas de AH Lidas na Betano (' + data.handicap.lines_read.length + ' linhas):\n';
+                        data.handicap.lines_read.forEach(function(l) {
+                            const icon = l.aprovada ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                            msg += '     ' + icon + ' ' + l.palpite + ' @ ' + Number(l.odd).toFixed(2) + '\n';
+                            if (l.motivo) {
+                                msg += '        ↳ ' + l.motivo + '\n';
+                            }
+                        });
+                    }
+                }
+                if (data.cards) {
+                    msg += '\n• Cartões: ' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + ' [' + data.cards.status + ']\n';
+                    if (data.cards.reason_clean) {
+                        msg += '  ↳ Diagnóstico: ' + data.cards.reason_clean + '\n';
+                    }
+                }
+                alert(msg);
+            },
+            error: function() {
+                btnEl.disabled = false;
+                btnEl.innerHTML = origText;
+                alert('Erro de comunicação com o servidor ao revalidar.');
             }
         });
     }

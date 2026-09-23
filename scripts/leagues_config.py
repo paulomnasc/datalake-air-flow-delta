@@ -13,8 +13,6 @@ ALLOWED_LEAGUES = {
     75: "Copa do Nordeste (Brasil)",
     642: "Supercopa do Brasil (Brasil)",
     39: "Premier League (Inglaterra)",
-    45: "FA Cup (Inglaterra)",
-    48: "EFL Cup (Inglaterra)",
     140: "La Liga (Espanha)",
     143: "Copa del Rey (Espanha)",
     135: "Serie A (Italia)",
@@ -43,8 +41,8 @@ ALLOWED_LEAGUES = {
     88: "Eredivisie (Holanda)",
     128: "Primera Division (Argentina)",
     130: "Copa Argentina (Argentina)",
-    98: "J1 League (Japao)",
-    292: "K League 1 (Coreia do Sul)",
+    ## 98: "J1 League (Japao)",
+    ## 292: "K League 1 (Coreia do Sul)",
     283: "Liga I (Romenia)",
     286: "Super Liga (Servia)",
     244: "Veikkausliiga (Finlandia)",
@@ -54,8 +52,8 @@ ALLOWED_LEAGUES = {
     268: "Primera Division (Uruguai)",
     265: "Primera Division (Chile)",
     239: "Primera Division (Colombia)",
-    501: "Copa Paraguay (Paraguai)",
-    169: "Super League (China)",
+    ## 501: "Copa Paraguay (Paraguai)",
+    ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
     203: "Super Lig (Turquia)",
     207: "Super League (Suica)",
@@ -66,11 +64,11 @@ ALLOWED_LEAGUES = {
     179: "Scottish Premiership (Escocia)",
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
-    10: "Friendlies (Amistosos de Selecoes)",
+    ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)",
-    18: "AFC Champions League Two (Asia)"
+    17: "AFC Champions League (Asia)"
+    ## 18: "AFC Champions League Two (Asia)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)

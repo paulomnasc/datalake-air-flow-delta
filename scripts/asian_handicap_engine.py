@@ -665,6 +665,7 @@ def evaluate_and_select_best_ah_candidate(
     xg_h_val = 0.0
     xg_a_val = 0.0
     xg_diff = 0.0
+    cand_xg_diff = 0.0
     is_home_poisson_dominant_minus_half = False
 
     h_rank_val = 0
@@ -748,6 +749,7 @@ def evaluate_and_select_best_ah_candidate(
         c_line = cand['line']
         c_odd = cand['odd']
         c_is_away = cand['is_away']
+        cand_xg_diff = (xg_a_val - xg_h_val) if c_is_away else (xg_h_val - xg_a_val)
 
         # Trava de Segurança Máxima Anti-Goleada:
         if c_line < -1.0:
@@ -1098,7 +1100,7 @@ def evaluate_and_select_best_ah_candidate(
             # 2. Teto de odd 1X2 da equipe favorita: até @ 2.25 (cobre favoritos legítimos na faixa 1.80 a 2.25 com xG e U5J dominante)
             if cand_odd > 2.25:
                 continue
-            if cand_odd > 1.80 and not (cand_pts_eff > opp_pts_eff and xg_diff >= 0.40):
+            if cand_odd > 1.80 and not (cand_pts_eff > opp_pts_eff and cand_xg_diff >= 0.40):
                 continue
 
             # 3. Trava de Adversário Competitivo no U5J: Bloqueia se o adversário tiver pontuação igual ou superior

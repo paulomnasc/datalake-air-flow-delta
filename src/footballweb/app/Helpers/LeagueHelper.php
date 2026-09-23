@@ -57,6 +57,9 @@ class LeagueHelper
         // EUA
         253  => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
         254  => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => false],
+        // Canadá
+        479  => ['country' => 'Canadá', 'flag' => '🇨🇦', 'popular' => true],
+        259  => ['country' => 'Canadá', 'flag' => '🇨🇦', 'popular' => false],
         // Suécia / Noruega / Finlândia / Romênia / Sérvia / Peru / Equador / Uruguai / Chile / Colômbia
         113  => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => true],
         114  => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => false],
@@ -199,6 +202,9 @@ class LeagueHelper
         }
         if (strpos($lNameLower, 'mls') !== false || strpos($lNameLower, 'major league') !== false || strpos($lNameLower, 'usa') !== false) {
             return ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'canada') !== false || strpos($lNameLower, 'canadá') !== false || strpos($lNameLower, 'canadian') !== false) {
+            return ['country' => 'Canadá', 'flag' => '🇨🇦', 'popular' => true];
         }
         if (strpos($lNameLower, 'méxico') !== false || strpos($lNameLower, 'mexico') !== false || strpos($lNameLower, 'liga mx') !== false) {
             return ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true];

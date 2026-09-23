@@ -890,9 +890,21 @@ def evaluate_and_select_best_ah_candidate(
         # 2. TRAVA DE TIME EM CRISE OU FORMA NEGATIVA:
         # Equipes com 4+ derrotas no U5J, sem vitórias (0V) ou com eficiência negativa (<= 0.0)
         # NUNCA podem ser apoiadas em c_line <= 0.0, independentemente de odds de mercado.
+        # Exceção Estrutural de Mandante Invicto no -0.25 AH:
+        # Permite apoiar mandantes que empataram seus jogos recentes mas estão INVICTOS (cand_d == 0),
+        # com dominância de xG (cand_xg_diff >= 0.40), favoritismo 1X2 (cand_odd <= 1.85) e maior eficiência que o adversário.
+        is_home_unbeaten_minus_025 = (
+            not c_is_away and
+            c_line == -0.25 and
+            cand_d == 0 and
+            cand_odd <= 1.85 and
+            cand_xg_diff >= 0.40 and
+            cand_pts_eff > opp_pts_eff
+        )
         if cand_l5 and isinstance(cand_l5, dict) and (cand_d >= 4 or cand_v == 0 or cand_pts_eff <= 0.0):
-            if c_line <= 0.0:
-                continue
+            if not is_home_unbeaten_minus_025:
+                if c_line <= 0.0:
+                    continue
 
         # 2.1 TRAVA DE AZARÃO EM DECLÍNIO / HISTÓRICO FRÁGIL (+AH):
         # Linhas positivas (+0.5 AH, +1.0 AH) só podem apoiar zebras com competitividade comprovada.
@@ -1454,7 +1466,7 @@ def calculate_unified_handicap_recommendation(
     if odd_h > 1.0 and odd_a > 1.0 and xg_h > 0 and xg_a > 0:
         is_tight_market = abs(odd_h - odd_a) <= 0.35 or (2.20 <= odd_h <= 2.90 and 2.20 <= odd_a <= 2.90)
         odds_ratio = (odd_a / odd_h) if odd_h < odd_a else (odd_h / odd_a)
-        max_allowed_ratio = 1.55 if is_tight_market else max(2.20, min(6.0, odds_ratio * 0.90))
+        max_allowed_ratio = 1.55 if is_tight_market else max(4.0, min(6.0, odds_ratio * 1.5))
         ratio_recalc = False
         if (xg_a / xg_h) > max_allowed_ratio:
             xg_a = round(xg_h * max_allowed_ratio, 2)

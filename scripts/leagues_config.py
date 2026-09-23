@@ -10,8 +10,6 @@ ALLOWED_LEAGUES = {
     71: "Serie A (Brasil)",
     72: "Serie B (Brasil)",
     73: "Copa do Brasil (Brasil)",
-    75: "Copa do Nordeste (Brasil)",
-    642: "Supercopa do Brasil (Brasil)",
     39: "Premier League (Inglaterra)",
     140: "La Liga (Espanha)",
     143: "Copa del Rey (Espanha)",
@@ -64,6 +62,9 @@ ALLOWED_LEAGUES = {
     179: "Scottish Premiership (Escocia)",
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
+    253: "Major League Soccer (EUA)",
+    479: "Canadian Premier League (Canada)",
+    259: "Canadian Championship (Canada)",
     ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
@@ -97,6 +98,7 @@ ALLOWED_LEAGUE_NAMES = [
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
     'veikkausliiga', 'ekstraklasa', 'czech first league',
+    'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
 ]
 

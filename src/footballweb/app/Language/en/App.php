@@ -241,6 +241,7 @@ return [
     'review'                        => 'Match Review',
     'detailed_stats'                => 'Detailed Statistics',
     'cards_trend_poisson'           => 'Cards Trend (Poisson Under)',
+    'cards_finished_hint'           => 'Calculated after match finished (FT): Total cards on field was %d and calculated expectation was %s.',
     'cards_market_decision_tree'    => 'Cards Market (Decision Tree)',
     'expectation'                   => 'Expectation',
     'teams'                         => 'Teams',

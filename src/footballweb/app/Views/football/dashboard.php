@@ -2884,10 +2884,40 @@ if (!function_exists('getBetDecisionTree')) {
                             $u65 = calculate_poisson_php($xc, 6.5)['under'];
                             $u75 = calculate_poisson_php($xc, 7.5)['under'];
 
-                            if ($isFinished && $totalLiveCards <= 5 && $xc <= 6.50) {
-                                $prob = 100.0;
-                                $probDisplay = '100% (' . lang('App.won_green') . ' 🟢)';
-                                $class = 'safe';
+                            $cardsFinishedHint = '';
+                            $cardsFinishedBtnText = '';
+                            $cardsFinishedBtnStyle = '';
+                            $cardsFinishedBtnClass = 'yellow';
+                            if ($isFinished) {
+                                $cardsFinishedHint = sprintf(
+                                    lang('App.cards_finished_hint'),
+                                    $totalLiveCards,
+                                    number_format($xc, 2)
+                                );
+
+                                // Razão entre a expectativa de cartões e o total real apurado em campo
+                                $effectiveLiveCards = max(0.5, (float)$totalLiveCards);
+                                $convergenceRatio = (int)round(($xc / $effectiveLiveCards) * 100);
+
+                                if ($totalLiveCards == 0 || $convergenceRatio >= 100) {
+                                    $prob = min(100.0, (float)$convergenceRatio);
+                                    $probDisplay = 'CONVERGENTE (' . $convergenceRatio . '% 🟢)';
+                                    $class = 'safe';
+                                    $cardsFinishedBtnClass = 'green';
+                                    $cardsFinishedBtnStyle = 'background: rgba(16, 185, 129, 0.18) !important; border: 1px solid #10b981 !important; color: #34d399 !important;';
+                                    $cardsFinishedBtnText = lang('App.cards') . ' (CONVERGENTE ' . $convergenceRatio . '%)';
+                                } else {
+                                    $prob = (float)$convergenceRatio;
+                                    $probDisplay = 'DIVERGENTE (' . $convergenceRatio . '% 🔴)';
+                                    $class = 'nobet';
+                                    $cardsFinishedBtnClass = 'red';
+                                    $cardsFinishedBtnStyle = 'background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;';
+                                    $cardsFinishedBtnText = lang('App.cards') . ' (DIVERGENTE ' . $convergenceRatio . '%)';
+                                }
+                            }
+
+                            if ($isFinished) {
+                                // Status definido pelo cálculo de convergência/divergência pós-jogo acima
                             } elseif ($isNoBetFix || $xc > 6.50) {
                                 $prob = 0.0;
                                 $probDisplay = 'NO BET (' . lang('App.risk_no_bet') . ' 🚫)';
@@ -3671,9 +3701,11 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?php endif; ?>
                                         <button type="button" 
                                                 id="btn-cards-<?= $fix->fixture_id ?>" 
-                                                class="bet-toggle-badge yellow" 
+                                                class="bet-toggle-badge <?= ($isFinished && !empty($cardsFinishedBtnClass)) ? $cardsFinishedBtnClass : 'yellow' ?>" 
+                                                <?= ($isFinished && !empty($cardsFinishedBtnStyle)) ? 'style="' . $cardsFinishedBtnStyle . '"' : '' ?>
+                                                <?= (!empty($cardsFinishedHint)) ? 'title="' . htmlspecialchars($cardsFinishedHint, ENT_QUOTES) . '"' : '' ?>
                                                 onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'cards')">
-                                            <i class="bi bi-card-amber"></i> <?= lang('App.cards') ?> (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            <i class="bi bi-card-amber"></i> <?= ($isFinished && !empty($cardsFinishedBtnText)) ? $cardsFinishedBtnText : lang('App.cards') . ' (' . $prob . '%)' ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
                                         <?php 
                                             $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
@@ -3729,11 +3761,16 @@ if (!function_exists('getBetDecisionTree')) {
                                         <div class="bet-prob-container" style="margin-bottom: 8px;">
                                             <div class="bet-prob-value-row">
                                                 <span class="bet-prob-label"><?= lang('App.cards_trend_poisson') ?></span>
-                                                <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>"><?= $probDisplay ?></span>
+                                                <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>" <?= (!empty($cardsFinishedHint)) ? 'title="' . htmlspecialchars($cardsFinishedHint, ENT_QUOTES) . '"' : '' ?>><?= $probDisplay ?></span>
                                             </div>
                                             <div class="bet-progress-track">
                                                 <div class="bet-progress-fill <?= $class ?>" data-prob-fill="<?= $fix->fixture_id ?>" style="width: <?= $prob ?>%"></div>
                                             </div>
+                                            <?php if (!empty($cardsFinishedHint)): ?>
+                                                <div class="bet-cards-finished-hint" style="font-size: 0.72rem; color: #94a3b8; margin-top: 5px; display: flex; align-items: center; gap: 4px;">
+                                                    <i class="bi bi-info-circle text-info"></i> <?= htmlspecialchars($cardsFinishedHint) ?>
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
 
                                         <?= formatStructuredPredictionText($fix->prediction_text) ?>

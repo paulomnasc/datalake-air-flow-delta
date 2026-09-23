@@ -241,6 +241,7 @@ return [
     'review'                        => 'Resenha',
     'detailed_stats'                => 'Estatísticas Detalhadas',
     'cards_trend_poisson'           => 'Tendência de Cartões (Poisson Under)',
+    'cards_finished_hint'           => 'Calculado ao finalizar o jogo (FT): O total de cartões em campo foi %d e a expectativa calculada %s.',
     'cards_market_decision_tree'    => 'Mercado de Cartões (Árvore de Decisão)',
     'expectation'                   => 'Expectativa',
     'teams'                         => 'Times',

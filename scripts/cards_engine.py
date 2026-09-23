@@ -592,7 +592,8 @@ def evaluate_cards_conflict_scenario(
     away_rank: int = None,
     home_zone: str = None,
     home_ppg: float = None,
-    standings_mot: float = None
+    standings_mot: float = None,
+    league_id: int = None
 ) -> tuple:
     """
     Avalia os 4 cenários canônicos de partidas conflituosas (migrados do Gatekeeper de AH para Cartões):
@@ -679,6 +680,13 @@ def evaluate_cards_conflict_scenario(
             is_extreme_disparity = True
     if h_eff is not None and a_eff is not None and abs(h_eff - a_eff) >= 6.0 and (raw_h_odd <= 1.60 or raw_a_odd <= 1.60):
         is_extreme_disparity = True
+
+    # Exceção Estrutural de Elite e Seleções UEFA (Champions #2, Europa League #3, Euro #4, Nations League #5, Super Cup #531)
+    # Em partidas da UEFA com árbitros do quadro de elite e linhas Under 6.5+, o desnível técnico desacelera o ritmo
+    # do jogo e não produz estouro disciplinar. Conference League (#848) permanece fora por volatilidade disciplinar.
+    uefa_disparity_exempt_leagues = {2, 3, 4, 5, 531}
+    if is_extreme_disparity and league_id and int(league_id) in uefa_disparity_exempt_leagues:
+        is_extreme_disparity = False
 
     if is_extreme_disparity:
         fav_name = home_team if (raw_h_odd > 0 and raw_h_odd < raw_a_odd) else away_team
@@ -789,7 +797,8 @@ def evaluate_best_card_under_line(
         away_rank=away_rank,
         home_zone=home_zone,
         home_ppg=home_ppg,
-        standings_mot=standings_mot
+        standings_mot=standings_mot,
+        league_id=league_id
     )
 
     # Bloqueio total por conflito severo (Caldeirão da Degola ou Duelo de Crises)

@@ -663,6 +663,13 @@ class ApostaController extends BaseController
                     }
                 }
 
+                // Isenção de Disparidade Técnica para Elite e Seleções UEFA (IDs 2, 3, 4, 5, 531)
+                $uefaExemptLeagues = [2, 3, 4, 5, 531];
+                $fLeagueId = (int)($ftRow['league_id'] ?? 0);
+                if ($isExtremeDisparity && in_array($fLeagueId, $uefaExemptLeagues, true)) {
+                    $isExtremeDisparity = false;
+                }
+
                 if ($isExtremeDisparity && abs($line - 5.5) < 0.01) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Disparidade Técnica Extrema';

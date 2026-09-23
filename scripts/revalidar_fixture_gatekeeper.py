@@ -347,6 +347,16 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             destaque_val=1 if best_cand_ah.get('is_tier1_massacre') else 0,
             best_cand=best_cand_ah
         )
+        # Garante a persistência da auditoria de linhas da Betano em fixtures_trends e apostas
+        cursor.execute("SELECT ah_reasoning FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        curr_fix_r = cursor.fetchone()
+        if curr_fix_r and curr_fix_r.get('ah_reasoning'):
+            enriched_app_r = inject_audit_into_compound_reasoning(curr_fix_r['ah_reasoning'], audit_bullet)
+            cursor.execute("UPDATE fixtures_trends SET ah_reasoning = %s WHERE fixture_id = %s", (enriched_app_r, fixture_id))
+            cursor.execute("""
+                UPDATE apostas SET resultado_detalhado = %s
+                WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+            """, (enriched_app_r, fixture_id))
     else:
         cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=clean_reason_ah[:250])
         app_cat_ah = determine_gatekeeper_category('NO_BET', sug_ah, reason_ah)

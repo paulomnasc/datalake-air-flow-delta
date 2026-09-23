@@ -3807,6 +3807,20 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
                                                         <?= htmlspecialchars($ah_block_desc ?: $nl_explanation) ?>
                                                     </div>
+                                                    <?php 
+                                                        $auditLinesText = '';
+                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
+                                                            $auditLinesText = trim($mAud[1]);
+                                                        }
+                                                    ?>
+                                                    <div class="ah-lines-audit-widget-<?= $fix->fixture_id ?>" style="<?= empty($auditLinesText) ? 'display: none;' : '' ?> margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 3px solid #f87171; border-radius: 6px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; white-space: pre-line;">
+                                                        <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
+                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas na Betano:
+                                                        </div>
+                                                        <div class="ah-lines-audit-content-<?= $fix->fixture_id ?>">
+                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:\s*/u', '', $auditLinesText)) ?>
+                                                        </div>
+                                                    </div>
                                                     <?php if (!empty($ah_block_detail)): ?>
                                                         <div style="margin-top: 6px; padding: 4px 8px; background: rgba(15, 23, 42, 0.9); border-radius: 4px; border: 1px solid rgba(248, 113, 113, 0.25); font-size: 0.71rem; color: #cbd5e1;">
                                                             ℹ️ <strong><?= lang('App.metric_indicators') ?? 'Indicadores' ?>:</strong> <?= htmlspecialchars($ah_block_detail) ?>
@@ -3815,6 +3829,12 @@ if (!function_exists('getBetDecisionTree')) {
                                                 </div>
 
                                                 <?= renderU5JTimelineTable($u5j_data, $fix) ?>
+
+                                                <div class="ah-motivation-container-<?= $fix->fixture_id ?>">
+                                                    <?php if (!empty($motivation)): ?>
+                                                        <?= renderStructuredMotivation($motivation, $raw_reasoning, $fix) ?>
+                                                    <?php endif; ?>
+                                                </div>
 
                                                 <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(239, 68, 68, 0.2);">
                                                     <span style="font-size: 0.72rem; color: #fda4af; display: flex; align-items: center; gap: 4px;">
@@ -5246,7 +5266,21 @@ if (!function_exists('getBetDecisionTree')) {
                     $('[data-prob-fill="' + fixtureId + '"]').css('width', prob + '%');
                 }
 
-                // 4. Atualiza Motivação Detalhada no DOM se presente
+                // 4. Atualiza Motivação Detalhada e Auditoria de Linhas no DOM
+                const auditWidget = $('.ah-lines-audit-widget-' + fixtureId);
+                if (data.handicap && data.handicap.lines_read && data.handicap.lines_read.length > 0) {
+                    let linesText = data.handicap.lines_read.map(function(l) {
+                        const tag = l.aprovada ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                        let lineStr = '  ' + tag + ' ' + l.palpite + ' @ ' + Number(l.odd).toFixed(2);
+                        if (l.motivo) lineStr += ' -> ' + l.motivo;
+                        return lineStr;
+                    }).join('\n');
+                    if (auditWidget.length) {
+                        auditWidget.find('.ah-lines-audit-content-' + fixtureId).text(linesText);
+                        auditWidget.show();
+                    }
+                }
+
                 const motContainer = $('.ah-motivation-container-' + fixtureId);
                 if (motContainer.length && data.handicap && data.handicap.lines_read && data.handicap.lines_read.length > 0) {
                     motContainer.find('.ah-lines-audit-box').remove();

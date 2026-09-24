@@ -1741,6 +1741,11 @@ def calculate_unified_handicap_recommendation(
             )
         clean_gk = format_gatekeeper_result('NO_BET', sug, reason)
         compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, sug, home_team, away_team, h_tid, a_tid, reasoning)
+        if betano_lines:
+            audit_items, _ = audit_ah_lines_reasons(betano_lines, 'NO_BET', sug, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
+            if audit_items:
+                audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+                compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
         return 'NO_BET', sug, conf, compound_r, None, []
 
     eval_res = best_cand['eval']
@@ -1776,6 +1781,11 @@ def calculate_unified_handicap_recommendation(
         odd_home=odd_h,
         odd_away=odd_a
     )
+    if betano_lines:
+        audit_items, _ = audit_ah_lines_reasons(betano_lines, 'APROVADO', selected_palpite, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
+        if audit_items:
+            audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+            compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
 
     # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)
     cand_team_name = best_cand.get('target_team') or best_cand.get('team') or (away_team if best_cand.get('is_away') else home_team)
@@ -2544,6 +2554,104 @@ def compose_compound_ah_reasoning(
 
     full_reasoning = f"{main_calc} || EXPLICACAO: {nl_exp} || MOTIVACAO: {nl_mot} || MEMÓRIA DE CÁLCULO || {calc_details} || U5J_DATA: {u5j_json_str}"
     return full_reasoning
+
+def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_ESTAVEL', a_trend='CURVA_ESTAVEL'):
+    """
+    Avalia cada linha lida da Betano e produz a justificativa técnica clara do Gatekeeper.
+    """
+    raw_h = 0.0
+    raw_a = 0.0
+    odd_val = 0.0
+    c_line = 0.0
+    cand_odd = 0.0
+    opp_odd = 0.0
+
+    try:
+        raw_h = float(fix.get('odd_home') or 0.0)
+    except Exception:
+        raw_h = 0.0
+
+    try:
+        raw_a = float(fix.get('odd_away') or 0.0)
+    except Exception:
+        raw_a = 0.0
+
+    h_tid = fix.get('home_team_id')
+    a_tid = fix.get('away_team_id')
+    h_name = fix.get('home_team') or ''
+    a_name = fix.get('away_team') or ''
+    h_is_t1 = is_tier_1_elite_club(team_id=h_tid, team_name=h_name)
+    a_is_t1 = is_tier_1_elite_club(team_id=a_tid, team_name=a_name)
+
+    audit_items = []
+    structured_list = []
+
+    for l in (betano_lines or []):
+        p_str = l.get('palpite_str') or ''
+        try:
+            odd_val = float(l.get('odd') or 0.0)
+        except Exception:
+            odd_val = 0.0
+        try:
+            c_line = float(l.get('line') or 0.0)
+        except Exception:
+            c_line = 0.0
+
+        is_away = bool(l.get('is_away'))
+        cand_team = a_name if is_away else h_name
+        cand_trend = a_trend if is_away else h_trend
+        cand_odd = raw_a if is_away else raw_h
+        opp_odd = raw_h if is_away else raw_a
+
+        motivo = ""
+        is_aprovada = False
+
+        if status_ah == 'APROVADO' and p_str.strip().lower() == str(sug_ah).strip().lower():
+            is_aprovada = True
+            motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
+        elif c_line < -1.0:
+            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é proibida pelo teto de segurança"
+        elif c_line > 0.0:
+            motivo = "Reprovada: Linhas positivas (+AH) são bloqueadas por expectativa matemática negativa histórica"
+        elif is_away and c_line < -0.25:
+            motivo = "Reprovada: Linhas secas (< -0.25 AH) são restritas exclusivamente a mandantes (trava de mando de campo)"
+        elif is_away and c_line <= 0.0 and raw_h > 0 and raw_a > 0 and (raw_a - raw_h) >= 0.15:
+            motivo = "Reprovada: Mandante é o favorito nas cotações (trava de divergência de mando / caldeirão)"
+        elif odd_val < 1.50:
+            motivo = "Reprovada: Cotação deprimida abaixo do piso seguro de 1.50"
+        elif 1.61 <= odd_val <= 1.85 and cand_trend == "CURVA_DESCENDENTE":
+            motivo = "Reprovada: Equipe em curva descendente bloqueada na faixa crítica de risco (1.61 a 1.85)"
+        elif c_line in (-0.5, -0.75, -1.0):
+            motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
+        elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
+            motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"
+        else:
+            motivo = "Reprovada pelo Gatekeeper por margem de valor esperado insuficiente ou gestão de risco"
+
+        status_tag = "🟢 [APROVADA]" if is_aprovada else "❌ [REPROVADA]"
+        display_str = f"{status_tag} {p_str} @ {odd_val:.2f} -> {motivo}"
+        audit_items.append(display_str)
+        structured_list.append({
+            "palpite": p_str,
+            "odd": odd_val,
+            "aprovada": is_aprovada,
+            "motivo": motivo
+        })
+
+    return audit_items, structured_list
+
+def inject_audit_into_compound_reasoning(compound_r, audit_bullet):
+    """
+    Insere o tópico de auditoria de linhas Betano no bloco || MOTIVACAO: da string de raciocínio.
+    """
+    if "|| MOTIVACAO:" in compound_r and "|| MEMÓRIA" in compound_r:
+        prefix, rest = compound_r.split("|| MOTIVACAO:", 1)
+        mot_part, suffix = rest.split("|| MEMÓRIA", 1)
+        if "• 📋 Linhas de Handicap Asiático Auditadas na Betano:" in mot_part:
+            mot_part = mot_part.split("• 📋 Linhas de Handicap Asiático Auditadas na Betano:")[0].strip()
+        new_mot = f"{mot_part.strip()}\n\n{audit_bullet.strip()}\n"
+        return f"{prefix}|| MOTIVACAO: {new_mot} || MEMÓRIA{suffix}"
+    return compound_r
 
 
 def sync_fixture_and_bet_handicap(

@@ -38,7 +38,9 @@ try:
         fetch_all_betano_ah_lines as ah_fetch_all_betano_ah_lines,
         compute_team_u5j_efficiency,
         compose_compound_ah_reasoning,
-        determine_gatekeeper_category
+        determine_gatekeeper_category,
+        audit_ah_lines_reasons,
+        inject_audit_into_compound_reasoning
     )
 except Exception:
     ah_calculate_bivariate_poisson_matrix = None
@@ -48,6 +50,8 @@ except Exception:
     ah_fetch_all_betano_ah_lines = None
     compute_team_u5j_efficiency = None
     compose_compound_ah_reasoning = None
+    audit_ah_lines_reasons = None
+    inject_audit_into_compound_reasoning = None
     def determine_gatekeeper_category(status_gk, suggestion, reason, best_cand=None):
         return 'Valor Esperado Positivo (+EV)' if status_gk == 'APROVADO' else 'NO_BET'
 
@@ -2369,6 +2373,24 @@ def calculate_asian_handicap_suggestion(
         league_name=league_name
     )
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
+
+    # Anexa auditoria detalhada de todas as linhas de Handicap da Betano à motivação textual
+    if betano_lines and audit_ah_lines_reasons:
+        status_for_audit = 'APROVADO' if best_cand else 'NO_BET'
+        h_tr = (home_last5 or {}).get('trend') or (analyze_trend_and_momentum(home_team, home_last5).get('trend') if 'analyze_trend_and_momentum' in globals() and analyze_trend_and_momentum else 'CURVA_ESTAVEL')
+        a_tr = (away_last5 or {}).get('trend') or (analyze_trend_and_momentum(away_team, away_last5).get('trend') if 'analyze_trend_and_momentum' in globals() and analyze_trend_and_momentum else 'CURVA_ESTAVEL')
+        fix_info = {
+            'odd_home': odd_home,
+            'odd_away': odd_away,
+            'home_team': home_team,
+            'away_team': away_team,
+            'home_team_id': home_team_id,
+            'away_team_id': away_team_id
+        }
+        audit_items, _ = audit_ah_lines_reasons(betano_lines, status_for_audit, suggestion, fix_info, h_tr, a_tr)
+        if audit_items:
+            audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+            nl_motivation = f"{nl_motivation.strip()}\n\n{audit_bullet}\n"
 
     full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
     if has_discrepancy and alt_suggestion:

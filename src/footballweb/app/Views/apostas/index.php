@@ -14,6 +14,8 @@ if (!function_exists('formatBrtDate')) {
 if (!function_exists('getBookmakerUrl')) {
     require_once APPPATH . 'Helpers/BookmakerHelper.php';
 }
+$userStakePadrao = isset($stakePadrao) && (float)$stakePadrao > 0 ? (float)$stakePadrao : 10.00;
+$userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1822,7 +1824,7 @@ if (!function_exists('getBookmakerUrl')) {
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
-              <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="10.00" value="10.00" oninput="calcGanhos()">
+              <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.potential_earnings') ?></label>
@@ -1833,7 +1835,7 @@ if (!function_exists('getBookmakerUrl')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.cashout_value') ?></label>
-              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="10.00" value="10.00" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -2124,6 +2126,15 @@ if (!function_exists('getBookmakerUrl')) {
       newBetModalEl.addEventListener('show.bs.modal', function() {
         initFixtureOptions();
         clearFixtureSelection();
+        const vInput = document.getElementById('valorInput');
+        if (vInput) {
+          vInput.value = '<?= $userStakePadraoFmt ?>';
+        }
+        const cInput = document.getElementById('cashoutInput');
+        if (cInput) {
+          cInput.value = '<?= $userStakePadraoFmt ?>';
+        }
+        calcGanhos();
       });
     }
 

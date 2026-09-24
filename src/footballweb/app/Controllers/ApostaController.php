@@ -211,11 +211,19 @@ class ApostaController extends BaseController
 
         $saldoContaCorrente = $this->contaCorrenteModel->getSaldo($userId);
 
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva($userId);
+        $stakePadrao = (float)($metaAtiva->stake_padrao ?? 10.00);
+        if ($stakePadrao <= 0) {
+            $stakePadrao = 10.00;
+        }
+
         $data = [
             'title'              => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
             'hasTokens'          => $hasTokens,
             'userCredits'        => $userCredits,
             'saldoContaCorrente' => $saldoContaCorrente,
+            'stakePadrao'        => $stakePadrao,
             'apostas'            => $apostas,
             'resumo'             => $resumo,
             'fixtures'           => $fixtures,
@@ -249,6 +257,14 @@ class ApostaController extends BaseController
         $palpite         = trim($this->request->getPost('palpite') ?? '');
         $odd             = (float)str_replace(',', '.', (string)($this->request->getPost('odd') ?? '0'));
         $valorAposta     = (float)str_replace(',', '.', (string)($this->request->getPost('valor_aposta') ?? '0'));
+        if ($valorAposta <= 0) {
+            $metaDiariaModel = new \App\Models\MetaDiariaModel();
+            $metaAtiva = $metaDiariaModel->getMetaAtiva($userId);
+            $valorAposta = (float)($metaAtiva->stake_padrao ?? 10.00);
+            if ($valorAposta <= 0) {
+                $valorAposta = 10.00;
+            }
+        }
         $fixtureId       = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
         $dataHoraInput   = trim($this->request->getPost('data_hora_jogo') ?? '');
         $tipo            = trim($this->request->getPost('tipo') ?? 'Simples');

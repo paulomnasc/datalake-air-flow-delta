@@ -2678,8 +2678,6 @@ def sync_fixture_and_bet_handicap(
       a aposta é MANTIDA INTACTA (imutável) e não é sobrescrita.
     - Se a aposta for pendente (não confirmada e sem débito), atualiza a aposta E atualiza fixtures_trends.
     """
-    valor_aposta = 10.00
-    ganhos_potenciais = round(valor_aposta * odd_val, 2)
     has_confirmed_bet = False
 
     # Obtém metadados para compor reasoning unificado
@@ -2707,6 +2705,20 @@ def sync_fixture_and_bet_handicap(
     skipped_count = 0
 
     for uid in user_ids:
+        # Consulta stake ativa parametrizada do usuário em metas_diarias_config
+        cursor.execute("""
+            SELECT stake_padrao 
+            FROM metas_diarias_config 
+            WHERE usuario_id = %s AND is_ativa = 1 
+            ORDER BY id DESC LIMIT 1
+        """, (uid,))
+        meta_row = cursor.fetchone()
+        user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
+        if user_stake <= 0.0:
+            user_stake = 10.00
+        valor_aposta = user_stake
+        ganhos_potenciais = round(valor_aposta * odd_val, 2)
+
         cursor.execute("""
             SELECT a.id, a.palpite, a.confirmada, a.status,
                    (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
@@ -2727,7 +2739,7 @@ def sync_fixture_and_bet_handicap(
                 skipped_count += 1
                 continue
 
-            # Atualizar aposta pendente ou reativar aposta cancelada não confirmada com compound_reasoning uniforme
+            # Atualizar aposta pendente ou reativar aposta cancelada não confirmada com compound_reasoning uniforme e stake parametrizada
             cursor.execute("""
                 UPDATE apostas SET
                     palpite = %s,
@@ -2737,13 +2749,14 @@ def sync_fixture_and_bet_handicap(
                     ev_percentual = %s,
                     status_gatekeeper = 'APROVADO',
                     gatekeeper_category = %s,
+                    valor_aposta = %s,
                     ganhos_potenciais = %s,
                     resultado_detalhado = %s,
                     destaque = %s,
                     status = 'Pendente',
                     updated_at = NOW()
                 WHERE id = %s
-            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
+            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, valor_aposta, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
             print(f"🔄 [Aposta AH Atualizada/Reativada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f} | Categoria: '{app_cat}'")
             updated_count += 1
         else:

@@ -962,8 +962,6 @@ def sync_fixture_and_bet_cards(
         odd_justa = selected_cand['odd_justa']
         prob_poisson = selected_cand['prob']
         ev_perc = selected_cand['ev_calc']
-        valor_aposta = 10.00
-        ganhos_potenciais = round(valor_aposta * odd_val, 2)
         odd_src = selected_cand.get('odd_source')
         if odd_src == 'MODEL_FALLBACK':
             # Proteção estrita: jamais grava aposta com cotação sintética
@@ -973,6 +971,20 @@ def sync_fixture_and_bet_cards(
         gk_detalhado = selected_cand.get('gatekeeper_reason')
 
         for uid in user_ids:
+            # Consulta stake ativa parametrizada do usuário em metas_diarias_config
+            cursor.execute("""
+                SELECT stake_padrao 
+                FROM metas_diarias_config 
+                WHERE usuario_id = %s AND is_ativa = 1 
+                ORDER BY id DESC LIMIT 1
+            """, (uid,))
+            meta_row = cursor.fetchone()
+            user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
+            if user_stake <= 0.0:
+                user_stake = 10.00
+            valor_aposta = user_stake
+            ganhos_potenciais = round(valor_aposta * odd_val, 2)
+
             cursor.execute("""
                 SELECT a.id, a.palpite, a.confirmada, a.status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
@@ -997,6 +1009,7 @@ def sync_fixture_and_bet_cards(
                             odd_justa = %s,
                             probabilidade_poisson = %s,
                             ev_percentual = %s,
+                            valor_aposta = %s,
                             ganhos_potenciais = %s,
                             casa_de_aposta = %s,
                             status_gatekeeper = 'APROVADO',
@@ -1004,7 +1017,7 @@ def sync_fixture_and_bet_cards(
                             resultado_detalhado = %s,
                             updated_at = NOW()
                         WHERE id = %s
-                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, bookmaker_name, gk_detalhado, ja_existe['id']))
+                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, valor_aposta, ganhos_potenciais, bookmaker_name, gk_detalhado, ja_existe['id']))
                     updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:

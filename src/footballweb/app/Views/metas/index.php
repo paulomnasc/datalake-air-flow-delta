@@ -848,8 +848,14 @@ $fmtScore = function($v) {
             <span style="color: #f59e0b;">(<?= $ciclo['pendentes'] ?> em jogo)</span>
           <?php endif; ?>
         </div>
-        <div>
-          Meta do Ciclo: <strong style="color: #34d399;">+R$ <?= number_format($ciclo['lucro_alvo'] ?? 7.50, 2, ',', '.') ?></strong>
+        <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+          <div>
+            Meta de Volume (<?= ($ciclo['tamanho_ciclo'] ?? 10) ?>x): <strong style="color: #60a5fa;">R$ <?= number_format(($ciclo['tamanho_ciclo'] ?? 10) * $stakePadrao, 2, ',', '.') ?></strong>
+            <small style="opacity: 0.85; font-size: 0.75rem;">(<?= ($ciclo['tamanho_ciclo'] ?? 10) ?> × R$ <?= number_format($stakePadrao, 2, ',', '.') ?>)</small>
+          </div>
+          <div>
+            Meta de Lucro: <strong style="color: #34d399;">+R$ <?= number_format($ciclo['lucro_alvo'] ?? 7.50, 2, ',', '.') ?></strong>
+          </div>
         </div>
       </div>
 
@@ -1127,7 +1133,10 @@ $fmtScore = function($v) {
       <div class="form-row-2">
         <div class="form-group">
           <label>Stake Padrão por Aposta (R$)</label>
-          <input type="number" step="0.50" name="stake_padrao" class="form-control-meta" value="<?= $stakePadrao ?>" required>
+          <input type="number" step="0.01" name="stake_padrao" id="inputStakePadrao" class="form-control-meta" value="<?= $stakePadrao ?>" required>
+          <small style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem; display: block;">
+            💡 Altera proporcionalmente a Meta de Lucro, Stop Loss e o Volume do Ciclo.
+          </small>
         </div>
         <div class="form-group">
           <label>Total de Apostas Alvo (Ciclo)</label>
@@ -1142,7 +1151,7 @@ $fmtScore = function($v) {
         </div>
         <div class="form-group">
           <label>Meta de Lucro Líquido (R$)</label>
-          <input type="number" step="0.50" name="lucro_alvo" class="form-control-meta" value="<?= $lucroAlvo ?>" required>
+          <input type="number" step="0.01" name="lucro_alvo" id="inputLucroAlvo" class="form-control-meta" value="<?= $lucroAlvo ?>" required>
         </div>
       </div>
 
@@ -1164,7 +1173,7 @@ $fmtScore = function($v) {
         </div>
         <div class="form-group">
           <label>Stop Loss Diário (R$)</label>
-          <input type="number" step="0.50" name="stop_loss_diario" class="form-control-meta" value="<?= $stopLoss ?>" required>
+          <input type="number" step="0.01" name="stop_loss_diario" id="inputStopLoss" class="form-control-meta" value="<?= $stopLoss ?>" required>
         </div>
       </div>
 
@@ -1179,9 +1188,38 @@ $fmtScore = function($v) {
 </div>
 
 <script>
+let baseStake = <?= $stakePadrao > 0 ? $stakePadrao : 10.0 ?>;
+let baseLucroAlvo = <?= $lucroAlvo > 0 ? $lucroAlvo : 7.50 ?>;
+let baseStopLoss = <?= $stopLoss != 0 ? $stopLoss : -30.00 ?>;
+
 function abrirModalConfig() {
   document.getElementById('modalConfig').classList.add('active');
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputLucro = document.getElementById('inputLucroAlvo');
+  const inputStop  = document.getElementById('inputStopLoss');
+  if (inputStake && inputLucro && inputStop) {
+    baseStake = parseFloat(inputStake.value) || 10.0;
+    baseLucroAlvo = parseFloat(inputLucro.value) || 7.50;
+    baseStopLoss = parseFloat(inputStop.value) || -30.00;
+  }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputLucro = document.getElementById('inputLucroAlvo');
+  const inputStop  = document.getElementById('inputStopLoss');
+
+  if (inputStake && inputLucro && inputStop) {
+    inputStake.addEventListener('input', function() {
+      const newStake = parseFloat(this.value);
+      if (!isNaN(newStake) && newStake > 0 && baseStake > 0) {
+        const ratio = newStake / baseStake;
+        inputLucro.value = (Math.round((baseLucroAlvo * ratio) * 100) / 100).toFixed(2);
+        inputStop.value = (Math.round((baseStopLoss * ratio) * 100) / 100).toFixed(2);
+      }
+    });
+  }
+});
 
 function fecharModalConfig() {
   document.getElementById('modalConfig').classList.remove('active');

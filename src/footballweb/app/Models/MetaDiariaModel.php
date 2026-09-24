@@ -380,6 +380,8 @@ class MetaDiariaModel extends Model
                 'roi_pct'             => 0.0,
                 'progresso_pct'       => 0.0,
                 'lucro_alvo'          => (float)($meta->lucro_alvo ?? 7.50),
+                'stake_padrao'        => (float)($meta->stake_padrao ?? 10.00),
+                'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), 2),
                 'apostas'             => []
             ];
         }
@@ -513,6 +515,8 @@ class MetaDiariaModel extends Model
             'roi_pct'             => $roiPct,
             'progresso_pct'       => $progressoPct,
             'lucro_alvo'          => $lucroAlvo,
+            'stake_padrao'        => (float)($meta->stake_padrao ?? 10.00),
+            'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), 2),
             'apostas'             => $apostasCiclo
         ];
     }

@@ -709,7 +709,12 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         odd_justa = eval_res['odd_justa']
         prob_poisson = eval_res['prob_eff']
         ev_perc = eval_res['ev_percent']
-        valor_aposta = 10.00
+        ref_uid = user_ids[0] if user_ids else 558
+        cursor.execute("SELECT stake_padrao FROM metas_diarias_config WHERE usuario_id = %s AND is_ativa = 1 ORDER BY id DESC LIMIT 1", (ref_uid,))
+        m_row = cursor.fetchone()
+        valor_aposta = float(m_row['stake_padrao']) if (m_row and m_row.get('stake_padrao')) else 10.00
+        if valor_aposta <= 0.0:
+            valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
         # Checa se já existe aposta ativa para esta partida no banco

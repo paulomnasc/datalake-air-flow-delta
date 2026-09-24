@@ -126,6 +126,22 @@ class MetaController extends BaseController
             $stakePadrao = 10.00;
         }
 
+        $metaAtual = $this->metaDiariaModel->getMetaAtiva($userId);
+        $stakeAntiga = (float)($metaAtual->stake_padrao ?? 10.00);
+        if ($stakeAntiga <= 0) {
+            $stakeAntiga = 10.00;
+        }
+
+        // Se lucro_alvo ou stop_loss não foram informados explicitamente, escala proporcionalmente à stake
+        if ($lucroAlvo <= 0) {
+            $lucroBase = (float)($metaAtual->lucro_alvo ?? 7.50);
+            $lucroAlvo = round($lucroBase * ($stakePadrao / $stakeAntiga), 2);
+        }
+        if ($stopLossDiario == 0) {
+            $stopBase = (float)($metaAtual->stop_loss_diario ?? -30.00);
+            $stopLossDiario = round($stopBase * ($stakePadrao / $stakeAntiga), 2);
+        }
+
         $dados = [
             'titulo'             => !empty($titulo) ? $titulo : 'Meta Diária - Ciclo 10 Apostas',
             'stake_padrao'       => $stakePadrao,

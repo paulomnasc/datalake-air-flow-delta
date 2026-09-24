@@ -17,9 +17,9 @@ $stopLoss    = (float)($meta->stop_loss_diario ?? -30.00);
 
 $totalCad     = (int)($prog['total_apostas_cadastradas'] ?? 0);
 $totalLiq     = (int)($prog['total_apostas_liquidadas'] ?? 0);
-$greens       = (int)($prog['greens_count'] ?? 0);
+$greens       = (float)($prog['greens_count'] ?? 0.0);
 $pushes       = (int)($prog['pushes_count'] ?? 0);
-$reds         = (int)($prog['reds_count'] ?? 0);
+$reds         = (float)($prog['reds_count'] ?? 0.0);
 $pendentes    = (int)($prog['pendentes_count'] ?? 0);
 $oddReal      = (float)($prog['odd_media_real'] ?? 0.00);
 $lucroReal    = (float)($prog['lucro_liquido'] ?? 0.00);
@@ -27,15 +27,20 @@ $roiReal      = (float)($prog['roi_pct'] ?? 0.00);
 $statusDia    = $prog['status_dia'] ?? 'EM_ANDAMENTO';
 $progApostas  = (float)($prog['progresso_apostas_pct'] ?? 0.00);
 $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
+
+$fmtScore = function($v) {
+    $num = (float)$v;
+    return (fmod($num, 1.0) == 0.0) ? (string)(int)$num : number_format($num, 1, ',', '.');
+};
 ?>
 
 <style>
 :root {
   --meta-bg-dark: #0f172a;
   --meta-card-bg: rgba(30, 41, 59, 0.7);
-  --meta-border: rgba(255, 255, 255, 0.1);
-  --meta-text-primary: #f8fafc;
-  --meta-text-secondary: #94a3b8;
+  --meta-border: rgba(255, 255, 255, 0.15);
+  --meta-text-primary: #ffffff;
+  --meta-text-secondary: #ffffff;
   --meta-green: #10b981;
   --meta-red: #ef4444;
   --meta-blue: #3b82f6;
@@ -47,7 +52,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1rem;
-  color: var(--meta-text-primary);
+  color: #ffffff;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -73,7 +78,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 
 .meta-title-box p {
-  color: var(--meta-text-secondary);
+  color: #ffffff;
   margin: 0.35rem 0 0 0;
   font-size: 0.95rem;
 }
@@ -104,18 +109,19 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 
 .btn-nav-date {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--meta-border);
-  color: #cbd5e1;
+  color: #ffffff;
   border-radius: 0.5rem;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
   text-decoration: none;
   font-size: 0.85rem;
+  font-weight: 500;
 }
 .btn-nav-date:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
   color: white;
 }
 
@@ -235,15 +241,17 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 
 .metric-label {
   font-size: 0.75rem;
-  color: var(--meta-text-secondary);
+  color: #ffffff;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 0.35rem;
+  letter-spacing: 0.03em;
 }
 
 .metric-val {
   font-size: 1.4rem;
   font-weight: 800;
+  color: #ffffff;
 }
 
 .val-green { color: var(--meta-green); }
@@ -261,7 +269,8 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   justify-content: space-between;
   font-size: 0.85rem;
   margin-bottom: 0.4rem;
-  color: var(--meta-text-secondary);
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .progress-bar-bg {
@@ -314,9 +323,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 
 .slot-date {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: #94a3b8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ffffff;
   letter-spacing: -0.01em;
   line-height: 1;
 }
@@ -336,8 +345,8 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 .slot-push {
   background: rgba(148, 163, 184, 0.2);
-  border: 1px solid #94a3b8;
-  color: #f1f5f9;
+  border: 1px solid #ffffff;
+  color: #ffffff;
 }
 .slot-red {
   background: rgba(239, 68, 68, 0.2);
@@ -355,16 +364,17 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   color: var(--meta-gold);
 }
 .slot-empty {
-  color: #475569;
+  color: #94a3b8;
 }
 
 .btn-nav-cycle {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid var(--meta-border);
-  color: var(--meta-text-secondary);
+  color: #ffffff;
   padding: 0.35rem 0.65rem;
   border-radius: 0.5rem;
   font-size: 0.8rem;
+  font-weight: 600;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -372,7 +382,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   transition: all 0.2s ease;
 }
 .btn-nav-cycle:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
 }
 .btn-nav-cycle.disabled {
@@ -392,7 +402,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--meta-text-secondary);
+  color: #ffffff;
   padding: 0.6rem 1.1rem;
   font-size: 0.95rem;
   font-weight: 600;
@@ -404,13 +414,14 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 }
 
 .history-tab-btn:hover {
-  color: var(--meta-text-primary);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .history-tab-btn.active {
-  color: var(--meta-blue);
-  border-bottom-color: var(--meta-blue);
-  background: rgba(59, 130, 246, 0.08);
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
   border-radius: 0.5rem 0.5rem 0 0;
 }
 
@@ -436,18 +447,20 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 
 .history-table th {
   padding: 0.75rem 1rem;
-  background: rgba(15, 23, 42, 0.8);
-  color: var(--meta-text-secondary);
-  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  font-size: 0.82rem;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
   border-bottom: 1px solid var(--meta-border);
+  letter-spacing: 0.02em;
 }
 
 .history-table td {
   padding: 0.9rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.9rem;
+  color: #ffffff;
 }
 
 .history-table tr:hover {
@@ -509,7 +522,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 .btn-close-modal {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #ffffff;
   font-size: 1.5rem;
   cursor: pointer;
 }
@@ -526,9 +539,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
 .form-group label {
   display: block;
   font-size: 0.85rem;
-  color: var(--meta-text-secondary);
+  color: #ffffff;
   margin-bottom: 0.35rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 .form-control-meta {
   width: 100%;
@@ -586,9 +599,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
         <div>
           <h2 class="meta-card-title">
             <span>📅 Desempenho Diário</span>
-            <small style="font-size: 0.85rem; color: #94a3b8; font-weight: normal;">(<?= date('d/m/Y', strtotime($dataRefStr)) ?><?= $isHoje ? ' - Hoje' : '' ?>)</small>
+            <small style="font-size: 0.85rem; color: #ffffff; font-weight: 600;">(<?= date('d/m/Y', strtotime($dataRefStr)) ?><?= $isHoje ? ' - Hoje' : '' ?>)</small>
           </h2>
-          <div style="font-size: 0.85rem; color: var(--meta-text-secondary); margin-top: 0.25rem;">
+          <div style="font-size: 0.85rem; color: #ffffff; margin-top: 0.25rem;">
             Meta Padrão: <?= $alvoApostas ?> apostas de R$ <?= number_format($stakePadrao, 2, ',', '.') ?> @ <?= number_format($oddAlvo, 2) ?>
           </div>
         </div>
@@ -625,7 +638,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
       <div class="metrics-row">
         <div class="metric-box">
           <div class="metric-label">Apostas do Dia</div>
-          <div class="metric-val"><?= $totalCad ?> <span style="font-size: 0.85rem; color: #64748b;">/ <?= $alvoApostas ?></span></div>
+          <div class="metric-val"><?= $totalCad ?> <span style="font-size: 0.85rem; color: #ffffff; font-weight: 600;">/ <?= $alvoApostas ?></span></div>
         </div>
         <div class="metric-box">
           <div class="metric-label">Lucro Líquido</div>
@@ -649,15 +662,15 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1.5rem; text-align: center;">
         <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 0.75rem; padding: 0.6rem;">
           <div style="font-size: 0.7rem; color: #34d399; font-weight: 700;">🟢 GREENS</div>
-          <div style="font-size: 1.15rem; font-weight: 800; color: #10b981;"><?= $greens ?> <small style="font-size: 0.75rem; color: #64748b;">(Alvo: <?= $targetG ?>)</small></div>
+          <div style="font-size: 1.15rem; font-weight: 800; color: #10b981;"><?= $fmtScore($greens) ?> <small style="font-size: 0.75rem; color: #ffffff; opacity: 0.9;">(Alvo: <?= $targetG ?>)</small></div>
         </div>
         <div style="background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 0.75rem; padding: 0.6rem;">
-          <div style="font-size: 0.7rem; color: #cbd5e1; font-weight: 700;">⚪ REEMBOLSOS</div>
-          <div style="font-size: 1.15rem; font-weight: 800; color: #f1f5f9;"><?= $pushes ?> <small style="font-size: 0.75rem; color: #64748b;">(Alvo: <?= $targetP ?>)</small></div>
+          <div style="font-size: 0.7rem; color: #ffffff; font-weight: 700;">⚪ REEMBOLSOS</div>
+          <div style="font-size: 1.15rem; font-weight: 800; color: #ffffff;"><?= $pushes ?> <small style="font-size: 0.75rem; color: #ffffff; opacity: 0.9;">(Alvo: <?= $targetP ?>)</small></div>
         </div>
         <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.75rem; padding: 0.6rem;">
           <div style="font-size: 0.7rem; color: #f87171; font-weight: 700;">🔴 REDS</div>
-          <div style="font-size: 1.15rem; font-weight: 800; color: #ef4444;"><?= $reds ?> <small style="font-size: 0.75rem; color: #64748b;">(Máx: <?= $maxR ?>)</small></div>
+          <div style="font-size: 1.15rem; font-weight: 800; color: #ef4444;"><?= $fmtScore($reds) ?> <small style="font-size: 0.75rem; color: #ffffff; opacity: 0.9;">(Máx: <?= $maxR ?>)</small></div>
         </div>
         <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 0.75rem; padding: 0.6rem;">
           <div style="font-size: 0.7rem; color: #fbbf24; font-weight: 700;">⏳ PENDENTES</div>
@@ -696,7 +709,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <h2 class="meta-card-title" style="margin: 0;">
               <span>🔄 Ciclo Sequencial #<?= ($ciclo['numero_ciclo'] ?? 1) ?></span>
-              <small style="font-size: 0.85rem; color: #94a3b8; font-weight: normal;">(Bloco de <?= ($ciclo['tamanho_ciclo'] ?? 10) ?> Apostas)</small>
+              <small style="font-size: 0.85rem; color: #ffffff; font-weight: 600;">(Bloco de <?= ($ciclo['tamanho_ciclo'] ?? 10) ?> Apostas)</small>
             </h2>
             <?php if (!empty($ciclo['is_ativo'])): ?>
               <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
@@ -708,7 +721,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
               </span>
             <?php endif; ?>
           </div>
-          <div style="font-size: 0.85rem; color: var(--meta-text-secondary); margin-top: 0.25rem;">
+          <div style="font-size: 0.85rem; color: #ffffff; margin-top: 0.25rem;">
             Blocos fixos sequenciais auditáveis: nenhum red ou green é descartado por janela deslizante.
           </div>
         </div>
@@ -813,12 +826,12 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
         </div>
       </div>
 
-      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--meta-border); border-radius: 0.75rem; padding: 0.85rem; font-size: 0.85rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--meta-border); border-radius: 0.75rem; padding: 0.85rem; font-size: 0.85rem; color: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
         <div>
           <span>Balanço: </span>
-          <strong style="color: #10b981;"><?= $ciclo['greens'] ?? 0 ?>V</strong> - 
-          <strong style="color: #f1f5f9;"><?= $ciclo['pushes'] ?? 0 ?>E</strong> - 
-          <strong style="color: #ef4444;"><?= $ciclo['reds'] ?? 0 ?>D</strong>
+          <strong style="color: #10b981;"><?= $fmtScore($ciclo['greens'] ?? 0) ?>V</strong> - 
+          <strong style="color: #ffffff;"><?= $ciclo['pushes'] ?? 0 ?>E</strong> - 
+          <strong style="color: #ef4444;"><?= $fmtScore($ciclo['reds'] ?? 0) ?>D</strong>
           <?php if (($ciclo['cashouts'] ?? 0) > 0): ?>
             - <strong style="color: #c084fc;"><?= $ciclo['cashouts'] ?> Cashout</strong>
           <?php endif; ?>
@@ -840,21 +853,21 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
     <div class="history-tabs-container">
       <button type="button" class="history-tab-btn active" id="tabBtnDias" onclick="switchHistoryTab('dias')">
         <span>📅 Fechamento Diário</span>
-        <small style="opacity: 0.7;">(Últimos 30 Dias)</small>
+        <small style="color: #ffffff; opacity: 0.9;">(Últimos 30 Dias)</small>
       </button>
       <button type="button" class="history-tab-btn" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
         <span>🔄 Ciclos Fechados</span>
-        <small style="opacity: 0.7;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
+        <small style="color: #ffffff; opacity: 0.9;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
       </button>
     </div>
 
     <!-- CONTEÚDO TAB 1: Fechamento Diário -->
     <div id="tabContentDias">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; color: #ffffff;">
           <span>📊 Histórico de Fechamento Diário</span>
         </h3>
-        <span style="font-size: 0.85rem; color: #94a3b8;">
+        <span style="font-size: 0.85rem; color: #ffffff;">
           ⚡ Leitura instantânea cacheada no MySQL
         </span>
       </div>
@@ -896,9 +909,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
                 $oddDia = (float)($h['odd_media_real'] ?? 0);
 
                 $totCadastradas += $cadDia;
-                $totGreens      += (int)($h['greens_count'] ?? 0);
+                $totGreens      += (float)($h['greens_count'] ?? 0.0);
                 $totPushes      += (int)($h['pushes_count'] ?? 0);
-                $totReds        += (int)($h['reds_count'] ?? 0);
+                $totReds        += (float)($h['reds_count'] ?? 0.0);
                 $totInvestido   += (float)($h['total_apostado'] ?? 0);
                 $totLucro       += $hLucro;
                 if ($oddDia > 0 && $cadDia > 0) {
@@ -914,9 +927,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
                   <?php endif; ?>
                 </td>
                 <td><?= $h['total_apostas_cadastradas'] ?> / <?= $alvoApostas ?></td>
-                <td style="color: #10b981; font-weight: 700;"><?= $h['greens_count'] ?></td>
-                <td style="color: #cbd5e1; font-weight: 600;"><?= $h['pushes_count'] ?></td>
-                <td style="color: #ef4444; font-weight: 700;"><?= $h['reds_count'] ?></td>
+                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($h['greens_count'] ?? 0) ?></td>
+                <td style="color: #ffffff; font-weight: 600;"><?= $fmtScore($h['pushes_count'] ?? 0) ?></td>
+                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($h['reds_count'] ?? 0) ?></td>
                 <td><?= number_format((float)($h['odd_media_real'] ?? 0), 2) ?></td>
                 <td>R$ <?= number_format((float)($h['total_apostado'] ?? 0), 2, ',', '.') ?></td>
                 <td style="font-weight: 700;" class="<?= $hLucro > 0 ? 'val-green' : ($hLucro < 0 ? 'val-red' : '') ?>">
@@ -951,7 +964,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
             <?php endforeach; ?>
           <?php else: ?>
             <tr>
-              <td colspan="11" style="text-align: center; color: #64748b; padding: 2rem;">
+              <td colspan="11" style="text-align: center; color: #ffffff; padding: 2rem;">
                 Nenhum histórico diário cacheado ainda. Ao liquidar as apostas, o cache será preenchido automaticamente!
               </td>
             </tr>
@@ -966,9 +979,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
             <tr class="history-table-total-row">
               <td><strong>TOTAL</strong></td>
               <td><strong><?= $totCadastradas ?></strong></td>
-              <td style="color: #10b981; font-weight: 700;"><?= $totGreens ?></td>
-              <td style="color: #cbd5e1; font-weight: 700;"><?= $totPushes ?></td>
-              <td style="color: #ef4444; font-weight: 700;"><?= $totReds ?></td>
+              <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totGreens) ?></td>
+              <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totPushes) ?></td>
+              <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totReds) ?></td>
               <td><strong><?= $totOddMedia > 0 ? number_format($totOddMedia, 2) : '-' ?></strong></td>
               <td><strong>R$ <?= number_format($totInvestido, 2, ',', '.') ?></strong></td>
               <td style="font-weight: 700;" class="<?= $totLucro > 0 ? 'val-green' : ($totLucro < 0 ? 'val-red' : '') ?>">
@@ -994,10 +1007,10 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
     <!-- CONTEÚDO TAB 2: Histórico de Ciclos Sequenciais Fechados -->
     <div id="tabContentCiclos" style="display: none;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; color: #ffffff;">
           <span>📦 Histórico de Ciclos Sequenciais Fechados</span>
         </h3>
-        <span style="font-size: 0.85rem; color: #94a3b8;">
+        <span style="font-size: 0.85rem; color: #ffffff;">
           Auditabilidade total: cada aposta pertence a um único bloco fixo
         </span>
       </div>
@@ -1031,7 +1044,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
                   $dtFimFmt = !empty($hc['data_fim']) ? date('d/m', strtotime($hc['data_fim'])) : '-';
                   $periodoStr = ($dtIniFmt === $dtFimFmt) ? $dtIniFmt : "{$dtIniFmt} a {$dtFimFmt}";
               ?>
-                <tr style="<?= $isAtiv ? 'background: rgba(99, 102, 241, 0.08);' : '' ?>">
+                <tr style="<?= $isAtiv ? 'background: rgba(99, 102, 241, 0.12);' : '' ?>">
                   <td>
                     <strong>Ciclo #<?= $hc['numero_ciclo'] ?></strong>
                     <?php if ($isAtiv): ?>
@@ -1040,9 +1053,9 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
                   </td>
                   <td><?= $periodoStr ?></td>
                   <td><?= $hc['total_apostas'] ?> / <?= $hc['tamanho_ciclo'] ?></td>
-                  <td style="color: #10b981; font-weight: 700;"><?= $hc['greens'] ?></td>
-                  <td style="color: #cbd5e1; font-weight: 600;"><?= $hc['pushes'] ?></td>
-                  <td style="color: #ef4444; font-weight: 700;"><?= $hc['reds'] ?></td>
+                  <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($hc['greens'] ?? 0) ?></td>
+                  <td style="color: #ffffff; font-weight: 600;"><?= $fmtScore($hc['pushes'] ?? 0) ?></td>
+                  <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($hc['reds'] ?? 0) ?></td>
                   <td style="color: #c084fc; font-weight: 600;"><?= $hc['cashouts'] ?></td>
                   <td style="font-weight: 700;" class="<?= $cLucro > 0 ? 'val-green' : ($cLucro < 0 ? 'val-red' : '') ?>">
                     <?= ($cLucro > 0 ? '+' : '') ?>R$ <?= number_format($cLucro, 2, ',', '.') ?>
@@ -1075,7 +1088,7 @@ $progLucro    = (float)($prog['progresso_lucro_pct'] ?? 0.00);
               <?php endforeach; ?>
             <?php else: ?>
               <tr>
-                <td colspan="11" style="text-align: center; color: var(--meta-text-secondary); padding: 2rem;">
+                <td colspan="11" style="text-align: center; color: #ffffff; padding: 2rem;">
                   Nenhum ciclo fechado registrado até o momento.
                 </td>
               </tr>

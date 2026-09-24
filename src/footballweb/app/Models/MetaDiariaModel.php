@@ -172,9 +172,9 @@ class MetaDiariaModel extends Model
                 COUNT(*) as total_cadastradas,
                 SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN 1 ELSE 0 END) as total_liquidadas,
                 SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
-                SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha') THEN 1 ELSE 0 END) as greens,
+                SUM(CASE WHEN status = 'Ganha' THEN 1.0 WHEN status = 'Meio Ganha' THEN 0.5 ELSE 0.0 END) as greens,
                 SUM(CASE WHEN status IN ('ANULADA', 'Anulada') THEN 1 ELSE 0 END) as pushes,
-                SUM(CASE WHEN status IN ('Perdida', 'Meio Perdida') THEN 1 ELSE 0 END) as reds,
+                SUM(CASE WHEN status = 'Perdida' THEN 1.0 WHEN status = 'Meio Perdida' THEN 0.5 ELSE 0.0 END) as reds,
                 COALESCE(AVG(odd), 0) as odd_media,
                 COALESCE(SUM(valor_aposta), 0) as total_apostado,
                 COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_liquidado,
@@ -197,9 +197,9 @@ class MetaDiariaModel extends Model
         $cadastradas = (int)($res['total_cadastradas'] ?? 0);
         $liquidadas  = (int)($res['total_liquidadas'] ?? 0);
         $pendentes   = (int)($res['pendentes'] ?? 0);
-        $greens      = (int)($res['greens'] ?? 0);
+        $greens      = round((float)($res['greens'] ?? 0.0), 1);
         $pushes      = (int)($res['pushes'] ?? 0);
-        $reds        = (int)($res['reds'] ?? 0);
+        $reds        = round((float)($res['reds'] ?? 0.0), 1);
         $oddMedia    = round((float)($res['odd_media'] ?? 0), 2);
         $apostado    = (float)($res['total_apostado'] ?? 0);
         $liquidado   = (float)($res['total_liquidado'] ?? 0);
@@ -260,51 +260,61 @@ class MetaDiariaModel extends Model
         // Gravação idempotente com INSERT ... ON DUPLICATE KEY UPDATE no MySQL
         $db->table('metas_diarias_cache')->upsert($cacheData);
 
-        if ($statusDia === 'STOP_LOSS_ATINGIDO') {
-            $this->verificarEGerarAlertaStopLoss($usuarioId, $dataReferencia, $cacheData);
+        // A checagem de Stop Loss em tempo real é soberana na meta vigente (Ciclo Sequencial Ativo)
+        if ($dataReferencia === date('Y-m-d')) {
+            $this->verificarEGerarAlertaStopLoss($usuarioId);
         }
 
         return $cacheData;
     }
 
     /**
-     * Verifica se a meta do dia atingiu o Stop Loss e gera notificação no sininho (notificacoes_usuario),
-     * evitando duplicidades no mesmo dia de referência.
+     * Verifica se a meta vigente (Ciclo Sequencial Ativo) atingiu o Stop Loss e gera notificação no sininho (notificacoes_usuario),
+     * evitando duplicidades para o mesmo ciclo. Se o ciclo vigente estiver saudável, despina alertas obsoletos.
      */
-    public function verificarEGerarAlertaStopLoss(int $usuarioId, string $dataReferencia = null, array $snapshot = null): bool
+    public function verificarEGerarAlertaStopLoss(int $usuarioId, ?array $cicloAtivo = null): bool
     {
         $db = \Config\Database::connect();
-        if ($dataReferencia === null) {
-            $dataReferencia = date('Y-m-d');
+
+        if ($cicloAtivo === null) {
+            $cicloAtivo = $this->getCicloSequencial($usuarioId);
         }
 
-        if ($snapshot === null) {
-            $snapshot = $this->getProgressoDiario($usuarioId, $dataReferencia);
-        }
+        $numCiclo    = (int)($cicloAtivo['numero_ciclo'] ?? 1);
+        $statusCiclo = $cicloAtivo['status_ciclo'] ?? 'EM_ANDAMENTO';
+        $reds        = round((float)($cicloAtivo['reds'] ?? 0.0), 1);
+        $lucro       = (float)($cicloAtivo['lucro_liquido'] ?? 0);
 
-        if (($snapshot['status_dia'] ?? '') !== 'STOP_LOSS_ATINGIDO') {
+        // Se a meta vigente (ciclo ativo) não atingiu Stop Loss, despina notificações anteriores obsoletas
+        if ($statusCiclo !== 'STOP_LOSS_ATINGIDO') {
+            try {
+                $db->table('notificacoes_usuario')
+                    ->where('usuario_id', $usuarioId)
+                    ->where('tipo', 'STOP_LOSS_DIARIO')
+                    ->where('pinada', 1)
+                    ->update(['pinada' => 0]);
+            } catch (\Throwable $e) {
+                log_message('error', "[StopLoss Alerta] Erro ao despinadar notificacoes antigas para usuario {$usuarioId}: " . $e->getMessage());
+            }
             return false;
         }
 
-        // Evita disparos duplicados para a mesma data de referência no mesmo dia
+        // Evita disparos duplicados para o mesmo ciclo sequencial
         $jaNotificado = $db->table('notificacoes_usuario')
             ->where('usuario_id', $usuarioId)
             ->where('tipo', 'STOP_LOSS_DIARIO')
-            ->where('DATE(criado_em)', date('Y-m-d'))
+            ->like('mensagem', "Ciclo Sequencial #{$numCiclo}")
             ->countAllResults();
 
         if ($jaNotificado > 0) {
             return false;
         }
 
-        $reds = (int)($snapshot['reds_count'] ?? 0);
-        $lucro = (float)($snapshot['lucro_liquido'] ?? 0);
+        $redsFmt = (fmod($reds, 1.0) == 0.0) ? (string)(int)$reds : number_format($reds, 1, ',', '.');
         $lucroFmt = ($lucro >= 0 ? '+' : '') . 'R$ ' . number_format($lucro, 2, ',', '.');
-        $dataFmt = date('d/m/Y', strtotime($dataReferencia));
-
-        $titulo = '⚠️ Stop Loss Diário Atingido!';
-        $msg = "Atenção: O limite de segurança do dia ({$dataFmt}) foi atingido ({$reds} Reds / Saldo: {$lucroFmt}). Recomendado pausar novas apostas hoje para proteger sua banca.";
-        $link = '/metas?data=' . $dataReferencia;
+        $titulo = "⚠️ Stop Loss Atingido - Ciclo Sequencial #{$numCiclo}";
+        $msg = "Atenção: O limite de segurança da meta vigente (Ciclo Sequencial #{$numCiclo}) foi atingido ({$redsFmt} Reds / Saldo: {$lucroFmt}). Recomendado pausar novas apostas neste ciclo para proteger sua banca.";
+        $link = "/metas?ciclo={$numCiclo}#cardCiclo";
 
         try {
             return (bool)$db->table('notificacoes_usuario')->insert([
@@ -410,9 +420,9 @@ class MetaDiariaModel extends Model
 
         $totalCiclo    = count($apostasCiclo);
         $liquidadas    = 0;
-        $greens        = 0;
+        $greens        = 0.0;
         $pushes        = 0;
-        $reds          = 0;
+        $reds          = 0.0;
         $cashouts      = 0;
         $pendentes     = 0;
         $apostado      = 0.0;
@@ -432,17 +442,20 @@ class MetaDiariaModel extends Model
             } else {
                 $liquidadas++;
                 $liquidado += $val;
-                if (in_array($st, ['Ganha', 'Meio Ganha'])) {
-                    $greens++;
-                    $retornos += ($st === 'Ganha') ? ($val * $odd) : ($val + (($val * $odd - $val) / 2));
+                if ($st === 'Ganha') {
+                    $greens += 1.0;
+                    $retornos += ($val * $odd);
+                } elseif ($st === 'Meio Ganha') {
+                    $greens += 0.5;
+                    $retornos += ($val + (($val * $odd - $val) / 2));
                 } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                     $pushes++;
                     $retornos += $val;
-                } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
-                    $reds++;
-                    if ($st === 'Meio Perdida') {
-                        $retornos += ($val * 0.5);
-                    }
+                } elseif ($st === 'Perdida') {
+                    $reds += 1.0;
+                } elseif ($st === 'Meio Perdida') {
+                    $reds += 0.5;
+                    $retornos += ($val * 0.5);
                 } elseif ($st === 'Cashout') {
                     $cashouts++;
                     $retornos += (float)($ap->cash_out ?? $val);
@@ -543,7 +556,7 @@ class MetaDiariaModel extends Model
             if (empty($bloco)) continue;
 
             $totalB = count($bloco);
-            $greens = 0; $pushes = 0; $reds = 0; $cashouts = 0; $pendentes = 0;
+            $greens = 0.0; $pushes = 0; $reds = 0.0; $cashouts = 0; $pendentes = 0;
             $liquidado = 0.0; $retornos = 0.0;
 
             $dtInicio = null;
@@ -562,15 +575,20 @@ class MetaDiariaModel extends Model
                     $pendentes++;
                 } else {
                     $liquidado += $val;
-                    if (in_array($st, ['Ganha', 'Meio Ganha'])) {
-                        $greens++;
-                        $retornos += ($st === 'Ganha') ? ($val * $odd) : ($val + (($val * $odd - $val) / 2));
+                    if ($st === 'Ganha') {
+                        $greens += 1.0;
+                        $retornos += ($val * $odd);
+                    } elseif ($st === 'Meio Ganha') {
+                        $greens += 0.5;
+                        $retornos += ($val + (($val * $odd - $val) / 2));
                     } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                         $pushes++;
                         $retornos += $val;
-                    } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
-                        $reds++;
-                        if ($st === 'Meio Perdida') $retornos += ($val * 0.5);
+                    } elseif ($st === 'Perdida') {
+                        $reds += 1.0;
+                    } elseif ($st === 'Meio Perdida') {
+                        $reds += 0.5;
+                        $retornos += ($val * 0.5);
                     } elseif ($st === 'Cashout') {
                         $cashouts++;
                         $retornos += (float)($ap->cash_out ?? $val);

@@ -789,14 +789,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         <div id="toast-stoploss-popup" class="toast-popup-card shadow-lg mb-2" style="display: none; border: 2px solid #ef4444; background: linear-gradient(135deg, #450a0a 0%, #1e1b4b 60%, #0f172a 100%);">
             <div class="toast-popup-header">
                 <span class="badge bg-danger text-white d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-                    <i class="bi bi-pin-angle-fill"></i> 📌 PINADO | STOP LOSS DIÁRIO
+                    <i class="bi bi-pin-angle-fill"></i> 📌 PINADO | STOP LOSS META VIGENTE
                 </span>
                 <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast-stoploss" aria-label="Close" style="font-size: 0.75rem;"></button>
             </div>
             <div class="toast-popup-body">
-                <h6 id="toast-stoploss-titulo" class="fw-bold text-danger mb-1" style="font-size: 0.92rem;">⚠️ Stop Loss Diário Atingido!</h6>
+                <h6 id="toast-stoploss-titulo" class="fw-bold text-danger mb-1" style="font-size: 0.92rem;">⚠️ Stop Loss Meta Vigente Atingido!</h6>
                 <p id="toast-stoploss-mensagem" class="text-light mb-2" style="font-size: 0.82rem; line-height: 1.35; color: #fecaca !important;">
-                    Atenção: O limite de segurança diário foi atingido. Recomendado pausar novas apostas hoje para salvaguarda de banca.
+                    Atenção: O limite de segurança da meta vigente foi atingido. Recomendado pausar novas apostas neste ciclo para salvaguarda de banca.
                 </p>
                 <div class="d-flex justify-content-between align-items-center gap-2">
                     <a href="<?= base_url('metas') ?>" id="toast-stoploss-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">

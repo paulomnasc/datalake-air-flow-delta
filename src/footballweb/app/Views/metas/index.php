@@ -769,27 +769,28 @@ $fmtScore = function($v) {
                   }
 
                   $st = $ap->status;
+                  $timesJogo = (!empty($ap->time_casa) && !empty($ap->time_fora)) ? "{$ap->time_casa} x {$ap->time_fora}" : "Jogo #{$ap->id}";
                   if (in_array($st, ['Ganha', 'Meio Ganha'])) {
                       $slotClass = 'slot-green';
                       $slotIcon = '✓';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$ap->time_casa} x {$ap->time_fora} ({$st})";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
                   } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⚪';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: Reembolso / Push";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Reembolso / Push)";
                   } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
                       $slotClass = 'slot-red';
                       $slotIcon = '✕';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$st}";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
                   } elseif ($st === 'Cashout') {
                       $slotClass = 'slot-cashout';
                       $slotIcon = '💰';
                       $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: Cashout ({$valCash})";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} - Cashout ({$valCash})";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: Pendente";
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Pendente)";
                   }
               }
         ?>
@@ -809,7 +810,15 @@ $fmtScore = function($v) {
           <div class="metric-val"><?= ($ciclo['total_no_ciclo'] ?? 0) ?>/<?= $tamCiclo ?></div>
         </div>
         <div class="metric-box">
-          <div class="metric-label">Saldo Acumulado</div>
+          <div class="metric-label" style="display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;">
+            Saldo Acumulado
+            <span class="meta-hint-icon" 
+                  tabindex="0"
+                  style="display: inline-flex; align-items: center;"
+                  title="Lucro líquido das apostas liquidadas no ciclo: Retornos Totais (prêmios + reembolsos) menos Valor Apostado Liquidado. Vitórias somam lucro, Meio Ganha soma meio lucro, Reembolsos devolvem 100%, Meio Perdida perde 50% e Derrotas perdem a stake. Jogos pendentes não afetam o saldo até o encerramento.">
+              <i class="bi bi-info-circle-fill" style="font-size: 0.8rem; color: #60a5fa; cursor: pointer;"></i>
+            </span>
+          </div>
           <div class="metric-val <?= ($ciclo['lucro_liquido'] ?? 0) > 0 ? 'val-green' : (($ciclo['lucro_liquido'] ?? 0) < 0 ? 'val-red' : '') ?>">
             <?= (($ciclo['lucro_liquido'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($ciclo['lucro_liquido'] ?? 0, 2, ',', '.') ?>
           </div>

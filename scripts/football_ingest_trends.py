@@ -21,11 +21,13 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 try:
-    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club
+    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club, get_team_pedigree_bonus
 except Exception:
     ALLOWED_LEAGUES = {}
     def is_tier_1_elite_club(team_id=None, team_name=None):
         return False
+    def get_team_pedigree_bonus(team_id=None, team_name=None):
+        return 0.0
 
 try:
     from asian_handicap_engine import (
@@ -831,6 +833,10 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
             else:
                 pts_eff -= 1.0
 
+    ped_bonus = get_team_pedigree_bonus(team_id=team_id, team_name=team_name)
+    if ped_bonus > 0:
+        pts_eff += ped_bonus
+
     sos_mult = 1.0 + (tier1_opp_count * 0.12)
     pts_eff_total = round(pts_eff * sos_mult, 1)
     if tier1_opp_count == 0 and pts_eff_total > 11.0:
@@ -1356,6 +1362,12 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
                 pts_eff_total += 0.5 if not is_home else 0.0
             else:
                 pts_eff_total -= 1.0
+
+    t_id = (last5_dict or {}).get("team_id") if isinstance(last5_dict, dict) else None
+    t_name = (last5_dict or {}).get("team_name") if isinstance(last5_dict, dict) else None
+    ped_bonus = get_team_pedigree_bonus(team_id=t_id, team_name=t_name)
+    if ped_bonus > 0:
+        pts_eff_total += ped_bonus
 
     sos_mult = 1.0 + (tier1_cnt * 0.12)
     pts_eff_total = round(pts_eff_total * sos_mult, 1)

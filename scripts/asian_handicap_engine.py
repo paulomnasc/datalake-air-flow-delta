@@ -21,13 +21,15 @@ import requests
 from datetime import datetime
 
 try:
-    from leagues_config import is_tier_1_elite_club
+    from leagues_config import is_tier_1_elite_club, get_team_pedigree_bonus
 except Exception:
     try:
-        from scripts.leagues_config import is_tier_1_elite_club
+        from scripts.leagues_config import is_tier_1_elite_club, get_team_pedigree_bonus
     except Exception:
         def is_tier_1_elite_club(team_id=None, team_name=None):
             return False
+        def get_team_pedigree_bonus(team_id=None, team_name=None):
+            return 0.0
 
 try:
     from football_ingest_trends import analyze_trend_and_momentum
@@ -166,6 +168,14 @@ def compute_team_u5j_efficiency(last5_dict: dict) -> float:
                 trend_factor = 1.00
                 trend_label = "🛡️ Estável"
                 trend_desc = f"Rendimento Estável ({num_v}V-{num_e}E-{num_d}D)"
+
+        # Incorporação de Bônus de Pedigree em Torneios entre Nações / Mundiais
+        team_id = (last5_dict or {}).get('team_id')
+        team_name = (last5_dict or {}).get('team_name')
+        pedigree_bonus = get_team_pedigree_bonus(team_id=team_id, team_name=team_name)
+        if pedigree_bonus > 0:
+            pts_eff += pedigree_bonus
+            last5_dict['pedigree_bonus'] = pedigree_bonus
 
         sos_mult = 1.0 + (tier1_count * 0.12)
         pts_eff_total = round(pts_eff * sos_mult * trend_factor, 1)

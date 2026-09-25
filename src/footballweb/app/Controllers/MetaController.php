@@ -73,7 +73,7 @@ class MetaController extends BaseController
 
         $metaConfig      = $this->metaDiariaModel->getMetaAtiva($userId);
         $progressoHoje   = $this->metaDiariaModel->getProgressoDiario($userId, $dataRef, $forceRecalc);
-        $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo);
+        $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo, $dataRef);
         $historicoCiclos = $this->metaDiariaModel->getHistoricoCiclos($userId, 15, (int)($metaConfig->total_apostas_alvo ?? 10));
         $historicoDias   = $this->metaDiariaModel->getHistoricoDias($userId, 30);
 

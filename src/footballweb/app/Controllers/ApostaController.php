@@ -3312,10 +3312,10 @@ class ApostaController extends BaseController
 
         $db = \Config\Database::connect();
 
-        // Checagem ativa de Stop Loss para o dia de hoje (em background)
+        // Checagem ativa de Stop Loss para a meta vigente (em background)
         try {
             $metaDiariaModel = new \App\Models\MetaDiariaModel();
-            $metaDiariaModel->verificarEGerarAlertaStopLoss($userId, date('Y-m-d'));
+            $metaDiariaModel->verificarEGerarAlertaStopLoss($userId);
         } catch (\Throwable $e) {
             log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
         }

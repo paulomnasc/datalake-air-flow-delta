@@ -272,11 +272,11 @@ class MetaDiariaModel extends Model
      * Verifica se a meta vigente (Ciclo Sequencial Ativo) atingiu o Stop Loss e gera notificação no sininho (notificacoes_usuario),
      * evitando duplicidades para o mesmo ciclo. Se o ciclo vigente estiver saudável, despina alertas obsoletos.
      */
-    public function verificarEGerarAlertaStopLoss(int $usuarioId, ?array $cicloAtivo = null): bool
+    public function verificarEGerarAlertaStopLoss(int $usuarioId, $cicloAtivo = null): bool
     {
         $db = \Config\Database::connect();
 
-        if ($cicloAtivo === null) {
+        if (!is_array($cicloAtivo)) {
             $cicloAtivo = $this->getCicloSequencial($usuarioId);
         }
 
@@ -337,9 +337,10 @@ class MetaDiariaModel extends Model
 
     /**
      * Retorna o Ciclo Sequencial Fechado (Bloco Fixo de 10 Apostas).
-     * Se $numeroCiclo for null, retorna o ciclo ativo corrente.
+     * Se $numeroCiclo for null e $dataReferencia for informada, retorna o ciclo correspondente à data.
+     * Se ambos forem null, retorna o ciclo ativo corrente.
      */
-    public function getCicloSequencial(int $usuarioId, int $tamanhoCiclo = 10, ?int $numeroCiclo = null): array
+    public function getCicloSequencial(int $usuarioId, int $tamanhoCiclo = 10, ?int $numeroCiclo = null, ?string $dataReferencia = null): array
     {
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
@@ -391,39 +392,67 @@ class MetaDiariaModel extends Model
             $totalCiclosExistentes = 1;
         }
 
-        // O Ciclo Ativo Vigente é o primeiro bloco cronológico que ainda não foi concluído
-        // (isto é, que ainda possui apostas pendentes ou bloco incompleto < 10)
+        // Determinação robusta do Ciclo Ativo Vigente a partir dos blocos mais recentes
+        $hojeBrasil = date('Y-m-d');
         $cicloAtivoNum = null;
-        for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
+
+        for ($c = $totalCiclosExistentes; $c >= 1; $c--) {
             $offsetBloco = ($c - 1) * $tamanho;
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
             $totalBloco = count($blocoTeste);
 
             $temPendentesBloco = false;
+            $todasFuturas = true;
+
             foreach ($blocoTeste as $bt) {
                 $stBt = strtolower(trim((string)($bt->status ?? '')));
-                if (in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns'])) {
+                $isPendente = in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns']);
+                if ($isPendente) {
                     $temPendentesBloco = true;
-                    break;
+                }
+
+                $dtAposta = !empty($bt->data_hora_jogo) ? $bt->data_hora_jogo : ($bt->criado_em ?? null);
+                $dtStr = $dtAposta ? date('Y-m-d', strtotime($dtAposta . ' -3 hours')) : $hojeBrasil;
+                if ($dtStr <= $hojeBrasil || !$isPendente) {
+                    $todasFuturas = false;
                 }
             }
 
-            $blocoFechado = ($totalBloco >= $tamanho && !$temPendentesBloco);
-            if (!$blocoFechado) {
-                $cicloAtivoNum = $c;
+            // Se todas as apostas do bloco são puramente futuras e não iniciadas, é um ciclo em formação
+            if ($todasFuturas && $temPendentesBloco && $totalBloco >= $tamanho) {
+                continue;
+            }
+
+            $cicloAtivoNum = $c;
+            if ($temPendentesBloco || $totalBloco < $tamanho) {
                 break;
             }
         }
 
         if ($cicloAtivoNum === null) {
-            $totalCiclosExistentes++;
             $cicloAtivoNum = $totalCiclosExistentes;
         }
 
-        // Determina qual ciclo exibir
-        $cicloAlvo = ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes)
-            ? $numeroCiclo
-            : $cicloAtivoNum;
+        // Seleção do ciclo a ser exibido:
+        // 1. Se especificado explicitamente via query string (?ciclo=X)
+        // 2. Se informada dataReferencia, busca o ciclo que contém as apostas dessa data
+        // 3. Fallback para o ciclo ativo vigente
+        $cicloAlvo = null;
+        if ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes) {
+            $cicloAlvo = $numeroCiclo;
+        } elseif (!empty($dataReferencia) && $dataReferencia !== $hojeBrasil) {
+            foreach ($todasApostas as $idx => $ap) {
+                $dtAp = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                $dtApBr = $dtAp ? date('Y-m-d', strtotime($dtAp . ' -3 hours')) : null;
+                if ($dtApBr === $dataReferencia) {
+                    $cicloAlvo = (int)floor($idx / $tamanho) + 1;
+                }
+            }
+        }
+
+        if ($cicloAlvo === null || $cicloAlvo < 1 || $cicloAlvo > $totalCiclosExistentes) {
+            $cicloAlvo = $cicloAtivoNum;
+        }
 
         $offset = ($cicloAlvo - 1) * $tamanho;
         $apostasCiclo = array_slice($todasApostas, $offset, $tamanho);

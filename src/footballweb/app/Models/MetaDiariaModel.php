@@ -386,30 +386,38 @@ class MetaDiariaModel extends Model
             ];
         }
 
-        $numCompletos = (int)floor($totalApostas / $tamanho);
-        $resto = $totalApostas % $tamanho;
+        $totalCiclosExistentes = (int)ceil($totalApostas / $tamanho);
+        if ($totalCiclosExistentes < 1) {
+            $totalCiclosExistentes = 1;
+        }
 
-        // Se tem sobra, o ciclo ativo é $numCompletos + 1
-        // Se resto == 0, checa se a última aposta do último bloco tem pendentes
-        if ($resto > 0) {
-            $totalCiclosExistentes = $numCompletos + 1;
-            $cicloAtivoNum = $totalCiclosExistentes;
-        } else {
-            $ultimoBloco = array_slice($todasApostas, ($numCompletos - 1) * $tamanho, $tamanho);
-            $temPendentes = false;
-            foreach ($ultimoBloco as $ub) {
-                if ($ub->status === 'Pendente') {
-                    $temPendentes = true;
+        // O Ciclo Ativo Vigente é o primeiro bloco cronológico que ainda não foi concluído
+        // (isto é, que ainda possui apostas pendentes ou bloco incompleto < 10)
+        $cicloAtivoNum = null;
+        for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
+            $offsetBloco = ($c - 1) * $tamanho;
+            $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
+            $totalBloco = count($blocoTeste);
+
+            $temPendentesBloco = false;
+            foreach ($blocoTeste as $bt) {
+                $stBt = strtolower(trim((string)($bt->status ?? '')));
+                if (in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns'])) {
+                    $temPendentesBloco = true;
                     break;
                 }
             }
-            if ($temPendentes) {
-                $totalCiclosExistentes = $numCompletos;
-                $cicloAtivoNum = $numCompletos;
-            } else {
-                $totalCiclosExistentes = $numCompletos + 1;
-                $cicloAtivoNum = $totalCiclosExistentes;
+
+            $blocoFechado = ($totalBloco >= $tamanho && !$temPendentesBloco);
+            if (!$blocoFechado) {
+                $cicloAtivoNum = $c;
+                break;
             }
+        }
+
+        if ($cicloAtivoNum === null) {
+            $totalCiclosExistentes++;
+            $cicloAtivoNum = $totalCiclosExistentes;
         }
 
         // Determina qual ciclo exibir
@@ -439,7 +447,8 @@ class MetaDiariaModel extends Model
             $apostado += $val;
             $somaOdds += $odd;
 
-            if ($st === 'Pendente') {
+            $stNorm = strtolower(trim((string)$st));
+            if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
                 $pendentes++;
             } else {
                 $liquidadas++;
@@ -478,10 +487,10 @@ class MetaDiariaModel extends Model
 
         if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
             $statusCiclo = 'STOP_LOSS_ATINGIDO';
-        } elseif ($lucroLiquido >= $lucroAlvo) {
-            $statusCiclo = 'META_BATIDA';
         } elseif ($isFechado) {
-            if ($lucroLiquido > 0) {
+            if ($lucroLiquido >= $lucroAlvo) {
+                $statusCiclo = 'META_BATIDA';
+            } elseif ($lucroLiquido > 0) {
                 $statusCiclo = 'SUPERAVITARIO';
             } elseif ($lucroLiquido == 0) {
                 $statusCiclo = 'NEUTRO';
@@ -575,7 +584,8 @@ class MetaDiariaModel extends Model
                 $val = (float)$ap->valor_aposta;
                 $odd = (float)$ap->odd;
 
-                if ($st === 'Pendente') {
+                $stNorm = strtolower(trim((string)$st));
+                if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
                     $pendentes++;
                 } else {
                     $liquidado += $val;
@@ -606,10 +616,16 @@ class MetaDiariaModel extends Model
 
             if ($lucroLiq <= (float)($meta->stop_loss_diario ?? -30.00)) {
                 $status = 'STOP_LOSS_ATINGIDO';
-            } elseif ($lucroLiq >= (float)($meta->lucro_alvo ?? 7.50)) {
-                $status = 'META_BATIDA';
             } elseif ($isFechado) {
-                $status = ($lucroLiq > 0) ? 'SUPERAVITARIO' : (($lucroLiq < 0) ? 'DEFICITARIO' : 'NEUTRO');
+                if ($lucroLiq >= (float)($meta->lucro_alvo ?? 7.50)) {
+                    $status = 'META_BATIDA';
+                } elseif ($lucroLiq > 0) {
+                    $status = 'SUPERAVITARIO';
+                } elseif ($lucroLiq == 0) {
+                    $status = 'NEUTRO';
+                } else {
+                    $status = 'DEFICITARIO';
+                }
             } else {
                 $status = 'EM_ANDAMENTO';
             }

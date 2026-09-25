@@ -711,14 +711,40 @@ $fmtScore = function($v) {
               <span>🔄 Ciclo Sequencial #<?= ($ciclo['numero_ciclo'] ?? 1) ?></span>
               <small style="font-size: 0.85rem; color: #ffffff; font-weight: 600;">(Bloco de <?= ($ciclo['tamanho_ciclo'] ?? 10) ?> Apostas)</small>
             </h2>
-            <?php if (!empty($ciclo['is_ativo'])): ?>
+            <?php 
+              $isAtivoCiclo   = !empty($ciclo['is_ativo']);
+              $isFechadoCiclo = !empty($ciclo['is_fechado']);
+              $numCicloAtual  = (int)($ciclo['numero_ciclo'] ?? 1);
+              $cicloAtivoRef  = (int)($ciclo['ciclo_ativo_num'] ?? 1);
+              $pendentesCiclo = (int)($ciclo['pendentes'] ?? 0);
+              $cSt = $ciclo['status_ciclo'] ?? 'EM_ANDAMENTO';
+            ?>
+            <?php if ($isAtivoCiclo): ?>
               <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
-                🟢 Ativo
+                🟢 Ativo <?= ($pendentesCiclo > 0) ? "({$pendentesCiclo} em jogo)" : '' ?>
               </span>
-            <?php else: ?>
+            <?php elseif ($numCicloAtual > $cicloAtivoRef): ?>
+              <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
+                ⏱️ Próximo Ciclo (Em formação)
+              </span>
+            <?php elseif ($isFechadoCiclo): ?>
               <span class="status-badge" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
                 🏁 Fechado
               </span>
+            <?php else: ?>
+              <span class="status-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.7rem; padding: 0.2rem 0.6rem;">
+                ⏳ Em Andamento <?= ($pendentesCiclo > 0) ? "({$pendentesCiclo} em jogo)" : '' ?>
+              </span>
+            <?php endif; ?>
+
+            <?php if ($cSt === 'META_BATIDA'): ?>
+              <span class="status-badge status-meta-batida" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;">🎯 Meta Batida</span>
+            <?php elseif ($cSt === 'STOP_LOSS_ATINGIDO'): ?>
+              <span class="status-badge status-stop-loss" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;">⚠️ Stop Loss</span>
+            <?php elseif ($cSt === 'SUPERAVITARIO' && $isFechadoCiclo): ?>
+              <span class="status-badge status-superavitario" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;">🚀 Superavitário</span>
+            <?php elseif ($cSt === 'DEFICITARIO' && $isFechadoCiclo): ?>
+              <span class="status-badge status-deficitario" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;">📉 Deficitário</span>
             <?php endif; ?>
           </div>
           <div style="font-size: 0.85rem; color: #ffffff; margin-top: 0.25rem;">
@@ -855,6 +881,16 @@ $fmtScore = function($v) {
           </div>
           <div>
             Meta de Lucro: <strong style="color: #34d399;">+R$ <?= number_format($ciclo['lucro_alvo'] ?? 7.50, 2, ',', '.') ?></strong>
+          </div>
+          <div>
+            Lucro Atual: <strong style="color: <?= ($ciclo['lucro_liquido'] ?? 0) > 0 ? '#10b981' : (($ciclo['lucro_liquido'] ?? 0) < 0 ? '#ef4444' : '#cbd5e1') ?>;">
+              <?= (($ciclo['lucro_liquido'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($ciclo['lucro_liquido'] ?? 0, 2, ',', '.') ?>
+            </strong>
+            <?php 
+              $alvoLucro = (float)($ciclo['lucro_alvo'] ?? 7.50);
+              $pctAlvo = $alvoLucro > 0 ? round((($ciclo['lucro_liquido'] ?? 0) / $alvoLucro) * 100, 1) : 0;
+            ?>
+            <small style="opacity: 0.85; font-size: 0.75rem; margin-left: 0.25rem;">(<?= $pctAlvo ?>% da meta)</small>
           </div>
         </div>
       </div>

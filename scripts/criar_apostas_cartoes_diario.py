@@ -55,6 +55,39 @@ def get_live_env_vars():
                 pass
     return env_vars
 
+def format_game_date_brt(data_j):
+    """
+    Formata data do jogo para exibição em e-mails no horário de Brasília (UTC-3).
+    Suporta objetos datetime e strings ISO / SQL.
+    """
+    if not data_j:
+        return '-'
+    dt = None
+    if isinstance(data_j, datetime):
+        dt = data_j
+    elif isinstance(data_j, str) and data_j.strip() not in ('', '-'):
+        try:
+            dt = datetime.fromisoformat(data_j.strip().replace('Z', ''))
+        except Exception:
+            return data_j
+
+    if dt:
+        if dt.tzinfo is None:
+            from datetime import timezone
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt_utc = dt
+
+        try:
+            from zoneinfo import ZoneInfo
+            dt_brt = dt_utc.astimezone(ZoneInfo("America/Sao_Paulo"))
+        except Exception:
+            dt_brt = dt_utc - timedelta(hours=3)
+
+        return dt_brt.strftime("%d/%m/%Y %H:%M")
+
+    return str(data_j)
+
 def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
     """
     Envia e-mail formatado em HTML com a lista das novas apostas de cartões criadas.
@@ -78,11 +111,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
     for aposta in novas_apostas:
         tc = aposta.get('time_casa', '-')
         tv = aposta.get('time_fora', '-')
-        data_j = aposta.get('data_hora_jogo', '-')
-        if isinstance(data_j, datetime):
-            data_j = data_j.strftime("%d/%m/%Y %H:%M")
-        elif not data_j:
-            data_j = '-'
+        data_j = format_game_date_brt(aposta.get('data_hora_jogo'))
         
         casa = aposta.get('casa_de_aposta', 'Betano')
         palpite = aposta.get('palpite', '-')
@@ -279,10 +308,8 @@ def extract_all_cards_suggestions(prediction_text: str):
         if cand_u not in candidates:
             candidates.append(cand_u)
 
-    # Linhas padrão de Under comercializadas na Betano para avaliação
+    # Linhas padrão de Under comercializadas na Betano para avaliação (exclusivo Under 5.5 e Under 6.5)
     standard_lines = [
-        (False, 3.5),
-        (False, 4.5),
         (False, 5.5),
         (False, 6.5)
     ]
@@ -298,18 +325,12 @@ def extract_all_cards_suggestions(prediction_text: str):
         prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
         odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-        if line_val < 3.5:
-            status_gk = 'NO_BET'
-        elif line_val <= 3.5:
-            status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob_poisson >= 70.0) else 'NO_BET'
-        elif line_val <= 4.5:
-            status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob_poisson >= 65.0) else 'NO_BET'
-        elif line_val <= 5.5:
-            status_gk = 'APROVADO' if (exp_cards <= 4.80 and prob_poisson >= 60.0) else 'NO_BET'
-        elif line_val <= 6.5:
-            status_gk = 'APROVADO' if (exp_cards <= 6.20 and prob_poisson >= 60.0) else 'NO_BET'
+        if abs(line_val - 5.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob_poisson >= 60.0) else 'NO_BET'
+        elif abs(line_val - 6.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob_poisson >= 60.0) else 'NO_BET'
         else:
-            # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
+            # Apenas Under 5.5 e Under 6.5 autorizados
             status_gk = 'NO_BET'
 
         palpite_str = f"Menos de {line_val} Cartões"
@@ -337,7 +358,8 @@ from cards_engine import (
     format_gatekeeper_result,
     is_knockout_round_advanced,
     calculate_u5j_card_friction,
-    get_team_u5j_efficiency_cards
+    get_team_u5j_efficiency_cards,
+    CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS
 )
 
 def criar_apostas_cartoes_diario(target_date_str=None):
@@ -415,6 +437,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     apostas_duplicadas = 0
     apostas_abstencao = 0
     novas_apostas_detalhes = []
+    novas_candidatas_aprovadas = []
 
     for fix in fixtures:
         fixture_id = fix['fixture_id']
@@ -473,6 +496,18 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             cancelar_apostas_pendentes_existentes("Liga/Copa fora do escopo global monitorado")
             continue
 
+        if league_id and int(league_id) in CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS:
+            print(f"🛡️ [Gatekeeper NO_BET / Liga Excluída Cartões] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) -> Liga com taxa histórica de Reds > 10%.")
+            cancelar_apostas_pendentes_existentes(f"Liga com taxa histórica de Reds > 10% ({league_name})")
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (f"REASON: 🛡️ [Gatekeeper Cartões NO_BET / Liga com Alta Taxa de Reds] A liga '{league_name}' (ID {league_id}) possui histórico de taxa de Reds > 10% no modelo Under Cartões. Entrada bloqueada para salvaguarda de banca.", fixture_id))
+            apostas_abstencao += 1
+            continue
+
 
         # Cálculo Estrutural e Sistêmico de Cartões (Cards Engine - Single Source of Truth)
         calc_res = compute_fixture_expected_cards(cursor, fix)
@@ -495,7 +530,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             is_knockout=is_knockout,
             home_team=home_team,
             away_team=away_team,
-            is_referee_confirmed=is_ref_confirmed
+            is_referee_confirmed=is_ref_confirmed,
+            fixture_dict=fix
         )
 
         if not selected_cand:
@@ -511,35 +547,141 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_abstencao += 1
             continue
 
-        # Sincronização atômica Card <-> Aposta com proteção rigorosa para apostas confirmadas (com débito)
-        c_cnt, u_cnt = sync_fixture_and_bet_cards(
-            cursor=cursor,
-            fixture_id=fixture_id,
-            home_team=home_team,
-            away_team=away_team,
-            fixture_date=fixture_date,
-            selected_cand=selected_cand,
-            user_ids=user_ids,
-            prediction_text=pred_text,
-            over_cards_prob=over_cards_prob
-        )
-        apostas_criadas += c_cnt
-        apostas_atualizadas += u_cnt
+        # Checa se já existe aposta ativa de cartões para esta partida no banco
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE fixture_id = %s 
+              AND (mercado = 'Total de Cartões' OR mercado LIKE '%%Cartõ%%')
+              AND status NOT IN ('Não Confirmada', 'Cancelada')
+            LIMIT 1
+        """, (fixture_id,))
+        ja_tem_aposta = cursor.fetchone()
 
-        novas_apostas_detalhes.append({
-            'usuario_id': user_ids[0] if user_ids else 558,
-            'fixture_id': fixture_id,
-            'time_casa': home_team,
-            'time_fora': away_team,
-            'palpite': selected_cand['palpite_str'],
-            'casa_de_aposta': selected_cand.get('bookmaker', 'Betano'),
-            'odd': selected_cand['real_odd'],
-            'odd_justa': selected_cand['odd_justa'],
-            'probabilidade_poisson': selected_cand['prob'],
-            'ev_percentual': selected_cand['ev_calc'],
-            'valor_aposta': 10.00,
-            'ganhos_potenciais': round(10.00 * selected_cand['real_odd'], 2),
-        })
+        if ja_tem_aposta:
+            # Já existe aposta ativa: sincroniza imediatamente (não consome nova vaga diária)
+            c_cnt, u_cnt = sync_fixture_and_bet_cards(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                home_team=home_team,
+                away_team=away_team,
+                fixture_date=fixture_date,
+                selected_cand=selected_cand,
+                user_ids=user_ids,
+                prediction_text=pred_text,
+                over_cards_prob=over_cards_prob
+            )
+            apostas_criadas += c_cnt
+            apostas_atualizadas += u_cnt
+
+            novas_apostas_detalhes.append({
+                'usuario_id': user_ids[0] if user_ids else 558,
+                'fixture_id': fixture_id,
+                'time_casa': home_team,
+                'time_fora': away_team,
+                'data_hora_jogo': fixture_date,
+                'palpite': selected_cand['palpite_str'],
+                'casa_de_aposta': selected_cand.get('bookmaker', 'Betano'),
+                'odd': selected_cand['real_odd'],
+                'odd_justa': selected_cand['odd_justa'],
+                'probabilidade_poisson': selected_cand['prob'],
+                'ev_percentual': selected_cand['ev_calc'],
+                'valor_aposta': 10.00,
+                'ganhos_potenciais': round(10.00 * selected_cand['real_odd'], 2),
+            })
+        else:
+            # Nova candidata: armazena para triagem diária e priorização de Top EV
+            dt_jogo_str = ""
+            if isinstance(fixture_date, datetime):
+                try:
+                    dt_local = fixture_date - timedelta(hours=3)
+                    dt_jogo_str = dt_local.strftime('%Y-%m-%d')
+                except Exception:
+                    dt_jogo_str = str(fixture_date)[:10]
+            elif isinstance(fixture_date, str) and len(fixture_date) >= 10:
+                dt_jogo_str = fixture_date[:10]
+
+            novas_candidatas_aprovadas.append({
+                'fix': fix,
+                'fixture_id': fixture_id,
+                'home_team': home_team,
+                'away_team': away_team,
+                'fixture_date': fixture_date,
+                'dt_jogo_str': dt_jogo_str,
+                'selected_cand': selected_cand,
+                'pred_text': pred_text,
+                'over_cards_prob': over_cards_prob,
+                'ev_calc': selected_cand.get('ev_calc', 0.0),
+                'prob': selected_cand.get('prob', 0.0)
+            })
+
+    # Triagem das novas candidatas respeitando a Trava Diária de 10 Apostas (Priorização Top EV)
+    if novas_candidatas_aprovadas:
+        print(f"\n🎯 [Triagem Top EV Cartões] Avaliando {len(novas_candidatas_aprovadas)} nova(s) candidata(s) de Cartões sob a trava diária de até 10 apostas.")
+        cands_por_data = {}
+        for cand in novas_candidatas_aprovadas:
+            d_key = cand['dt_jogo_str'] or 'sem_data'
+            cands_por_data.setdefault(d_key, []).append(cand)
+
+        for d_key, cands_lista in cands_por_data.items():
+            cursor.execute("""
+                SELECT COUNT(DISTINCT fixture_id) as total_dia
+                FROM apostas
+                WHERE DATE(CONVERT_TZ(data_hora_jogo, '+00:00', '-03:00')) = %s
+                  AND status NOT IN ('Cancelada', 'Não Confirmada')
+            """, (d_key,))
+            r_cnt = cursor.fetchone()
+            apostas_ativas_dia = int(r_cnt.get('total_dia', 0)) if r_cnt else 0
+            vagas_restantes = max(0, 10 - apostas_ativas_dia)
+
+            print(f"📅 Data {d_key} | Apostas ativas hoje: {apostas_ativas_dia}/10 | Vagas disponíveis: {vagas_restantes} | Candidatas Cartões: {len(cands_lista)}")
+
+            # Ordena por maior EV decrescente e desempate por probabilidade
+            cands_lista.sort(key=lambda c: (float(c['ev_calc'] or 0), float(c['prob'] or 0)), reverse=True)
+
+            cands_aceitas = cands_lista[:vagas_restantes]
+            cands_excedentes = cands_lista[vagas_restantes:]
+
+            for cand in cands_aceitas:
+                c_cnt, u_cnt = sync_fixture_and_bet_cards(
+                    cursor=cursor,
+                    fixture_id=cand['fixture_id'],
+                    home_team=cand['home_team'],
+                    away_team=cand['away_team'],
+                    fixture_date=cand['fixture_date'],
+                    selected_cand=cand['selected_cand'],
+                    user_ids=user_ids,
+                    prediction_text=cand['pred_text'],
+                    over_cards_prob=cand['over_cards_prob']
+                )
+                apostas_criadas += c_cnt
+                apostas_atualizadas += u_cnt
+
+                novas_apostas_detalhes.append({
+                    'usuario_id': user_ids[0] if user_ids else 558,
+                    'fixture_id': cand['fixture_id'],
+                    'time_casa': cand['home_team'],
+                    'time_fora': cand['away_team'],
+                    'data_hora_jogo': cand['fixture_date'],
+                    'palpite': cand['selected_cand']['palpite_str'],
+                    'casa_de_aposta': cand['selected_cand'].get('bookmaker', 'Betano'),
+                    'odd': cand['selected_cand']['real_odd'],
+                    'odd_justa': cand['selected_cand']['odd_justa'],
+                    'probabilidade_poisson': cand['selected_cand']['prob'],
+                    'ev_percentual': cand['selected_cand']['ev_calc'],
+                    'valor_aposta': 10.00,
+                    'ganhos_potenciais': round(10.00 * cand['selected_cand']['real_odd'], 2),
+                })
+                print(f"🟢 [Top 10 Cartões Aposta Criada] #{cand['fixture_id']} {cand['home_team']} vs {cand['away_team']} | {cand['selected_cand']['palpite_str']} @ {cand['selected_cand']['real_odd']} | EV: +{cand['ev_calc']}%")
+
+            for cand in cands_excedentes:
+                cursor.execute("""
+                    UPDATE fixtures_trends SET
+                        prediction_text = %s,
+                        over_cards_probability = %s,
+                        updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (cand['pred_text'], cand['over_cards_prob'], cand['fixture_id']))
+                print(f"🛑 [Trava Diária Top 10] Partida #{cand['fixture_id']} Cartões Under ({cand['home_team']} vs {cand['away_team']}) excedeu o teto de 10 apostas diárias. Aposta financeira não criada.")
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE CRIAÇÃO DE APOSTAS CARTÕES UNDER CONCLUÍDO!")

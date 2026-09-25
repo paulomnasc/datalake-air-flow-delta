@@ -4,6 +4,7 @@ Disallow: /login/
 Disallow: /register/
 Disallow: /config/
 Disallow: /system/
+Disallow: /*?*
 
 User-agent: Googlebot
 Allow: /

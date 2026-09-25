@@ -10,11 +10,7 @@ ALLOWED_LEAGUES = {
     71: "Serie A (Brasil)",
     72: "Serie B (Brasil)",
     73: "Copa do Brasil (Brasil)",
-    75: "Copa do Nordeste (Brasil)",
-    642: "Supercopa do Brasil (Brasil)",
     39: "Premier League (Inglaterra)",
-    45: "FA Cup (Inglaterra)",
-    48: "EFL Cup (Inglaterra)",
     140: "La Liga (Espanha)",
     143: "Copa del Rey (Espanha)",
     135: "Serie A (Italia)",
@@ -25,7 +21,6 @@ ALLOWED_LEAGUES = {
     66: "Coupe de France (Franca)",
     2: "Champions League (Europa)",
     3: "Europa League (Europa)",
-    848: "Conference League (Europa)",
     531: "UEFA Super Cup (Europa)",
     5: "Nations League (Europa)",
     4: "Euro (Europa)",
@@ -43,8 +38,8 @@ ALLOWED_LEAGUES = {
     88: "Eredivisie (Holanda)",
     128: "Primera Division (Argentina)",
     130: "Copa Argentina (Argentina)",
-    98: "J1 League (Japao)",
-    292: "K League 1 (Coreia do Sul)",
+    ## 98: "J1 League (Japao)",
+    ## 292: "K League 1 (Coreia do Sul)",
     283: "Liga I (Romenia)",
     286: "Super Liga (Servia)",
     244: "Veikkausliiga (Finlandia)",
@@ -53,9 +48,10 @@ ALLOWED_LEAGUES = {
     917: "Copa Ecuador (Equador)",
     268: "Primera Division (Uruguai)",
     265: "Primera Division (Chile)",
+    267: "Copa Chile (Chile)",
     239: "Primera Division (Colombia)",
-    501: "Copa Paraguay (Paraguai)",
-    169: "Super League (China)",
+    ## 501: "Copa Paraguay (Paraguai)",
+    ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
     203: "Super Lig (Turquia)",
     207: "Super League (Suica)",
@@ -66,11 +62,14 @@ ALLOWED_LEAGUES = {
     179: "Scottish Premiership (Escocia)",
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
-    10: "Friendlies (Amistosos de Selecoes)",
+    253: "Major League Soccer (EUA)",
+    479: "Canadian Premier League (Canada)",
+    259: "Canadian Championship (Canada)",
+    ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)",
-    18: "AFC Champions League Two (Asia)"
+    17: "AFC Champions League (Asia)"
+    ## 18: "AFC Champions League Two (Asia)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
@@ -89,9 +88,9 @@ ALLOWED_LEAGUE_NAMES = [
     'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership', 'scottish premiership',
-    'liga profesional', 'primera division', 'copa argentina',
+    'liga profesional', 'primera division', 'copa argentina', 'copa chile',
     'super league 1', 'super league', 'superliga',
-    'champions league', 'europa league', 'conference league',
+    'champions league', 'europa league',
     'libertadores', 'copa sudamericana', 'sudamericana', 'recopa',
     'leagues cup',
     'liga mx',
@@ -99,6 +98,7 @@ ALLOWED_LEAGUE_NAMES = [
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
     'veikkausliiga', 'ekstraklasa', 'czech first league',
+    'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
 ]
 
@@ -392,24 +392,160 @@ TIER_1_NAME_TO_ID = {
     "san lorenzo": 460,
     "penarol": 2348, "peñarol": 2348,
     "club nacional": 2356, "nacional montevideo": 2356,
+    # Seleções Nacionais (Top Mundial / Copa do Mundo 2026)
+    "espanha": 9, "spain": 9,
+    "argentina": 26,
+    "inglaterra": 10, "england": 10,
+    "franca": 2, "frança": 2, "france": 2,
+    "noruega": 1090, "norway": 1090,
+    "belgica": 1, "bélgica": 1, "belgium": 1,
+    "marrocos": 1530, "morocco": 1530,
+    "suica": 15, "suíça": 15, "switzerland": 15,
+    "mexico": 16, "méxico": 16,
+    "colombia": 8, "colômbia": 8,
+    "brasil": 6, "brazil": 6,
+    "estados unidos": 2384, "usa": 2384, "united states": 2384,
+    "portugal": 27,
+    "canada": 1533, "canadá": 1533,
+    "egito": 32, "egypt": 32,
+    "paraguai": 1569, "paraguay": 1569,
+    "paises baixos": 1118, "países baixos": 1118, "netherlands": 1118, "holanda": 1118,
+    "alemanha": 25, "germany": 25,
+    "croacia": 3, "croácia": 3, "croatia": 3,
+    "japao": 1534, "japão": 1534, "japan": 1534,
+    "suecia": 5, "suécia": 5, "sweden": 5,
+    "austria": 775, "áustria": 775,
+    "uruguai": 7, "uruguay": 7,
+    "italia": 768, "itália": 768, "italy": 768,
+    "dinamarca": 1118, "denmark": 1118,
+    "turquia": 777, "turkey": 777,
+    "wales": 767, "gales": 767, "pais de gales": 767, "país de gales": 767,
 }
+
+# Cache em memória para consulta instantânea O(1) de seleções do Mundial
+_WORLD_CUP_CACHE_BY_ID = None
+_WORLD_CUP_CACHE_BY_NAME = None
+
+def get_world_cup_standings_cache():
+    """
+    Retorna o cache em memória da tabela world_cup_standings_cache.
+    Carrega do MySQL de forma preguiçosa (Lazy Loading) e Cache-First.
+    """
+    global _WORLD_CUP_CACHE_BY_ID, _WORLD_CUP_CACHE_BY_NAME
+    if _WORLD_CUP_CACHE_BY_ID is not None and _WORLD_CUP_CACHE_BY_NAME is not None:
+        return _WORLD_CUP_CACHE_BY_ID, _WORLD_CUP_CACHE_BY_NAME
+
+    _WORLD_CUP_CACHE_BY_ID = {}
+    _WORLD_CUP_CACHE_BY_NAME = {}
+
+    try:
+        import pymysql
+        import unicodedata
+        conn = pymysql.connect(
+            host='127.0.0.1',
+            port=23306,
+            user='root',
+            password='YM11rMrT32xH0E6N',
+            database='footballweb',
+            connect_timeout=3
+        )
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT pos, team_name, team_id, stage_reached, efficiency_tier, pedigree_bonus, is_tier1 FROM world_cup_standings_cache WHERE is_latest = 1")
+        rows = cursor.fetchall()
+        conn.close()
+
+        for r in rows:
+            t_id = r.get('team_id')
+            t_name = str(r.get('team_name', '')).strip()
+            item = {
+                'pos': int(r.get('pos', 99)),
+                'team_name': t_name,
+                'team_id': int(t_id) if t_id is not None else None,
+                'stage_reached': r.get('stage_reached', ''),
+                'efficiency_tier': r.get('efficiency_tier', ''),
+                'pedigree_bonus': float(r.get('pedigree_bonus', 0.0)),
+                'is_tier1': bool(r.get('is_tier1', 0))
+            }
+            if t_id is not None:
+                _WORLD_CUP_CACHE_BY_ID[int(t_id)] = item
+
+            # Normalização textual
+            norm = unicodedata.normalize('NFKD', t_name.lower()).encode('ASCII', 'ignore').decode('utf-8')
+            clean = norm.replace('-', ' ').replace('.', ' ').strip()
+            _WORLD_CUP_CACHE_BY_NAME[norm] = item
+            _WORLD_CUP_CACHE_BY_NAME[clean] = item
+
+    except Exception:
+        pass
+
+    return _WORLD_CUP_CACHE_BY_ID, _WORLD_CUP_CACHE_BY_NAME
+
+
+def get_world_cup_team_info(team_id: int = None, team_name: str = None) -> dict:
+    """
+    Recupera informações de classificação e prestígio de mundial da seleção informada.
+    """
+    cache_id, cache_name = get_world_cup_standings_cache()
+
+    if team_id is not None:
+        try:
+            tid = int(team_id)
+            if tid in cache_id:
+                return cache_id[tid]
+        except (ValueError, TypeError):
+            pass
+
+    if team_name:
+        import unicodedata
+        raw = str(team_name).lower().strip()
+        norm = unicodedata.normalize('NFKD', raw).encode('ASCII', 'ignore').decode('utf-8')
+        clean = norm.replace('-', ' ').replace('.', ' ').strip()
+        clean = ' '.join(clean.split())
+
+        # 1. Alias direto para ID
+        if norm in TIER_1_NAME_TO_ID and TIER_1_NAME_TO_ID[norm] in cache_id:
+            return cache_id[TIER_1_NAME_TO_ID[norm]]
+        if clean in TIER_1_NAME_TO_ID and TIER_1_NAME_TO_ID[clean] in cache_id:
+            return cache_id[TIER_1_NAME_TO_ID[clean]]
+
+        # 2. Busca no cache de nomes
+        if norm in cache_name:
+            return cache_name[norm]
+        if clean in cache_name:
+            return cache_name[clean]
+
+    return {}
+
+
+def get_team_pedigree_bonus(team_id: int = None, team_name: str = None) -> float:
+    """
+    Retorna o bônus de pedigree de Copa do Mundo da seleção (escala 0.0 a 3.0 pts).
+    """
+    info = get_world_cup_team_info(team_id=team_id, team_name=team_name)
+    return float(info.get('pedigree_bonus', 0.0))
 
 
 def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
     """
     Verifica se a equipe informada pertence ao grupo de elite mundial (Tier 1).
-    Prioridade Absoluta: Consulta o team_id oficial no dicionário canônico TIER_1_ELITE_CLUBS.
-    Fallback Secundário: Resolução determinística por nome canônico/alias para team_id se team_id for nulo.
+    Consulta primeiro os clubes em TIER_1_ELITE_CLUBS e depois as seleções em world_cup_standings_cache.
+    Fallback Secundário: Resolução determinística por nome canônico/alias.
     """
-    # 1. Validação por ID oficial (100% determinística e imutável)
+    # 1. Validação de Clubes de Elite por ID
     if team_id is not None:
         try:
             tid = int(team_id)
-            return tid in TIER_1_ELITE_CLUBS
+            if tid in TIER_1_ELITE_CLUBS:
+                return True
         except (ValueError, TypeError):
             pass
 
-    # 2. Fallback Secundário por Nome (Apenas quando team_id não for informado)
+    # 2. Validação de Seleções da Copa do Mundo no Cache MySQL
+    wc_info = get_world_cup_team_info(team_id=team_id, team_name=team_name)
+    if wc_info and wc_info.get('is_tier1'):
+        return True
+
+    # 3. Fallback Secundário por Nome
     if not team_name:
         return False
 
@@ -421,9 +557,18 @@ def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
 
     # Checagem direta por alias normalizado
     if norm in TIER_1_NAME_TO_ID:
-        return TIER_1_NAME_TO_ID[norm] in TIER_1_ELITE_CLUBS
+        mapped_id = TIER_1_NAME_TO_ID[norm]
+        if mapped_id in TIER_1_ELITE_CLUBS:
+            return True
+        if mapped_id in _WORLD_CUP_CACHE_BY_ID and _WORLD_CUP_CACHE_BY_ID[mapped_id].get('is_tier1'):
+            return True
+
     if clean_norm in TIER_1_NAME_TO_ID:
-        return TIER_1_NAME_TO_ID[clean_norm] in TIER_1_ELITE_CLUBS
+        mapped_id = TIER_1_NAME_TO_ID[clean_norm]
+        if mapped_id in TIER_1_ELITE_CLUBS:
+            return True
+        if mapped_id in _WORLD_CUP_CACHE_BY_ID and _WORLD_CUP_CACHE_BY_ID[mapped_id].get('is_tier1'):
+            return True
 
     # Checagem exata normalizada com os nomes oficiais de TIER_1_ELITE_CLUBS
     for c_id, c_name in TIER_1_ELITE_CLUBS.items():
@@ -434,6 +579,7 @@ def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
             return True
 
     return False
+
 
 
 

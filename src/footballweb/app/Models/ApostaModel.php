@@ -25,6 +25,7 @@ class ApostaModel extends Model
         'probabilidade_poisson',
         'ev_percentual',
         'status_gatekeeper',
+        'gatekeeper_category',
         'data_hora_jogo',
         'valor_aposta',
         'ganhos_potenciais',

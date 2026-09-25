@@ -197,7 +197,8 @@ def executar_monitoramento_rapido():
             is_knockout=is_knockout,
             home_team=home_team,
             away_team=away_team,
-            is_referee_confirmed=is_ref_confirmed
+            is_referee_confirmed=is_ref_confirmed,
+            fixture_dict=fix
         )
 
         if not selected_cand:

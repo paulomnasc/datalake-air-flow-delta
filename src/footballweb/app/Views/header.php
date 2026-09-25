@@ -697,6 +697,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span>Extrato & Conta Corrente</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('metas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #38bdf8;" title="Metas Diárias & Ciclos Rotativos">
+                        <i class="bi bi-bullseye" style="font-size: 19px;"></i>
+                        <span>Metas Diárias</span>
+                    </a>
+                </li>
                 <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">
@@ -777,9 +783,35 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
     <div id="error-message" class="alert alert-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
 
-    <!-- Toast Pop-up Flutuante de Alerta em Tempo Real (Abstenções e Cash Out Betano) -->
-    <div id="toast-notificacao-popup" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-popup-card shadow-lg">
+    <!-- Toast Pop-ups Flutuantes em Stack Vertical: Stop Loss Pinado no Topo + 1 Notificação Recente Logo Abaixo -->
+    <div id="toast-container-stack" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
+        <!-- Card 1: Stop Loss Pinado no Topo -->
+        <div id="toast-stoploss-popup" class="toast-popup-card shadow-lg mb-2" style="display: none; border: 2px solid #ef4444; background: linear-gradient(135deg, #450a0a 0%, #1e1b4b 60%, #0f172a 100%);">
+            <div class="toast-popup-header">
+                <span class="badge bg-danger text-white d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-pin-angle-fill"></i> 📌 PINADO | STOP LOSS META VIGENTE
+                </span>
+                <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast-stoploss" aria-label="Close" style="font-size: 0.75rem;"></button>
+            </div>
+            <div class="toast-popup-body">
+                <h6 id="toast-stoploss-titulo" class="fw-bold text-danger mb-1" style="font-size: 0.92rem;">⚠️ Stop Loss Meta Vigente Atingido!</h6>
+                <p id="toast-stoploss-mensagem" class="text-light mb-2" style="font-size: 0.82rem; line-height: 1.35; color: #fecaca !important;">
+                    Atenção: O limite de segurança da meta vigente foi atingido. Recomendado pausar novas apostas neste ciclo para salvaguarda de banca.
+                </p>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <a href="<?= base_url('metas') ?>" id="toast-stoploss-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
+                        <i class="bi bi-sliders"></i> Ver Painel de Metas & Proteger Banca
+                    </a>
+                    <button type="button" id="btn-despinar-toast-stoploss" class="btn btn-sm btn-outline-light text-nowrap d-flex align-items-center gap-1 shadow-sm" title="Despinar e não reexibir este alerta" style="border-radius: 8px; font-size: 0.80rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3);">
+                        <i class="bi bi-pin-angle"></i> Despinar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Card 2: Notificação Recente (Logo Abaixo do Stop Loss) -->
+        <div id="toast-notificacao-popup" class="toast-popup-card shadow-lg" style="display: none;">
             <div class="toast-popup-header">
                 <span id="toast-notif-badge" class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
                     <i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)
@@ -808,6 +840,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         z-index: 10999;
         max-width: 420px;
         width: calc(100vw - 48px);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
         animation: slideInRightToast 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     @keyframes slideInRightToast {
@@ -851,6 +886,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         background-color: rgba(239, 68, 68, 0.15);
         border-left: 3px solid #ef4444;
     }
+    .notif-item.pinada {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+        border-left: 4px solid #ef4444 !important;
+        border-bottom: 1px solid rgba(239, 68, 68, 0.4) !important;
+    }
     .notif-item .notif-time {
         font-size: 0.72rem;
         color: #94a3b8;
@@ -862,6 +902,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const notifApiUrl = '<?= base_url('notificacoes/nao-lidas') ?>';
         const markReadUrl = '<?= base_url('notificacoes/marcar-lida') ?>';
         const markAllReadUrl = '<?= base_url('notificacoes/marcar-todas-lidas') ?>';
+        const unpinUrl = '<?= base_url('notificacoes/despinar') ?>';
 
         let popupsExibidos = new Set();
         try {
@@ -875,6 +916,33 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             try {
                 sessionStorage.setItem('popups_notificacoes_exibidos', JSON.stringify(Array.from(popupsExibidos)));
             } catch(e) {}
+        }
+
+        function despinarAlerta(id) {
+            if (!id) return;
+            try {
+                localStorage.setItem('notif_despinada_' + id, '1');
+            } catch(e) {}
+            popupsExibidos.add('stoploss_' + id);
+            salvarPopupsExibidos();
+
+            const slToast = document.getElementById('toast-stoploss-popup');
+            if (slToast) slToast.style.display = 'none';
+            const stackContainer = document.getElementById('toast-container-stack');
+            const normEl = document.getElementById('toast-notificacao-popup');
+            if (stackContainer && (!normEl || normEl.style.display === 'none')) {
+                stackContainer.style.display = 'none';
+            }
+
+            fetch(unpinUrl + '/' + id, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(() => {
+                checkNotificacoes();
+            })
+            .catch(() => {});
         }
 
         function checkNotificacoes() {
@@ -898,56 +966,179 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     }
                 }
 
-                // Renderizar dropdown
+                // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
                 if (container && data.notificacoes && data.notificacoes.length > 0) {
                     let html = '';
                     data.notificacoes.forEach(n => {
                         const isUnread = (parseInt(n.lida) === 0);
+                        const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
+                        const isPinada = (parseInt(n.pinada || 0) === 1);
                         const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
 
-                        html += `
-                            <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
-                                        ${n.titulo}
-                                    </strong>
-                                    <span class="notif-time">${timeStr}</span>
+                        if (isStopLoss) {
+                            html += `
+                                <div class="notif-item ${isPinada ? 'pinada' : ''} ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <a href="${linkHref}" class="text-decoration-none d-flex align-items-center gap-1 flex-grow-1" style="color: inherit;">
+                                            <strong style="font-size: 0.85rem; color: #ef4444;" class="d-flex align-items-center gap-1">
+                                                <i class="bi ${isPinada ? 'bi-pin-angle-fill' : 'bi-shield-exclamation'} text-danger"></i> ${n.titulo}
+                                            </strong>
+                                        </a>
+                                        <div class="d-flex align-items-center gap-1">
+                                            ${isPinada ? `
+                                                <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
+                                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-despinar-item" data-notif-id="${n.id}" title="Despinar alerta para não reexibir" style="font-size: 0.70rem; border-radius: 4px; line-height: 1.2; background: rgba(239,68,68,0.15);">
+                                                    <i class="bi bi-pin-angle"></i> Despinar
+                                                </button>
+                                            ` : `
+                                                <span class="notif-time">${timeStr}</span>
+                                            `}
+                                        </div>
+                                    </div>
+                                    <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
+                                        ${n.mensagem}
+                                    </a>
                                 </div>
-                                <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
-                                    ${n.mensagem}
-                                </div>
-                            </a>
-                        `;
+                            `;
+                        } else {
+                            html += `
+                                <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
+                                            ${n.titulo}
+                                        </strong>
+                                        <span class="notif-time">${timeStr}</span>
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
+                                        ${n.mensagem}
+                                    </div>
+                                </a>
+                            `;
+                        }
                     });
                     container.innerHTML = html;
 
-                    // Evento de clique para marcar lida
+                    // Despinar no clique do botão despinar dentro do dropdown
+                    container.querySelectorAll('.btn-despinar-item').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nid = this.getAttribute('data-notif-id');
+                            despinarAlerta(nid);
+                        });
+                    });
+
+                    // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
+                            if (e.target.closest('.btn-despinar-item')) return;
+
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
                                 fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            }
+
+                            const href = this.getAttribute('href') || this.getAttribute('data-href');
+                            if (href && typeof window.destacarApostaPorId === 'function') {
+                                try {
+                                    const parsedUrl = new URL(href, window.location.origin);
+                                    const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                                    const dataJogo = parsedUrl.searchParams.get('data_jogo');
+                                    if (destaqueId) {
+                                        e.preventDefault();
+                                        window.history.pushState({}, '', href);
+                                        window.destacarApostaPorId(destaqueId, dataJogo);
+
+                                        // Fecha o dropdown de notificações
+                                        const notifDropdownEl = document.getElementById('notificacoesDropdown');
+                                        if (notifDropdownEl && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+                                            const bsDrop = bootstrap.Dropdown.getInstance(notifDropdownEl);
+                                            if (bsDrop) bsDrop.hide();
+                                        }
+                                    }
+                                } catch(err) {}
                             }
                         });
                     });
                 }
 
-                // Disparo de Pop-up Toast na tela para notificação de cancelamento recente não lida
-                if (data.notificacoes && data.notificacoes.length > 0) {
-                    const naoLidas = data.notificacoes.filter(n => parseInt(n.lida) === 0);
-                    if (naoLidas.length > 0) {
-                        const maisRecente = naoLidas[0];
-                        if (!popupsExibidos.has(maisRecente.id)) {
-                            popupsExibidos.add(maisRecente.id);
-                            salvarPopupsExibidos();
-                            exibirToastPopup(maisRecente);
-                        }
+                // Disparo dos Pop-ups Toast Flutuantes na tela:
+                // 1) Stop Loss Diário (Pinado no topo da stack, apenas se pinada = 1 e não lida)
+                // 2) Exatamente 1 Notificação Recente adicional logo abaixo
+                const stopLossNotif = data.stop_loss_notif || (data.notificacoes || []).find(n => n.tipo === 'STOP_LOSS_DIARIO' && parseInt(n.pinada || 0) === 1 && parseInt(n.lida || 0) === 0);
+                const outrasNaoLidas = (data.notificacoes || []).filter(n => n.tipo !== 'STOP_LOSS_DIARIO' && parseInt(n.lida) === 0);
+
+                let showSl = false;
+                let showOutra = false;
+
+                if (stopLossNotif) {
+                    const isDespinadaLocal = (localStorage.getItem('notif_despinada_' + stopLossNotif.id) === '1');
+                    const keySl = 'stoploss_' + stopLossNotif.id;
+                    if (!isDespinadaLocal && !popupsExibidos.has(keySl)) {
+                        exibirToastStopLoss(stopLossNotif);
+                        showSl = true;
                     }
+                }
+
+                if (outrasNaoLidas.length > 0) {
+                    const maisRecente = outrasNaoLidas[0];
+                    const keyOutra = 'notif_' + maisRecente.id;
+                    if (!popupsExibidos.has(keyOutra)) {
+                        exibirToastPopup(maisRecente);
+                        showOutra = true;
+                    }
+                }
+
+                const stackContainer = document.getElementById('toast-container-stack');
+                if (stackContainer) {
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    const normEl = document.getElementById('toast-notificacao-popup');
+                    const hasVisible = (slEl && slEl.style.display !== 'none') || (normEl && normEl.style.display !== 'none');
+                    stackContainer.style.display = hasVisible ? 'flex' : 'none';
                 }
             })
             .catch(err => {});
+        }
+
+        function exibirToastStopLoss(notif) {
+            const slToast = document.getElementById('toast-stoploss-popup');
+            const slTitulo = document.getElementById('toast-stoploss-titulo');
+            const slMsg = document.getElementById('toast-stoploss-mensagem');
+            const slLink = document.getElementById('toast-stoploss-link');
+            const stackContainer = document.getElementById('toast-container-stack');
+            if (!slToast || !slTitulo || !slMsg) return;
+
+            slTitulo.textContent = notif.titulo;
+            slMsg.textContent = notif.mensagem;
+
+            if (slLink && notif.link) {
+                slLink.href = notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link);
+            }
+
+            const btnCloseSl = document.getElementById('btn-fechar-toast-stoploss');
+            if (btnCloseSl) {
+                btnCloseSl.onclick = function() {
+                    popupsExibidos.add('stoploss_' + notif.id);
+                    salvarPopupsExibidos();
+                    slToast.style.display = 'none';
+                    const normEl = document.getElementById('toast-notificacao-popup');
+                    if (!normEl || normEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
+                };
+            }
+
+            const btnDespinarSl = document.getElementById('btn-despinar-toast-stoploss');
+            if (btnDespinarSl) {
+                btnDespinarSl.onclick = function() {
+                    despinarAlerta(notif.id);
+                };
+            }
+
+            slToast.style.display = 'block';
+            if (stackContainer) stackContainer.style.display = 'flex';
         }
 
         function exibirToastPopup(notif) {
@@ -956,12 +1147,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const tituloEl = document.getElementById('toast-notif-titulo');
             const msgEl = document.getElementById('toast-notif-mensagem');
             const linkEl = document.getElementById('toast-notif-link');
+            const stackContainer = document.getElementById('toast-container-stack');
             if (!toastEl || !tituloEl || !msgEl || !linkEl) return;
 
             tituloEl.textContent = notif.titulo;
             msgEl.textContent = notif.mensagem;
 
             const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
+
             if (badgeEl) {
                 if (isAprovada) {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
@@ -986,24 +1179,54 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 
-            linkEl.onclick = function() {
+            linkEl.onclick = function(e) {
                 fetch(markReadUrl + '/' + notif.id, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                popupsExibidos.add('notif_' + notif.id);
+                salvarPopupsExibidos();
                 toastEl.style.display = 'none';
+                const slEl = document.getElementById('toast-stoploss-popup');
+                if (!slEl || slEl.style.display === 'none') {
+                    if (stackContainer) stackContainer.style.display = 'none';
+                }
+
+                if (linkHref && typeof window.destacarApostaPorId === 'function') {
+                    try {
+                        const parsedUrl = new URL(linkHref, window.location.origin);
+                        const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                        const dataJogo = parsedUrl.searchParams.get('data_jogo');
+                        if (destaqueId) {
+                            e.preventDefault();
+                            window.history.pushState({}, '', linkHref);
+                            window.destacarApostaPorId(destaqueId, dataJogo);
+                        }
+                    } catch(err) {}
+                }
             };
 
             const btnClose = document.getElementById('btn-fechar-toast');
             if (btnClose) {
                 btnClose.onclick = function() {
+                    popupsExibidos.add('notif_' + notif.id);
+                    salvarPopupsExibidos();
                     toastEl.style.display = 'none';
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    if (!slEl || slEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
                 };
             }
 
             toastEl.style.display = 'block';
+            if (stackContainer) stackContainer.style.display = 'flex';
 
-            // Auto-ocultar após 18 segundos se não interagido
+            // Auto-ocultar a notificação secundária após 18 segundos se não interagido
             setTimeout(function() {
                 if (toastEl.style.display === 'block') {
                     toastEl.style.display = 'none';
+                    const slEl = document.getElementById('toast-stoploss-popup');
+                    if (!slEl || slEl.style.display === 'none') {
+                        if (stackContainer) stackContainer.style.display = 'none';
+                    }
                 }
             }, 18000);
         }

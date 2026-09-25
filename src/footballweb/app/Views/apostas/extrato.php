@@ -657,12 +657,37 @@ $transacoes = $extrato['transacoes'] ?? [];
       <p>Acompanhe em tempo real seus créditos adicionados, débitos de apostas e a evolução financeira do seu saldo.</p>
     </div>
     <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <a href="<?= site_url('/metas') ?>" class="btn-redeem-credit" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); text-decoration: none;" title="Acessar Gestão de Metas Diárias">
+        <i class="fas fa-bullseye"></i> Metas Diárias
+      </a>
       <button type="button" class="btn-add-credit" onclick="openAddCreditModal()">
         <i class="fas fa-plus-circle"></i> Adicionar Crédito
       </button>
       <button type="button" class="btn-redeem-credit" onclick="openRedeemCreditModal()">
         <i class="fas fa-hand-holding-usd"></i> Resgatar Crédito
       </button>
+    </div>
+  </div>
+
+  <!-- Banner Metas Diárias & Ciclos Rotativos -->
+  <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 1rem; padding: 1.1rem 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; color: white;">
+        🎯
+      </div>
+      <div>
+        <div style="font-weight: 700; font-size: 1.05rem; color: #f8fafc;">
+          Controle de Metas Diárias & Ciclos Rotativos
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8;">
+          Metodologia profissional com cobertura de 70% a 80% e cache de alta performance no MySQL.
+        </div>
+      </div>
+    </div>
+    <div>
+      <a href="<?= site_url('/metas') ?>" class="btn-add-credit" style="padding: 0.55rem 1.25rem; font-size: 0.9rem; background: linear-gradient(135deg, #6366f1, #4f46e5); text-decoration: none;">
+        <i class="fas fa-chart-pie"></i> Acompanhar Metas
+      </a>
     </div>
   </div>
 

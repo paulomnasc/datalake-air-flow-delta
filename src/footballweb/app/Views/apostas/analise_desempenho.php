@@ -535,6 +535,103 @@
     </div>
   </div>
 
+  <!-- Gatekeeper Categories & Repressed Bets Analysis Card (BET vs NO_BET) -->
+  <div class="chart-card mt-4" id="gatekeeperCategoriesCard">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+      <div>
+        <h5 class="fw-bold text-white d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-shield-check text-info"></i> Eficácia por Categoria do Gatekeeper (BET vs NO_BET)
+        </h5>
+        <div class="text-white-50 small" style="font-size: 0.84rem;">
+          Auditoria de frequência de mercado, assertividade de palpites recomendados e taxa de acerto/erro dos palpites reprimidos nas abstenções.
+        </div>
+      </div>
+
+      <!-- Segment Toggle: Todos, Apenas BET, Apenas NO_BET -->
+      <div class="d-flex align-items-center gap-2">
+        <div class="bet-slide-toggle" id="gkSegmentToggle">
+          <button type="button" class="slide-btn active" onclick="setGkSegmentFilter('all', this)">
+            <i class="bi bi-grid-fill me-1"></i> Todos
+          </button>
+          <button type="button" class="slide-btn" onclick="setGkSegmentFilter('bet', this)">
+            <i class="bi bi-check-circle-fill me-1 text-success"></i> Apenas BET
+          </button>
+          <button type="button" class="slide-btn" onclick="setGkSegmentFilter('no_bet', this)">
+            <i class="bi bi-slash-circle-fill me-1 text-danger"></i> Apenas NO_BET
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Summary Row for Gatekeeper -->
+    <div class="row g-2 mb-3">
+      <div class="col-md-3 col-6">
+        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TOTAL CONFRONTOS</div>
+          <div class="fs-5 fw-bold text-white" id="gkKpiTotalMatches">0</div>
+          <div class="text-white-50" style="font-size: 0.7rem;" id="gkKpiTotalSub">Auditados pelo Gatekeeper</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">PALPITES APROVADOS (BET)</div>
+          <div class="fs-5 fw-bold text-success" id="gkKpiBetsCount">0</div>
+          <div class="text-success small" style="font-size: 0.7rem;" id="gkKpiBetsWinRate">0% Assertividade</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">ABSTENÇÕES (NO_BET)</div>
+          <div class="fs-5 fw-bold text-warning" id="gkKpiNoBetsCount">0</div>
+          <div class="text-warning small" style="font-size: 0.7rem;" id="gkKpiNoBetsShield">0 Perdas Evitadas</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TAXA DE PROTEÇÃO IA</div>
+          <div class="fs-5 fw-bold text-info" id="gkKpiProtectionRate">0%</div>
+          <div class="text-info small" style="font-size: 0.7rem;">Confrontos Filtrados</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Container (Horizontal Bar Chart) -->
+    <div class="chart-container-box" style="height: 440px; position: relative;">
+      <canvas id="gatekeeperCategoriesChart"></canvas>
+    </div>
+
+    <!-- Collapsible Breakdown Table -->
+    <div class="mt-3 text-end">
+      <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#gkCategoriesTableCollapse" aria-expanded="true" aria-controls="gkCategoriesTableCollapse">
+        <i class="bi bi-table me-1 text-info"></i> Alternar Tabela Detalhada por Categoria
+      </button>
+    </div>
+
+    <div class="collapse show mt-3" id="gkCategoriesTableCollapse">
+      <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
+        <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+          <thead>
+            <tr class="text-white-50 border-secondary">
+              <th>Categoria do Gatekeeper</th>
+              <th class="text-center">Tipo</th>
+              <th class="text-center">Ocorrência (%)</th>
+              <th class="text-center">Jogos FT</th>
+              <th class="text-center">% Green / Reprimido</th>
+              <th class="text-center">% Red / Evitado</th>
+              <th class="text-center">% Reembolso</th>
+              <th>Impacto & Diagnóstico da IA</th>
+            </tr>
+          </thead>
+          <tbody id="gkCategoriesTableBody">
+            <tr>
+              <td colspan="8" class="text-center text-muted py-3">Carregando auditoria de categorias...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Detailed Table Breakdown -->
   <div class="table-card">
     <h5 class="fw-bold mb-3 text-white d-flex align-items-center gap-2">
@@ -566,11 +663,14 @@
 
 <script>
 const rawBets = <?= json_encode($apostas ?? []) ?>;
+const gatekeeperStatsData = <?= json_encode($gatekeeperStats ?? ['total_partidas' => 0, 'categorias' => []]) ?>;
 
 let perfChart = null;
 let modalidadesChart = null;
 let mercadoChart = null;
 let leagueChart = null;
+let gatekeeperCategoriesChart = null;
+let gkSegmentFilter = 'all';
 
 let leagueSortMode = 'losses_first';
 let leagueSegmentFilter = 'all';
@@ -2203,7 +2303,286 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Gatekeeper Categories & Repressed Bets Analysis Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setGkSegmentFilter(val, btnEl) {
+  gkSegmentFilter = val;
+  const container = document.getElementById('gkSegmentToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => btn.classList.remove('active'));
+  }
+  if (btnEl) btnEl.classList.add('active');
+  renderGatekeeperCategoriesSection();
+}
+
+function getGkCategoryDiagnostic(catName, tipo, pctGreen, pctRed, validFt) {
+  if (tipo === 'BET') {
+    if (catName.includes('Super-Favorito') || catName.includes('Dominante')) {
+      return '⭐ Super-Favorito com alta probabilidade de vitória e linha protegida.';
+    }
+    if (catName.includes('Azarão')) {
+      return '🛡️ Azarão em momento ascendente respaldado por linha de proteção com valor.';
+    }
+    return '🔥 Entrada de valor com assimetria matemática positiva (+EV) e risco controlado.';
+  }
+
+  // NO_BET
+  if (catName.includes('Queda de Rendimento')) {
+    return pctRed >= 30 ? '🛡️ Gatekeeper evitou prejuízo: favorito confirmou momento adverso.' : '⚠️ Abstenção preventiva por risco de platô ou declínio técnico.';
+  }
+  if (catName.includes('Odd Abaixo do Piso')) {
+    return '⚠️ Cotação nominal deprimida (< 1.50): relação de rentabilidade inviabilizaria a banca.';
+  }
+  if (catName.includes('Duelo de Crises')) {
+    return '⛔ Ambas as equipes em momento técnico muito ruim; desfecho volátil evitado.';
+  }
+  if (catName.includes('Mando de Campo')) {
+    return '⚠️ Força e tradição do estádio do mandante superaram o momento recente do visitante.';
+  }
+  if (catName.includes('Sobrevivência') || catName.includes('Degola')) {
+    return '🚨 Alerta de caldeirão: equipe da degola jogando a vida em seus domínios.';
+  }
+  if (catName.includes('Falta de Valor')) {
+    return pctRed >= 35 ? '🛡️ Abstenção assertiva: preço oferecido pela casa não compensava o risco.' : '⚖️ Probabilidade da casa abaixo do prêmio matemático justo (+EV).';
+  }
+  if (catName.includes('Equilíbrio') || catName.includes('Inconsistência')) {
+    return validFt === 0 ? '🔒 Bloqueio profilático: ausência de cotações reais nas casas ou dados inconclusivos.' : '⚖️ Forças excessivamente niveladas sem linha de segurança rentável.';
+  }
+  return '🛡️ Abstenção operacional pelo Gatekeeper para salvaguarda de capital.';
+}
+
+function renderGatekeeperCategoriesSection() {
+  if (!gatekeeperStatsData || !gatekeeperStatsData.categorias) return;
+
+  const allCats = gatekeeperStatsData.categorias;
+  const filtered = allCats.filter(c => {
+    if (gkSegmentFilter === 'bet') return c.tipo === 'BET';
+    if (gkSegmentFilter === 'no_bet') return c.tipo === 'NO_BET';
+    return true;
+  });
+
+  // Atualiza KPIs
+  const totalPartidas = gatekeeperStatsData.total_partidas || 0;
+  const totalBets = gatekeeperStatsData.total_bets || 0;
+  const totalNoBets = gatekeeperStatsData.total_no_bets || 0;
+  const totalGreens = gatekeeperStatsData.total_greens || 0;
+  const totalReds = gatekeeperStatsData.total_reds || 0;
+  const totalVoids = gatekeeperStatsData.total_voids || 0;
+  const totalReprimidosRed = gatekeeperStatsData.total_reprimidos_red || 0;
+
+  const betsFt = totalGreens + totalReds + totalVoids;
+  const betWinRate = betsFt > 0 ? (((totalGreens + totalVoids) / betsFt) * 100).toFixed(1) : '0.0';
+  const protRate = totalPartidas > 0 ? ((totalNoBets / totalPartidas) * 100).toFixed(1) : '0.0';
+
+  const elTotal = document.getElementById('gkKpiTotalMatches');
+  if (elTotal) elTotal.textContent = totalPartidas.toLocaleString('pt-BR');
+
+  const elBets = document.getElementById('gkKpiBetsCount');
+  if (elBets) elBets.textContent = `${totalBets} (${totalPartidas > 0 ? ((totalBets / totalPartidas) * 100).toFixed(1) : 0}%)`;
+
+  const elBetsWr = document.getElementById('gkKpiBetsWinRate');
+  if (elBetsWr) elBetsWr.textContent = `${betWinRate}% Cobertura (${totalGreens}V / ${totalVoids}E / ${totalReds}D)`;
+
+  const elNoBets = document.getElementById('gkKpiNoBetsCount');
+  if (elNoBets) elNoBets.textContent = `${totalNoBets} (${protRate}%)`;
+
+  const elNoBetsShield = document.getElementById('gkKpiNoBetsShield');
+  if (elNoBetsShield) elNoBetsShield.textContent = `${totalReprimidosRed} Perdas Evitadas`;
+
+  const elProt = document.getElementById('gkKpiProtectionRate');
+  if (elProt) elProt.textContent = `${protRate}%`;
+
+  // Renderiza Gráfico Chart.js
+  renderGatekeeperCategoriesChart(filtered);
+
+  // Renderiza Tabela de Auditoria
+  renderGatekeeperCategoriesTable(filtered);
+}
+
+function renderGatekeeperCategoriesChart(cats) {
+  const canvas = document.getElementById('gatekeeperCategoriesChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (gatekeeperCategoriesChart) {
+    gatekeeperCategoriesChart.destroy();
+  }
+
+  const labels = cats.map(c => c.categoria);
+  const occData = cats.map(c => c.pct_ocorrencia);
+  const greenData = cats.map(c => c.pct_green);
+  const redData = cats.map(c => c.pct_red);
+  const voidData = cats.map(c => c.pct_void);
+
+  gatekeeperCategoriesChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '% Ocorrência Geral',
+          data: occData,
+          backgroundColor: 'rgba(0, 176, 255, 0.82)',
+          borderColor: '#00b0ff',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barPercentage: 0.85,
+          categoryPercentage: 0.8
+        },
+        {
+          label: '% Green (Real ou Reprimido)',
+          data: greenData,
+          backgroundColor: 'rgba(0, 230, 118, 0.82)',
+          borderColor: '#00e676',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barPercentage: 0.85,
+          categoryPercentage: 0.8
+        },
+        {
+          label: '% Red (Real ou Evitado)',
+          data: redData,
+          backgroundColor: 'rgba(255, 82, 82, 0.82)',
+          borderColor: '#ff5252',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barPercentage: 0.85,
+          categoryPercentage: 0.8
+        },
+        {
+          label: '% Reembolso / Void',
+          data: voidData,
+          backgroundColor: 'rgba(255, 214, 0, 0.75)',
+          borderColor: '#ffd600',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barPercentage: 0.85,
+          categoryPercentage: 0.8
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', size: 12, weight: '600' },
+            boxWidth: 14,
+            padding: 15
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const dsLabel = context.dataset.label || '';
+              const val = context.parsed.x !== null ? context.parsed.x : 0;
+              return `• ${dsLabel}: ${val.toFixed(1).replace('.', ',')}%`;
+            },
+            afterBody: function(tooltipItems) {
+              if (!tooltipItems || tooltipItems.length === 0) return [];
+              const idx = tooltipItems[0].dataIndex;
+              const cat = cats[idx];
+              if (!cat) return [];
+
+              const lines = [];
+              lines.push('──────────────────────────────────────');
+              lines.push(`Classificação: ${cat.tipo === 'BET' ? '✅ APOSTA APROVADA (BET)' : '🚫 ABSTENÇÃO (NO_BET)'}`);
+              lines.push(`Volume: ${cat.total} partidas (${cat.pct_ocorrencia.toFixed(1).replace('.', ',')}% da base)`);
+              lines.push(`Jogos Encerrados (FT): ${cat.ft} jogos`);
+
+              if (cat.tipo === 'BET') {
+                lines.push(`Desfecho Real: ${cat.greens} Greens | ${cat.reds} Reds | ${cat.voids} Voids`);
+              } else {
+                lines.push(`Palpites Reprimidos: ${cat.greens} teriam dado Green | ${cat.reds} teriam dado Red (perdas evitadas) | ${cat.voids} Voids`);
+                if (cat.reds > 0) {
+                  lines.push(`🛡️ Gatekeeper protegeu a banca contra ${cat.reds} perdas potenciais!`);
+                }
+              }
+              return lines;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0,
+          max: 100,
+          grid: { color: 'rgba(255, 255, 255, 0.06)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter', size: 11 },
+            callback: function(value) {
+              return value + '%';
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.04)' },
+          ticks: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', size: 11, weight: '600' }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderGatekeeperCategoriesTable(cats) {
+  const tbody = document.getElementById('gkCategoriesTableBody');
+  if (!tbody) return;
+
+  if (!cats || cats.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Nenhuma categoria encontrada para o filtro selecionado.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  cats.forEach(c => {
+    const isBet = (c.tipo === 'BET');
+    const typeBadge = isBet
+      ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-weight: 700; font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> BET</span>'
+      : '<span class="badge" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #f87171; font-weight: 700; font-size: 0.72rem;"><i class="bi bi-slash-circle-fill me-1"></i> NO_BET</span>';
+
+    const diagnostic = getGkCategoryDiagnostic(c.categoria, c.tipo, c.pct_green, c.pct_red, c.jogos_validos);
+
+    const greenLabel = c.jogos_validos > 0 ? `${c.greens}/${c.jogos_validos} (${c.pct_green.toFixed(1).replace('.', ',')}%)` : '-';
+    const redLabel   = c.jogos_validos > 0 ? `${c.reds}/${c.jogos_validos} (${c.pct_red.toFixed(1).replace('.', ',')}%)` : '-';
+    const voidLabel  = c.jogos_validos > 0 ? `${c.voids}/${c.jogos_validos} (${c.pct_void.toFixed(1).replace('.', ',')}%)` : '-';
+
+    html += `
+      <tr>
+        <td class="fw-bold text-white" style="font-size: 0.88rem;">
+          ${c.categoria}
+        </td>
+        <td class="text-center">${typeBadge}</td>
+        <td class="text-center text-info fw-bold">${c.total} <span class="text-white-50 small fw-normal">(${c.pct_ocorrencia.toFixed(1).replace('.', ',')}%)</span></td>
+        <td class="text-center text-white">${c.ft}</td>
+        <td class="text-center text-success fw-bold">${greenLabel}</td>
+        <td class="text-center text-danger fw-bold">${redLabel}</td>
+        <td class="text-center text-warning fw-bold">${voidLabel}</td>
+        <td class="text-white-50" style="font-size: 0.78rem; max-width: 320px;">
+          ${diagnostic}
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   setPerfDatePreset('all');
+  renderGatekeeperCategoriesSection();
 });
 </script>

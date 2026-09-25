@@ -35,6 +35,10 @@ class FixturesTrendsModel extends Model
         'away_ppg',
         'home_zone',
         'away_zone',
-        'standings_motivation_score'
+        'standings_motivation_score',
+        'ah_suggestion',
+        'ah_confidence',
+        'ah_reasoning',
+        'gatekeeper_category'
     ];
 }

@@ -118,12 +118,20 @@ class FootballTrendsController extends BaseController
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
         
-        if ($startDate === $endDate) {
-            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $startDate);
-        } else {
-            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) >=", $startDate);
-            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
-        }
+        // Converte o intervalo de datas do fuso do usuário para UTC diretamente, viabilizando uso total do índice idx_fixture_date
+        $dtUserZone = new \DateTimeZone($userTimezone);
+        $dtUtcZone  = new \DateTimeZone('UTC');
+
+        $dtStart = new \DateTime("{$startDate} 00:00:00", $dtUserZone);
+        $dtStart->setTimezone($dtUtcZone);
+        $startUtc = $dtStart->format('Y-m-d H:i:s');
+
+        $dtEnd = new \DateTime("{$endDate} 23:59:59", $dtUserZone);
+        $dtEnd->setTimezone($dtUtcZone);
+        $endUtc = $dtEnd->format('Y-m-d H:i:s');
+
+        $builder->where('ft.fixture_date >=', $startUtc);
+        $builder->where('ft.fixture_date <=', $endUtc);
 
         // Nota: A filtragem de Surebets, Apostas Seguras, Jogos Encerrados, Adiados e Ao Vivo é tratada dinamicamente via JS na View (dashboard.php)
         // para que o usuario possa alternar os toggles instantaneamente (Sim/Não) sem perder as partidas carregadas na página.
@@ -615,15 +623,31 @@ class FootballTrendsController extends BaseController
      */
     public function liveScores()
     {
+        // Libera a trava de sessão imediatamente para evitar gargalos em chamadas concorrentes
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $userTimezone = $this->getUserTimezone();
-        $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
         $today = date('Y-m-d');
         $targetDate = $this->request->getVar('date') ?: $today;
+
+        $dtUserZone = new \DateTimeZone($userTimezone);
+        $dtUtcZone  = new \DateTimeZone('UTC');
+
+        $dtStart = new \DateTime("{$targetDate} 00:00:00", $dtUserZone);
+        $dtStart->setTimezone($dtUtcZone);
+        $startUtc = $dtStart->format('Y-m-d H:i:s');
+
+        $dtEnd = new \DateTime("{$targetDate} 23:59:59", $dtUserZone);
+        $dtEnd->setTimezone($dtUtcZone);
+        $endUtc = $dtEnd->format('Y-m-d H:i:s');
 
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends');
         $builder->select('fixture_id, status, elapsed, goals_home, goals_away, yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, corners_home, corners_away, shots_home, shots_away, xg_home, xg_away, goal_scorers, last_event, home_team, away_team, updated_at');
-        $builder->where("DATE(CONVERT_TZ(fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
+        $builder->where('fixture_date >=', $startUtc);
+        $builder->where('fixture_date <=', $endUtc);
         $fixtures = $builder->get()->getResultArray();
 
         return $this->response->setJSON([
@@ -639,6 +663,11 @@ class FootballTrendsController extends BaseController
      */
     public function teamLogo($teamId = null)
     {
+        // Não requer dados de sessão de usuário; libera a trava imediatamente
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $teamId = (int)$teamId;
         if ($teamId <= 0) {
             return $this->response->setStatusCode(404);
@@ -648,12 +677,17 @@ class FootballTrendsController extends BaseController
         $cacheKey = "team_logo_{$teamId}";
         $imageData = $cache->get($cacheKey);
 
+        if ($imageData === 'NOT_FOUND') {
+            return $this->response->setStatusCode(404);
+        }
+
         if (!$imageData) {
             $url = "https://media.api-sports.io/football/teams/{$teamId}.png";
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 3);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
             $imageData = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -662,6 +696,7 @@ class FootballTrendsController extends BaseController
             if ($httpCode === 200 && !empty($imageData)) {
                 $cache->save($cacheKey, $imageData, 604800); // 7 dias
             } else {
+                $cache->save($cacheKey, 'NOT_FOUND', 86400); // Evita cURLs repetidos caso não exista escudo
                 return $this->response->setStatusCode(404);
             }
         }

@@ -74,11 +74,14 @@ $routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstenc
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
+$routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
 
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
 $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
 $routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
 $routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
+$routes->post('/notificacoes/despinar/(:num)', 'ApostaController::despinarNotificacao/$1', ['as' => 'notificacoes.despinar']);
+
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
@@ -87,6 +90,11 @@ $routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adi
 $routes->post('/conta-corrente/resgatar-credito', 'ContaCorrenteController::resgatarCredito', ['as' => 'conta_corrente.resgatar_credito']);
 $routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
 $routes->get('/conta-corrente/aposta-detalhes/(:num)', 'ContaCorrenteController::getApostaDetalhes/$1', ['as' => 'conta_corrente.aposta_detalhes']);
+
+// Rotas de Gestão de Metas Diárias e Ciclos Rotativos (Cache-First MySQL)
+$routes->get('/metas', 'MetaController::index', ['as' => 'metas.index']);
+$routes->post('/metas/salvar-config', 'MetaController::salvarConfig', ['as' => 'metas.salvar_config']);
+$routes->post('/metas/recalcular-dia', 'MetaController::recalcularDia', ['as' => 'metas.recalcular_dia']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);

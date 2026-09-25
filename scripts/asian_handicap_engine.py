@@ -438,6 +438,22 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
     if fixture_id in _betano_ah_odds_cache:
         return _betano_ah_odds_cache[fixture_id]
 
+    # Prioridade 1: Consulta Direta na API Pública da Betano (Zero Lag / Tempo Real)
+    if home_team and away_team:
+        try:
+            try:
+                from betano_direct_api import fetch_betano_event_by_teams
+            except ImportError:
+                from scripts.betano_direct_api import fetch_betano_event_by_teams
+            direct_data = fetch_betano_event_by_teams(home_team, away_team)
+            if direct_data and direct_data.get('ah_lines'):
+                direct_lines = direct_data['ah_lines']
+                _betano_ah_odds_cache[fixture_id] = direct_lines
+                print(f"🎯 [Betano Direto] {len(direct_lines)} linhas de AH obtidas em tempo real para {home_team} x {away_team}")
+                return direct_lines
+        except Exception as e_bd:
+            pass
+
     available_lines = []
 
     if fixture_id in _betano_ah_raw_fixture_cache:

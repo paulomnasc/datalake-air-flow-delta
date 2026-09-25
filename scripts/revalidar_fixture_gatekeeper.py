@@ -210,8 +210,30 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
     h_trend = (h_l5 or {}).get('trend') or (analyze_trend_and_momentum(home_team, h_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
     a_trend = (a_l5 or {}).get('trend') or (analyze_trend_and_momentum(away_team, a_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
 
-    # 1. Obter Odds 1X2 atualizadas da API
-    live_1x2 = fetch_live_betano_odds(fixture_id)
+    # 1. Obter Odds 1X2 atualizadas (Tenta Betano Direto com fallback para API-Sports)
+    live_1x2 = {}
+    if home_team and away_team:
+        try:
+            try:
+                from betano_direct_api import fetch_betano_event_by_teams
+            except ImportError:
+                from scripts.betano_direct_api import fetch_betano_event_by_teams
+            direct_data = fetch_betano_event_by_teams(home_team, away_team)
+            if direct_data and direct_data.get('odds_1x2'):
+                d1 = direct_data['odds_1x2']
+                if d1.get('home') and d1.get('away'):
+                    live_1x2 = {
+                        "odd_home": d1.get('home'),
+                        "odd_draw": d1.get('draw'),
+                        "odd_away": d1.get('away'),
+                        "bookmaker": "Betano (Direto)"
+                    }
+        except Exception:
+            pass
+
+    if not live_1x2 or not live_1x2.get("odd_home"):
+        live_1x2 = fetch_live_betano_odds(fixture_id)
+
     bm_name = live_1x2.get("bookmaker", "Betano")
     odd_h = live_1x2.get("odd_home") or fix.get("odd_home")
     odd_d = live_1x2.get("odd_draw") or fix.get("odd_draw")

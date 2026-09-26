@@ -2925,6 +2925,119 @@ def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tip
     except Exception as e:
         print(f"⚠️ [Notificação] Falha ao registrar notificação para user #{usuario_id}: {e}")
 
+def analisar_mudanca_odd_cancelamento(
+    palpite_anterior: str,
+    odd_anterior: float,
+    motivo_calculo: str,
+    odd_home: float,
+    odd_draw: float,
+    odd_away: float,
+    home_team: str = "",
+    away_team: str = ""
+):
+    """
+    Analisa a dinâmica de mercado entre a cotação aprovada anteriormente e a nova condição
+    apurada no pré-jogo pelo Gatekeeper de Risco.
+    Explica de forma transparente e em linguagem natural se a odd inflou, derreteu ou saiu do mercado,
+    e o impacto dessa distorção na estimativa anterior (Regras nº 6, 8, 13 e 17).
+    """
+    # Inicialização prévia de variáveis (Regra de Ouro nº 8)
+    nova_odd_val = 0.0
+    linha_reprovada_msg = ""
+    linha_encontrada = False
+
+    # Extrai o valor do handicap do palpite (ex: -0.5 de "Philadelphia Union -0.5 AH")
+    m_handicap = re.search(r'([+-]?\d+(?:\.\d+)?)\s*AH', str(palpite_anterior or ''), re.IGNORECASE)
+    alvo_handicap = m_handicap.group(1) if m_handicap else None
+
+    # Tenta localizar a linha auditada na Betano correspondente dentro de motivo_calculo
+    if motivo_calculo:
+        linhas_auditadas = re.findall(
+            r'❌\s*\[REPROVADA\]\s*([^@\n\r]+)@\s*(\d+\.\d+)\s*->\s*Reprovada:\s*([^\n\r\|]+)',
+            motivo_calculo
+        )
+        for cand_palpite, cand_odd_str, cand_msg in linhas_auditadas:
+            cand_palpite = cand_palpite.strip()
+            is_match = False
+            if alvo_handicap and f"{alvo_handicap} AH".lower() in cand_palpite.lower():
+                if home_team and home_team.lower() in str(palpite_anterior).lower() and home_team.lower() in cand_palpite.lower():
+                    is_match = True
+                elif away_team and away_team.lower() in str(palpite_anterior).lower() and away_team.lower() in cand_palpite.lower():
+                    is_match = True
+                elif not home_team and not away_team:
+                    is_match = True
+
+            if is_match or (palpite_anterior and palpite_anterior.lower() in cand_palpite.lower()):
+                try:
+                    nova_odd_val = float(cand_odd_str)
+                    linha_reprovada_msg = cand_msg.strip()
+                    linha_encontrada = True
+                    break
+                except ValueError:
+                    pass
+
+    # Caso 1: A mesma linha foi cotada na Betano no cancelamento
+    if linha_encontrada and nova_odd_val > 0.0:
+        diff_odd = round(nova_odd_val - odd_anterior, 2)
+        nova_odd_str = f"{palpite_anterior} @ {nova_odd_val:.2f} na Betano"
+        nova_odd_curta = f"Nova odd: {nova_odd_val:.2f}"
+
+        # Subcaso 1A: Odd INFLOU (subiu >= +0.05) -> Mercado desconfiou do time
+        if diff_odd >= 0.05:
+            diagnostico_curto = (
+                f"Cotação inflou de {odd_anterior:.2f} para {nova_odd_val:.2f} (Mercado 1X2 Casa @ {odd_home:.2f}), "
+                f"aumentando o risco de tropeço e quebrando a margem de segurança da linha sem cobertura de empate"
+            )
+            explicacao_dinamica = (
+                f"• A cotação do time inflou no mercado: A odd da aposta subiu de {odd_anterior:.2f} para {nova_odd_val:.2f}, "
+                f"enquanto a vitória simples no mercado 1X2 oscilou para {odd_home:.2f}. "
+                f"No mercado esportivo, a elevação da odd sinaliza desconfiança ou perda de ímpeto das casas na vitória direta "
+                f"(aumento de probabilidade de empate ou zebra por desfalques, desgaste ou fluxo de apostas contrárias).\n"
+                f"• Ruptura da Análise Anterior: A aprovação inicial ocorreu sob a premissa de um favoritismo inquestionável, "
+                f"o que sustentava a entrada em linha seca (-0.5 AH, que perde 100% no empate). "
+                f"Com a desvalorização do favoritismo pelo mercado, o risco de empate disparou e a estimativa prévia ficou viciada.\n"
+                f"• Reprovação no Gatekeeper: {linha_reprovada_msg}. "
+                f"As linhas alternativas com cobertura de empate não atingiram os critérios de rentabilidade mínima segura."
+            )
+        # Subcaso 1B: Odd DERRETEU (caiu <= -0.05 ou < 1.50) -> Prêmio esmagado / Perda de +EV
+        elif diff_odd <= -0.05 or nova_odd_val < 1.50:
+            diagnostico_curto = (
+                f"Cotação derreteu de {odd_anterior:.2f} para {nova_odd_val:.2f}, "
+                f"esmagando o prêmio abaixo da margem mínima de segurança matemática (+EV)"
+            )
+            explicacao_dinamica = (
+                f"• A cotação derreteu pelo fluxo do mercado: A odd despencou de {odd_anterior:.2f} para {nova_odd_val:.2f}. "
+                f"O retorno oferecido pela casa de apostas foi esmagado e ficou abaixo do risco probabilístico da partida.\n"
+                f"• Ruptura da Análise Anterior: A entrada original possuía Valor Esperado Positivo (+EV). Com o derretimento do prêmio, "
+                f"a relação risco vs. retorno foi destruída: a banca seria exposta a 100% de risco para um lucro irrisório, "
+                f"o que fere a gestão de risco e o piso mínimo de segurança de 1.50.\n"
+                f"• Reprovação no Gatekeeper: {linha_reprovada_msg}."
+            )
+        # Subcaso 1C: Odd estável, mas reprovada por regra de risco
+        else:
+            diagnostico_curto = f"Reavaliação pré-jogo reprovou a linha ({linha_reprovada_msg})"
+            explicacao_dinamica = (
+                f"• Oscilação nas cotações globais: A odd permaneceu em {nova_odd_val:.2f}, mas a reavaliação pré-jogo das matrizes "
+                f"estatísticas e das cotações 1X2 (Casa: {odd_home:.2f}, Empate: {odd_draw:.2f}, Fora: {odd_away:.2f}) "
+                f"acionou a trava de segurança do Gatekeeper.\n"
+                f"• Justificativa da Gestão de Risco: {linha_reprovada_msg}."
+            )
+    else:
+        # Caso 2: Linha não encontrada na grade da Betano
+        nova_odd_str = "Linha Encerrada / Indisponível na Betano"
+        nova_odd_curta = "Linha Indisponível"
+        diagnostico_curto = f"A linha prévia ({palpite_anterior} @ {odd_anterior:.2f}) foi encerrada/retirada pelo mercado da Betano"
+        explicacao_dinamica = (
+            f"• Fechamento de Linha pelo Bookmaker: A linha de handicap aprovada anteriormente ({palpite_anterior} @ {odd_anterior:.2f}) "
+            f"não se encontra mais disponível para apostas na Betano no pré-jogo imediato.\n"
+            f"• Inviabilidade de Linhas Alternativas: As demais opções abertas na grade oficial foram auditadas pelo Gatekeeper, "
+            f"porém nenhuma atende simultaneamente aos requisitos de cobertura defensiva e valor esperado positivo (+EV).\n"
+            f"• Proteção Operacional: A análise prévia foi descontinuada para evitar entradas forçadas em linhas distorcidas."
+        )
+
+    return nova_odd_str, nova_odd_curta, diagnostico_curto, explicacao_dinamica
+
+
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):
     """
     Busca apostas pendentes no mercado de Handicap Asiático para o fixture_id.
@@ -2962,6 +3075,8 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         aposta_id = aposta['id']
         usuario_id = aposta['usuario_id']
         valor = float(aposta['valor_aposta'] or 0.0)
+        palpite_anterior = aposta.get('palpite') or 'Handicap Asiático'
+        odd_anterior = float(aposta.get('odd') or 0.0)
 
         # Obter cotações 1X2 para descrição natural e clara
         cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
@@ -2969,22 +3084,34 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         oh = float(f_row.get('odd_home') or 0.0)
         od = float(f_row.get('odd_draw') or 0.0)
         oa = float(f_row.get('odd_away') or 0.0)
-        if oh > 0 and od > 0 and oa > 0:
-            human_desc = (
-                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}) "
-                f"e as cotações de mercado 1X2 (Casa: {oh:.2f}, Empate: {od:.2f}, Fora: {oa:.2f}), "
-                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
-                f"por ausência de margem de segurança matemática."
-            )
-        else:
-            human_desc = (
-                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}), "
-                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
-                f"por ausência de margem de segurança matemática."
-            )
 
-        cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo or human_desc)
+        # Análise aprofundada da mudança de odds e impacto econômico/esportivo (Regras 6, 8, 13 e 17)
+        nova_odd_str, nova_odd_curta, diag_curto, expl_dinamica = analisar_mudanca_odd_cancelamento(
+            palpite_anterior=palpite_anterior,
+            odd_anterior=odd_anterior,
+            motivo_calculo=motivo,
+            odd_home=oh,
+            odd_draw=od,
+            odd_away=oa,
+            home_team=aposta.get('time_casa', ''),
+            away_team=aposta.get('time_fora', '')
+        )
+
+        cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', motivo or '')
         didactic = GATEKEEPER_DIDACTIC_MAP.get(cat_desc, '')
+
+        human_desc = (
+            f"🚫 Cancelamento Pós-Aprovação no Pré-Jogo (Abstenção da IA / Gatekeeper NO_BET)\n\n"
+            f"• Entrada Aprovada Anteriormente: {palpite_anterior} @ {odd_anterior:.2f}\n"
+            f"• Cotação no Cancelamento: {nova_odd_str}\n"
+            f"• Mercado 1X2 Atual: Casa: {oh:.2f} | Empate: {od:.2f} | Fora: {oa:.2f}\n\n"
+            f"💡 Por que a aposta foi cancelada? (Dinâmica de Mercado e Risco):\n"
+            f"{expl_dinamica}\n\n"
+            f"🛡️ Proteção de Banca: A estimativa anterior foi cancelada preventivamente para proteger o capital. "
+            f"O valor de R$ {valor:.2f} foi estornado para o seu saldo. "
+            f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente."
+        )
+
         full_human_desc = f"💡 Síntese da IA: {didactic}\n\n{human_desc}" if didactic else human_desc
 
         cursor.execute("""
@@ -2992,7 +3119,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             SET status = 'Cancelada', 
                 status_gatekeeper = 'NO_BET',
                 gatekeeper_category = %s,
-                palpite = 'Sem Entrada (Abstenção)',
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
@@ -3052,16 +3178,15 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         if is_aposta_confirmada:
             titulo_notif = f"⚠️ Aposta Cancelada (Estornada): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
-                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}). Saldo de R$ {valor:.2f} estornado em conta. "
+                f"A IA cancelou a aposta prévia em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
+                f"{diag_curto}. Saldo de R$ {valor:.2f} estornado em conta. "
                 f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
             )
         else:
             titulo_notif = f"⚠️ Sugestão Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
-                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}) por ausência de margem de segurança matemática (Gatekeeper NO_BET). "
-                f"Não realizar entrada nesta partida."
+                f"A IA cancelou a sugestão em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
+                f"{diag_curto}. Não realizar entrada nesta partida."
             )
 
         dj = aposta.get('data_hora_jogo')

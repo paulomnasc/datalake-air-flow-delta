@@ -1348,10 +1348,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               );
 
               if ($isAbstencaoBloqueada) {
-                if (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
+                if (stripos($detalhadoExibir, 'Cancelamento Pós-Aprovação') !== false || stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
                   $abstencaoTexto = $detalhadoExibir;
                   // Higienização de UX (Regra 17)
-                  if (preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $abstencaoTexto, $mReasA)) {
+                  if (stripos($abstencaoTexto, 'Cancelamento Pós-Aprovação') === false && preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $abstencaoTexto, $mReasA)) {
                     $abstencaoTexto = trim($mReasA[1]);
                   } else {
                     $abstencaoTexto = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $abstencaoTexto);
@@ -1382,10 +1382,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             <div class="market-info">
               <div>
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
-                <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
+                <div class="palpite-name">
+                  <?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?>
+                  <?php if ($isAbstencaoBloqueada && !empty($aposta->palpite) && stripos($aposta->palpite, 'Sem Entrada') === false): ?>
+                    <div style="font-size: 0.74rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">
+                      Palpite aprovado prévio: <span style="text-decoration: line-through; color: #f87171; font-weight: 600;"><?= htmlspecialchars($aposta->palpite) ?></span>
+                    </div>
+                  <?php endif; ?>
+                </div>
               </div>
               <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
-                <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+                <?php if ($isAbstencaoBloqueada): ?>
+                  <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
+                    <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+                  </div>
+                <?php else: ?>
+                  <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+                <?php endif; ?>
               </div>
             </div>
 

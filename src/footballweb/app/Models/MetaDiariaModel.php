@@ -392,45 +392,49 @@ class MetaDiariaModel extends Model
             $totalCiclosExistentes = 1;
         }
 
-        // Determinação robusta do Ciclo Ativo Vigente a partir dos blocos mais recentes
+        // Determinação estrutural do Ciclo Ativo Vigente
         $hojeBrasil = date('Y-m-d');
-        $cicloAtivoNum = null;
+        $ultimoCicloFechado = 0;
+        $cicloComJogosHoje = null;
 
-        for ($c = $totalCiclosExistentes; $c >= 1; $c--) {
+        for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
             $offsetBloco = ($c - 1) * $tamanho;
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
             $totalBloco = count($blocoTeste);
 
-            $temPendentesBloco = false;
-            $todasFuturas = true;
+            $pendentesBloco = 0;
+            $temJogosHoje = false;
 
             foreach ($blocoTeste as $bt) {
                 $stBt = strtolower(trim((string)($bt->status ?? '')));
                 $isPendente = in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns']);
                 if ($isPendente) {
-                    $temPendentesBloco = true;
+                    $pendentesBloco++;
                 }
 
                 $dtAposta = !empty($bt->data_hora_jogo) ? $bt->data_hora_jogo : ($bt->criado_em ?? null);
                 $dtStr = $dtAposta ? date('Y-m-d', strtotime($dtAposta . ' -3 hours')) : $hojeBrasil;
-                if ($dtStr <= $hojeBrasil || !$isPendente) {
-                    $todasFuturas = false;
+                if ($dtStr === $hojeBrasil) {
+                    $temJogosHoje = true;
                 }
             }
 
-            // Se todas as apostas do bloco são puramente futuras e não iniciadas, é um ciclo em formação
-            if ($todasFuturas && $temPendentesBloco && $totalBloco >= $tamanho) {
-                continue;
+            $isFechado = ($totalBloco >= $tamanho && $pendentesBloco === 0);
+            if ($isFechado) {
+                $ultimoCicloFechado = $c;
             }
-
-            $cicloAtivoNum = $c;
-            if ($temPendentesBloco || $totalBloco < $tamanho) {
-                break;
+            if ($temJogosHoje && !$isFechado && $cicloComJogosHoje === null) {
+                $cicloComJogosHoje = $c;
             }
         }
 
-        if ($cicloAtivoNum === null) {
-            $cicloAtivoNum = $totalCiclosExistentes;
+        // Ciclo ativo é prioritariamente o ciclo com jogos de hoje em andamento, ou o primeiro após o último fechado
+        if ($cicloComJogosHoje !== null) {
+            $cicloAtivoNum = $cicloComJogosHoje;
+        } elseif ($ultimoCicloFechado < $totalCiclosExistentes) {
+            $cicloAtivoNum = $ultimoCicloFechado + 1;
+        } else {
+            $cicloAtivoNum = max(1, $totalCiclosExistentes);
         }
 
         // Seleção do ciclo a ser exibido:
@@ -440,7 +444,7 @@ class MetaDiariaModel extends Model
         $cicloAlvo = null;
         if ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes) {
             $cicloAlvo = $numeroCiclo;
-        } elseif (!empty($dataReferencia) && $dataReferencia !== $hojeBrasil) {
+        } elseif (!empty($dataReferencia)) {
             foreach ($todasApostas as $idx => $ap) {
                 $dtAp = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
                 $dtApBr = $dtAp ? date('Y-m-d', strtotime($dtAp . ' -3 hours')) : null;

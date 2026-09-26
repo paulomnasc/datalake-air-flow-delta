@@ -92,18 +92,6 @@ class FootballTrendsController extends BaseController
         $showPostponedParam = $this->request->getVar('show_postponed');
         $showPostponed = ($showPostponedParam === '1' || $showPostponedParam === 'true' || $showPostponedParam === 'sim');
 
-        // Filtro para exibir apenas apostas seguras (Under com alta confiança)
-        $onlySafeParam = $this->request->getVar('only_safe');
-        $onlySafe = ($onlySafeParam === '1' || $onlySafeParam === 'true' || $onlySafeParam === 'sim');
-
-        // Filtro para exibir apenas Surebets (oportunidades de arbitragem)
-        $onlySurebetParam = $this->request->getVar('only_surebet');
-        $onlySurebet = ($onlySurebetParam === '1' || $onlySurebetParam === 'true' || $onlySurebetParam === 'sim');
-
-        // Filtro para exibir apenas jogos em andamento (Ao Vivo)
-        $onlyLiveParam = $this->request->getVar('only_live');
-        $onlyLive = ($onlyLiveParam === '1' || $onlyLiveParam === 'true' || $onlyLiveParam === 'sim');
-
         // Filtro para exibir apenas partidas com resenha/análise editorial (Futbol24)
         $onlyResenhaParam = $this->request->getVar('only_resenha');
         $onlyResenha = ($onlyResenhaParam === '1' || $onlyResenhaParam === 'true' || $onlyResenhaParam === 'sim');
@@ -197,9 +185,6 @@ class FootballTrendsController extends BaseController
             'search'             => $search,
             'showFinished'       => $showFinished,
             'showPostponed'      => $showPostponed,
-            'onlySafe'           => $onlySafe,
-            'onlySurebet'        => $onlySurebet,
-            'onlyLive'           => $onlyLive,
             'onlyResenha'        => $onlyResenha,
             'userBetFixtureIds'  => $userBetFixtureIds,
             'allBetFixtureIds'   => $allBetFixtureIds,

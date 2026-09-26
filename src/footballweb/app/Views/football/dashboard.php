@@ -2637,10 +2637,9 @@ if (!function_exists('getBetDecisionTree')) {
                                     
                                     $showFinishedQuery = '&show_finished=' . ($showFinished ? '1' : '0');
                                     $showPostponedQuery = '&show_postponed=' . (!empty($showPostponed) ? '1' : '0');
-                                    $onlyLiveQuery = !empty($onlyLive) ? '&only_live=1' : '';
                                     $onlyResenhaQuery = !empty($onlyResenha) ? '&only_resenha=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $onlyResenhaQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyResenhaQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
@@ -2690,30 +2689,6 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($showPostponed) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.25);">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #34d399; font-weight: 600;">
-                                        <i class="bi bi-shield-fill-check"></i> <?= lang('App.safe_bets') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlySafeToggle" name="only_safe" value="1" <?= !empty($onlySafe) ? 'checked' : '' ?> onchange="toggleSafeBetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlySafeToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySafe) ? '#10b981' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySafe) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.3);">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
-                                        ⚡ <?= lang('App.surebets') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlySurebetToggle" name="only_surebet" value="1" <?= !empty($onlySurebet) ? 'checked' : '' ?> onchange="toggleSurebetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlySurebetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySurebet) ? '#00e676' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySurebet) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
                                  <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem simulações de apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 <?= lang('App.with_bets') ?>
@@ -2736,18 +2711,6 @@ if (!function_exists('getBetDecisionTree')) {
                                     </label>
                                     <span id="onlyResenhaToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyResenha) ? '#00e676' : '#8a99a8' ?>;">
                                         <?= !empty($onlyResenha) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #f87171; font-weight: 600;">
-                                        🔴 <?= lang('App.live_matches') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlyLiveToggle" name="only_live" value="1" <?= !empty($onlyLive) ? 'checked' : '' ?> onchange="toggleLiveBetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlyLiveToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyLive) ? '#ef4444' : '#8a99a8' ?>;">
-                                        <?= !empty($onlyLive) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                             </div>
@@ -4712,10 +4675,7 @@ if (!function_exists('getBetDecisionTree')) {
 
     let currentShowFinishedFilter = <?= $showFinished ? 'true' : 'false' ?>;
     let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
-    let currentOnlySafeFilter = <?= !empty($onlySafe) ? 'true' : 'false' ?>;
-    let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
     let currentOnlyHasBetFilter = false;
-    let currentOnlyLiveFilter = <?= !empty($onlyLive) ? 'true' : 'false' ?>;
     let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
 
     function toggleShowFinishedFilter(checkbox) {
@@ -4738,42 +4698,12 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    function toggleSafeBetsFilter(checkbox) {
-        currentOnlySafeFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlySafeToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlySafeFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlySafeFilter ? '#10b981' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
-    function toggleSurebetsFilter(checkbox) {
-        currentOnlySurebetFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlySurebetToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlySurebetFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlySurebetFilter ? '#00e676' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
     function toggleHasBetFilter(checkbox) {
         currentOnlyHasBetFilter = checkbox.checked;
         const statusSpan = document.getElementById('onlyHasBetToggleStatus');
         if (statusSpan) {
             statusSpan.innerText = currentOnlyHasBetFilter ? 'Sim' : 'Não';
             statusSpan.style.color = currentOnlyHasBetFilter ? '#c084fc' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
-    function toggleLiveBetsFilter(checkbox) {
-        currentOnlyLiveFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlyLiveToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlyLiveFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlyLiveFilter ? '#ef4444' : '#8a99a8';
         }
         applyFilters();
     }
@@ -4810,15 +4740,12 @@ if (!function_exists('getBetDecisionTree')) {
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || (isLive && !isFinished));
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
-            const matchSafe = (!currentOnlySafeFilter || isSafe);
-            const matchSurebet = (!currentOnlySurebetFilter || isSurebet);
             const matchHasBet = (!currentOnlyHasBetFilter || hasAposta);
-            const matchLive = (!currentOnlyLiveFilter || isLive);
             const matchFinished = (currentShowFinishedFilter || !isFinished);
             const matchPostponed = (currentShowPostponedFilter || !isPostponed);
             const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
             
-            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed && matchResenha) {
+            if (matchLeague && matchTab && matchText && matchHasBet && matchFinished && matchPostponed && matchResenha) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {
@@ -5233,7 +5160,7 @@ if (!function_exists('getBetDecisionTree')) {
                             }
                         }
                     });
-                    if (currentOnlyLiveFilter || !currentShowFinishedFilter) {
+                    if (!currentShowFinishedFilter) {
                         applyFilters();
                     }
                 }

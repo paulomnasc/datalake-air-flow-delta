@@ -2953,8 +2953,10 @@ if (!function_exists('getBetDecisionTree')) {
                             }
                             $cardIndex++;
                             
-                            $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
                             $statusClean = strtoupper($fix->status ?? '');
+                            $isLiveExplicit = in_array($statusClean, ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
+                            $isLiveEstimated = ($statusClean === 'NS' && isset($diffMins) && $diffMins >= 0 && $diffMins <= 115);
+                            $isLiveMatch = ($isLiveExplicit || $isLiveEstimated) && (!isset($diffMins) || $diffMins <= 115);
                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
 
                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
@@ -2968,15 +2970,24 @@ if (!function_exists('getBetDecisionTree')) {
                                 if ($statusClean === 'HT') {
                                     $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
                                 } else {
-                                    $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
+                                    if (!empty($fix->elapsed)) {
+                                        $minDisplay = $fix->elapsed . "'";
+                                    } elseif (isset($diffMins) && $diffMins >= 0) {
+                                        if ($diffMins <= 45) {
+                                            $minDisplay = max(1, $diffMins) . "'";
+                                        } elseif ($diffMins <= 60) {
+                                            $minDisplay = lang('App.halftime');
+                                        } else {
+                                            $minDisplay = min(90, $diffMins - 15) . "'";
+                                        }
+                                    } else {
+                                        $minDisplay = lang('App.live');
+                                    }
                                 }
                                 $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
-                            } elseif ($statusClean === 'NS') {
+                            } else {
                                 $elapsedClass = '';
                                 $elapsedDisplay = lang('App.pre_match');
-                            } else {
-                                $elapsedClass = (isset($diffMins) && $diffMins >= 0) ? 'live' : '';
-                                $elapsedDisplay = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
                             }
 
                             $betanoTimeText = lang('App.pre_match');
@@ -2986,14 +2997,24 @@ if (!function_exists('getBetDecisionTree')) {
                                 $betanoTimeText = lang('App.finished');
                             } elseif ($isLiveMatch) {
                                 if ($statusClean === 'HT') {
-                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
+                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Intervalo (~HT)';
                                 } else {
-                                    $betanoTimeText = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
+                                    if (!empty($fix->elapsed)) {
+                                        $betanoTimeText = $fix->elapsed . "'";
+                                    } elseif (isset($diffMins) && $diffMins >= 0) {
+                                        if ($diffMins <= 45) {
+                                            $betanoTimeText = "1º Tempo (~" . max(1, $diffMins) . "')";
+                                        } elseif ($diffMins <= 60) {
+                                            $betanoTimeText = 'Intervalo (~HT)';
+                                        } else {
+                                            $betanoTimeText = "2º Tempo (~" . min(90, $diffMins - 15) . "')";
+                                        }
+                                    } else {
+                                        $betanoTimeText = lang('App.live');
+                                    }
                                 }
-                            } elseif ($statusClean === 'NS') {
-                                $betanoTimeText = lang('App.pre_match');
                             } else {
-                                $betanoTimeText = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
+                                $betanoTimeText = lang('App.pre_match');
                             }
                             
                             $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
@@ -4527,6 +4548,7 @@ if (!function_exists('getBetDecisionTree')) {
             const diffMins = Math.floor(diffMs / 60000);
             
             let text = '';
+            let bText = '';
             let showPulse = false;
             
             const finishedStatuses = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
@@ -4535,18 +4557,22 @@ if (!function_exists('getBetDecisionTree')) {
             
             if (postponedStatuses.includes(status)) {
                 text = '⚠️ ADIADO';
+                bText = '⚠️ ADIADO';
                 el.classList.remove('live');
                 el.classList.add('pst');
             } else if (finishedStatuses.includes(status) || diffMins > 115) {
                 text = 'Encerrado';
+                bText = 'Encerrado';
                 el.classList.remove('live');
             } else if (status === 'HT') {
                 if (diffMins >= 65) {
                     text = (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') ? officialElapsed + "'" : Math.max(45, diffMins - 15) + "'";
+                    bText = text;
                     showPulse = true;
                     el.classList.add('live');
                 } else {
                     text = 'Intervalo';
+                    bText = 'Intervalo (~HT)';
                     showPulse = true;
                     el.classList.add('live');
                 }
@@ -4555,17 +4581,40 @@ if (!function_exists('getBetDecisionTree')) {
                 el.classList.add('live');
                 if (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') {
                     text = officialElapsed + "'";
+                    bText = officialElapsed + "'";
                 } else if (status === '2H') {
-                    text = Math.min(90, Math.max(45, diffMins - 15)) + "'";
+                    const m = Math.min(90, Math.max(45, diffMins - 15));
+                    text = m + "'";
+                    bText = `2º Tempo (~${m}')`;
                 } else {
-                    text = Math.min(45, Math.max(0, diffMins)) + "'";
+                    const m = Math.min(45, Math.max(1, diffMins));
+                    text = m + "'";
+                    bText = `1º Tempo (~${m}')`;
                 }
-            } else if (diffMins < 0 || status === 'NS') {
+            } else if (diffMins < 0) {
                 text = 'Pré-jogo';
+                bText = 'Pré-jogo';
                 el.classList.remove('live');
-            } else {
-                text = diffMins + "'";
+            } else if (diffMins >= 0 && diffMins <= 115) {
+                // Jogo cujo horário já iniciou (mesmo com status NS antes da sincronização)
+                showPulse = true;
                 el.classList.add('live');
+                if (diffMins <= 45) {
+                    const m = Math.max(1, diffMins);
+                    text = m + "'";
+                    bText = `1º Tempo (~${m}')`;
+                } else if (diffMins <= 60) {
+                    text = 'Intervalo';
+                    bText = 'Intervalo (~HT)';
+                } else {
+                    const m = Math.min(90, diffMins - 15);
+                    text = m + "'";
+                    bText = `2º Tempo (~${m}')`;
+                }
+            } else {
+                text = 'Encerrado';
+                bText = 'Encerrado';
+                el.classList.remove('live');
             }
             
             if (showPulse) {
@@ -4575,7 +4624,7 @@ if (!function_exists('getBetDecisionTree')) {
             }
 
             if (bTimeEl) {
-                bTimeEl.textContent = text;
+                bTimeEl.textContent = bText;
             }
         });
     }
@@ -5036,7 +5085,7 @@ if (!function_exists('getBetDecisionTree')) {
                             if (diffMinsLive !== null && diffMinsLive > 115 && !['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
                                 isMatchFinishedNow = true;
                             }
-                            let isMatchLiveNow = liveStatuses.includes(statusUpper) && !isMatchFinishedNow;
+                            let isMatchLiveNow = (liveStatuses.includes(statusUpper) || (statusUpper === 'NS' && diffMinsLive !== null && diffMinsLive >= 0 && diffMinsLive <= 115)) && !isMatchFinishedNow;
 
                             card.setAttribute('data-is-live', isMatchLiveNow ? '1' : '0');
                             if (isMatchFinishedNow) {
@@ -5050,12 +5099,37 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 if (bTimeEl) bTimeEl.textContent = 'Encerrado';
                             } else if (isMatchLiveNow) {
-                                let minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? ((diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int') : 'Ao Vivo');
+                                let minText = '';
+                                let bText = '';
+                                if (fix.elapsed) {
+                                    minText = fix.elapsed + "'";
+                                    bText = fix.elapsed + "'";
+                                } else if (statusUpper === 'HT') {
+                                    minText = (diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int';
+                                    bText = 'Intervalo (~HT)';
+                                } else if (diffMinsLive !== null && diffMinsLive >= 0) {
+                                    if (diffMinsLive <= 45) {
+                                        const m = Math.max(1, diffMinsLive);
+                                        minText = m + "'";
+                                        bText = `1º Tempo (~${m}')`;
+                                    } else if (diffMinsLive <= 60) {
+                                        minText = 'Int';
+                                        bText = 'Intervalo (~HT)';
+                                    } else {
+                                        const m = Math.min(90, diffMinsLive - 15);
+                                        minText = m + "'";
+                                        bText = `2º Tempo (~${m}')`;
+                                    }
+                                } else {
+                                    minText = 'Ao Vivo';
+                                    bText = 'Ao Vivo';
+                                }
+
                                 if (elapsedEl) {
                                     elapsedEl.classList.add('live');
                                     elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
                                 }
-                                if (bTimeEl) bTimeEl.textContent = minText;
+                                if (bTimeEl) bTimeEl.textContent = bText;
                             } else if (['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
                                 if (elapsedEl) {
                                     elapsedEl.classList.remove('live');
@@ -5064,11 +5138,13 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 if (bTimeEl) bTimeEl.textContent = '⚠️ ADIADO';
                             } else if (statusUpper === 'NS') {
-                                if (elapsedEl) {
-                                    elapsedEl.classList.remove('live');
-                                    elapsedEl.textContent = 'Pré-jogo';
+                                if (diffMinsLive !== null && diffMinsLive < 0) {
+                                    if (elapsedEl) {
+                                        elapsedEl.classList.remove('live');
+                                        elapsedEl.textContent = 'Pré-jogo';
+                                    }
+                                    if (bTimeEl) bTimeEl.textContent = 'Pré-jogo';
                                 }
-                                if (bTimeEl) bTimeEl.textContent = 'Pré-jogo';
                             }
                         }
                     });

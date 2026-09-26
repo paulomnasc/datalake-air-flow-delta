@@ -14,42 +14,7 @@ import random
 import requests
 from datetime import datetime, timedelta
 
-def get_db_connection():
-    """
-    Obtém conexão com o MySQL (tenta docker internal 'mysql' e localhost fallback).
-    """
-    try:
-        conn = pymysql.connect(
-            host="mysql",
-            port=3306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=True
-        )
-        print("✅ [DAG Processador Apostas] Conectado ao MySQL via docker (mysql:3306)")
-        return conn
-    except Exception:
-        pass
-
-    try:
-        conn = pymysql.connect(
-            host="127.0.0.1",
-            port=23306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=True
-        )
-        print("✅ [DAG Processador Apostas] Conectado ao MySQL via localhost (127.0.0.1:23306)")
-        return conn
-    except Exception as e:
-        print(f"❌ [ERRO CRÍTICO] Falha ao conectar no MySQL: {e}")
-        sys.exit(1)
+from db_config import get_db_connection
 
 def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descricao=None):
     """

@@ -18,45 +18,7 @@ from datetime import datetime
 sys.path.insert(0, "/root/datalake-air-flow-delta/scripts")
 sys.path.insert(0, "/root/datalake-air-flow-delta")
 
-def get_live_env_vars():
-    env_paths = [
-        "/root/datalake-air-flow-delta/src/footballweb/.env",
-        "/root/datalake-air-flow-delta/.env"
-    ]
-    env_vars = {}
-    for p in env_paths:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_vars[k.strip()] = v.strip().strip("'").strip('"')
-    return env_vars
-
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("mysql", 3306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            return conn
-        except Exception:
-            continue
-    raise RuntimeError("Não foi possível conectar ao banco de dados MySQL.")
+from db_config import get_db_connection, get_live_env_vars
 
 def fetch_live_fixture_odds_api(fixture_id):
     """

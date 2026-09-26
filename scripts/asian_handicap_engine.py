@@ -2755,6 +2755,8 @@ def sync_fixture_and_bet_handicap(
                 skipped_count += 1
                 continue
 
+            was_canceled = (ja_existe.get('status') == 'Cancelada')
+
             # Atualizar aposta pendente ou reativar aposta cancelada não confirmada com compound_reasoning uniforme e stake parametrizada
             cursor.execute("""
                 UPDATE apostas SET
@@ -2775,6 +2777,22 @@ def sync_fixture_and_bet_handicap(
             """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, valor_aposta, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
             print(f"🔄 [Aposta AH Atualizada/Reativada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f} | Categoria: '{app_cat}'")
             updated_count += 1
+
+            if was_canceled:
+                try:
+                    cursor.execute("""
+                        SELECT id FROM notificacoes_usuario 
+                        WHERE usuario_id = %s AND fixture_id = %s 
+                          AND tipo = 'NOVA_OPORTUNIDADE_AH'
+                          AND criado_em >= DATE_SUB(NOW(), INTERVAL 60 MINUTE)
+                    """, (uid, fixture_id))
+                    if not cursor.fetchone():
+                        tit = f"🎯 Oportunidade Reativada: {home_team} vs {away_team}"
+                        msg = f"A linha voltou a ter valor +EV na Betano: {selected_palpite} @ {odd_val:.2f} (EV: +{ev_perc:.1f}%)."
+                        lnk = f"/apostas?fixture_id={fixture_id}"
+                        registrar_notificacao_usuario(cursor, uid, ja_existe['id'], fixture_id, 'NOVA_OPORTUNIDADE_AH', tit, msg, lnk)
+                except Exception as e_notif_react:
+                    print(f"Aviso ao registrar notificação de oportunidade reativada: {e_notif_react}")
         else:
             # Inserir nova aposta
             cursor.execute("""
@@ -2812,10 +2830,25 @@ def sync_fixture_and_bet_handicap(
                 """, (uid, aposta_id, desc_deb, -valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
-                tit = f"Nova Aposta Gerada: {selected_palpite}"
-                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} para {home_team} vs {away_team} (Débito: R$ {valor_aposta:.2f})."
+                tit = f"🎯 Aposta Criada: {home_team} vs {away_team}"
+                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} (Débito: R$ {valor_aposta:.2f})."
                 lnk = f"/apostas?fixture_id={fixture_id}"
-                registrar_notificacao_usuario(cursor, uid, aposta_id, fixture_id, 'info', tit, msg, lnk)
+                registrar_notificacao_usuario(cursor, uid, aposta_id, fixture_id, 'APOSTA_CRIADA', tit, msg, lnk)
+            else:
+                try:
+                    cursor.execute("""
+                        SELECT id FROM notificacoes_usuario 
+                        WHERE usuario_id = %s AND fixture_id = %s 
+                          AND tipo = 'NOVA_OPORTUNIDADE_AH'
+                          AND criado_em >= DATE_SUB(NOW(), INTERVAL 60 MINUTE)
+                    """, (uid, fixture_id))
+                    if not cursor.fetchone():
+                        tit = f"🎯 Nova Oportunidade AH: {home_team} vs {away_team}"
+                        msg = f"Nova entrada recomendada pela IA: {selected_palpite} @ {odd_val:.2f} (EV: +{ev_perc:.1f}%)."
+                        lnk = f"/apostas?fixture_id={fixture_id}"
+                        registrar_notificacao_usuario(cursor, uid, aposta_id, fixture_id, 'NOVA_OPORTUNIDADE_AH', tit, msg, lnk)
+                except Exception as e_notif_new:
+                    print(f"Aviso ao registrar notificação de nova oportunidade: {e_notif_new}")
 
     # Sincroniza fixtures_trends com o palpite aprovado (card sempre alinhado com a aposta aprovada)
     cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id, gatekeeper_category FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))

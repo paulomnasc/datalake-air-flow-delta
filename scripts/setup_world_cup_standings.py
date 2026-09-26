@@ -68,14 +68,8 @@ WORLD_CUP_2026_DATA = [
 
 
 def setup_world_cup_table():
-    conn = pymysql.connect(
-        host='127.0.0.1',
-        port=23306,
-        user='root',
-        password='YM11rMrT32xH0E6N',
-        database='footballweb',
-        autocommit=True
-    )
+    from db_config import get_db_connection
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 1. Criação da Tabela

@@ -186,4 +186,14 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Toda a complexidade técnica, memória de cálculo detalhada e payloads JSON estruturados pertencem **exclusivamente à camada de banco de dados** (colunas de auditoria no MySQL) para alimentar os algoritmos da IA, motores analíticos e históricos preditivos.
   - A camada de apresentação (views e controllers PHP) deve obrigatoriamente higienizar todo texto antes de exibi-lo em tela, extraindo estritamente a síntese em linguagem natural (ex: o bloco `REASON:`) e suprimindo de forma irrestrita qualquer bloco que contenha `|| MEMÓRIA DE CÁLCULO` ou tags técnicas internas.
 
+---
+
+## 18. Proibição Absoluta de Hardcoding de Credenciais e Senhas (Segurança e Variáveis de Ambiente Mandatórias)
+- **Princípio de Zero Credenciais no Código:**
+  - É expressamente proibido inserir, manter ou utilizar senhas de banco de dados (MySQL, Postgres, etc.), chaves de API, segredos ou tokens de autenticação diretamente grafados no código-fonte (`.py`, `.php`, `.sh`), DAGs ou documentações.
+- **Fonte Canônica Obrigatória (`src/footballweb/.env`):**
+  - Toda e qualquer credencial de banco de dados e segredo do sistema deve ser carregada exclusivamente a partir do arquivo canônico de ambiente `src/footballweb/.env` ou variáveis de ambiente do sistema operacional (`os.environ`).
+  - Em scripts Python, as rotinas de banco de dados **DEVEM OBRIGATORIAMENTE utilizar o módulo canônico centralizado `scripts/db_config.py`** (`get_db_connection()`), que efetua a leitura dinâmica das credenciais do `.env` com mapeamento ordenado de portas e mecanismo fail-fast caso a credencial esteja ausente.
+
+
 

@@ -8,25 +8,7 @@ por abstenção automática de IA ou oscilação de odds/linhas e restaura seu s
 import sys
 import pymysql
 
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("mysql", 3306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host, port=port, user="root", password="YM11rMrT32xH0E6N",
-                database="footballweb", charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-    print("❌ Falha ao conectar no MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection
 
 def main():
     conn = get_db_connection()

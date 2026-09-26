@@ -442,22 +442,11 @@ def get_world_cup_standings_cache():
         import os
         import pymysql
         import unicodedata
-        is_docker = os.path.exists('/.dockerenv')
-        hosts_ports = [("mysql", 3306), ("127.0.0.1", 23306), ("localhost", 3306)] if is_docker else [("127.0.0.1", 23306), ("mysql", 3306), ("localhost", 3306)]
-        conn = None
-        for h, p in hosts_ports:
-            try:
-                conn = pymysql.connect(
-                    host=h,
-                    port=p,
-                    user='root',
-                    password='YM11rMrT32xH0E6N',
-                    database='footballweb',
-                    connect_timeout=2
-                )
-                break
-            except Exception:
-                continue
+        from db_config import get_db_connection
+        try:
+            conn = get_db_connection(connect_timeout=2)
+        except Exception:
+            conn = None
 
         if conn is None:
             return _WORLD_CUP_CACHE_BY_ID, _WORLD_CUP_CACHE_BY_NAME

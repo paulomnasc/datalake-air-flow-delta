@@ -8,36 +8,7 @@ import hashlib
 import random
 from datetime import datetime, timedelta
 
-# Conexão MySQL robusta
-def get_mysql_connection():
-    try:
-        conn = pymysql.connect(
-            host="mysql",
-            port=3306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return conn
-    except Exception:
-        pass
-
-    try:
-        conn = pymysql.connect(
-            host="127.0.0.1",
-            port=23306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return conn
-    except Exception as e:
-        print(f"ERRO CRÍTICO: Não foi possível conectar ao banco MySQL: {e}")
-        sys.exit(1)
+from db_config import get_db_connection as get_mysql_connection
 
 # Gerador determinístico de médias realistas para fallback/mock
 def generate_deterministic_team_stats(team_name, venue_type):

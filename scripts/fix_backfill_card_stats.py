@@ -12,31 +12,7 @@ import requests
 import pymysql
 from datetime import datetime
 
-def get_db_connection():
-    hosts_ports = [
-        ("mysql", 3306),
-        ("127.0.0.1", 23306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-
-    print("❌ Falha ao conectar no MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection
 
 def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     if cursor is not None and fixture_id:

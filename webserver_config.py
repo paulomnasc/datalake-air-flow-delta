@@ -57,8 +57,21 @@ class GroupOwnerSecurityManager(FabAirflowSecurityManagerOverride):
             return emails
             
         try:
-            # String de conexão utilizando as credenciais existentes do .env
-            engine = create_engine("mysql://root:YM11rMrT32xH0E6N@mysql:3306/lista_revisao2")
+            # String de conexão utilizando as credenciais dinâmicas do ambiente / .env
+            db_pwd = os.environ.get("MYSQL_ROOT_PASSWORD")
+            if not db_pwd:
+                env_path = os.path.join(basedir, "src", "footballweb", ".env")
+                if os.path.exists(env_path):
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("database.default.password"):
+                                parts = line.split("=", 1)
+                                if len(parts) == 2:
+                                    db_pwd = parts[1].strip().strip('"').strip("'")
+                                    break
+            db_pwd = db_pwd or ""
+            engine = create_engine(f"mysql://root:{db_pwd}@mysql:3306/lista_revisao2")
             query = text("""
                 SELECT g.email 
                 FROM grupo g

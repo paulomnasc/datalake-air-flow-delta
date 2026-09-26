@@ -200,35 +200,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
     except Exception as err:
         print(f"❌ [E-mail Apostas Cartões] Falha ao enviar e-mail via SMTP: {err}")
 
-def get_db_connection():
-    """
-    Obtém conexão com o MySQL (tenta docker internal 'mysql', 127.0.0.1:23306 e localhost fallback).
-    """
-    hosts_ports = [
-        ("mysql", 3306),
-        ("127.0.0.1", 23306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True,
-                connect_timeout=3
-            )
-            print(f"✅ [DAG Criar Apostas Cartões] Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-
-    print("❌ [ERRO CRÍTICO] Falha ao conectar em qualquer porta do MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection
 
 def get_all_user_ids(cursor):
     """

@@ -572,7 +572,7 @@
           "id": "cbee21f6-5865-4b09-9408-3f3b7c792fd0",
           "comment": "",
           "command": "executeScript",
-          "target": "let el = document.querySelector('.col-md-12 > .form-control'); if(el) { el.value = 'YM11rMrT32xH0E6N'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "target": "let el = document.querySelector('.col-md-12 > .form-control'); if(el) { el.value = 'YOUR_MYSQL_PASSWORD'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
           "targets": [
             [
               "css=.col-md-12 > .form-control",

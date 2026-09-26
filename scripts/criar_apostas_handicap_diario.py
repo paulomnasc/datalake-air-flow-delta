@@ -30,51 +30,7 @@ except Exception:
         return True
 
 
-def get_live_env_vars():
-    env_paths = [
-        "/root/datalake-air-flow-delta/src/footballweb/.env",
-        "/root/datalake-air-flow-delta/.env"
-    ]
-    env_vars = {}
-    for p in env_paths:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_vars[k.strip()] = v.strip().strip("'").strip('"')
-    return env_vars
-
-def get_db_connection():
-    """
-    Obtém conexão com o MySQL (tenta docker internal 'mysql' e localhost fallback).
-    """
-    hosts_ports = [
-        ("mysql", 3306),
-        ("127.0.0.1", 23306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            print(f"✅ [DAG Criar Apostas AH] Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-
-    print("❌ [ERRO CRÍTICO] Falha ao conectar em qualquer porta do MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection, get_live_env_vars
 
 def get_all_user_ids(cursor):
     """

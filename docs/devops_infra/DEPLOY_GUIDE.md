@@ -273,7 +273,7 @@ cp .env-test .env
 # IMPORTANTE: Sufixo para nomes de containers (evita conflito com produção)
 ENV_SUFFIX=test
 
-MYSQL_ROOT_PASSWORD=YM11rMrT32xH0E6N
+MYSQL_ROOT_PASSWORD=<SUA_SENHA_MYSQL>
 MYSQL_DATABASE=lista_revisao2_test
 
 # Portas diferentes de produção (29xxx em vez de 28xxx)
@@ -303,7 +303,7 @@ CI_ENVIRONMENT=development
 
 database.default.hostname=mysql
 database.default.username=root
-database.default.password=YM11rMrT32xH0E6N
+database.default.password=<SUA_SENHA_MYSQL>
 database.default.database=lista_revisao2_test  ← DATABASE DE TESTE
 
 MINIO_BUCKET_RAW=data-lake-raw-test  ← BUCKET DE TESTE
@@ -338,7 +338,7 @@ airflow connections add mysql_dag_metadata \
   --conn-type mysql \
   --conn-host mysql \
   --conn-login root \
-  --conn-password YM11rMrT32xH0E6N \
+  --conn-password <SUA_SENHA_MYSQL> \
   --conn-schema lista_revisao2_test \
   --conn-port 3306
 
@@ -587,7 +587,7 @@ Resumo dos nomes/hosts das instâncias de banco de dados por ambiente. Os servi�
   - Host interno: `mysql`
   - Container: `mysql-test`
   - Database: `lista_revisao2_test`
-  - Usuário/Senha: `root` / `YM11rMrT32xH0E6N`
+  - Usuário/Senha: `root` / `<SUA_SENHA_MYSQL>`
   - Porta externa: 24306 (variável `MYSQL_PORT`)
 
 ### Desenvolvimento (ENV_SUFFIX=dev)
@@ -880,7 +880,7 @@ airflow connections add mysql_dag_metadata \
   --conn-type mysql \
   --conn-host mysql \
   --conn-login root \
-  --conn-password YM11rMrT32xH0E6N \
+  --conn-password <SUA_SENHA_MYSQL> \
   --conn-schema lista_revisao2_test \
   --conn-port 3306
 

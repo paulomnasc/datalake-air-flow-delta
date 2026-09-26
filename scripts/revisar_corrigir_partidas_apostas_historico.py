@@ -22,32 +22,7 @@ from datetime import datetime
 
 API_KEY = os.getenv("API_SPORTS_KEY", "0327019c6fab54df2ea46009b5f0844b")
 
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("localhost", 3306),
-        ("mysql", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-
-    print("❌ Falha ao conectar no MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection
 
 def fetch_fixture_statistics_api(fixture_id):
     """

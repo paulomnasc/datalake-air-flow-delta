@@ -2499,39 +2499,7 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
 
 
 # Conexão MySQL robusta
-def get_mysql_connection():
-    # Tenta conexão pela rede interna do docker
-    try:
-        conn = pymysql.connect(
-            host="mysql",
-            port=3306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        print("Conectado ao MySQL via docker (mysql:3306)")
-        return conn
-    except Exception:
-        pass
-
-    # Tenta conexão localhost (fora do docker / host machine)
-    try:
-        conn = pymysql.connect(
-            host="127.0.0.1",
-            port=23306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        print("Conectado ao MySQL via localhost (127.0.0.1:23306)")
-        return conn
-    except Exception as e:
-        print(f"ERRO CRÍTICO: Não foi possível conectar ao banco MySQL: {e}")
-        sys.exit(1)
+from db_config import get_db_connection as get_mysql_connection
 
 API_SPORTS_TO_ODDS_API_SPORT = {
     71: "soccer_brazil_campeonato",

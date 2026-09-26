@@ -20,30 +20,7 @@ from leagues_config import (
     get_team_pedigree_bonus
 )
 
-def get_db_connection():
-    """
-    Obtém conexão com o MySQL testando rede interna Docker e portas do host.
-    """
-    is_docker = os.path.exists('/.dockerenv')
-    hosts_ports = [("mysql", 3306), ("127.0.0.1", 23306), ("localhost", 3306)] if is_docker else [("127.0.0.1", 23306), ("mysql", 3306), ("localhost", 3306)]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception as e:
-            continue
-    raise RuntimeError("❌ Não foi possível conectar ao MySQL em nenhuma das portas testadas.")
+from db_config import get_db_connection
 
 def sanear_cache_u5j_selecoes():
     """

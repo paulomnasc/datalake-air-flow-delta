@@ -1003,11 +1003,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 </div>
                             `;
                         } else {
+                            const isItemAprovada = (n.tipo === 'APOSTA_CARTAO_APROVADA' || n.tipo === 'APOSTA_CRIADA' || n.tipo === 'NOVA_OPORTUNIDADE_AH' || n.tipo === 'OPORTUNIDADE_AO_VIVO');
+                            const iconHtml = (n.tipo === 'OPORTUNIDADE_AO_VIVO') ? '<i class="bi bi-lightning-charge-fill text-warning me-1"></i>' : (isItemAprovada ? '<i class="bi bi-bullseye text-success me-1"></i>' : '');
+                            const titleColor = isUnread ? (isItemAprovada ? '#4ade80' : '#f87171') : '#f1f5f9';
                             html += `
                                 <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <strong style="font-size: 0.85rem; color: ${isUnread ? '#f87171' : '#f1f5f9'};">
-                                            ${n.titulo}
+                                        <strong style="font-size: 0.85rem; color: ${titleColor};">
+                                            ${iconHtml}${n.titulo}
                                         </strong>
                                         <span class="notif-time">${timeStr}</span>
                                     </div>
@@ -1153,12 +1156,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             tituloEl.textContent = notif.titulo;
             msgEl.textContent = notif.mensagem;
 
-            const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
+            const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA' || notif.tipo === 'NOVA_OPORTUNIDADE_AH' || notif.tipo === 'OPORTUNIDADE_AO_VIVO');
 
             if (badgeEl) {
-                if (isAprovada) {
+                if (notif.tipo === 'OPORTUNIDADE_AO_VIVO') {
+                    badgeEl.className = 'badge bg-warning text-dark d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> ⚡ OPORTUNIDADE AO VIVO (IN-PLAY)';
+                } else if (notif.tipo === 'NOVA_OPORTUNIDADE_AH') {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-bullseye"></i> 🎯 NOVA OPORTUNIDADE (HANDICAP)';
+                } else if (notif.tipo === 'APOSTA_CARTAO_APROVADA') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
+                } else if (isAprovada) {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 APOSTA GERADA (IA)';
                 } else {
                     badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA (ABSTENÇÃO IA)';

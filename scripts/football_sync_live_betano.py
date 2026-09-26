@@ -116,6 +116,23 @@ def main():
     live_events = fetch_betano_live_football_events()
     print(f"✅ Jogos ao vivo recebidos da Betano: {len(live_events)}")
 
+    # Contingência de Placares: se o catálogo da Betano estiver vazio (Cloudflare/403),
+    # sincroniza placares oficiais via API-Sports (1 única chamada para a data de hoje)
+    if not live_events:
+        print("⚠️ Feed ao vivo da Betano inacessível (bloqueio 403 / Cloudflare).")
+        print("🔄 Acionando contingência de sincronização de placares oficiais (sync_pending_past_fixtures)...")
+        try:
+            from football_ingest_trends import sync_pending_past_fixtures
+            api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
+            headers = {
+                "x-apisports-key": api_key,
+                "Content-Type": "application/json"
+            }
+            sync_pending_past_fixtures(conn, headers)
+            print("✅ Placares e status oficiais atualizados com sucesso pela contingência.")
+        except Exception as e_sync:
+            print(f"⚠️ Erro ao acionar contingência de placares: {e_sync}")
+
     jogos_atualizados = 0
     oportunidades_geradas = 0
 

@@ -323,7 +323,10 @@ def fetch_betano_live_football_events() -> list:
                     except ValueError:
                         pass
 
-                if elapsed_min is None:
+                if elapsed_min is not None:
+                    if status_norm == '2H' and elapsed_min <= 45:
+                        elapsed_min = 45 + elapsed_min
+                else:
                     if status_norm == 'HT':
                         elapsed_min = 45
                     elif status_norm == '2H':

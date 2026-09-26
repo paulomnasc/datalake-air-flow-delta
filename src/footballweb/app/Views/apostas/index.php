@@ -1385,17 +1385,6 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
               </div>
               <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
-                <?php 
-                  $bmName = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
-                  $bmUrl  = getBookmakerUrl($bmName);
-                ?>
-                <a href="<?= htmlspecialchars($bmUrl) ?>" target="_blank" rel="noopener noreferrer" 
-                   class="bookmaker-pill-badge" 
-                   title="Odd gerada por <?= htmlspecialchars($bmName) ?>. Clique para abrir o site oficial da casa em nova aba.">
-                  <span class="bm-label">Casa:</span>
-                  <strong class="bm-name"><?= htmlspecialchars($bmName) ?></strong>
-                  <i class="bi bi-box-arrow-up-right"></i>
-                </a>
                 <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
               </div>
             </div>

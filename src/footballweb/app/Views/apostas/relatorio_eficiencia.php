@@ -311,7 +311,7 @@
                         <div class="fs-3 fw-bold text-info mt-1">
                             $ <?= number_format($contaCorrenteStats['saldo_atual'] ?? 0, 2, ',', '.') ?>
                         </div>
-                        <div class="small text-white-50 mt-1"><i class="bi bi-bank me-1"></i> Saldo livre na Betano/Banca</div>
+                        <div class="small text-white-50 mt-1"><i class="bi bi-bank me-1"></i> Saldo livre na Banca</div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">

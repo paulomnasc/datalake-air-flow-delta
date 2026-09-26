@@ -814,14 +814,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         <div id="toast-notificacao-popup" class="toast-popup-card shadow-lg" style="display: none;">
             <div class="toast-popup-header">
                 <span id="toast-notif-badge" class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-                    <i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)
+                    <i class="bi bi-exclamation-triangle-fill"></i> ALERTA (ABSTENÇÃO IA)
                 </span>
                 <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast" aria-label="Close" style="font-size: 0.75rem;"></button>
             </div>
             <div class="toast-popup-body">
                 <h6 id="toast-notif-titulo" class="fw-bold text-warning mb-1" style="font-size: 0.92rem;">⚠️ Aposta Cancelada pela IA</h6>
                 <p id="toast-notif-mensagem" class="text-light mb-3" style="font-size: 0.82rem; line-height: 1.35; color: #cbd5e1 !important;">
-                    O Gatekeeper ativou Abstenção da IA. Se já realizou o bilhete na Betano, efetue o Cash Out imediato!
+                    O Gatekeeper ativou Abstenção da IA. Se já realizou a entrada na casa de aposta, efetue o Cash Out imediato!
                 </p>
                 <div class="d-flex justify-content-between align-items-center gap-2">
                     <a href="#" id="toast-notif-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
@@ -1161,7 +1161,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
                 } else {
                     badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)';
+                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA (ABSTENÇÃO IA)';
                 }
             }
 

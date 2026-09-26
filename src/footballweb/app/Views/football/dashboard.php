@@ -6,59 +6,7 @@ require VIEWPATH.'/header.php';
 
 if (!function_exists('getBookmakerUrl')) {
     function getBookmakerUrl($bmName) {
-        $bm = strtoupper(trim($bmName ?? ''));
-        if (empty($bm)) {
-            return 'https://www.bet365.com/';
-        }
-
-        $urls = [
-            'BET365'       => 'https://www.bet365.com/',
-            'BETANO'       => 'https://br.betano.com/',
-            'SPORTINGBET'  => 'https://www.sportingbet.com/pt-br',
-            'SUPERBET'     => 'https://superbet.com/pt-br/',
-            'KTO'          => 'https://www.kto.com/pt/',
-            'BETFAIR'      => 'https://www.betfair.com/br',
-            'BETNACIONAL'  => 'https://betnacional.com/',
-            'NOVIBET'      => 'https://www.novibet.com.br/',
-            'STAKE'        => 'https://stake.com/',
-            'PARIMATCH'    => 'https://parimatch.com.br/',
-            'PINNACLE'     => 'https://www.pinnacle.com/',
-            'ESTRELA'      => 'https://estrelabet.com/',
-            'RIVALO'       => 'https://www.rivalo.com/pt',
-            '1XBET'        => 'https://1xbet.com/',
-            'GALERA'       => 'https://www.galera.bet/',
-            'BLAZE'        => 'https://blaze.com/',
-            'UNIBET'       => 'https://www.unibet.com/',
-            'CASUMO'       => 'https://www.casumo.com/',
-            'GROSVENOR'    => 'https://www.grosvenorcasinos.com/sport',
-            'LADBROKES'    => 'https://sports.ladbrokes.com/',
-            'BETSSON'      => 'https://www.betsson.com/',
-            'COOLBET'      => 'https://www.coolbet.com/',
-            '888SPORT'     => 'https://www.888sport.com/',
-            'WILLIAM HILL' => 'https://sports.williamhill.com/',
-            'BETWAY'       => 'https://www.betway.com/',
-            'LEOVEGAS'     => 'https://www.leovegas.com/',
-            'PADDY POWER'  => 'https://sports.paddypower.com/',
-            'CORAL'        => 'https://sports.coral.co.uk/',
-            'VIRGIN'       => 'https://www.virginbet.com/',
-            'LIVESCORE'    => 'https://www.livescorebet.com/',
-            'WINAMAX'      => 'https://www.winamax.fr/',
-            'MARATHON'     => 'https://www.marathonbet.com/',
-            'CODERE'       => 'https://www.codere.es/',
-            'BETCLIC'      => 'https://www.betclic.fr/',
-            'MATCHBOOK'    => 'https://www.matchbook.com/',
-            'BETONLINE'    => 'https://www.betonline.ag/',
-            'SMARKETS'     => 'https://smarkets.com/'
-        ];
-        
-        foreach ($urls as $key => $url) {
-            if (strpos($bm, $key) !== false) {
-                return $url;
-            }
-        }
-        
-        $cleanDomain = preg_replace('/[^a-z0-9]/', '', strtolower($bmName));
-        return 'https://www.' . $cleanDomain . '.com/';
+        return '';
     }
 }
 
@@ -1555,11 +1503,13 @@ if (!function_exists('getBetDecisionTree')) {
         z-index: 10;
     }
 
+    .oddspedia-link-box {
+        cursor: default;
+    }
+
     .oddspedia-link-box:hover {
-        background: rgba(255, 255, 255, 0.12) !important;
-        border-color: rgba(255, 255, 255, 0.3) !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        background: rgba(255, 255, 255, 0.06) !important;
+        border-color: rgba(255, 255, 255, 0.14) !important;
     }
 
     .bet-card-header {
@@ -2554,8 +2504,8 @@ if (!function_exists('getBetDecisionTree')) {
             </div>
         </div>
 
-        <!-- Seção de Vídeo em Destaque / Tutorial -->
-        <section class="bet-video-section mb-4 p-3 p-md-4 rounded" style="background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
+        <!-- Seção de Vídeo em Destaque / Tutorial (Oculto) -->
+        <section class="bet-video-section mb-4 p-3 p-md-4 rounded" style="display: none !important; background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <h2 class="mb-0 text-white font-weight-bold d-flex align-items-center gap-2" style="font-size: 1.15rem;">
                     <i class="bi bi-play-circle-fill" style="color: #f47c20; font-size: 1.3rem;"></i> 
@@ -3325,11 +3275,6 @@ if (!function_exists('getBetDecisionTree')) {
                                      <!-- Odds 1X2 & Surebet do Oddspedia -->
                                      <?php if (!empty($fix->odd_home) && !empty($fix->odd_draw) && !empty($fix->odd_away)): ?>
                                          <?php
-                                         $urlHome = getBookmakerUrl($fix->casa_odd_home ?? '');
-                                         $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
-                                         $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
-                                         $oddSourceLabel = !empty($fix->casa_odd_home) ? htmlspecialchars($fix->casa_odd_home) : 'ODDSPEDIA';
-                                         
                                          $oddsUpdatedAtFormatted = 'Atualizado recentemente';
                                          if (!empty($fix->updated_at)) {
                                              try {
@@ -3344,7 +3289,7 @@ if (!function_exists('getBetDecisionTree')) {
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> <?= lang('App.odds_1x2') ?> (<?= $oddSourceLabel ?>)
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> <?= lang('App.odds_1x2') ?>
                                                  </span>
                                                  <div style="display: flex; align-items: center; gap: 8px;">
                                                      <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="<?= lang('App.odds_updated_tooltip') ?>">
@@ -3359,35 +3304,32 @@ if (!function_exists('getBetDecisionTree')) {
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->
-                                                 <a href="<?= $urlHome ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_home_new_tab'), htmlspecialchars($fix->casa_odd_home ?? lang('App.odds_home'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_home') ?> (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #38bdf8;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_home') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_home') ?> (1)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">
                                                          <?= number_format($fix->odd_home, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                                  <!-- Empate X -->
-                                                 <a href="<?= $urlDraw ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_draw_new_tab'), htmlspecialchars($fix->casa_odd_draw ?? lang('App.odds_draw'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_draw') ?> (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #facc15;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_draw') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_draw') ?> (X)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #facc15;">
                                                          <?= number_format($fix->odd_draw, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                                  <!-- Fora 2 -->
-                                         <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_away_new_tab'), htmlspecialchars($fix->casa_odd_away ?? lang('App.odds_away'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_away') ?> (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #f47c20;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_away') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_away') ?> (2)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #f47c20;">
                                                          <?= number_format($fix->odd_away, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                              </div>
                                          </div>
                                      <?php endif; ?>
@@ -3695,7 +3637,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     class="bet-toggle-badge cyan" 
                                                     style="background: rgba(6, 182, 212, 0.16) !important; border: 1px solid rgba(6, 182, 212, 0.5) !important; color: #22d3ee !important; font-weight: 700;" 
                                                     onclick="revalidarOddsEGatekeeper(<?= $fix->fixture_id ?>, this)"
-                                                    title="Consultar odds Betano em tempo real e revalidar Gatekeeper para Handicap e Cartões">
+                                                    title="Consultar odds em tempo real e revalidar Gatekeeper para Handicap e Cartões">
                                                 <i class="bi bi-arrow-repeat me-1 icon-revalidar"></i> Revalidar Odds & IA
                                             </button>
                                         <?php endif; ?>
@@ -3846,16 +3788,16 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                     <?php 
                                                         $auditLinesText = '';
-                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
+                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
                                                             $auditLinesText = trim($mAud[1]);
                                                         }
                                                     ?>
                                                     <div class="ah-lines-audit-widget-<?= $fix->fixture_id ?>" style="<?= empty($auditLinesText) ? 'display: none;' : '' ?> margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 3px solid #f87171; border-radius: 6px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; white-space: pre-line;">
                                                         <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
-                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas na Betano:
+                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas:
                                                         </div>
                                                         <div class="ah-lines-audit-content-<?= $fix->fixture_id ?>">
-                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:\s*/u', '', $auditLinesText)) ?>
+                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*/u', '', $auditLinesText)) ?>
                                                         </div>
                                                     </div>
                                                     <?php if (!empty($ah_block_detail)): ?>

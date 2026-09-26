@@ -72,7 +72,7 @@ return [
     'filter'                => 'Filtrar',
     'clear'                 => 'Limpar',
     'competitions'          => 'Competições',
-    'highlights'            => 'Destaques (Probabilidade 🔥)',
+    'highlights'            => 'AO VIVO 🔥',
     'games_of_the_day'      => 'Jogos do dia',
     'no_games_found'        => 'Nenhum jogo encontrado para este dia ou filtro.',
     'no_matches_date'       => 'Nenhuma partida disponível para esta data',

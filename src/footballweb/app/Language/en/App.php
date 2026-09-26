@@ -72,7 +72,7 @@ return [
     'filter'                => 'Filter',
     'clear'                 => 'Clear',
     'competitions'          => 'Competitions',
-    'highlights'            => 'Highlights (Probability 🔥)',
+    'highlights'            => 'LIVE 🔥',
     'games_of_the_day'      => 'Matches of the Day',
     'no_games_found'        => 'No matches found for this date or filter.',
     'no_matches_date'       => 'No matches available for this date',

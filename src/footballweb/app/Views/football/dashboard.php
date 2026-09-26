@@ -4808,7 +4808,7 @@ if (!function_exists('getBetDecisionTree')) {
             const isDestaque = card.getAttribute('data-is-destaque') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
-            const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0 || isDestaque);
+            const matchTab = (currentTabFilter === 'competicoes' || (isLive && !isFinished));
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
             const matchSafe = (!currentOnlySafeFilter || isSafe);
             const matchSurebet = (!currentOnlySurebetFilter || isSurebet);

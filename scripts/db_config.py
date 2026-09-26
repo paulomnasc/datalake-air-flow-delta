@@ -27,7 +27,8 @@ def get_live_env_vars() -> dict:
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../src/footballweb/.env")),
         "/root/datalake-air-flow-delta/src/footballweb/.env",
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../.env")),
-        "/root/datalake-air-flow-delta/.env"
+        "/root/datalake-air-flow-delta/.env",
+        "/opt/airflow/.env"
     ]
 
     env_vars = {}
@@ -58,6 +59,7 @@ def get_db_credentials():
         or os.environ.get("MYSQL_ROOT_PASSWORD")
         or env.get("database.default.password")
         or env.get("MYSQL_PASSWORD")
+        or env.get("MYSQL_ROOT_PASSWORD")
     )
     database = os.environ.get("MYSQL_DATABASE") or env.get("database.default.database") or "footballweb"
 

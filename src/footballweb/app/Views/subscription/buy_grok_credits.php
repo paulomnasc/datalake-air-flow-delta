@@ -130,18 +130,6 @@ require VIEWPATH . '/header.php';
                         </div>
                     </div>
 
-                    <!-- Botão de Suporte via Chat Tawk.to -->
-                    <div class="p-3 my-3 rounded text-center" style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3);">
-                        <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
-                            <i class="bi bi-chat-dots-fill text-success" style="font-size: 1.3rem;"></i>
-                            <span style="font-weight: 700; color: #10b981; font-size: 0.95rem;">Precisa de ajuda ou ficou com dúvidas na compra?</span>
-                        </div>
-                        <p class="text-muted mb-2" style="font-size: 0.85rem;">Nosso suporte ao vivo pode te auxiliar a concluir seu pagamento agora mesmo.</p>
-                        <button type="button" class="btn btn-sm btn-outline-success font-weight-bold px-3 py-1" onclick="if (typeof Tawk_API !== 'undefined') { Tawk_API.maximize(); } else { alert('O chat ao vivo está carregando, por favor aguarde alguns segundos.'); }" style="border-radius: 20px; font-weight: 700;">
-                            💬 Abrir Chat ao Vivo Tawk.to
-                        </button>
-                    </div>
-
                     <!-- Instruções -->
                     <div class="alert text-start mt-3" role="alert" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #f3f4f6;">
                         <h6 style="font-weight: 700; color: #ffffff; margin-bottom: 10px;">📌 Como funciona a recarga automática?</h6>

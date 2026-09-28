@@ -2322,8 +2322,8 @@ def calculate_asian_handicap_suggestion(
                     f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] Partida {home_team} vs {away_team} -> "
                     f"A linha segura DNB ({fav_team}{t1_str} 0.0 AH) está cotada a apenas @ {dnb_odd:.2f} na Betano, "
                     f"abaixo do piso mínimo aceito de rentabilidade (@ 1.50). "
-                    f"Linhas de handicap negativo no favorito exigem perfil de Super-Favorito Tier 1 (odd <= 1.22) "
-                    f"e as linhas na zebra foram rejeitadas por EV negativo ou gestão de risco. "
+                    f"As linhas de handicap negativo no favorito (-0.25 AH e -0.5 AH) não atingiram os limiares de valor esperado (+EV) ou dominância técnica projetada, "
+                    f"e as linhas na zebra foram rejeitadas por gestão de risco. "
                     f"Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
                 )
             else:

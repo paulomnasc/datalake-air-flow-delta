@@ -97,8 +97,8 @@ def get_league_card_multiplier(league_name="", league_id=None):
             # Ligas Europeias Ocidentais / Centrais Oficiais (Baixo atrito disciplinar)
             if lid in {135, 39, 140, 78, 61, 94, 88, 144, 179, 2, 3, 848}:
                 return 0.82, 1.10
-            # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11)
-            if lid in {71, 72, 73, 128, 13, 11}:
+            # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11), Bolívia (344, 964)
+            if lid in {71, 72, 73, 128, 13, 11, 344, 964}:
                 return 1.18, 1.28
         except (ValueError, TypeError):
             pass
@@ -738,6 +738,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 268: 'Uruguay',
                 265: 'Chile',
                 239: 'Colombia',
+                344: 'Bolivia', 964: 'Bolivia',
                 501: 'Paraguay',
                 262: 'Mexico', 263: 'Mexico',
                 253: 'USA', 772: 'USA',

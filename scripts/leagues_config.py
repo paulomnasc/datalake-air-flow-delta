@@ -50,6 +50,8 @@ ALLOWED_LEAGUES = {
     265: "Primera Division (Chile)",
     267: "Copa Chile (Chile)",
     239: "Primera Division (Colombia)",
+    344: "Primera Division (Bolivia)",
+    964: "Copa de la Division Profesional (Bolivia)",
     ## 501: "Copa Paraguay (Paraguai)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
@@ -99,7 +101,8 @@ ALLOWED_LEAGUE_NAMES = [
     'k league', 'k-league', 'k league 1',
     'veikkausliiga', 'ekstraklasa', 'czech first league',
     'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
+    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional'
 ]
 
 
@@ -319,6 +322,13 @@ TIER_1_ELITE_CLUBS = {
     1176: "Cerro Porteno",
     1179: "Libertad Asuncion",
 
+    # Bolívia (Grandes Históricos)
+    3702: "Bolívar",
+    3711: "The Strongest",
+    3705: "Jorge Wilstermann",
+    3707: "Oriente Petrolero",
+    3701: "Blooming",
+
     # México (Liga MX - Quatro Grandes + Potências e Campeões Internacionais)
     2287: "Club America",
     2279: "Tigres UANL",
@@ -420,6 +430,11 @@ TIER_1_NAME_TO_ID = {
     "dinamarca": 1118, "denmark": 1118,
     "turquia": 777, "turkey": 777,
     "wales": 767, "gales": 767, "pais de gales": 767, "país de gales": 767,
+    # Bolívia
+    "bolivar": 3702, "bolívar": 3702, "club bolivar": 3702,
+    "the strongest": 3711, "strongest": 3711,
+    "jorge wilstermann": 3705, "wilstermann": 3705,
+    "oriente petrolero": 3707, "blooming": 3701,
 }
 
 # Cache em memória para consulta instantânea O(1) de seleções do Mundial

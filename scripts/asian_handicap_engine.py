@@ -1165,10 +1165,11 @@ def evaluate_and_select_best_ah_candidate(
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
                 continue
             if is_tier1_massacre_close_u5j and c_line == 0.0:
-                if c_odd < 1.05 or c_odd > 2.35:
+                # Exige faixa de odd rentável (>= 1.50) e Valor Esperado Positivo canônico (+EV >= 5.0%)
+                if c_odd < 1.50 or c_odd > 2.35:
                     continue
                 required_prob = 55.0
-                required_ev = -35.0  # Prioridade de proteção no DNB de massacre do Tier 1
+                required_ev = 5.0
             else:
                 if c_odd < 1.50 or c_odd > 2.10:
                     continue

@@ -1566,6 +1566,20 @@ if (!function_exists('getBetDecisionTree')) {
         box-shadow: 0 0 14px rgba(0, 230, 118, 0.45);
     }
 
+    .bet-card-playing-card-badge.bet-cancelled {
+        background: rgba(239, 68, 68, 0.12);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+
+    .bet-card-playing-card-badge.bet-cancelled:hover {
+        background: rgba(239, 68, 68, 0.25);
+        color: #ffffff;
+        border-color: #ef4444;
+        transform: translateY(-1px);
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+    }
+
     .bet-card-playing-card-badge.no-bet {
         background: rgba(255, 255, 255, 0.03);
         color: #64748b;
@@ -3006,6 +3020,10 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
 
+                             $isFixtureInUserCancelled = in_array((int)$fix->fixture_id, $userCancelledBetFixtureIds ?? []);
+                             $isFixtureInAnyCancelled  = in_array((int)$fix->fixture_id, $allCancelledBetFixtureIds ?? []);
+                             $hasCancelledAposta = !$hasAposta && ($isFixtureInUserCancelled || $isFixtureInAnyCancelled);
+
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
 
@@ -3049,12 +3067,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?>
                                             </span>
                                             <?php if ($hasAposta): ?>
-                                                <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 
+                                                <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge has-bet" 
-                                                   title="<?= $isFixtureInUserBets ? lang('App.click_to_edit') : lang('App.has_bet') ?>">
+                                                   title="<?= $isFixtureInUserBets ? lang('App.click_to_view') : lang('App.has_bet') ?>">
                                                     <span class="playing-card-symbol">🂠</span>
                                                     <span><?= $isFixtureInUserBets ? lang('App.your_bet') : lang('App.has_bet') ?></span>
                                                 </a>
+                                             <?php elseif (!empty($hasCancelledAposta)): ?>
+                                                 <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id . '&filtro_status=Cancelada') ?>" 
+                                                    class="bet-card-playing-card-badge bet-cancelled" 
+                                                    title="<?= lang('App.cancelled_bet_tooltip') ?>">
+                                                     <span class="playing-card-symbol">🚫</span>
+                                                     <span><?= lang('App.bet_cancelled') ?></span>
+                                                 </a>
                                             <?php else: ?>
                                                 <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge no-bet" 

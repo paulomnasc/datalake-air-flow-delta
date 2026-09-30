@@ -143,8 +143,11 @@ return [
     'your_bet'              => 'Tu Simulación de Apuesta',
     'has_bet'               => 'Con Simulación de Apuesta',
     'no_bet'                => 'Sin Simulación de Apuesta',
+    'bet_cancelled'         => 'Simulación Cancelada',
+    'cancelled_bet_tooltip' => 'Simulación de apuesta cancelada por abstención de la IA o gestión de riesgo. Haz clic para ver.',
     'no_bet_registered'     => 'Sin simulaciones de apuestas registradas',
     'click_to_add'          => 'Haz clic para registrar simulación de apuesta en este partido',
+    'click_to_view'         => 'Haz clic para ver la simulación de apuesta en este partido',
     'click_to_edit'         => 'Haz clic para editar simulación de apuesta',
 
     // Encabezados de Tablas de Probabilidad & Motivación

@@ -336,7 +336,7 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         oa = float(f_row.get('odd_away') or 0.0)
 
         # Análise aprofundada da mudança de odds e impacto econômico/esportivo (Regras 6, 8, 13 e 17)
-        nova_odd_str, nova_odd_curta, diag_curto, expl_dinamica = analisar_mudanca_odd_cancelamento(
+        nova_odd_str, nova_odd_curta, diag_curto, expl_dinamica, nova_odd_val = analisar_mudanca_odd_cancelamento(
             palpite_anterior=palpite_anterior,
             odd_anterior=odd_anterior,
             motivo_calculo=motivo,
@@ -346,6 +346,19 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             home_team=aposta.get('time_casa', ''),
             away_team=aposta.get('time_fora', '')
         )
+
+        # REGRA ESTRUTURAL DE CLV POSITIVO (GANHO DE LINHA):
+        # Se a mesma linha continua presente e a cotação derreteu ou manteve-se
+        # favorável (nova_odd_val <= odd_anterior), o apostador obteve Closing Line Value.
+        # A aposta pendente já contratada é PRESERVADA, pois cancelar destruiria o valor da carteira!
+        is_clv_positivo = (nova_odd_val > 0.0 and nova_odd_val <= odd_anterior)
+        is_away_bet = aposta.get('time_fora', '').lower() in palpite_anterior.lower()
+        team_is_severe_dog = (is_away_bet and oa >= 3.50 and oh <= 1.80) or (not is_away_bet and oh >= 3.50 and oa <= 1.80)
+
+        if is_clv_positivo and not team_is_severe_dog:
+            print(f"🔒 [Aposta Preservada / Ganho de Linha CLV] Partida #{fixture_id} | Aposta #{aposta_id}: "
+                  f"{palpite_anterior} @ {odd_anterior:.2f} mantida (mercado Betano atual @ {nova_odd_val:.2f} com CLV Positivo).")
+            continue
 
         cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', motivo or '')
         didactic = GATEKEEPER_DIDACTIC_MAP.get(cat_desc, '')
@@ -630,7 +643,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
                 is_settled_blindado = has_pending_bet.get('status') in ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')
-                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing or has_pending_bet.get('status') == 'Pendente':
                     status_lbl = "blindada" if is_settled_blindado else "ativa"
                     print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
                     continue

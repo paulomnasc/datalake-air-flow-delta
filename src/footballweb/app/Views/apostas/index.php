@@ -1246,7 +1246,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           $leagueCountry = $aposta->league_country ?? '';
           $leagueFlag    = $aposta->league_flag ?? '';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -2110,9 +2110,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
     
-    // Selecionar data de hoje por padrão, mas com fallback se não houver apostas no dia de hoje
+    // Selecionar data de hoje por padrão, mas apenas se não houver fixture_id ou destaque_id na URL
     const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.get('fixture_id')) {
+    if (!urlParams.get('fixture_id') && !urlParams.get('destaque_id')) {
       setTodayDateFilter();
       const visibleCount = document.querySelectorAll('.bet-card-item[style*="display: flex"]').length;
       const totalCards = document.querySelectorAll('.bet-card-item').length;
@@ -2127,7 +2127,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (newBetModalEl) {
       newBetModalEl.addEventListener('show.bs.modal', function() {
         initFixtureOptions();
-        clearFixtureSelection();
+        if (!urlParams.get('fixture_id')) {
+          clearFixtureSelection();
+        }
         const vInput = document.getElementById('valorInput');
         if (vInput) {
           vInput.value = '<?= $userStakePadraoFmt ?>';
@@ -2563,6 +2565,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   let currentStatusFilter = 'all';
+  let currentFixtureIdFilter = null;
 
   function filterBets(status, btn) {
     if (btn) {
@@ -2570,6 +2573,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       btn.classList.add('active');
     }
     currentStatusFilter = status;
+    currentFixtureIdFilter = null; // Reseta filtro de partida específica ao alternar abas de status
     applyBetFilters();
   }
 
@@ -2690,6 +2694,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   function clearDateFilter() {
+    currentFixtureIdFilter = null;
+    const fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (fixNotice) fixNotice.style.display = 'none';
     setBetDatePreset('all');
   }
 
@@ -2814,6 +2821,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
+    let hiddenByCancelledCount = 0;
 
     const counts = {
       all: 0,
@@ -2889,7 +2897,13 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         futureGamesMatch = (cardGameEpoch > 0 && cardGameEpoch <= nowEpoch);
       }
 
-      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
+      const cardFixtureId = card.getAttribute('data-fixture-id') || '';
+      let fixtureMatch = true;
+      if (currentFixtureIdFilter) {
+        fixtureMatch = (String(cardFixtureId) === String(currentFixtureIdFilter));
+      }
+
+      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -2898,18 +2912,65 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
         card.style.display = 'none';
+        if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && futureGamesMatch && fixtureMatch && !withoutCancelledMatch) {
+          hiddenByCancelledCount++;
+        }
       }
     });
+
+    // Exibe faixa contextual caso esteja filtrando partida específica selecionada no Dashboard
+    let fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (currentFixtureIdFilter) {
+      if (!fixNotice) {
+        fixNotice = document.createElement('div');
+        fixNotice.id = 'fixtureFilterActiveNotice';
+        fixNotice.className = 'alert alert-info py-2 px-3 mb-3 d-flex justify-content-between align-items-center rounded-3 shadow-sm';
+        fixNotice.style.background = 'rgba(14, 165, 233, 0.15)';
+        fixNotice.style.border = '1px solid rgba(14, 165, 233, 0.35)';
+        fixNotice.style.color = '#38bdf8';
+        const container = document.getElementById('betsContainer');
+        if (container && container.parentNode) {
+          container.parentNode.insertBefore(fixNotice, container);
+        }
+      }
+      if (fixNotice) {
+        fixNotice.style.display = 'flex';
+        fixNotice.innerHTML = `
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-funnel-fill"></i>
+            <span>Exibindo bilhete da partida selecionada no Dashboard (ID Partida: <strong>${currentFixtureIdFilter}</strong>)</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-info" onclick="clearFixtureFilter()">
+            <i class="bi bi-x-circle me-1"></i> Ver todas as simulações
+          </button>
+        `;
+      }
+    } else if (fixNotice) {
+      fixNotice.style.display = 'none';
+    }
 
     updateTabBadges(counts);
 
     let emptyNotice = document.getElementById('noFilteredBetsNotice');
     if (visibleCount === 0 && cards.length > 0) {
+      const cancelledNoticeHtml = hiddenByCancelledCount > 0 ? `
+        <div class="mt-3 p-3 rounded-3 text-start mx-auto" style="max-width: 550px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24;">
+          <div class="d-flex align-items-center gap-2 mb-2 fw-bold">
+            <i class="bi bi-info-circle-fill fs-5"></i>
+            <span>Existem ${hiddenByCancelledCount} simulação(ões) cancelada(s) correspondente(s)</span>
+          </div>
+          <p class="small mb-2 text-light-50">Essa(s) aposta(s) foi(ram) cancelada(s) pela gestão de risco da IA ou pelo usuário e está(ão) oculta(s) pelo filtro <strong>"Sem Canceladas"</strong>.</p>
+          <button type="button" class="btn btn-sm btn-warning fw-semibold" onclick="setWithoutCancelledFilter('0', document.querySelector('#withoutCancelledSlideToggle [data-val=\\'0\\']'))">
+            <i class="bi bi-eye me-1"></i> Exibir Simulações Canceladas Agora
+          </button>
+        </div>
+      ` : '';
+
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
         emptyNotice.id = 'noFilteredBetsNotice';
@@ -2920,11 +2981,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           <i class="bi bi-funnel" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
           <h5>Nenhuma aposta encontrada</h5>
           <p>Nenhuma aposta corresponde aos filtros aplicados (Status, Período de datas ou Busca).</p>
-          <button class="btn btn-sm btn-outline-success mt-2" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          ${cancelledNoticeHtml}
+          <div class="mt-3">
+            <button class="btn btn-sm btn-outline-success" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          </div>
         `;
         const container = document.getElementById('betsContainer');
         if (container) container.appendChild(emptyNotice);
       } else {
+        emptyNotice.innerHTML = `
+          <i class="bi bi-funnel" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
+          <h5>Nenhuma aposta encontrada</h5>
+          <p>Nenhuma aposta corresponde aos filtros aplicados (Status, Período de datas ou Busca).</p>
+          ${cancelledNoticeHtml}
+          <div class="mt-3">
+            <button class="btn btn-sm btn-outline-success" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          </div>
+        `;
         emptyNotice.style.display = 'block';
       }
     } else if (emptyNotice) {
@@ -3704,12 +3777,21 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   // Função Global para Destacar Aposta e Ajustar Filtros Automaticamente
-  window.destacarApostaPorId = function(destaqueId, dataJogoSugerida) {
-    if (!destaqueId) return;
+  window.destacarApostaPorId = function(destaqueId, dataJogoSugerida, fixtureId) {
+    if (!destaqueId && !fixtureId) return;
 
     // 1. Localiza a aposta no conjunto carregado
     const userApostas = <?= json_encode($apostas ?? []) ?>;
-    const targetBet = userApostas.find(a => String(a.id) === String(destaqueId));
+    let targetBet = null;
+    if (destaqueId) {
+      targetBet = userApostas.find(a => String(a.id) === String(destaqueId));
+    }
+    if (!targetBet && fixtureId) {
+      targetBet = userApostas.find(a => String(a.fixture_id) === String(fixtureId));
+      if (targetBet) {
+        destaqueId = targetBet.id;
+      }
+    }
 
     // Determina a data do jogo no fuso de Brasília
     let betDate = dataJogoSugerida || null;
@@ -3743,6 +3825,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     document.getElementById('btnFilterAll')?.classList.add('active');
 
     // 4. Garante que apostas canceladas estejam visíveis
+    const isCancelled = targetBet && targetBet.status && targetBet.status.toLowerCase().includes('cancelad');
     currentWithoutCancelledFilter = '0';
     const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
     if (toggleCanceladas) {
@@ -3764,22 +3847,37 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       futureToggle.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
     }
 
-    // 6. Aplica os filtros na grade
+    // 6. Define o filtro da partida específica para isolar o bilhete
+    if (targetBet && targetBet.fixture_id) {
+      currentFixtureIdFilter = targetBet.fixture_id;
+    } else if (fixtureId) {
+      currentFixtureIdFilter = fixtureId;
+    }
+
+    // 7. Aplica os filtros na grade
     if (typeof applyBetFilters === 'function') {
       applyBetFilters();
     }
 
-    // 7. Força visibilidade, rola a tela até o card e aplica o destaque pulsante
+    // 8. Força visibilidade, rola a tela até o card e aplica o destaque pulsante
     setTimeout(function() {
       const cardItem = document.getElementById('aposta-card-' + destaqueId);
       if (cardItem) {
         cardItem.style.display = 'flex';
         cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
         cardItem.classList.add('pulse-highlight');
-        cardItem.style.boxShadow = '0 0 32px rgba(239, 68, 68, 1)';
-        cardItem.style.border = '2px solid #ef4444';
+        cardItem.style.boxShadow = isCancelled ? '0 0 32px rgba(239, 68, 68, 0.9)' : '0 0 28px rgba(0, 230, 118, 0.85)';
+        cardItem.style.border = isCancelled ? '2px solid #ef4444' : '2px solid #00e676';
       }
     }, 350);
+  };
+
+  window.clearFixtureFilter = function() {
+    currentFixtureIdFilter = null;
+    const fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (fixNotice) fixNotice.style.display = 'none';
+    setBetDatePreset('all');
+    applyBetFilters();
   };
 
   window.addEventListener('hashchange', function() {
@@ -3804,10 +3902,33 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const filtroStatus = urlParams.get('filtro_status');
     const dataJogoParam = urlParams.get('data_jogo');
 
-    // Se vier com destaque_id ou filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
+    const userApostas = <?= json_encode($apostas ?? []) ?>;
+
+    // Se fixture_id foi fornecido e NÃO foi explicitamente solicitado cadastrar nova aposta (new_bet=1)
+    if (fixId && !isNewBet) {
+      const existingBet = userApostas.find(a => String(a.fixture_id) === String(fixId));
+      if (existingBet) {
+        const betDate = existingBet.data_brt_dia || (existingBet.data_hora_jogo ? existingBet.data_hora_jogo.substring(0, 10) : dataJogoParam);
+        
+        // Destaca a aposta selecionada a partir do card na listagem
+        window.destacarApostaPorId(existingBet.id, betDate, fixId);
+
+        // Apenas abre o modal de edição se a URL solicitou expressamente action=edit
+        if (actionParam === 'edit') {
+          openEditModal(existingBet);
+        }
+        return;
+      }
+    }
+
+    // Se vier com destaque_id
     if (destaqueId) {
-      window.destacarApostaPorId(destaqueId, dataJogoParam);
-    } else if (filtroStatus === 'Cancelada') {
+      window.destacarApostaPorId(destaqueId, dataJogoParam, fixId);
+      return;
+    }
+
+    // Se vier com filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
+    if (filtroStatus === 'Cancelada') {
       currentWithoutCancelledFilter = '0';
       const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
       if (toggleCanceladas) {
@@ -3817,30 +3938,6 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       }
       if (typeof applyBetFilters === 'function') {
         applyBetFilters();
-      }
-    }
-
-    // Limpa a URL no histórico do navegador após ler os parâmetros para evitar reaberturas acidentais após reloads manuais
-    if (window.history && window.history.replaceState && (fixId || isNewBet)) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    const userApostas = <?= json_encode($apostas ?? []) ?>;
-
-    // Se fixture_id foi fornecido e NÃO foi explicitamente solicitado cadastrar nova aposta (new_bet=1)
-    if (fixId && !isNewBet) {
-      const existingBet = userApostas.find(a => String(a.fixture_id) === String(fixId));
-      if (existingBet) {
-        // Carrega e abre modal de EDIÇÃO com os dados completos salvos da aposta
-        openEditModal(existingBet);
-
-        // Destaca a aposta na listagem
-        const cardItem = document.getElementById('aposta-card-' + existingBet.id);
-        if (cardItem) {
-          cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          cardItem.style.boxShadow = '0 0 20px rgba(0, 230, 118, 0.6)';
-        }
-        return;
       }
     }
 

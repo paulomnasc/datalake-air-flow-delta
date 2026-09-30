@@ -195,5 +195,17 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Toda e qualquer credencial de banco de dados e segredo do sistema deve ser carregada exclusivamente a partir do arquivo canônico de ambiente `src/footballweb/.env` ou variáveis de ambiente do sistema operacional (`os.environ`).
   - Em scripts Python, as rotinas de banco de dados **DEVEM OBRIGATORIAMENTE utilizar o módulo canônico centralizado `scripts/db_config.py`** (`get_db_connection()`), que efetua a leitura dinâmica das credenciais do `.env` com mapeamento ordenado de portas e mecanismo fail-fast caso a credencial esteja ausente.
 
+---
+
+## 19. Autorização Prévia e Explícita Mandatória para Operações de Escrita no Banco de Dados (DML / DDL)
+- O assistente/agente **NUNCA DEVE** executar de forma autônoma comandos SQL de alteração, inserção, exclusão ou estruturais (`UPDATE`, `INSERT`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER TABLE`) diretamente no banco de dados sem autorização prévia e explícita do usuário desenvolvedor.
+- **Fluxo Obrigatório**:
+  1. Identificar e justificar a necessidade da intervenção no banco de dados;
+  2. Apresentar os registros afetados (ex: `fixture_id`, `aposta_id`, valores atuais e novos valores projetados);
+  3. Apresentar a consulta SQL exata ou script que realizará a operação;
+  4. Solicitar e aguardar a confirmação/autorização explícita do usuário antes de disparar o comando.
+- Consultas estritamente somente-leitura (`SELECT`, `SHOW`, `DESCRIBE`) continuam autorizadas para auditoria, inspeção e diagnóstico de causa raiz.
+
+
 
 

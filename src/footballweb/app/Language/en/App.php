@@ -143,8 +143,11 @@ return [
     'your_bet'              => 'Your Bet Simulation',
     'has_bet'               => 'With Bet Simulation',
     'no_bet'                => 'No Bet Simulation',
+    'bet_cancelled'         => 'Cancelled Simulation',
+    'cancelled_bet_tooltip' => 'Bet simulation cancelled by AI abstention or risk management. Click to view.',
     'no_bet_registered'     => 'No bet simulations registered',
     'click_to_add'          => 'Click to register bet simulation for this match',
+    'click_to_view'         => 'Click to view bet simulation for this match',
     'click_to_edit'         => 'Click to edit bet simulation',
 
     // Table Headers for Probability & Motivation

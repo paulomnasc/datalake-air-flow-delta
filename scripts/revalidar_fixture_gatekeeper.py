@@ -13,7 +13,7 @@ import json
 import argparse
 import requests
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Adicionar scripts ao path para importação dos motores
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -269,24 +269,64 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
             """, (enriched_app_r, fixture_id))
     else:
-        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=clean_reason_ah[:250])
-        app_cat_ah = determine_gatekeeper_category('NO_BET', sug_ah, reason_ah)
-        odd_ah = None
-        compound_r_ah = compose_compound_ah_reasoning(
-            cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
-            fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
-        )
-        compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+        # Passa enriched_reason_ah (com audit_bullet) para que o detector de CLV Positivo reconheça a odd atual do mercado
+        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
 
+        # Verifica se a partida possui aposta preservada (CLV Positivo, aposta confirmada ou ativa)
         cursor.execute("""
-            UPDATE fixtures_trends SET
-                ah_suggestion = %s,
-                ah_confidence = %s,
-                gatekeeper_category = %s,
-                ah_reasoning = %s,
-                updated_at = NOW()
+            SELECT id, palpite, odd, odd_justa, probabilidade_poisson, ev_percentual, gatekeeper_category, confirmada, status
+            FROM apostas
             WHERE fixture_id = %s
-        """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
+              AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+              AND status NOT IN ('Não Confirmada', 'Cancelada')
+            ORDER BY (status IN ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')) DESC, confirmada DESC, id DESC
+            LIMIT 1
+        """, (fixture_id,))
+        active_ah_bet = cursor.fetchone()
+
+        if active_ah_bet:
+            status_ah = 'APROVADO'
+            sug_ah = active_ah_bet['palpite']
+            odd_ah = float(active_ah_bet['odd'] or 0.0)
+            conf_ah = float(active_ah_bet.get('probabilidade_poisson') or conf_ah or 70.0)
+            app_cat_ah = active_ah_bet.get('gatekeeper_category') or 'EQUILIBRIO_PURO_DNB'
+            clean_reason_ah = f"Aposta mantida por Closing Line Value (CLV Positivo) - Cotação prévia ({odd_ah:.2f}) preservada."
+            compound_r_ah = compose_compound_ah_reasoning(
+                cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
+                fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
+            )
+            compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    gatekeeper_category = %s,
+                    ah_reasoning = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
+            cursor.execute("""
+                UPDATE apostas SET resultado_detalhado = %s
+                WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+            """, (compound_r_ah, fixture_id))
+        else:
+            app_cat_ah = determine_gatekeeper_category('NO_BET', sug_ah, reason_ah)
+            odd_ah = None
+            compound_r_ah = compose_compound_ah_reasoning(
+                cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
+                fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
+            )
+            compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    gatekeeper_category = %s,
+                    ah_reasoning = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
 
     # 3. Revalidação de Cartões (cards_engine)
     calc_res = compute_fixture_expected_cards(cursor, fix)

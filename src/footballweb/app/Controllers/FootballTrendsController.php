@@ -148,47 +148,68 @@ class FootballTrendsController extends BaseController
         $seo->setFootballTrendsDefaults($targetDate, count($fixtures), $leagues);
 
         // Consulta apostas cadastradas para identificar partidas com palpite/aposta e destaques (Tier 1 Dominante)
-        $userBetFixtureIds  = [];
-        $allBetFixtureIds   = [];
-        $destaqueFixtureIds = [];
+        $userBetFixtureIds          = [];
+        $userCancelledBetFixtureIds = [];
+        $allBetFixtureIds           = [];
+        $allCancelledBetFixtureIds  = [];
+        $destaqueFixtureIds         = [];
         if ($db->tableExists('apostas')) {
             $userId = $_SESSION['id_usuario_logado'] ?? session()->get('id_usuario_logado') ?? null;
             if (!empty($userId)) {
                 $userBets = $db->table('apostas')
-                    ->select('fixture_id')
+                    ->select('fixture_id, status')
                     ->where('usuario_id', $userId)
                     ->where('fixture_id IS NOT NULL')
                     ->get()
                     ->getResultArray();
-                $userBetFixtureIds = array_map('intval', array_column($userBets, 'fixture_id'));
+                foreach ($userBets as $ub) {
+                    $fId = (int)$ub['fixture_id'];
+                    if (strcasecmp($ub['status'] ?? '', 'Cancelada') === 0) {
+                        $userCancelledBetFixtureIds[] = $fId;
+                    } else {
+                        $userBetFixtureIds[] = $fId;
+                    }
+                }
+                $userCancelledBetFixtureIds = array_values(array_diff(array_unique($userCancelledBetFixtureIds), $userBetFixtureIds));
+                $userBetFixtureIds = array_values(array_unique($userBetFixtureIds));
             }
 
             $allBets = $db->table('apostas')
-                ->select('fixture_id, destaque')
+                ->select('fixture_id, destaque, status')
                 ->where('fixture_id IS NOT NULL')
                 ->get()
                 ->getResultArray();
-            $allBetFixtureIds = array_map('intval', array_column($allBets, 'fixture_id'));
             foreach ($allBets as $b) {
+                $fId = (int)$b['fixture_id'];
+                if (strcasecmp($b['status'] ?? '', 'Cancelada') === 0) {
+                    $allCancelledBetFixtureIds[] = $fId;
+                } else {
+                    $allBetFixtureIds[] = $fId;
+                }
                 if (!empty($b['destaque'])) {
-                    $destaqueFixtureIds[] = (int)$b['fixture_id'];
+                    $destaqueFixtureIds[] = $fId;
                 }
             }
+            $allCancelledBetFixtureIds = array_values(array_diff(array_unique($allCancelledBetFixtureIds), $allBetFixtureIds));
+            $allBetFixtureIds = array_values(array_unique($allBetFixtureIds));
+            $destaqueFixtureIds = array_values(array_unique($destaqueFixtureIds));
         }
 
         // Prepara dados para a view
         $data = [
-            'targetDate'         => $targetDate,
-            'startDate'          => $startDate,
-            'endDate'            => $endDate,
-            'userTimezone'       => $userTimezone,
-            'search'             => $search,
-            'showFinished'       => $showFinished,
-            'showPostponed'      => $showPostponed,
-            'onlyResenha'        => $onlyResenha,
-            'userBetFixtureIds'  => $userBetFixtureIds,
-            'allBetFixtureIds'   => $allBetFixtureIds,
-            'destaqueFixtureIds' => $destaqueFixtureIds,
+            'targetDate'                 => $targetDate,
+            'startDate'                  => $startDate,
+            'endDate'                    => $endDate,
+            'userTimezone'               => $userTimezone,
+            'search'                     => $search,
+            'showFinished'               => $showFinished,
+            'showPostponed'              => $showPostponed,
+            'onlyResenha'                => $onlyResenha,
+            'userBetFixtureIds'          => $userBetFixtureIds,
+            'userCancelledBetFixtureIds' => $userCancelledBetFixtureIds,
+            'allBetFixtureIds'           => $allBetFixtureIds,
+            'allCancelledBetFixtureIds'  => $allCancelledBetFixtureIds,
+            'destaqueFixtureIds'         => $destaqueFixtureIds,
             'fixtures'           => $fixtures,
             'leagues'            => $leagues,
             'title'              => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
@@ -590,10 +611,12 @@ class FootballTrendsController extends BaseController
             'targetDate'         => date('Y-m-d', strtotime($fixtureDate)),
             'userTimezone'       => $userTimezone,
             'search'             => "{$homeTeam} {$awayTeam}",
-            'showFinished'       => true,
-            'userBetFixtureIds'  => [],
-            'allBetFixtureIds'   => [],
-            'destaqueFixtureIds' => [],
+            'showFinished'               => true,
+            'userBetFixtureIds'          => [],
+            'userCancelledBetFixtureIds' => [],
+            'allBetFixtureIds'           => [],
+            'allCancelledBetFixtureIds'  => [],
+            'destaqueFixtureIds'         => [],
             'fixtures'           => $fixture ? [$fixture] : [],
             'leagues'            => $fixture ? [$fixture->league_name] : [],
             'title'              => "Estatísticas {$homeTeam} x {$awayTeam} | CristalBet",

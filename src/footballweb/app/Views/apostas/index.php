@@ -1611,6 +1611,69 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 <?php endif; ?>
               </div>
             <?php endif; ?>
+
+            <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+              <!-- Painel Retrátil: Ajustar Linha de Handicap Asiático com Validação Gatekeeper -->
+              <div id="custom-ah-box-<?= $aposta->id ?>" class="custom-ah-panel mb-3" style="display: none; padding: 12px 14px; background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(245, 158, 11, 0.4); border-left: 4px solid #f59e0b; border-radius: 10px; font-size: 0.82rem;">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="fw-bold text-warning d-flex align-items-center gap-1" style="font-size: 0.82rem;">
+                    <i class="bi bi-sliders"></i> Customizar Linha AH (Validação Gatekeeper)
+                  </div>
+                  <button type="button" class="btn-close btn-close-white" style="font-size: 0.65rem;" onclick="toggleCustomAhSection(<?= $aposta->id ?>)"></button>
+                </div>
+                
+                <div class="row g-2 align-items-end">
+                  <div class="col-7 col-sm-6">
+                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-crosshair"></i> Linha AH:</label>
+                    <div class="input-group input-group-sm">
+                      <input type="text" 
+                             id="input-custom-ah-<?= $aposta->id ?>" 
+                             class="form-control form-control-sm bg-dark text-white border-secondary" 
+                             placeholder="Ex: <?= htmlspecialchars($aposta->time_casa) ?> -0.25 AH" 
+                             value="<?= htmlspecialchars($aposta->palpite) ?>"
+                             style="font-size: 0.8rem; font-weight: 600;"
+                             list="ah-suggestions-<?= $aposta->id ?>">
+                      <datalist id="ah-suggestions-<?= $aposta->id ?>">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> -0.5 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> -0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> 0.0 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> +0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> -0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> 0.0 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> +0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> +0.5 AH">
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="col-5 col-sm-3">
+                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-tag"></i> Cotação (Odd):</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-dark border-secondary text-muted" style="font-size: 0.75rem;">@</span>
+                      <input type="number" 
+                             step="0.01" 
+                             min="1.01" 
+                             max="50.00" 
+                             id="input-custom-odd-<?= $aposta->id ?>" 
+                             class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" 
+                             placeholder="Ex: 1.85" 
+                             value="<?= number_format($aposta->odd, 2, '.', '') ?>"
+                             style="font-size: 0.8rem;">
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-3 d-grid">
+                    <button type="button" 
+                            class="btn btn-sm btn-warning fw-bold d-inline-flex align-items-center justify-content-center gap-1 shadow-sm btn-validar-custom-ah" 
+                            style="font-size: 0.75rem; border-radius: 6px; height: 31px;" 
+                            onclick="handleValidarCustomAh(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)">
+                      <i class="bi bi-shield-check"></i> Validar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Feedback da Validação -->
+                <div id="feedback-custom-ah-<?= $aposta->id ?>" class="mt-2" style="display: none;"></div>
+              </div>
+            <?php endif; ?>
           </div>
 
           <div class="bet-card-footer">
@@ -1633,6 +1696,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         onclick="handleChecarOddsAgora(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
                         title="Auditar cotações em tempo real na API Football e recalibrar palpite">
                   <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
+                </button>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-warning fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-custom-ah" 
+                        style="border-radius: 8px; font-size: 0.78rem;" 
+                        onclick="toggleCustomAhSection(<?= $aposta->id ?>)"
+                        title="Informar e validar uma linha alternativa de Handicap Asiático no Gatekeeper">
+                  <i class="bi bi-sliders"></i> Ajustar Linha AH
                 </button>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
@@ -4171,5 +4243,239 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         }
       }
     }
+  }
+
+  // Alternar painel de ajuste de linha AH customizada
+  function toggleCustomAhSection(apostaId) {
+    if (!apostaId) return;
+    const box = document.getElementById('custom-ah-box-' + apostaId);
+    if (!box) return;
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      const input = document.getElementById('input-custom-ah-' + apostaId);
+      if (input) input.focus();
+    }
+  }
+
+  // Validar o par (linha, odd) no Gatekeeper via AJAX
+  function handleValidarCustomAh(apostaId, fixtureId, btnEl) {
+    if (!apostaId || !fixtureId) return;
+    const inputEl = document.getElementById('input-custom-ah-' + apostaId);
+    const oddEl = document.getElementById('input-custom-odd-' + apostaId);
+    const feedbackEl = document.getElementById('feedback-custom-ah-' + apostaId);
+    if (!inputEl || !feedbackEl) return;
+
+    const linhaAh = (inputEl.value || '').trim();
+    const oddVal = oddEl ? (oddEl.value || '').trim() : '';
+
+    if (!linhaAh) {
+      alert('Por favor, informe a linha de Handicap Asiático desejada.');
+      inputEl.focus();
+      return;
+    }
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    const oddDesc = oddVal ? ` @ ${oddVal}` : '';
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = `
+      <div class="alert alert-info py-2 px-3 mb-0 d-flex align-items-center gap-2" style="font-size: 0.78rem; background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #bae6fd;">
+        <span class="spinner-border spinner-border-sm text-info"></span>
+        <span>Avaliando par (${linhaAh}${oddDesc}) no Gatekeeper...</span>
+      </div>
+    `;
+
+    const postParams = {
+      fixture_id: fixtureId,
+      aposta_id: apostaId,
+      linha_ah: linhaAh
+    };
+    if (oddVal && !isNaN(parseFloat(oddVal))) {
+      postParams.odd = parseFloat(oddVal);
+    }
+
+    fetch('<?= base_url('apostas/validar-linha-ah') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams(postParams)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        feedbackEl.innerHTML = `
+          <div class="alert alert-danger py-2 px-3 mb-0" style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.18); border-color: #ef4444; color: #fca5a5;">
+            <strong>Erro na validação:</strong> ${data.message || 'Falha ao consultar servidor.'}
+          </div>
+        `;
+        return;
+      }
+
+      if (data.aprovado) {
+        feedbackEl.innerHTML = `
+          <div class="p-2.5 rounded-2" style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.5); color: #86efac; font-size: 0.78rem;">
+            <div class="d-flex align-items-center justify-content-between mb-1.5 flex-wrap gap-1">
+              <span class="fw-bold text-success" style="font-size: 0.82rem;">
+                <i class="bi bi-shield-check me-1"></i> Par Aprovado no Gatekeeper!
+              </span>
+              <div class="d-flex gap-1">
+                <span class="badge bg-success bg-opacity-75 text-white">Odd: @ ${Number(data.odd).toFixed(2)}</span>
+                <span class="badge bg-primary bg-opacity-75 text-white">EV: +${Number(data.ev_percent).toFixed(1)}%</span>
+                <span class="badge bg-info bg-opacity-75 text-dark">Prob: ${Number(data.prob_efetiva).toFixed(1)}%</span>
+              </div>
+            </div>
+            <p class="mb-2" style="color: #dcfce7; line-height: 1.4;">${data.explicacao}</p>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-1 border-top border-success border-opacity-25">
+              <span class="text-white fw-bold" style="font-size: 0.78rem;">
+                Novo Ganho Potencial: <strong class="text-warning">R$ ${Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',')}</strong>
+              </span>
+              <button type="button" 
+                      class="btn btn-sm btn-success fw-bold px-3 py-1 shadow-sm d-inline-flex align-items-center gap-1" 
+                      style="border-radius: 6px; font-size: 0.78rem;"
+                      onclick="handleSalvarCustomAh(${apostaId}, ${fixtureId}, '${data.linha_oficial}', ${Number(data.odd)}, this)">
+                <i class="bi bi-check-circle-fill"></i> Salvar Aposta com este Par
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        let alternativasHtml = '';
+        if (data.linhas_aprovadas_disponiveis && data.linhas_aprovadas_disponiveis.length > 0) {
+          const badges = data.linhas_aprovadas_disponiveis.map(l => 
+            `<button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 4px;" onclick="document.getElementById('input-custom-ah-${apostaId}').value='${l}'; handleValidarCustomAh(${apostaId}, ${fixtureId}, document.querySelector('#custom-ah-box-${apostaId} .btn-validar-custom-ah'));">${l}</button>`
+          ).join(' ');
+          alternativasHtml = `
+            <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
+              <span class="text-white-50 d-block mb-1">💡 Linhas Aprovadas Disponíveis na Betano:</span>
+              <div class="d-flex flex-wrap gap-1">${badges}</div>
+            </div>
+          `;
+        }
+
+        feedbackEl.innerHTML = `
+          <div class="p-2.5 rounded-2" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; font-size: 0.78rem;">
+            <div class="d-flex align-items-center gap-1.5 fw-bold text-danger mb-1" style="font-size: 0.82rem;">
+              <i class="bi bi-shield-x"></i> Par Reprovado pelo Gatekeeper
+            </div>
+            <p class="mb-1" style="color: #fee2e2; line-height: 1.4;">${data.explicacao}</p>
+            ${alternativasHtml}
+          </div>
+        `;
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      feedbackEl.innerHTML = `
+        <div class="alert alert-danger py-2 px-3 mb-0" style="font-size: 0.78rem;">
+          Falha de conexão com o servidor ao validar linha.
+        </div>
+      `;
+    });
+  }
+
+  // Salvar a linha e odd validadas na aposta
+  function handleSalvarCustomAh(apostaId, fixtureId, linhaValidada, oddValidada, btnEl) {
+    if (!apostaId || !fixtureId || !linhaValidada) return;
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Salvando...';
+    }
+
+    const saveParams = {
+      fixture_id: fixtureId,
+      aposta_id: apostaId,
+      linha_ah: linhaValidada
+    };
+    if (oddValidada && !isNaN(parseFloat(oddValidada))) {
+      saveParams.odd = parseFloat(oddValidada);
+    }
+
+    fetch('<?= base_url('apostas/salvar-linha-ah') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams(saveParams)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        alert(data.message || 'Erro ao salvar aposta.');
+        return;
+      }
+
+      // Atualizar dados visuais no card
+      const cardEl = document.getElementById('aposta-card-' + apostaId);
+      if (cardEl) {
+        const palpiteEl = cardEl.querySelector('.palpite-name');
+        if (palpiteEl && data.palpite_novo) {
+          palpiteEl.textContent = data.palpite_novo;
+          palpiteEl.classList.add('pulse-highlight');
+          setTimeout(() => palpiteEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const oddBadge = cardEl.querySelector('.odd-badge');
+        if (oddBadge && data.odd_nova) {
+          oddBadge.textContent = Number(data.odd_nova).toFixed(2);
+          oddBadge.classList.add('pulse-highlight');
+          setTimeout(() => oddBadge.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const ganhoEl = cardEl.querySelector('.val-amount.primary');
+        if (ganhoEl && data.ganhos_potenciais_novos) {
+          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          ganhoEl.classList.add('pulse-highlight');
+          setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const gkBadge = cardEl.querySelector('.bet-toggle-badge');
+        if (gkBadge) {
+          gkBadge.className = 'bet-toggle-badge green';
+          gkBadge.innerHTML = '<i class="bi bi-shield-check me-1"></i> 🛡️ STATUS GK: APROVADO <i class="bi bi-chevron-down ms-1 icon-arrow"></i>';
+        }
+
+        const customBox = document.getElementById('custom-ah-box-' + apostaId);
+        if (customBox) {
+          customBox.style.display = 'none';
+        }
+      }
+
+      showToastOddsCheck({
+        mudou: true,
+        explicacao_mudanca: data.message || `Aposta atualizada para ${data.palpite_novo} @ ${Number(data.odd_nova).toFixed(2)}!`
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      alert('Erro ao conectar com o servidor para salvar aposta.');
+    });
   }
 </script>

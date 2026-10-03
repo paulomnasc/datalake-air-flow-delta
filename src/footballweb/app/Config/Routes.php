@@ -74,6 +74,8 @@ $routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstenc
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
+$routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', ['as' => 'apostas.validar_linha_ah']);
+$routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
 
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)

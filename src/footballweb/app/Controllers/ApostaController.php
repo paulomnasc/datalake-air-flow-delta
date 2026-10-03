@@ -3222,12 +3222,158 @@ class ApostaController extends BaseController
         $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
-        $result = json_decode($output, true);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd > $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            } else {
+                $result = json_decode($output, true);
+            }
+        }
 
         if (!$result) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Erro ao processar auditoria de odds: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para validar linha customizada de Handicap Asiático informada pelo usuário no Gatekeeper.
+     */
+    public function validarLinhaAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para validar linhas no Gatekeeper.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+        $linhaAh   = $this->request->getPost('linha_ah');
+        $odd       = $this->request->getPost('odd');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+                $linhaAh   = $jsonInput['linha_ah'] ?? '';
+                $odd       = $jsonInput['odd'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId) || empty($linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida e linha de Handicap Asiático são obrigatórios.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --validar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd) && is_numeric($odd)) {
+            $cmd .= " --odd=" . escapeshellarg((float)$odd);
+        }
+        if (!empty($apostaId)) {
+            $apostaId = (int)$apostaId;
+            $cmd .= " --aposta_id={$apostaId}";
+        }
+
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao validar linha de Handicap Asiático: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para salvar linha customizada de Handicap Asiático validada e aprovada pelo Gatekeeper.
+     */
+    public function salvarLinhaAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para salvar a nova linha.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+        $linhaAh   = $this->request->getPost('linha_ah');
+        $odd       = $this->request->getPost('odd');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+                $linhaAh   = $jsonInput['linha_ah'] ?? '';
+                $odd       = $jsonInput['odd'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId) || empty($apostaId) || empty($linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Parâmetros incompletos para salvar a nova linha.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $apostaId  = (int)$apostaId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --aposta_id={$apostaId} --salvar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd) && is_numeric($odd)) {
+            $cmd .= " --odd=" . escapeshellarg((float)$odd);
+        }
+
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao salvar nova linha de Handicap Asiático: ' . $output
             ]);
         }
 

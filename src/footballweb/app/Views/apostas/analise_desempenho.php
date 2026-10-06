@@ -308,6 +308,40 @@
     </div>
   </div>
 
+  <!-- Detailed Table Breakdown (Posicionada abaixo da Curva de Evolução da Banca) -->
+  <div class="table-card mt-4 mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
+        <i class="bi bi-table text-info"></i> Detalhamento por Período
+      </h5>
+      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+        <i class="bi bi-calendar3 me-1 text-warning"></i> Performance Diária & Assertividade
+      </span>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle mb-0" style="font-size: 0.9rem;">
+        <thead>
+          <tr class="text-white-50 border-secondary">
+            <th>Período</th>
+            <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
+            <th class="text-center"><i class="bi bi-check-circle-fill text-success me-1"></i> <?= lang('App.win_rate') ?? 'Taxa de Acerto' ?></th>
+            <th>Simulado Bruto (R$)</th>
+            <th>Retorno Bruto (R$)</th>
+            <th>Lucro Líquido (R$)</th>
+            <th>ROI (%)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBreakdownBody">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
+          </tr>
+        </tbody>
+        <tfoot id="tableBreakdownFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
   <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático) -->
   <div class="chart-card" id="modalitiesComparisonSection">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -629,34 +663,6 @@
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
-
-  <!-- Detailed Table Breakdown -->
-  <div class="table-card">
-    <h5 class="fw-bold mb-3 text-white d-flex align-items-center gap-2">
-      <i class="bi bi-table text-info"></i> Detalhamento por Período
-    </h5>
-    
-    <div class="table-responsive">
-      <table class="table table-dark table-hover align-middle mb-0" style="font-size: 0.9rem;">
-        <thead>
-          <tr class="text-white-50 border-secondary">
-            <th>Período</th>
-            <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
-            <th>Simulado Bruto (R$)</th>
-            <th>Retorno Bruto (R$)</th>
-            <th>Lucro Líquido (R$)</th>
-            <th>ROI (%)</th>
-          </tr>
-        </thead>
-        <tbody id="tableBreakdownBody">
-          <tr>
-            <td colspan="6" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
-          </tr>
-        </tbody>
-        <tfoot id="tableBreakdownFoot"></tfoot>
-      </table>
     </div>
   </div>
 </div>
@@ -2209,7 +2215,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   if (!tbody) return;
 
   if (keys.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum dado encontrado para o período selecionado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum dado encontrado para o período selecionado.</td></tr>';
     if (tfoot) tfoot.innerHTML = '';
     return;
   }
@@ -2223,6 +2229,8 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   let sumApostado = 0;
   let sumRetorno = 0;
   let sumLucro = 0;
+  let sumGanhas = 0;
+  let sumDecided = 0;
 
   const closedKeys = keys.filter(k => {
     const b = buckets[k];
@@ -2247,11 +2255,19 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     const lucroClass = bLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
+    const bWinRate = b.decided > 0 ? (b.ganhas / b.decided) * 100 : 0;
+    const winRateClass = b.decided > 0
+      ? (bWinRate >= 60 ? 'text-success fw-bold' : (bWinRate >= 45 ? 'text-warning fw-bold' : 'text-danger fw-bold'))
+      : 'text-white-50';
+    const winRateText = b.decided > 0 ? `${bWinRate.toFixed(1).replace('.', ',')}%` : '-';
+
     if (!isOpen) {
       sumCount += b.count;
       sumApostado += b.apostado;
       sumRetorno += b.retorno;
       sumLucro += bLucro;
+      sumGanhas += (b.ganhas || 0);
+      sumDecided += (b.decided || 0);
     }
 
     const statusBadge = isOpen
@@ -2265,6 +2281,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       <tr class="${isOpen ? 'bg-opacity-10 bg-warning' : ''}">
         <td class="fw-semibold text-white">${label} ${statusBadge}</td>
         <td class="text-center">${b.count} ${isOpen && b.pendingCount > 0 ? `<small class="text-warning">(${b.pendingCount} pend.)</small>` : ''}</td>
+        <td class="text-center ${winRateClass}">${winRateText}</td>
         <td>${formatBrl(b.apostado)}</td>
         <td>${formatBrl(b.retorno)}</td>
         <td class="${lucroClass}">${formatBrl(bLucro)} ${lucroBadge}</td>
@@ -2287,6 +2304,12 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     const avgLucroClass = avgLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const avgRoiClass = avgRoi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
+    const avgWinRate = sumDecided > 0 ? (sumGanhas / sumDecided) * 100 : 0;
+    const avgWinRateClass = sumDecided > 0
+      ? (avgWinRate >= 60 ? 'text-success fw-bold' : (avgWinRate >= 45 ? 'text-warning fw-bold' : 'text-danger fw-bold'))
+      : 'text-white';
+    const avgWinRateText = sumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
+
     tfoot.innerHTML = `
       <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
         <td class="text-warning fw-bold">
@@ -2294,6 +2317,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
           ${closedKeys.length < keys.length ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} dias fechados • dias em andamento excluídos da média)</div>` : ''}
         </td>
         <td class="text-center text-white">${avgCountStr}</td>
+        <td class="text-center ${avgWinRateClass}">${avgWinRateText}</td>
         <td class="text-white">${formatBrl(avgApostado)}</td>
         <td class="text-white">${formatBrl(avgRetorno)}</td>
         <td class="${avgLucroClass}">${formatBrl(avgLucro)}</td>

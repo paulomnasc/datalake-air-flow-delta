@@ -2293,34 +2293,50 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   tbody.innerHTML = html;
 
   if (tfoot) {
-    const n = closedKeys.length > 0 ? closedKeys.length : keys.length;
-    const avgCount = sumCount / n;
-    const avgApostado = sumApostado / n;
-    const avgRetorno = sumRetorno / n;
-    const avgLucro = sumLucro / n;
-    const avgRoi = avgApostado > 0 ? (avgLucro / avgApostado) * 100 : 0;
+    // Se não houver períodos fechados (ex: filtro apenas do dia de hoje), computa sobre os buckets existentes
+    let finalSumCount = sumCount;
+    let finalSumApostado = sumApostado;
+    let finalSumRetorno = sumRetorno;
+    let finalSumLucro = sumLucro;
+    let finalSumGanhas = sumGanhas;
+    let finalSumDecided = sumDecided;
 
-    const avgCountStr = avgCount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-    const avgLucroClass = avgLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    if (closedKeys.length === 0 && keys.length > 0) {
+      keys.forEach(k => {
+        const b = buckets[k];
+        finalSumCount += b.count;
+        finalSumApostado += b.apostado;
+        finalSumRetorno += b.retorno;
+        finalSumLucro += b.lucro;
+        finalSumGanhas += (b.ganhas || 0);
+        finalSumDecided += (b.decided || 0);
+      });
+    }
+
+    // Percentuais mantidos como média consolidada ponderada
+    const avgRoi = finalSumApostado > 0 ? (finalSumLucro / finalSumApostado) * 100 : 0;
+    const avgWinRate = finalSumDecided > 0 ? (finalSumGanhas / finalSumDecided) * 100 : 0;
+
+    const sumCountStr = finalSumCount.toLocaleString('pt-BR');
+    const lucroClass = finalSumLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const avgRoiClass = avgRoi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
-    const avgWinRate = sumDecided > 0 ? (sumGanhas / sumDecided) * 100 : 0;
-    const avgWinRateClass = sumDecided > 0
+    const avgWinRateClass = finalSumDecided > 0
       ? (avgWinRate >= 60 ? 'text-success fw-bold' : (avgWinRate >= 45 ? 'text-warning fw-bold' : 'text-danger fw-bold'))
       : 'text-white';
-    const avgWinRateText = sumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
+    const avgWinRateText = finalSumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
 
     tfoot.innerHTML = `
       <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
         <td class="text-warning fw-bold">
-          <i class="bi bi-calculator me-1"></i> Média Total Consolidada
-          ${closedKeys.length < keys.length ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} dias fechados • dias em andamento excluídos da média)</div>` : ''}
+          <i class="bi bi-calculator me-1"></i> Total Consolidado
+          ${closedKeys.length < keys.length && closedKeys.length > 0 ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} períodos fechados • em andamento excluídos do total)</div>` : ''}
         </td>
-        <td class="text-center text-white">${avgCountStr}</td>
+        <td class="text-center text-white">${sumCountStr}</td>
         <td class="text-center ${avgWinRateClass}">${avgWinRateText}</td>
-        <td class="text-white">${formatBrl(avgApostado)}</td>
-        <td class="text-white">${formatBrl(avgRetorno)}</td>
-        <td class="${avgLucroClass}">${formatBrl(avgLucro)}</td>
+        <td class="text-white">${formatBrl(finalSumApostado)}</td>
+        <td class="text-white">${formatBrl(finalSumRetorno)}</td>
+        <td class="${lucroClass}">${formatBrl(finalSumLucro)}</td>
         <td class="${avgRoiClass}">${(avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',')}%</td>
       </tr>
     `;

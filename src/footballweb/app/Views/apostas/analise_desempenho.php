@@ -314,9 +314,14 @@
       <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
         <i class="bi bi-table text-info"></i> Detalhamento por Período
       </h5>
-      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
-        <i class="bi bi-calendar3 me-1 text-warning"></i> Performance Diária & Assertividade
-      </span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 d-flex align-items-center gap-1.5" id="btnExportBreakdownCsv" onclick="exportBreakdownCsv()" title="Exportar tabela de detalhamento em CSV">
+          <i class="bi bi-download"></i> Exportar .CSV
+        </button>
+        <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+          <i class="bi bi-calendar3 me-1 text-warning"></i> Performance Diária & Assertividade
+        </span>
+      </div>
     </div>
     
     <div class="table-responsive">
@@ -1229,6 +1234,8 @@ function updatePerformanceDashboard() {
         hasPending: false,
         isToday: (rawDate === todayStr),
         ganhas: 0,
+        perdidas: 0,
+        anuladas: 0,
         decided: 0
       };
     }
@@ -1249,12 +1256,17 @@ function updatePerformanceDashboard() {
       buckets[key].decided += 1;
     } else if (status === 'Meio Perdida') {
       buckets[key].ganhas += 0.25;
+      buckets[key].perdidas += 0.75;
       buckets[key].decided += 1;
     } else if (status === 'Perdida') {
+      buckets[key].perdidas += 1.0;
       buckets[key].decided += 1;
     } else if (status === 'Cashout') {
       if (netProfit > 0) buckets[key].ganhas += 1.0;
+      else if (netProfit < 0) buckets[key].perdidas += 1.0;
       buckets[key].decided += 1;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      buckets[key].anuladas += 1;
     }
 
     let modKey = 'outros';
@@ -2209,7 +2221,10 @@ function renderLeagueTableBreakdown(keys, buckets, outlierCount = 0, minThreshol
   tbody.innerHTML = html;
 }
 
+let currentTableBreakdownData = { keys: [], buckets: {}, groupMode: 'dia' };
+
 function renderTableBreakdown(keys, buckets, groupMode) {
+  currentTableBreakdownData = { keys, buckets, groupMode };
   const tbody = document.getElementById('tableBreakdownBody');
   const tfoot = document.getElementById('tableBreakdownFoot');
   if (!tbody) return;
@@ -2341,6 +2356,163 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       </tr>
     `;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exportação da Tabela Detalhamento por Período para CSV
+// ─────────────────────────────────────────────────────────────────────────────
+function exportBreakdownCsv() {
+  if (!currentTableBreakdownData || !currentTableBreakdownData.keys || currentTableBreakdownData.keys.length === 0) {
+    alert('Não há dados disponíveis para exportação no período selecionado.');
+    return;
+  }
+
+  const { keys, buckets, groupMode } = currentTableBreakdownData;
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+
+  const headers = [
+    'Período',
+    'Qtd Apostas',
+    'Qtd Ganhas',
+    'Qtd Perdidas',
+    'Qtd Anuladas',
+    'Taxa de Acerto (%)',
+    'Simulado Bruto (R$)',
+    'Retorno Bruto (R$)',
+    'Lucro Líquido (R$)',
+    'ROI (%)'
+  ];
+
+  const rows = [];
+  let sumCount = 0;
+  let sumApostado = 0.0;
+  let sumRetorno = 0.0;
+  let sumLucro = 0.0;
+  let sumGanhas = 0.0;
+  let sumPerdidas = 0.0;
+  let sumAnuladas = 0;
+  let sumDecided = 0;
+
+  const closedKeys = keys.filter(k => {
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+    return !isOpen;
+  });
+
+  keys.forEach(k => {
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+    let label = k;
+    if (groupMode === 'dia' && k.length === 10) {
+      const parts = k.split('-');
+      label = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'mes' && k.length === 7) {
+      const parts = k.split('-');
+      label = `${parts[1]}/${parts[0]}`;
+    }
+
+    if (isOpen) {
+      label += ' (Em Andamento)';
+    }
+
+    const bLucro = b.lucro || 0.0;
+    const roi = (b.apostado && b.apostado > 0) ? (bLucro / b.apostado) * 100 : 0.0;
+    const bWinRate = (b.decided && b.decided > 0) ? ((b.ganhas || 0) / b.decided) * 100 : 0.0;
+
+    if (!isOpen) {
+      sumCount += (b.count || 0);
+      sumApostado += (b.apostado || 0.0);
+      sumRetorno += (b.retorno || 0.0);
+      sumLucro += bLucro;
+      sumGanhas += (b.ganhas || 0.0);
+      sumPerdidas += (b.perdidas || 0.0);
+      sumAnuladas += (b.anuladas || 0);
+      sumDecided += (b.decided || 0);
+    }
+
+    const countStr = (isOpen && b.pendingCount > 0) ? `${b.count} (${b.pendingCount} pend.)` : `${b.count}`;
+    const winRateStr = (b.decided && b.decided > 0) ? `${bWinRate.toFixed(1).replace('.', ',')}%` : '-';
+
+    rows.push([
+      label,
+      countStr,
+      Number((b.ganhas || 0).toFixed(2)).toString().replace('.', ','),
+      Number((b.perdidas || 0).toFixed(2)).toString().replace('.', ','),
+      (b.anuladas || 0).toString(),
+      winRateStr,
+      (b.apostado || 0.0).toFixed(2).replace('.', ','),
+      (b.retorno || 0.0).toFixed(2).replace('.', ','),
+      bLucro.toFixed(2).replace('.', ','),
+      ((roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',') + '%')
+    ]);
+  });
+
+  // Linha de Total Consolidado
+  let finalSumCount = sumCount;
+  let finalSumApostado = sumApostado;
+  let finalSumRetorno = sumRetorno;
+  let finalSumLucro = sumLucro;
+  let finalSumGanhas = sumGanhas;
+  let finalSumPerdidas = sumPerdidas;
+  let finalSumAnuladas = sumAnuladas;
+  let finalSumDecided = sumDecided;
+
+  if (closedKeys.length === 0 && keys.length > 0) {
+    keys.forEach(k => {
+      const b = buckets[k];
+      finalSumCount += (b.count || 0);
+      finalSumApostado += (b.apostado || 0.0);
+      finalSumRetorno += (b.retorno || 0.0);
+      finalSumLucro += (b.lucro || 0.0);
+      finalSumGanhas += (b.ganhas || 0.0);
+      finalSumPerdidas += (b.perdidas || 0.0);
+      finalSumAnuladas += (b.anuladas || 0);
+      finalSumDecided += (b.decided || 0);
+    });
+  }
+
+  const avgRoi = finalSumApostado > 0 ? (finalSumLucro / finalSumApostado) * 100 : 0.0;
+  const avgWinRate = finalSumDecided > 0 ? (finalSumGanhas / finalSumDecided) * 100 : 0.0;
+  const avgWinRateStr = finalSumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
+
+  rows.push([
+    'Total Consolidado',
+    finalSumCount.toString(),
+    Number(finalSumGanhas.toFixed(2)).toString().replace('.', ','),
+    Number(finalSumPerdidas.toFixed(2)).toString().replace('.', ','),
+    finalSumAnuladas.toString(),
+    avgWinRateStr,
+    finalSumApostado.toFixed(2).replace('.', ','),
+    finalSumRetorno.toFixed(2).replace('.', ','),
+    finalSumLucro.toFixed(2).replace('.', ','),
+    ((avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',') + '%')
+  ]);
+
+  const escapeCsv = (val) => {
+    const str = String(val ?? '');
+    if (str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  // Prefixo BOM (\uFEFF) para compatibilidade nativa com o Excel reconhecer UTF-8
+  const csvContent = '\uFEFF' + [
+    headers.map(escapeCsv).join(';'),
+    ...rows.map(r => r.map(escapeCsv).join(';'))
+  ].join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fileDate = todayStr || new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `detalhamento_desempenho_${fileDate}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

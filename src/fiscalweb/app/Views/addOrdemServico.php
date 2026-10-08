@@ -44,6 +44,11 @@ require VIEWPATH.'/header.php';
                 <input type="text" id="nup_sei" name="nup_sei" required>
             </div>
 
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="descricao">Descrição: <span style="color: red;">*</span></label>
+                <input type="text" id="descricao" name="descricao" maxlength="255" required placeholder="Informe a descrição da ordem de serviço (até 255 caracteres)" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+
             <div class="form-group">
                 <label for="Data_Emissao">DataEmissao:</label>
                 <input type="datetime-local" id="Data_Emissao" name="Data_Emissao" required>

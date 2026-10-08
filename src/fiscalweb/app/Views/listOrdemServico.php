@@ -34,7 +34,7 @@ require VIEWPATH.'/header.php';
                     <th>ID</th>
                     <th>Contrato</th>
                     <th>Sistema</th>
-                    <th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Valor Total (R$)</th><th>Status</th>
+                    <th>NupSei</th><th>Descrição</th><th>Valor Total (R$)</th><th>Status</th>
                     <th>Clone</th>
                     <th>Ações</th>
                 </tr>
@@ -45,7 +45,7 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
                     <td> <?php echo esc($item->Nome_Sistema ?? 'Nenhum') ?> </td>
-                    <td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
+                    <td> <?php echo $item->nup_sei ?> </td><td> <?php echo esc($item->descricao ?? '') ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
                     <td>
                         <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post">
                             <button class="clone-button" type="submit" title="Clonar (Duplicar como Rascunho)">📋</button>
@@ -60,13 +60,13 @@ require VIEWPATH.'/header.php';
                             <form id="deleteForm-<?php echo $item->id; ?>">
                                 <?php 
                                     $statusNorm = strtolower(trim($item->status ?? 'Rascunho'));
-                                    $canDelete = in_array($statusNorm, ['rascunho', 'aguardando assinatura'], true);
+                                    $canDelete = in_array($statusNorm, ['rascunho', 'cancelada'], true);
                                 ?>
                                 <button class="delete-button" type="button" 
                                     <?php if ($canDelete): ?>
                                         onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteOrdemServico/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')"
                                     <?php else: ?>
-                                        disabled title="Apenas OS nos status Rascunho ou Aguardando assinatura podem ser excluídas" style="opacity: 0.4; cursor: not-allowed;"
+                                        disabled title="Apenas OS nos status Rascunho ou Cancelada podem ser excluídas" style="opacity: 0.4; cursor: not-allowed;"
                                     <?php endif; ?>>🗑️</button>
                             </form>
                         </div>

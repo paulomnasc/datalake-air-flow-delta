@@ -228,9 +228,24 @@ class OrdemServicoController extends BaseController
             $status = 'Aguardando assinatura';
         }
 
+        $descricao = trim($this->post('descricao') ?? '');
+        if (empty($descricao)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição da ordem de serviço é obrigatória.'
+            ]);
+        }
+        if (mb_strlen($descricao) > 255) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição não pode ultrapassar 255 caracteres.'
+            ]);
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
+            'descricao' => $descricao,
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
@@ -405,9 +420,24 @@ class OrdemServicoController extends BaseController
             ]);
         }
 
+        $descricao = trim($this->post('descricao') ?? '');
+        if (empty($descricao)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição da ordem de serviço é obrigatória.'
+            ]);
+        }
+        if (mb_strlen($descricao) > 255) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição não pode ultrapassar 255 caracteres.'
+            ]);
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
+            'descricao' => $descricao,
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
@@ -561,11 +591,11 @@ class OrdemServicoController extends BaseController
         }
 
         $status = strtolower(trim($record->status ?? $record->Status ?? 'Rascunho'));
-        $allowedDeleteStatus = ['rascunho', 'aguardando assinatura'];
+        $allowedDeleteStatus = ['rascunho', 'cancelada'];
         if (!in_array($status, $allowedDeleteStatus, true)) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Apenas Ordens de Serviço com status "Rascunho" ou "Aguardando assinatura" podem ser excluídas.'
+                'mensagem' => 'Apenas Ordens de Serviço com status "Rascunho" ou "Cancelada" podem ser excluídas.'
             ]);
         }
 
@@ -639,6 +669,7 @@ class OrdemServicoController extends BaseController
             $data = [
                 'horas_alocadas'         => $record->horas_alocadas ?? $record->Horas_Alocadas ?? null,
                 'nup_sei'                => $record->nup_sei ?? $record->Nup_Sei ?? null,
+                'descricao'              => $record->descricao ?? $record->Descricao ?? '',
                 'data_emissao'           => $record->data_emissao ?? $record->Data_Emissao ?? date('Y-m-d H:i:s'),
                 'data_aceite'            => $record->data_aceite ?? $record->Data_Aceite ?? null,
                 'realizada_estimativa'   => $record->realizada_estimativa ?? $record->Realizada_Estimativa ?? null,

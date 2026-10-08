@@ -40,6 +40,22 @@ class OrdemServicoController extends BaseController
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
+
+        $allowedManualTransitions = [
+            'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
+            'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
+            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
+            'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
+            'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],
+            'Liberado para faturamento' => ['Liberado para faturamento', 'Concluido'],
+            'Recebido definitivo' => ['Recebido definitivo', 'Concluido'],
+            'Concluido' => ['Concluido'],
+            'Cancelada' => ['Cancelada']
+        ];
+        $currentStatus = $record->status ?? 'Rascunho';
+        $data['allowedTransitions'] = $allowedManualTransitions[$currentStatus] ?? [$currentStatus];
         
         // Buscar itens existentes
         $db = \Config\Database::connect();
@@ -406,9 +422,13 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução', 'Cancelada'],
-            'Recebido Provisorio' => ['Recebido Provisorio'],
-            'Recebido definitivo' => ['Recebido definitivo'],
+            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
+            'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
+            'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],
+            'Liberado para faturamento' => ['Liberado para faturamento', 'Concluido'],
+            'Recebido definitivo' => ['Recebido definitivo', 'Concluido'],
             'Concluido' => ['Concluido'],
             'Cancelada' => ['Cancelada']
         ];

@@ -69,16 +69,15 @@ require VIEWPATH.'/header.php';
                 <label for="status">Status:</label>
                 <?php 
                 $currentStatus = isset($record->status) ? $record->status : 'Rascunho';
-                if ($currentStatus === 'Aguardando assinatura'): 
+                $transitions = isset($allowedTransitions) && is_array($allowedTransitions) ? $allowedTransitions : [$currentStatus];
+                if (count($transitions) > 1 && !in_array($currentStatus, ['Concluido', 'Cancelada'], true)): 
                 ?>
                     <select id="status" name="status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
-                        <option value="Aguardando assinatura" selected>Aguardando assinatura</option>
-                        <option value="Execução">Execução</option>
-                    </select>
-                <?php elseif ($currentStatus === 'Execução'): ?>
-                    <select id="status" name="status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
-                        <option value="Execução" selected>Execução</option>
-                        <option value="Cancelada">Cancelada</option>
+                        <?php foreach($transitions as $stOption): ?>
+                            <option value="<?php echo esc($stOption); ?>" <?php echo ($currentStatus === $stOption) ? 'selected' : ''; ?>>
+                                <?php echo esc($stOption); ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 <?php else: ?>
                     <input type="text" id="status_display" value="<?php echo htmlspecialchars($currentStatus); ?>" readonly disabled style="width: 100%; padding: 8px; background-color: #e9ecef; border: 1px solid #ddd; border-radius: 4px;">

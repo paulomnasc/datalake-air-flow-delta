@@ -308,7 +308,18 @@
 
 <?php
 // Group OS by status
-$statuses = ['Rascunho', 'Aguardando assinatura', 'Execução', 'Recebido Provisorio', 'Recebido definitivo', 'Concluido'];
+$statuses = [
+    'Rascunho',
+    'Aguardando assinatura',
+    'Execução',
+    'Recebido Provisorio',
+    'Em aferição metrica',
+    'Em divergência metrica',
+    'Parecer conformidade metrica',
+    'Liberado para faturamento',
+    'Recebido definitivo',
+    'Concluido'
+];
 $osGroups = [];
 foreach ($statuses as $st) {
     $osGroups[$st] = [];

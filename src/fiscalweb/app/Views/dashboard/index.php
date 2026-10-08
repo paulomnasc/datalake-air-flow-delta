@@ -193,7 +193,9 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     if (isset($list) && is_array($list)) {
                         foreach ($list as $item) {
                             $st = $item->status ?? 'Rascunho';
-                            if (in_array($st, $statuses)) {
+                            if ($st === 'Cancelada') {
+                                $osGroups['Concluido'][] = $item;
+                            } elseif (in_array($st, $statuses)) {
                                 $osGroups[$st][] = $item;
                             } else {
                                 $osGroups['Rascunho'][] = $item;

@@ -47,7 +47,7 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo esc($item->Nome_Sistema ?? 'Nenhum') ?> </td>
                     <td> <?php echo $item->nup_sei ?> </td><td> <?php echo esc($item->descricao ?? '') ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
                     <td>
-                        <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post">
+                        <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post" onsubmit="return confirm('Deseja realmente clonar esta Ordem de Serviço (#<?php echo $item->id; ?>)?');">
                             <button class="clone-button" type="submit" title="Clonar (Duplicar como Rascunho)">📋</button>
                         </form>
                     </td>

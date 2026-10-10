@@ -933,15 +933,25 @@ class ApostaController extends BaseController
                 ]);
             }
 
-            // Credita o retorno na Conta Corrente caso a aposta tenha sido resolvida/ganha/cashout
+            // Credita o retorno na Conta Corrente apenas se a aposta estiver confirmada e com débito prévio registrado
             if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
-                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
-                $this->contaCorrenteModel->creditarRetornoAposta(
-                    (int)$aposta->usuario_id,
-                    $apostaId,
-                    (float)$retorno,
-                    "Retorno Aposta #{$apostaId} ({$status})"
-                );
+                $isConfirmada = (isset($aposta->confirmada) && (int)$aposta->confirmada === 1);
+                $db = \Config\Database::connect();
+                $temDebito = $db->table('conta_corrente')
+                    ->where('usuario_id', (int)$aposta->usuario_id)
+                    ->where('aposta_id', $apostaId)
+                    ->where('tipo', 'DEBITO_APOSTA')
+                    ->countAllResults() > 0;
+
+                if ($isConfirmada && $temDebito) {
+                    $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                    $this->contaCorrenteModel->creditarRetornoAposta(
+                        (int)$aposta->usuario_id,
+                        $apostaId,
+                        (float)$retorno,
+                        "Retorno Aposta #{$apostaId} ({$status})"
+                    );
+                }
             }
 
             return $this->response->setJSON([
@@ -993,13 +1003,23 @@ class ApostaController extends BaseController
             'updated_at' => date('Y-m-d H:i:s')
         ]);
 
-        // Credita valor do cashout na Conta Corrente
-        $this->contaCorrenteModel->creditarRetornoAposta(
-            (int)$aposta->usuario_id,
-            $apostaId,
-            (float)$valorCashout,
-            "Cashout Aposta #{$apostaId}"
-        );
+        // Credita valor do cashout na Conta Corrente apenas se a aposta foi confirmada e debitada
+        $isConfirmada = (isset($aposta->confirmada) && (int)$aposta->confirmada === 1);
+        $db = \Config\Database::connect();
+        $temDebito = $db->table('conta_corrente')
+            ->where('usuario_id', (int)$aposta->usuario_id)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->countAllResults() > 0;
+
+        if ($isConfirmada && $temDebito) {
+            $this->contaCorrenteModel->creditarRetornoAposta(
+                (int)$aposta->usuario_id,
+                $apostaId,
+                (float)$valorCashout,
+                "Cashout Aposta #{$apostaId}"
+            );
+        }
 
         return $this->response->setJSON([
             'success' => true,

@@ -1684,7 +1684,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                     <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
                   </button>
                 <?php else: ?>
-                  <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                  <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)">
                     <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
                   </button>
                 <?php endif; ?>
@@ -2059,6 +2059,20 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           </div>
         </div>
 
+        <div class="p-3 mb-3 rounded-3" style="background: rgba(14, 165, 233, 0.05); border: 1px solid rgba(14, 165, 233, 0.2);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label for="confirmBetOddInput" class="text-info small fw-bold mb-0">
+              <i class="bi bi-tag-fill me-1"></i> Cotação / Odd Real (Stake):
+            </label>
+            <div style="width: 110px;">
+              <input type="number" step="0.01" min="1.01" max="100.00" id="confirmBetOddInput" class="form-control form-control-sm text-end font-monospace fw-bold bg-dark text-warning border-secondary" placeholder="1.80">
+            </div>
+          </div>
+          <small class="text-muted" style="font-size: 0.78rem;">
+            Ajuste caso a odd na Stake tenha oscilado. O retorno potencial será recalculado.
+          </small>
+        </div>
+
         <div class="p-3 rounded-3" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
           <div class="d-flex justify-content-between mb-2">
             <span class="text-light-50 small"><?= lang('App.current_balance') ?>:</span>
@@ -2072,11 +2086,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
         <div id="confirmBetAlert" style="display: none;"></div>
       </div>
-      <div class="modal-footer border-top border-secondary">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
-        <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
-          <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+      <div class="modal-footer border-top border-secondary d-flex justify-content-between align-items-center">
+        <button type="button" class="btn btn-outline-danger fw-semibold btn-sm d-flex align-items-center gap-1 shadow-sm" id="btnDiscardUnavailableBet" onclick="executeDiscardUnavailableBet()" title="Descarta a aposta sem debitar nada caso a linha não esteja disponível na Stake">
+          <i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake
         </button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+          <button type="button" class="btn btn-success fw-bold px-3 btn-sm shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
+            <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -3520,16 +3539,26 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
   let currentBetToConfirm = null;
 
-  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta) {
-    currentBetToConfirm = { id: apostaId, timeCasa, timeFora, mercado, palpite, valor: parseFloat(valorAposta) || 0 };
+  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta, oddAposta) {
+    currentBetToConfirm = { 
+      id: apostaId, 
+      timeCasa, 
+      timeFora, 
+      mercado, 
+      palpite, 
+      valor: parseFloat(valorAposta) || 0,
+      odd: parseFloat(oddAposta) || 0
+    };
     
     const matchNameEl = document.getElementById('confirmBetMatchName');
     const pickInfoEl = document.getElementById('confirmBetPickInfo');
     const betAmountEl = document.getElementById('confirmBetAmount');
+    const oddInputEl = document.getElementById('confirmBetOddInput');
     
     if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
     if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
     if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    if (oddInputEl) oddInputEl.value = currentBetToConfirm.odd > 0 ? currentBetToConfirm.odd.toFixed(2) : '';
     
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
@@ -3548,8 +3577,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     
     const alertEl = document.getElementById('confirmBetAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBet');
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
     
-    if (btnExec) btnExec.disabled = false;
+    if (btnExec) {
+      btnExec.disabled = false;
+      btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
+    }
+    if (btnDiscard) {
+      btnDiscard.disabled = false;
+      btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+    }
     
     if (proj < 0) {
       if (projBalEl) {
@@ -3577,14 +3614,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (!currentBetToConfirm || !currentBetToConfirm.id) return;
     
     const btnExec = document.getElementById('btnExecuteConfirmBet');
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
     if (btnExec) {
       btnExec.disabled = true;
       btnExec.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Debitando...';
     }
+    if (btnDiscard) btnDiscard.disabled = true;
+
+    const formData = new FormData();
+    const oddInputEl = document.getElementById('confirmBetOddInput');
+    if (oddInputEl && oddInputEl.value) {
+      formData.append('odd', oddInputEl.value);
+    }
     
     fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData
     })
     .then(r => r.json())
     .then(data => {
@@ -3594,8 +3640,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       } else {
         if (btnExec) {
           btnExec.disabled = false;
-          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
         }
+        if (btnDiscard) btnDiscard.disabled = false;
         alert('❌ ' + data.message);
       }
     })
@@ -3603,9 +3650,54 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       console.error(err);
       if (btnExec) {
         btnExec.disabled = false;
-        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
       }
+      if (btnDiscard) btnDiscard.disabled = false;
       alert('Erro na confirmação da aposta.');
+    });
+  }
+
+  function executeDiscardUnavailableBet() {
+    if (!currentBetToConfirm || !currentBetToConfirm.id) return;
+
+    if (!confirm('Deseja realmente cancelar esta aposta por indisponibilidade na Stake?\nNenhum valor será debitado da sua conta corrente.')) {
+      return;
+    }
+
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    if (btnDiscard) {
+      btnDiscard.disabled = true;
+      btnDiscard.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Descartando...';
+    }
+    if (btnExec) btnExec.disabled = true;
+
+    fetch('/apostas/cancelar-indisponivel/' + currentBetToConfirm.id, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('🗑️ ' + data.message);
+        window.location.reload();
+      } else {
+        if (btnDiscard) {
+          btnDiscard.disabled = false;
+          btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+        }
+        if (btnExec) btnExec.disabled = false;
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnDiscard) {
+        btnDiscard.disabled = false;
+        btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+      }
+      if (btnExec) btnExec.disabled = false;
+      alert('Erro ao descartar aposta.');
     });
   }
 

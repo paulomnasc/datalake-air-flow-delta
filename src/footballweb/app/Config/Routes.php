@@ -62,6 +62,8 @@ $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apo
 $routes->post('/apostas/confirmar/(:num)', 'ApostaController::confirmar/$1', ['as' => 'apostas.confirmar']);
 $routes->post('/apostas/confirmar', 'ApostaController::confirmar', ['as' => 'apostas.confirmar_post']);
 $routes->post('/apostas/confirmar-lote', 'ApostaController::confirmarLote', ['as' => 'apostas.confirmar_lote']);
+$routes->post('/apostas/cancelar-indisponivel/(:num)', 'ApostaController::cancelarIndisponivel/$1', ['as' => 'apostas.cancelar_indisponivel']);
+$routes->post('/apostas/cancelar-indisponivel', 'ApostaController::cancelarIndisponivel', ['as' => 'apostas.cancelar_indisponivel_post']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');

@@ -1244,11 +1244,22 @@ class ApostaController extends BaseController
         }
 
         $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
-        $this->apostaModel->update($apostaId, [
+        $updateData = [
             'confirmada' => 1,
             'status'     => $novoStatus,
             'updated_at' => date('Y-m-d H:i:s')
-        ]);
+        ];
+
+        $rawOdd = $this->request->getPost('odd');
+        if ($rawOdd !== null && trim((string)$rawOdd) !== '') {
+            $novaOdd = (float)str_replace(',', '.', trim((string)$rawOdd));
+            if ($novaOdd >= 1.01) {
+                $updateData['odd'] = $novaOdd;
+                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, 2);
+            }
+        }
+
+        $this->apostaModel->update($apostaId, $updateData);
 
         $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
 
@@ -1258,6 +1269,83 @@ class ApostaController extends BaseController
             'novo_saldo'  => $novoSaldo,
             'id'          => $apostaId,
             'novo_status' => $novoStatus
+        ]);
+    }
+
+    /**
+     * Cancela uma aposta não confirmada/pendente por indisponibilidade de linha na casa de apostas (Stake)
+     * sem efetuar débito financeiro, evitando distorção estatística e na liquidação. (AJAX)
+     */
+    public function cancelarIndisponivel($id = null)
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos.'
+            ])->setStatusCode(403);
+        }
+
+        $apostaId = (int)($id ?? $this->request->getPost('id'));
+        if ($apostaId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID de simulação de aposta inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $aposta = $this->apostaModel->find($apostaId);
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $userId = (int)$access['user_id'];
+        if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
+            ])->setStatusCode(403);
+        }
+
+        // Se por algum motivo já havia sido debitada na conta corrente, realiza o estorno preventivo
+        $db = \Config\Database::connect();
+        $qExists = $db->table('conta_corrente')
+            ->where('usuario_id', $userId)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->get();
+        $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+        if ($debitoExistente) {
+            $this->contaCorrenteModel->estornarAposta(
+                $userId,
+                $apostaId,
+                (float)$aposta->valor_aposta,
+                "Estorno Cancelamento por Linha Indisponível na Stake - Aposta #{$apostaId}"
+            );
+        }
+
+        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na Stake";
+        $this->apostaModel->update($apostaId, [
+            'status'              => 'Cancelada',
+            'confirmada'          => 0,
+            'resultado_detalhado' => $motivo,
+            'updated_at'          => date('Y-m-d H:i:s')
+        ]);
+
+        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'message'     => "Aposta #{$apostaId} descartada/cancelada com sucesso (Linha indisponível na Stake). Nenhum valor foi debitado.",
+            'novo_saldo'  => $saldoAtual,
+            'id'          => $apostaId,
+            'novo_status' => 'Cancelada'
         ]);
     }
 

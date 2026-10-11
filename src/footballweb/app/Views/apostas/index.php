@@ -397,53 +397,54 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   .bets-grid.list-view {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
   .bets-grid.list-view .bet-card-item {
     display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-    padding: 16px 24px;
-    border-radius: 12px;
-    flex-wrap: wrap;
-    gap: 20px;
+    flex-direction: column;
+    padding: 16px 22px;
+    border-radius: 14px;
+    gap: 12px;
+    width: 100%;
   }
   .bets-grid.list-view .bet-card-header {
     background: transparent;
-    padding: 0;
-    border-bottom: none;
+    padding: 0 0 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    min-width: 200px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .bets-grid.list-view .bet-card-header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 260px;
   }
   .bets-grid.list-view .match-time {
-    align-items: flex-start !important;
-    text-align: left !important;
-    margin-left: 0 !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    margin-left: auto !important;
+    flex-shrink: 0;
   }
   .bets-grid.list-view .bet-card-body {
     padding: 0;
-    flex: 1;
+    width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 20px;
-    min-width: 320px;
+    flex-direction: column;
+    gap: 12px;
   }
   .bets-grid.list-view .market-info {
     margin-bottom: 0;
-    flex: 1 1 340px;
-    min-width: 320px;
+    width: 100%;
   }
   .bets-grid.list-view .values-grid {
     margin-bottom: 0;
-    grid-template-columns: auto auto;
-    gap: 16px;
-    flex-shrink: 0;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    width: 100%;
   }
   .bets-grid.list-view .alert-volatilidade-box,
   .bets-grid.list-view .asian-handicap-widget-box,
@@ -451,7 +452,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   .bets-grid.list-view .bet-card-meta-row,
   .bets-grid.list-view .bet-card-gk-row,
   .bets-grid.list-view .bet-badge-toggle-bar,
-  .bets-grid.list-view .bet-card-section {
+  .bets-grid.list-view .bet-card-section,
+  .bets-grid.list-view .custom-ah-panel {
     width: 100%;
   }
 
@@ -510,21 +512,37 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
   .bets-grid.list-view .bet-card-footer {
     background: transparent;
-    padding: 0;
-    border-top: none;
+    padding: 10px 0 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-left: auto;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
   }
   .bets-grid.list-view .actions-primary {
     display: flex;
+    align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
   .bets-grid.list-view .actions-secondary {
     margin-top: 0;
     border-top: none;
     padding-top: 0;
+    margin-left: auto;
+  }
+
+  /* Custom Odd Input - Remove spin buttons nativos e centraliza com folga */
+  .custom-odd-input::-webkit-outer-spin-button,
+  .custom-odd-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+  .custom-odd-input {
+    -moz-appearance: textfield !important;
   }
 
   .bet-card-item:hover {
@@ -1063,8 +1081,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           <i class="bi bi-slash-circle text-danger"></i> Sem Canceladas:
         </span>
         <div class="bet-slide-toggle" id="withoutCancelledSlideToggle">
-          <button type="button" class="slide-btn active" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
-          <button type="button" class="slide-btn" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
+          <button type="button" class="slide-btn active" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas e anuladas (Ocultar canceladas e anuladas)">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas e anuladas normalmente">Não</button>
         </div>
       </div>
 
@@ -1662,7 +1680,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 </div>
                 
                 <div class="row g-2 align-items-end">
-                  <div class="col-7 col-sm-6">
+                  <div class="col-12 col-md-6 col-lg-5">
                     <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-crosshair"></i> Linha AH:</label>
                     <div class="input-group input-group-sm">
                       <input type="text" 
@@ -1684,22 +1702,19 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                       </datalist>
                     </div>
                   </div>
-                  <div class="col-5 col-sm-3">
-                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-tag"></i> Cotação (Odd):</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text bg-dark border-secondary text-muted" style="font-size: 0.75rem;">@</span>
-                      <input type="number" 
-                             step="0.01" 
-                             min="1.01" 
-                             max="50.00" 
-                             id="input-custom-odd-<?= $aposta->id ?>" 
-                             class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" 
-                             placeholder="Ex: 1.85" 
-                             value="<?= number_format($aposta->odd, 2, '.', '') ?>"
-                             style="font-size: 0.8rem;">
-                    </div>
+                  <div class="col-6 col-md-3 col-lg-3">
+                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-tag"></i> Cotação (@):</label>
+                    <input type="number" 
+                           step="0.01" 
+                           min="1.01" 
+                           max="50.00" 
+                           id="input-custom-odd-<?= $aposta->id ?>" 
+                           class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold custom-odd-input text-center" 
+                           placeholder="Ex: 1.85" 
+                           value="<?= number_format($aposta->odd, 2, '.', '') ?>"
+                           style="font-size: 0.85rem; height: 31px;">
                   </div>
-                  <div class="col-12 col-sm-3 d-grid">
+                  <div class="col-6 col-md-3 col-lg-4 d-grid">
                     <button type="button" 
                             class="btn btn-sm btn-warning fw-bold d-inline-flex align-items-center justify-content-center gap-1 shadow-sm btn-validar-custom-ah" 
                             style="font-size: 0.75rem; border-radius: 6px; height: 31px;" 
@@ -2726,6 +2741,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
     currentStatusFilter = status;
     currentFixtureIdFilter = null; // Reseta filtro de partida específica ao alternar abas de status
+
+    // Se o usuário selecionou especificamente a aba de Anuladas ou Canceladas, desliga a ocultação
+    if (status === 'ANULADA' || status === 'CANCELADA' || status === 'Cancelada') {
+      const btnNao = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="0"]');
+      if (btnNao && currentWithoutCancelledFilter === '1') {
+        setWithoutCancelledFilter('0', btnNao);
+        return;
+      }
+    }
+
     applyBetFilters();
   }
 
@@ -3039,7 +3064,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       let withoutCancelledMatch = true;
       if (withoutCancelledVal === '1') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD') && !cardStatusUpper.includes('ANULAD');
       }
 
       let futureGamesMatch = true;
@@ -4245,6 +4270,105 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     applyBetFilters();
   });
 
+  // Função canônica para destravar e habilitar o botão "Confirmar Aposta" após auditoria ou ajuste de linha
+  function unlockBetConfirmButton(apostaId, palpite, odd, valorAposta, fixtureId, precisaSalvarLinha = false) {
+    const cardEl = document.getElementById('aposta-card-' + apostaId);
+    const btnConfirm = document.getElementById('btn-confirm-' + apostaId) || (cardEl ? cardEl.querySelector('#btn-confirm-' + apostaId) : null) || (cardEl ? cardEl.querySelector('.btn-confirmar-bloqueado') : null);
+    if (!btnConfirm) return;
+
+    // 1. Remover atributos de bloqueio
+    btnConfirm.removeAttribute('data-needs-check');
+    btnConfirm.removeAttribute('disabled');
+    btnConfirm.disabled = false;
+
+    // 2. Atualizar classes visuais
+    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
+    btnConfirm.classList.add('btn-success', 'pulse-highlight');
+
+    // 3. Forçar estilos inline de botão verde ativo
+    btnConfirm.style.setProperty('background', '#10b981', 'important');
+    btnConfirm.style.setProperty('border-color', '#059669', 'important');
+    btnConfirm.style.setProperty('color', '#ffffff', 'important');
+    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
+    btnConfirm.style.setProperty('opacity', '1', 'important');
+    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
+    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
+
+    // 4. Recuperar metadados atualizados
+    const timeCasa = btnConfirm.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
+    const timeFora = btnConfirm.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
+    const mercado = btnConfirm.getAttribute('data-mercado') || 'Handicap Asiático';
+    const valFinal = parseFloat(valorAposta || btnConfirm.getAttribute('data-valor') || 10);
+    const oddFinal = parseFloat(odd || btnConfirm.getAttribute('data-odd') || 1.80);
+    const palpiteFinal = palpite || btnConfirm.getAttribute('data-palpite') || '';
+    const fixIdFinal = fixtureId || (cardEl ? cardEl.getAttribute('data-fixture-id') : '') || null;
+
+    if (palpite) btnConfirm.setAttribute('data-palpite', palpite);
+    if (odd) btnConfirm.setAttribute('data-odd', oddFinal);
+    if (valorAposta) btnConfirm.setAttribute('data-valor', valFinal);
+
+    // 5. Vincular função de clique do modal de confirmação
+    btnConfirm.onclick = function() {
+      if (precisaSalvarLinha && fixIdFinal && palpiteFinal) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Salvando par...';
+        const saveParams = {
+          fixture_id: fixIdFinal,
+          aposta_id: apostaId,
+          linha_ah: palpiteFinal,
+          odd: oddFinal
+        };
+        fetch('<?= base_url('apostas/salvar-linha-ah') ?>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: new URLSearchParams(saveParams)
+        })
+        .finally(() => {
+          btnConfirm.disabled = false;
+          btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
+          openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpiteFinal, valFinal, oddFinal);
+        });
+      } else {
+        openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpiteFinal, valFinal, oddFinal);
+      }
+    };
+
+    // 6. Atualização visual do card (desarma volatilidade)
+    if (cardEl) {
+      cardEl.querySelectorAll('[data-needs-check]').forEach(el => el.removeAttribute('data-needs-check'));
+      cardEl.classList.remove('bet-card-volatilidade');
+      cardEl.setAttribute('data-volatilidade', '0');
+
+      const headerBadge = cardEl.querySelector('.badge-volatilidade-header');
+      if (headerBadge) {
+        headerBadge.style.cssText = 'font-size: 0.78rem; background: rgba(16, 185, 129, 0.2) !important; color: #34d399 !important; border-color: rgba(16, 185, 129, 0.5) !important; letter-spacing: 0.3px;';
+        headerBadge.innerHTML = '<span style="font-size: 0.88rem; line-height: 1;">✅</span> Odds Auditadas em Tempo Real';
+      }
+
+      let alertBox = cardEl.querySelector('.alert-volatilidade-box');
+      if (alertBox) {
+        alertBox.style.background = 'rgba(16, 185, 129, 0.12)';
+        alertBox.style.border = '1px solid rgba(16, 185, 129, 0.45)';
+        alertBox.style.borderLeft = '4px solid #10b981';
+        alertBox.style.color = '#a7f3d0';
+        alertBox.innerHTML = `
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-check-circle-fill text-success flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
+            <div>
+              <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
+                ✅ Odds Auditadas em Tempo Real
+              </strong>
+              <span>Cotações validadas com sucesso. A aposta foi destravada e está liberada para confirmação com segurança.</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
   // Função para Checar Odds em Tempo Real via API Football
   function handleChecarOddsAgora(apostaId, fixtureId, btnEl) {
     if (!fixtureId) {
@@ -4340,58 +4464,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           }
         } else {
           // Aposta aprovada/mantida pelo Gatekeeper com odds válidas: DESBLOQUEAR BOTÃO CONFIRMAR
-          const btnConfirm = cardEl.querySelector('#btn-confirm-' + apostaId);
-          if (btnConfirm && btnConfirm.hasAttribute('data-needs-check')) {
-            btnConfirm.removeAttribute('data-needs-check');
-            btnConfirm.disabled = false;
-            btnConfirm.className = 'btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm pulse-highlight';
-            btnConfirm.style.background = '';
-            btnConfirm.style.borderColor = '';
-            btnConfirm.style.color = '';
-            btnConfirm.style.cursor = 'pointer';
-            btnConfirm.title = 'Aposta auditada e liberada para confirmação';
-            btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
-            
-            const timeCasa = btnConfirm.getAttribute('data-time-casa') || '';
-            const timeFora = btnConfirm.getAttribute('data-time-fora') || '';
-            const mercado = btnConfirm.getAttribute('data-mercado') || 'Handicap Asiático';
-            const palpiteNovo = data.palpite_novo || btnConfirm.getAttribute('data-palpite') || '';
-            const valorAposta = parseFloat(btnConfirm.getAttribute('data-valor') || 10);
-            const oddNova = parseFloat(data.odd_nova || btnConfirm.getAttribute('data-odd') || 0);
-            
-            btnConfirm.onclick = function() {
-              openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpiteNovo, valorAposta, oddNova);
-            };
-
-            // Atualiza badge no cabeçalho para Odds Auditadas
-            const headerBadge = cardEl.querySelector('.badge-volatilidade-header');
-            if (headerBadge) {
-              headerBadge.style.cssText = 'font-size: 0.78rem; background: rgba(16, 185, 129, 0.2) !important; color: #34d399 !important; border-color: rgba(16, 185, 129, 0.5) !important; letter-spacing: 0.3px;';
-              headerBadge.innerHTML = '<span style="font-size: 0.88rem; line-height: 1;">✅</span> Odds Auditadas em Tempo Real';
-            }
-
-            // Atualiza caixa de alerta para status positivo de auditoria concluída
-            let alertBox = cardEl.querySelector('.alert-volatilidade-box');
-            if (alertBox) {
-              alertBox.style.background = 'rgba(16, 185, 129, 0.12)';
-              alertBox.style.border = '1px solid rgba(16, 185, 129, 0.45)';
-              alertBox.style.borderLeft = '4px solid #10b981';
-              alertBox.style.color = '#a7f3d0';
-              alertBox.innerHTML = `
-                <div class="d-flex align-items-start gap-2">
-                  <i class="bi bi-check-circle-fill text-success flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
-                  <div>
-                    <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
-                      ✅ Odds Auditadas em Tempo Real
-                    </strong>
-                    <span>Cotações validadas com sucesso na ${data.bookmaker || 'Betano'}. A aposta foi destravada e está liberada para confirmação com segurança.</span>
-                  </div>
-                </div>
-              `;
-            }
-
-            cardEl.setAttribute('data-volatilidade', '0');
-          }
+          unlockBetConfirmButton(apostaId, data.palpite_novo, data.odd_nova, data.valor_aposta);
         }
       }
 
@@ -4558,11 +4631,29 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       }
 
       if (data.aprovado) {
+        // 1. Desbloquear o botão Confirmar Aposta imediatamente com a linha e odd aprovadas!
+        const linhaOficial = data.linha_oficial || postParams.linha_ah;
+        const oddOficial = parseFloat(data.odd || postParams.odd || 0);
+        const ganhoOficial = data.ganhos_potenciais_novos;
+
+        unlockBetConfirmButton(apostaId, linhaOficial, oddOficial, ganhoOficial, fixtureId, true);
+
+        // 2. Atualizar no card a prévia visual
+        const cardEl = document.getElementById('aposta-card-' + apostaId);
+        if (cardEl) {
+          const palpiteEl = cardEl.querySelector('.palpite-name');
+          if (palpiteEl && linhaOficial) palpiteEl.textContent = linhaOficial;
+          const oddBadge = cardEl.querySelector('.odd-badge');
+          if (oddBadge && oddOficial) oddBadge.textContent = Number(oddOficial).toFixed(2);
+          const ganhoEl = cardEl.querySelector('.val-amount.primary');
+          if (ganhoEl && ganhoOficial) ganhoEl.textContent = 'R$ ' + Number(ganhoOficial).toFixed(2).replace('.', ',');
+        }
+
         feedbackEl.innerHTML = `
           <div class="p-2.5 rounded-2" style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.5); color: #86efac; font-size: 0.78rem;">
             <div class="d-flex align-items-center justify-content-between mb-1.5 flex-wrap gap-1">
               <span class="fw-bold text-success" style="font-size: 0.82rem;">
-                <i class="bi bi-shield-check me-1"></i> Par Aprovado no Gatekeeper!
+                <i class="bi bi-shield-check me-1"></i> Par Aprovado no Gatekeeper! (Confirmação Liberada)
               </span>
               <div class="d-flex gap-1">
                 <span class="badge bg-success bg-opacity-75 text-white">Odd: @ ${Number(data.odd).toFixed(2)}</span>
@@ -4696,6 +4787,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         if (customBox) {
           customBox.style.display = 'none';
         }
+
+        // Desbloqueia e habilita o botão Confirmar Aposta com os dados aprovados
+        unlockBetConfirmButton(apostaId, data.palpite_novo || linhaValidada, data.odd_nova || oddValidada, data.valor_aposta);
       }
 
       showToastOddsCheck({

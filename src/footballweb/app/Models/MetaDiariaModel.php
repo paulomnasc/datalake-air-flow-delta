@@ -404,12 +404,34 @@ class MetaDiariaModel extends Model
 
             $pendentesBloco = 0;
             $temJogosHoje = false;
+            $redsBloco = 0.0;
+            $retornosBloco = 0.0;
+            $liquidadoBloco = 0.0;
 
             foreach ($blocoTeste as $bt) {
-                $stBt = strtolower(trim((string)($bt->status ?? '')));
-                $isPendente = in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns']);
-                if ($isPendente) {
+                $stBt = (string)($bt->status ?? '');
+                $stBtNorm = strtolower(trim($stBt));
+                $valBt = (float)($bt->valor_aposta ?? 0);
+                $oddBt = (float)($bt->odd ?? 0);
+
+                if (in_array($stBtNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
                     $pendentesBloco++;
+                } else {
+                    $liquidadoBloco += $valBt;
+                    if ($stBt === 'Ganha') {
+                        $retornosBloco += ($valBt * $oddBt);
+                    } elseif ($stBt === 'Meio Ganha') {
+                        $retornosBloco += ($valBt + (($valBt * $oddBt - $valBt) / 2));
+                    } elseif (in_array($stBt, ['ANULADA', 'Anulada'])) {
+                        $retornosBloco += $valBt;
+                    } elseif ($stBt === 'Perdida') {
+                        $redsBloco += 1.0;
+                    } elseif ($stBt === 'Meio Perdida') {
+                        $redsBloco += 0.5;
+                        $retornosBloco += ($valBt * 0.5);
+                    } elseif ($stBt === 'Cashout') {
+                        $retornosBloco += (float)($bt->cash_out ?? $valBt);
+                    }
                 }
 
                 $dtAposta = !empty($bt->data_hora_jogo) ? $bt->data_hora_jogo : ($bt->criado_em ?? null);
@@ -419,10 +441,20 @@ class MetaDiariaModel extends Model
                 }
             }
 
-            $isFechado = ($totalBloco >= $tamanho && $pendentesBloco === 0);
+            $lucroBloco = round($retornosBloco - $liquidadoBloco, 2);
+            $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
+            $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
+            $maxRedsConfig   = (int)($meta->max_reds ?? 3);
+
+            $isStopLossBloco   = ($lucroBloco <= $stopLossConfig || ($redsBloco >= $maxRedsConfig && $lucroBloco < 0));
+            $isMetaBatidaBloco = ($lucroBloco >= $lucroAlvoConfig && $totalBloco >= $tamanho);
+
+            // Regra Canônica: Bloco fecha e é bloqueado se atingir Stop Loss, Meta Batida ou completar 10 apostas sem pendentes
+            $isFechado = ($isStopLossBloco || $isMetaBatidaBloco || ($totalBloco >= $tamanho && $pendentesBloco === 0));
             if ($isFechado) {
                 $ultimoCicloFechado = $c;
             }
+            // Um bloco que atingiu Stop Loss ou Meta Batida NUNCA participa de novos jogos ativos
             if ($temJogosHoje && !$isFechado && $cicloComJogosHoje === null) {
                 $cicloComJogosHoje = $c;
             }
@@ -511,19 +543,23 @@ class MetaDiariaModel extends Model
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
         $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
-        $isFechado    = ($totalCiclo >= $tamanho && $pendentes === 0);
-        $isAtivo      = ($cicloAlvo === $cicloAtivoNum);
-
         $lucroAlvo = (float)($meta->lucro_alvo ?? 7.50);
         $stopLoss  = (float)($meta->stop_loss_diario ?? -30.00);
         $maxReds   = (int)($meta->max_reds ?? 3);
 
-        if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
+        $isStopLoss   = ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0));
+        $isMetaBatida = ($lucroLiquido >= $lucroAlvo && $totalCiclo >= $tamanho);
+
+        // Bloco é bloqueado e fechado se atingir Stop Loss, Meta Batida ou completar 10 apostas sem pendentes
+        $isFechado = ($isStopLoss || $isMetaBatida || ($totalCiclo >= $tamanho && $pendentes === 0));
+        $isAtivo   = ($cicloAlvo === $cicloAtivoNum);
+
+        if ($isStopLoss) {
             $statusCiclo = 'STOP_LOSS_ATINGIDO';
+        } elseif ($lucroLiquido >= $lucroAlvo) {
+            $statusCiclo = 'META_BATIDA';
         } elseif ($isFechado) {
-            if ($lucroLiquido >= $lucroAlvo) {
-                $statusCiclo = 'META_BATIDA';
-            } elseif ($lucroLiquido > 0) {
+            if ($lucroLiquido > 0) {
                 $statusCiclo = 'SUPERAVITARIO';
             } elseif ($lucroLiquido == 0) {
                 $statusCiclo = 'NEUTRO';
@@ -645,14 +681,20 @@ class MetaDiariaModel extends Model
 
             $lucroLiq = round($retornos - $liquidado, 2);
             $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
-            $isFechado = ($totalB >= $tamanho && $pendentes === 0);
+            $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
+            $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
+            $maxRedsConfig   = (int)($meta->max_reds ?? 3);
 
-            if ($lucroLiq <= (float)($meta->stop_loss_diario ?? -30.00)) {
+            $isStopLoss = ($lucroLiq <= $stopLossConfig || ($reds >= $maxRedsConfig && $lucroLiq < 0));
+            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && $totalB >= $tamanho);
+            $isFechado = ($isStopLoss || $isMetaBatida || ($totalB >= $tamanho && $pendentes === 0));
+
+            if ($isStopLoss) {
                 $status = 'STOP_LOSS_ATINGIDO';
+            } elseif ($lucroLiq >= $lucroAlvoConfig) {
+                $status = 'META_BATIDA';
             } elseif ($isFechado) {
-                if ($lucroLiq >= (float)($meta->lucro_alvo ?? 7.50)) {
-                    $status = 'META_BATIDA';
-                } elseif ($lucroLiq > 0) {
+                if ($lucroLiq > 0) {
                     $status = 'SUPERAVITARIO';
                 } elseif ($lucroLiq == 0) {
                     $status = 'NEUTRO';

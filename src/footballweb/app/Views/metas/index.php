@@ -813,6 +813,10 @@ $fmtScore = function($v) {
                       $slotIcon = '💰';
                       $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
                       $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} - Cashout ({$valCash})";
+                  } elseif (in_array(strtolower($st), ['cancelada'])) {
+                      $slotClass = 'slot-push';
+                      $slotIcon = '⊘';
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Cancelada / Slot Preservado)";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';

@@ -616,11 +616,11 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Regra Canônica Exclusiva: Apenas Under 6.5, Under 7.5, Under 8.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
-                if ($line < 6.49) {
+                // Regra Canônica: Apenas Under 4.5 ou superiores são autorizadas
+                if ($line < 4.49) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Linha de Cartões Não Autorizada';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas linhas Under 6.5, Under 7.5, Under 8.5 ou maiores são autorizadas no mercado de cartões. Linhas Under 5.5 e inferiores bloqueadas por gestão de risco.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas linhas Under 4.5, Under 5.5, Under 6.5 ou superiores são autorizadas no mercado de cartões.";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
@@ -628,7 +628,7 @@ class ApostaController extends BaseController
                 $ftRow = null;
                 if ($fixtureId) {
                     $ftRow = $db->table('fixtures_trends')
-                        ->select('league_id, league_name, odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score')
+                        ->select('league_id, league_name, odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score, ah_reasoning')
                         ->where('fixture_id', $fixtureId)
                         ->get()
                         ->getRowArray();
@@ -660,11 +660,16 @@ class ApostaController extends BaseController
                     ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))
                 );
 
-                // 1. Caldeirão da Degola / Sobrevivência
-                if ($isHUnderThreat) {
+                // 1. Caldeirão da Degola / Sobrevivência (Veto condicionado a atrito real)
+                $isDisciplinaryCrisis = ($xc >= 4.20);
+                if ($ftRow && !empty($ftRow['ah_reasoning']) && preg_match('/"home":\s*\{[^}]*"pts_ef":\s*(-?\d+(?:\.\d+)?)/i', $ftRow['ah_reasoning'], $mEf)) {
+                    $hEffVal = (float)$mEf[1];
+                    $isDisciplinaryCrisis = ($hEffVal <= 3.0 || $xc >= 4.20);
+                }
+                if ($isHUnderThreat && $isDisciplinaryCrisis) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Caldeirão da Degola (Sobrevivência)';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): O mandante está na zona de rebaixamento ou ameaçado pela degola, jogando a vida em seus domínios. A urgência de sobrevivência e tensão de caldeirão elevam o risco de faltas táticas e indisciplina. Abstenção mandatória para Under.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): O mandante está na zona de rebaixamento ou ameaçado pela degola, com histórico de atrito/tensão. Risco elevado de faltas táticas e indisciplina. Abstenção mandatória para Under.";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
@@ -701,8 +706,8 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 6.5, Under 7.5, Under 8.5 ou maiores)
-                $minOddReq  = 1.50;
+                // Critérios específicos por linha (Under 4.5/5.5: 1.50 | Under 6.5+: 1.40)
+                $minOddReq  = ($line >= 6.49) ? 1.40 : 1.50;
                 $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;

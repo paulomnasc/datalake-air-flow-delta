@@ -206,6 +206,18 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   4. Solicitar e aguardar a confirmação/autorização explícita do usuário antes de disparar o comando.
 - Consultas estritamente somente-leitura (`SELECT`, `SHOW`, `DESCRIBE`) continuam autorizadas para auditoria, inspeção e diagnóstico de causa raiz.
 
+---
+
+## 20. Proibição Absoluta de Notação LaTeX e Símbolos Acadêmicos na Comunicação com o Usuário
+- **Linguagem Natural Sem LaTeX ou Notação Acadêmica:** É expressamente proibido utilizar qualquer fragmento de sintaxe LaTeX, delimitadores matemáticos (como `$ ... $` ou `$$ ... $$`) e comandos como `\ge`, `\le`, `\times`, `\approx`, `\le 1.25`, `\ge 12` em mensagens, relatórios e respostas ao usuário.
+- **Tradução Obrigatória para Linguagem Natural:** Todo comparativo numérico, patamar de tabela, pontuação ou métrica estatística deve ser obrigatoriamente escrito em português claro, limpo e direto:
+  - Em vez de `$\ge 12$`: escrever "12º colocado ou pior", "da 12ª posição para baixo", ou "igual ou maior que 12".
+  - Em vez de `$\le 1.25$`: escrever "até 1,25 pontos por jogo" ou "igual ou inferior a 1,25".
+  - Em vez de `$xC \le 3.50$`: escrever "expectativa de no máximo 3,5 cartões".
+  - Em vez de `$\times$`: usar "x" ou "multiplicado por".
+- **Objetivo Mandatório:** Assegurar que toda comunicação técnica seja fluida, elegante, profissional e imediatamente legível sem ruídos visuais de fórmulas ou tags de formatação acadêmica.
+
+
 
 
 

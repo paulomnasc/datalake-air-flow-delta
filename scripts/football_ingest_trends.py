@@ -3010,6 +3010,123 @@ def count_real_fixtures_in_db(conn, target_date):
         print(f"Erro ao consultar jogos reais no banco: {e}")
         return 0
 
+def reconcile_rescheduled_open_fixtures(conn, candidate_fixtures, headers, fixtures_map, eval_dates):
+    """
+    Sincronização Sistêmica de Partidas Reagendadas / Remarcadas:
+    Para partidas em aberto ('NS', 'TBD') que constavam registradas no banco para uma data,
+    mas NÃO foram retornadas pela consulta oficial da API para aquele dia, verifica o status
+    e data oficial atual na API-Sports em lotes de até 20 IDs (/fixtures?ids={ids}).
+    Atualiza fixtures_trends e a tabela 'apostas' caso a data tenha sido alterada ou a partida adiada/cancelada.
+    Se a nova data pertencer à janela avaliada, inclui em fixtures_map com os dados atualizados.
+    """
+    if not candidate_fixtures:
+        return
+
+    global _api_sports_rate_limited, _api_sports_quota_exceeded
+    if _api_sports_rate_limited or _api_sports_quota_exceeded:
+        print("⚠️ [Reconciliação Sistêmica] Cota da API esgotada. Mantendo cache local sem verificação de remarcação.")
+        return
+
+    reconciled_count = 0
+    postponed_count = 0
+    retained_count = 0
+    chunk_size = 20
+    cursor = conn.cursor()
+
+    for i in range(0, len(candidate_fixtures), chunk_size):
+        chunk = candidate_fixtures[i:i + chunk_size]
+        ids_str = "-".join(str(rf['fixture_id']) for rf in chunk)
+        url = f"https://v3.football.api-sports.io/fixtures?ids={ids_str}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=20).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                print(f"⚠️ [Reconciliação Sistêmica] Rate limit atingido na verificação de lotes: {errs}")
+                _api_sports_rate_limited = True
+                if 'requests' in errs or 'request' in str(errs).lower():
+                    _api_sports_quota_exceeded = True
+                break
+
+            api_fixtures = {f.get('fixture', {}).get('id'): f for f in resp.get('response', []) if f.get('fixture', {}).get('id')}
+            
+            for rf in chunk:
+                fid = rf['fixture_id']
+                home = rf.get('home_team', '')
+                away = rf.get('away_team', '')
+                db_dt = rf.get('fixture_date')
+
+                if fid in api_fixtures:
+                    f_data = api_fixtures[fid]
+                    f_obj = f_data.get('fixture', {})
+                    api_dt_raw = f_obj.get('date', '')
+                    api_dt_str = api_dt_raw.split('+')[0].replace('T', ' ') if api_dt_raw else None
+                    api_status = f_obj.get('status', {}).get('short', 'NS')
+                    
+                    api_dt_brt_str = None
+                    if api_dt_str:
+                        try:
+                            dt_parsed = datetime.strptime(api_dt_str[:19], '%Y-%m-%d %H:%M:%S')
+                            dt_brt = dt_parsed - timedelta(hours=3)
+                            api_dt_brt_str = dt_brt.strftime('%Y-%m-%d')
+                        except Exception:
+                            pass
+
+                    db_dt_str = db_dt.strftime('%Y-%m-%d %H:%M:%S') if db_dt else ''
+                    
+                    # Caso 1: A partida foi remarcada para outra data/hora
+                    if api_dt_str and api_dt_str != db_dt_str:
+                        reconciled_count += 1
+                        print(f"🔄 [Reagendamento Sistêmico] Partida #{fid} ({home} vs {away}) remarcada na API de {db_dt_str} para {api_dt_str} (Status: {api_status}). Atualizando fixtures_trends e apostas.")
+                        cursor.execute("""
+                            UPDATE fixtures_trends
+                            SET fixture_date = %s, status = %s, updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (api_dt_str, api_status, fid))
+                        
+                        cursor.execute("""
+                            UPDATE apostas
+                            SET data_hora_jogo = %s, updated_at = NOW()
+                            WHERE fixture_id = %s AND status = 'Pendente'
+                        """, (api_dt_str, fid))
+                        conn.commit()
+
+                        # Se a nova data cair na janela avaliada atual, inclui no mapa com dados frescos
+                        if api_dt_brt_str and api_dt_brt_str in eval_dates:
+                            fixtures_map[fid] = f_data
+                        else:
+                            print(f"   ℹ️ Partida #{fid} transferida para data fora da janela ({api_dt_brt_str}). Removida da listagem de hoje.")
+
+                    # Caso 2: A partida foi adiada ou cancelada
+                    elif api_status in ('PST', 'POSTPONED', 'CANC', 'CANCELLED', 'TBD'):
+                        postponed_count += 1
+                        print(f"🚫 [Partida Adiada/Cancelada] Partida #{fid} ({home} vs {away}) com status oficial {api_status}. Atualizando banco e cancelando apostas pendentes.")
+                        cursor.execute("""
+                            UPDATE fixtures_trends
+                            SET status = %s, updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (api_status, fid))
+                        
+                        cursor.execute("""
+                            UPDATE apostas
+                            SET status = 'Cancelada',
+                                resultado_detalhado = CONCAT('Partida adiada/cancelada oficialmente pela entidade organizadora (Status API: ', %s, ')'),
+                                updated_at = NOW()
+                            WHERE fixture_id = %s AND status = 'Pendente'
+                        """, (api_status, fid))
+                        conn.commit()
+
+                    else:
+                        # Caso 3: API confirma que a partida é na mesma data (ex: apenas paginação ou filtro na busca por data)
+                        retained_count += 1
+                        fixtures_map[fid] = f_data
+                else:
+                    print(f"⚠️ [Reconciliação Sistêmica] Partida #{fid} ({home} vs {away}) não encontrada no endpoint oficial da API-Sports. Removida da grade do dia.")
+        except Exception as e_reconcile_chunk:
+            print(f"🚨 [Reconciliação Sistêmica] Erro ao reconciliar lote de partidas: {e_reconcile_chunk}")
+
+    print(f"✅ [Reconciliação Concluída] Remarcadas: {reconciled_count} | Adiadas/Canceladas: {postponed_count} | Confirmadas na Data: {retained_count}")
+
+
 def main():
     global _api_sports_rate_limited, _api_sports_odds_rate_limited
     is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
@@ -3052,6 +3169,7 @@ def main():
             print(f"Erro ao chamar a API-Football para partidas ao vivo: {e}")
     else:
         print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (avaliando UTC {prev_date}, {target_date} e {next_date})...")
+        api_queried_dates = set()
         for d in [prev_date, target_date, next_date]:
             # 1. Verifica cache no banco de dados antes de chamar a API-Sports
             need_api_call = True
@@ -3083,6 +3201,7 @@ def main():
                 print(f"Aviso ao checar cache de partidas para data {d}: {e_check_cache}")
 
             if need_api_call:
+                api_queried_dates.add(d)
                 url = f"https://v3.football.api-sports.io/fixtures?date={d}"
                 try:
                     response = requests.get(url, headers=headers, timeout=30)
@@ -3106,15 +3225,32 @@ def main():
                 WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN (%s, %s, %s)
             """, (prev_date, target_date, next_date))
             db_fixtures_cached = cursor.fetchall()
+            
+            suspect_rescheduled = []
             for rf in db_fixtures_cached:
                 fid = rf['fixture_id']
-                if fid not in fixtures_map:
+                if fid in fixtures_map:
+                    continue
+
+                rf_dt = rf.get('fixture_date')
+                rf_dt_brt_str = ''
+                if rf_dt:
+                    rf_dt_brt_str = (rf_dt - timedelta(hours=3)).strftime('%Y-%m-%d')
+                
+                rf_status = rf.get('status') or 'NS'
+
+                # Se a partida não está terminada e a API da data dessa partida foi ativamente consultada,
+                # mas NÃO retornou esta partida, ela é suspeita de remarcação ou alteração de data/horário.
+                if rf_status in ('NS', 'TBD', '') and rf_dt_brt_str in api_queried_dates:
+                    suspect_rescheduled.append(rf)
+                else:
+                    # Partidas encerradas (FT, AET, PEN) ou de datas cujo cache foi 100% preservado
                     f_date_str = rf['fixture_date'].strftime('%Y-%m-%d %H:%M:%S') if rf.get('fixture_date') else ''
                     fixtures_map[fid] = {
                         "fixture": {
                             "id": fid,
                             "date": f_date_str,
-                            "status": {"short": rf.get('status') or "NS", "elapsed": rf.get('elapsed')},
+                            "status": {"short": rf_status, "elapsed": rf.get('elapsed')},
                             "referee": rf.get('referee_name')
                         },
                         "league": {
@@ -3131,6 +3267,11 @@ def main():
                             "away": rf.get('goals_away')
                         }
                     }
+
+            if suspect_rescheduled:
+                print(f"🔍 [Reconciliação Sistêmica] Detectadas {len(suspect_rescheduled)} partida(s) em aberto ausentes na API da data. Reconciliando status e reagendamento...")
+                reconcile_rescheduled_open_fixtures(conn, suspect_rescheduled, headers, fixtures_map, [prev_date, target_date, next_date])
+
         except Exception as e_load_db_fix:
             print(f"Aviso ao carregar partidas em cache do banco: {e_load_db_fix}")
         

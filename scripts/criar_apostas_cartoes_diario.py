@@ -280,10 +280,13 @@ def extract_all_cards_suggestions(prediction_text: str):
         if cand_u not in candidates:
             candidates.append(cand_u)
 
-    # Linhas padrão de Under comercializadas na Betano para avaliação (exclusivo Under 5.5 e Under 6.5)
+    # Linhas padrão de Under avaliadas no Gatekeeper (Under 4.5 a 8.5)
     standard_lines = [
+        (False, 4.5),
         (False, 5.5),
-        (False, 6.5)
+        (False, 6.5),
+        (False, 7.5),
+        (False, 8.5)
     ]
     for std in standard_lines:
         if std not in candidates:
@@ -297,12 +300,13 @@ def extract_all_cards_suggestions(prediction_text: str):
         prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
         odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-        if abs(line_val - 5.5) < 0.01:
+        if abs(line_val - 4.5) < 0.01:
+            status_gk = 'APROVADO' if (exp_cards <= 3.50 and prob_poisson >= 60.0) else 'NO_BET'
+        elif abs(line_val - 5.5) < 0.01:
             status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob_poisson >= 60.0) else 'NO_BET'
-        elif abs(line_val - 6.5) < 0.01:
-            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob_poisson >= 60.0) else 'NO_BET'
+        elif line_val >= 6.49:
+            status_gk = 'APROVADO' if (exp_cards <= (line_val - 1.00) and prob_poisson >= 60.0) else 'NO_BET'
         else:
-            # Apenas Under 5.5 e Under 6.5 autorizados
             status_gk = 'NO_BET'
 
         palpite_str = f"Menos de {line_val} Cartões"

@@ -1027,7 +1027,13 @@ if (!function_exists('getBetDecisionTree')) {
             }
         }
 
-        if ($xc <= 5.50 && $u65 >= 60.0) {
+        if ($xc <= 3.50 && $u45 >= 60.0) {
+            $lineTag = 'UNDER 4.5 🛡️';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '4.5', $u45, '5.5', $u55);
+        } elseif ($xc <= 4.50 && $u55 >= 60.0) {
+            $lineTag = 'UNDER 5.5 🛡️';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '5.5', $u55, '6.5', $u65);
+        } elseif ($xc <= 5.50 && $u65 >= 60.0) {
             $lineTag = 'UNDER 6.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '6.5', $u65, '7.5', $u75);
         } elseif ($xc <= 6.50 && $u75 >= 60.0) {

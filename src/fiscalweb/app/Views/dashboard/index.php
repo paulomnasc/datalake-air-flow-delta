@@ -240,7 +240,24 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     </style>
 
                     <div class="mt-4 mb-4">
-                        <h4 class="mb-4 text-primary" style="font-weight: 600;"><i class="bi bi-briefcase me-2"></i>Ordens de Serviço por Status</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                            <h4 class="mb-0 text-primary" style="font-weight: 600;">
+                                <i class="bi bi-briefcase me-2"></i>Ordens de Serviço por Status
+                            </h4>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="filtro-sistema-dashboard" class="form-label mb-0 fw-bold text-secondary" style="white-space: nowrap;">
+                                    <i class="bi bi-filter me-1"></i> Sistema:
+                                </label>
+                                <select id="filtro-sistema-dashboard" class="form-select form-select-sm" style="min-width: 250px; border-radius: 6px; padding: 6px 12px; background-color: #fff;">
+                                    <option value="">-- Todos os Sistemas --</option>
+                                    <?php if (!empty($sistemas_list)): foreach ($sistemas_list as $sys): ?>
+                                        <option value="<?php echo esc($sys->descricao); ?>">
+                                            <?php echo !empty($sys->sigla) ? '[' . esc($sys->sigla) . '] ' : ''; ?><?php echo esc($sys->descricao); ?>
+                                        </option>
+                                    <?php endforeach; endif; ?>
+                                </select>
+                            </div>
+                        </div>
 
                         <!-- Nav tabs -->
                         <ul class="nav nav-tabs mb-4" id="osDashboardTabs" role="tablist" style="border-bottom: 2px solid #1976d2;">
@@ -274,8 +291,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             <thead>
                                                 <tr>
                                                     <th>ID</th>
+                                                    <th>Sistema</th>
                                                     <th>Horas Alocadas</th>
                                                     <th>NUP SEI</th>
+                                                    <th>Descrição</th>
                                                     <th>Data de Emissão</th>
                                                     <th>Data de Aceite</th>
                                                     <th>Status</th>
@@ -286,12 +305,19 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 <?php foreach ($osGroups[$st] as $os): ?>
                                                     <tr id="row-<?php echo $os->id; ?>">
                                                         <td><?php echo $os->id; ?></td>
+                                                        <td>
+                                                            <?php if (!empty($os->Sigla_Sistema)): ?>
+                                                                <span class="badge bg-secondary font-monospace me-1"><?php echo esc($os->Sigla_Sistema); ?></span>
+                                                            <?php endif; ?>
+                                                            <?php echo esc($os->Nome_Sistema ?? 'Não informado'); ?>
+                                                        </td>
                                                         <td><?php echo $os->Horas_Alocadas; ?></td>
                                                         <td>
                                                             <a href="<?php echo site_url('updOrdemServico?id=' . $os->id); ?>" class="text-decoration-none fw-bold text-primary">
                                                                 <?php echo esc($os->nup_sei); ?>
                                                             </a>
                                                         </td>
+                                                        <td><?php echo esc($os->descricao ?? ''); ?></td>
                                                         <td><?php echo $os->Data_Emissao; ?></td>
                                                         <td><?php echo $os->Data_Aceite ? $os->Data_Aceite : '-'; ?></td>
                                                         <td><?php echo esc($os->status ?? 'Rascunho'); ?></td>
@@ -367,6 +393,22 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             "sLast": "Último"
                                         }
                                     }
+                                });
+                            });
+
+                            $('#filtro-sistema-dashboard').on('change', function() {
+                                var val = $(this).val();
+                                var searchRegex = val ? $.fn.dataTable.util.escapeRegex(val) : '';
+
+                                $('.os-data-table').each(function() {
+                                    var dt = $(this).DataTable();
+                                    // Coluna de índice 1 é a coluna "Sistema"
+                                    dt.column(1).search(searchRegex, false, false).draw();
+
+                                    // Atualiza o contador na aba correspondente
+                                    var panelId = $(this).closest('.tab-pane').attr('id');
+                                    var visibleCount = dt.rows({ filter: 'applied' }).count();
+                                    $('button[data-bs-target="#' + panelId + '"] .badge').text(visibleCount);
                                 });
                             });
                         });

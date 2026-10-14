@@ -7,6 +7,28 @@ require VIEWPATH.'/header.php';
 <div id="content">
     <div class="container-menor">
         <h4 style="text-align: center;">Edição de OrdemServico</h4>
+
+        <ul class="nav nav-tabs mb-4" id="osTabs" role="tablist" style="border-bottom: 2px solid #1976d2;">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-dados-os" data-bs-toggle="tab" data-bs-target="#panel-dados-os" type="button" role="tab" aria-controls="panel-dados-os" aria-selected="true" style="font-weight: 600; font-size: 1rem;">
+                    📋 Dados da Ordem de Serviço
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-demandas-os" data-bs-toggle="tab" data-bs-target="#panel-demandas-os" type="button" role="tab" aria-controls="panel-demandas-os" aria-selected="false" style="font-weight: 600; font-size: 1rem;">
+                    🚀 Demandas Associadas
+                    <?php if (!empty($demandas_list)): ?>
+                        <span class="badge bg-primary ms-1"><?php echo count($demandas_list); ?></span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary ms-1">0</span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="osTabsContent">
+            <!-- ABA 1: DADOS DA OS E ITENS -->
+            <div class="tab-pane fade show active" id="panel-dados-os" role="tabpanel" aria-labelledby="tab-dados-os">
         
         <form id="updForm">
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
@@ -191,6 +213,95 @@ require VIEWPATH.'/header.php';
                 </tr>
             </tfoot>
         </table>
+            </div> <!-- fim tab-pane #panel-dados-os -->
+
+            <!-- ABA 2: DEMANDAS ASSOCIADAS -->
+            <div class="tab-pane fade" id="panel-demandas-os" role="tabpanel" aria-labelledby="tab-demandas-os">
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-2 flex-wrap gap-2">
+                    <h5 class="mb-0 text-primary" style="font-weight: 600;"><i class="bi bi-list-task me-2"></i>Demandas Associadas a esta OS</h5>
+                    <a href="<?php echo route_to('agile.demanda.add'); ?>?id_ordem_servico=<?php echo isset($record->id) ? $record->id : ''; ?>" class="btn btn-success btn-sm" style="font-weight: 600;">
+                        <i class="bi bi-plus-circle me-1"></i> Nova Demanda
+                    </a>
+                </div>
+
+                <?php if (!empty($demandas_list)): ?>
+                    <div class="table-responsive">
+                        <table class="data-table table table-striped table-hover align-middle" id="demandasTable" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Título</th>
+                                    <th>Sistema</th>
+                                    <th>Sistema Crítico?</th>
+                                    <th>Status Atual</th>
+                                    <th>Criado Em</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($demandas_list as $demanda): ?>
+                                    <tr>
+                                        <td><?php echo $demanda->id; ?></td>
+                                        <td>
+                                            <strong><?php echo esc($demanda->titulo); ?></strong>
+                                            <?php if (!empty($demanda->descricao)): ?>
+                                                <br><small class="text-muted"><?php echo esc(mb_strimwidth($demanda->descricao, 0, 70, '...')); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($demanda->sistema_sigla)): ?>
+                                                <span class="badge bg-secondary font-monospace"><?php echo esc($demanda->sistema_sigla); ?></span>
+                                            <?php endif; ?>
+                                            <?php echo esc($demanda->sistema_nome ?? '-'); ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($demanda->sistema_critico)): ?>
+                                                <span class="badge bg-danger">Sim (SERPRO)</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">Não (Fábrica)</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            $stClass = 'bg-secondary';
+                                            if ($demanda->status === 'Em Execução') $stClass = 'bg-primary';
+                                            elseif ($demanda->status === 'Homologação') $stClass = 'bg-warning text-dark';
+                                            elseif ($demanda->status === 'Atualizado Produção' || $demanda->status === 'Atualizado Produção (Esteira SERPRO)') $stClass = 'bg-success';
+                                            elseif ($demanda->status === 'Cancelada') $stClass = 'bg-danger';
+                                            ?>
+                                            <span class="badge <?php echo $stClass; ?>"><?php echo esc($demanda->status); ?></span>
+                                        </td>
+                                        <td><?php echo !empty($demanda->criado_em) ? date('d/m/Y H:i', strtotime($demanda->criado_em)) : '-'; ?></td>
+                                        <td class="text-end">
+                                            <div class="btn-group" role="group">
+                                                <a href="<?php echo route_to('agile.backlog', $demanda->id); ?>" class="btn btn-outline-secondary btn-sm" title="Backlog da Demanda">
+                                                    Backlog
+                                                </a>
+                                                <a href="<?php echo route_to('agile.kanban', $demanda->id); ?>" class="btn btn-outline-primary btn-sm" title="Quadro Kanban">
+                                                    Kanban
+                                                </a>
+                                                <form action="<?php echo route_to('agile.demanda.upd'); ?>" method="post" class="d-inline">
+                                                    <input type="hidden" name="id" value="<?php echo $demanda->id; ?>">
+                                                    <button class="btn btn-outline-warning btn-sm" type="submit" title="Editar Demanda">✏️</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-info d-flex align-items-center mt-3" role="alert">
+                        <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                        <div>
+                            Nenhuma demanda associada a esta Ordem de Serviço até o momento.
+                            <a href="<?php echo route_to('agile.demanda.add'); ?>?id_ordem_servico=<?php echo isset($record->id) ? $record->id : ''; ?>" class="alert-link ms-2">Cadastrar uma demanda agora</a>.
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div> <!-- fim tab-pane #panel-demandas-os -->
+        </div> <!-- fim tab-content #osTabsContent -->
 
         <script>
             let osItems = <?php echo isset($items_json) ? $items_json : '[]'; ?>;
@@ -517,6 +628,29 @@ require VIEWPATH.'/header.php';
                         });
                     }
                 });
+
+                if ($('#demandasTable').length) {
+                    $('#demandasTable').DataTable({
+                        dom: 'lfrtip',
+                        language: {
+                            "sEmptyTable": "Nenhuma demanda encontrada",
+                            "sInfo": "Mostrando de _START_ até _END_ de _TOTAL_ demandas",
+                            "sInfoEmpty": "Mostrando 0 até 0 de 0 demandas",
+                            "sInfoFiltered": "(filtrado de _MAX_ demandas no total)",
+                            "sLengthMenu": "Mostrar _MENU_ demandas",
+                            "sLoadingRecords": "Carregando...",
+                            "sProcessing": "Processando...",
+                            "sSearch": "Pesquisar:",
+                            "sZeroRecords": "Nenhuma demanda encontrada",
+                            "oPaginate": {
+                                "sNext": "Próximo",
+                                "sPrevious": "Anterior",
+                                "sFirst": "Primeiro",
+                                "sLast": "Último"
+                            }
+                        }
+                    });
+                }
             });
         </script>
     </div>

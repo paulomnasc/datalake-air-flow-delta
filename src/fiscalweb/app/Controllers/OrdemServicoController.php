@@ -26,6 +26,7 @@ class OrdemServicoController extends BaseController
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
+        $data['demandas_list'] = [];
         return view('addOrdemServico', $data);
     }
 
@@ -57,8 +58,22 @@ class OrdemServicoController extends BaseController
         $currentStatus = $record->status ?? 'Rascunho';
         $data['allowedTransitions'] = $allowedManualTransitions[$currentStatus] ?? [$currentStatus];
         
-        // Buscar itens existentes
         $db = \Config\Database::connect();
+
+        // Buscar demandas associadas à Ordem de Serviço
+        $demandas = [];
+        if ($id && $db->tableExists('agile_demandas')) {
+            $demandas = $db->table('agile_demandas ad')
+                ->select('ad.*, asys.nome as sistema_nome, asys.sigla as sistema_sigla')
+                ->join('agile_sistemas asys', 'asys.id = ad.id_sistema', 'left')
+                ->where('ad.id_ordem_servico', $id)
+                ->orderBy('ad.id', 'DESC')
+                ->get()
+                ->getResult();
+        }
+        $data['demandas_list'] = $demandas;
+
+        // Buscar itens existentes
         $os = $db->table('ordem_servico')->where('id', $id)->get()->getRow();
         $dataEmissao = $os ? $os->Data_Emissao : date('Y-m-d');
 

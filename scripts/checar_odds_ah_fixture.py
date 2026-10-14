@@ -134,6 +134,224 @@ def fetch_live_fixture_odds_api(fixture_id):
         "dnb_lines": dnb_lines
     }
 
+def extract_all_bookmakers_ah_lines(items, home_team, away_team):
+    """
+    Extrai todas as linhas ativas de AH e DNB de todas as casas retornadas pela API-Sports.
+    Retorna dicionário indexado por nome da casa: { 'Betano': [...], 'Bet365': [...], 'Pinnacle': [...] }
+    """
+    if not items or not isinstance(items, list):
+        return {}
+
+    import re
+    bm_dict = {}
+    v_odd = 0.0
+    raw_line = 0.0
+    line_num = 0.0
+
+    for it in items:
+        for bm in it.get("bookmakers", []):
+            bm_name = bm.get("name", "").strip()
+            lines = []
+            for b in bm.get("bets", []):
+                b_id = b.get("id")
+                b_name = str(b.get("name", "")).lower()
+                if any(term in b_name for term in ["half", "1st", "2nd", "corner", "card", "tempo", "intervalo"]):
+                    continue
+                if b_id in (2, 4) or "asian handicap" in b_name or "draw no bet" in b_name or "empate anula" in b_name:
+                    for val in b.get("values", []):
+                        v_str = str(val.get("value", "")).strip()
+                        try:
+                            v_odd = float(val.get("odd", 0))
+                        except (ValueError, TypeError):
+                            continue
+                        if v_odd <= 1.0:
+                            continue
+
+                        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', v_str)
+                        if m_line or b_id == 2 or "draw no bet" in b_name:
+                            is_away = ("away" in v_str.lower() or away_team.lower() in v_str.lower())
+                            raw_line = float(m_line.group(1)) if m_line else 0.0
+                            if is_away and raw_line != 0.0:
+                                line_num = -raw_line
+                            else:
+                                line_num = raw_line
+                            target_team = away_team if is_away else home_team
+                            sign_str = f"{line_num:+.2f}".rstrip("0").rstrip(".")
+                            if line_num == 0.0:
+                                sign_str = "0.0"
+                            palpite_fmt = f"{target_team} {sign_str} AH"
+                            lines.append({
+                                "team": "Away" if is_away else "Home",
+                                "target_team": target_team,
+                                "is_away": is_away,
+                                "line": line_num,
+                                "palpite_str": palpite_fmt,
+                                "odd": v_odd,
+                                "raw_value": v_str,
+                                "bookmaker": bm_name
+                            })
+            if lines:
+                bm_dict[bm_name] = lines
+    return bm_dict
+
+def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_team, odd_home, odd_away, h_l5=None, a_l5=None):
+    """
+    Gera as linhas analíticas de referência viáveis calculadas pelo modelo de Poisson do Gatekeeper,
+    independentemente de constarem ou não nas casas de apostas da API.
+    Apresenta as opções com cobertura de segurança (>= 55%) e sua respectiva odd mínima (+EV).
+    """
+    from asian_handicap_engine import evaluate_ah_line_poisson
+    ref_lines = []
+
+    # Inicialização prévia de variáveis numéricas locais (Regra 8)
+    odd_justa = 0.0
+    odd_minima = 0.0
+    prob_eff = 0.0
+    line_val = 0.0
+
+    standard_steps = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
+    for side_is_away in [False, True]:
+        team_name = away_team if side_is_away else home_team
+        for line_val in standard_steps:
+            ev_res = evaluate_ah_line_poisson(poisson_matrix, is_away=side_is_away, line=line_val, odd_betano=2.0)
+            odd_justa = float(ev_res.get("odd_justa", 0.0))
+            prob_eff = float(ev_res.get("prob_eff", 0.0))
+
+            # Critérios de viabilidade matemática do Gatekeeper:
+            # 1. Cobertura efetiva segura (mínimo de 55.0% de probabilidade de não perder)
+            # 2. Odd justa em faixa operável da banca (1.25 a 2.15)
+            if prob_eff >= 55.0 and 1.25 <= odd_justa <= 2.15:
+                odd_minima = max(1.45, round(odd_justa * 1.05, 2))
+                if odd_minima <= 2.25:
+                    sign_str = f"{line_val:+.2f}".rstrip("0").rstrip(".")
+                    if line_val == 0.0:
+                        sign_str = "0.0"
+                    palpite_fmt = f"{team_name} {sign_str} AH"
+
+                    ref_lines.append({
+                        "linha": palpite_fmt,
+                        "time": team_name,
+                        "line": line_val,
+                        "is_away": side_is_away,
+                        "odd_justa": odd_justa,
+                        "odd_minima": odd_minima,
+                        "prob_cobertura": prob_eff
+                    })
+
+    # Ordenar por probabilidade de cobertura decrescente
+    ref_lines.sort(key=lambda x: x["prob_cobertura"], reverse=True)
+    return ref_lines
+
+def find_other_bookmakers_approved_lines(fixture_dict, raw_items, home_team, away_team, cursor=None):
+    """
+    Varre as bookmakers retornadas pela API (Bet365, Pinnacle, 1xBet, etc.)
+    e identifica linhas com cotações reais aprovadas no Gatekeeper (+EV a partir de 5%).
+    """
+    from asian_handicap_engine import calculate_unified_handicap_recommendation
+
+    bm_dict = extract_all_bookmakers_ah_lines(raw_items, home_team, away_team)
+    if not bm_dict:
+        return []
+
+    approved_opportunities = []
+    for bm_name, lines in bm_dict.items():
+        if "BETANO" in bm_name.upper():
+            continue  # A Betano já é a casa padrão avaliada no fluxo principal
+        if not lines:
+            continue
+
+        try:
+            status_gk, best_sug, conf, reasoning, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+                fixture_dict, betano_lines=lines, allow_api_fetch=False, cursor=cursor
+            )
+            if approved_cands:
+                for c in approved_cands:
+                    eval_info = c.get("eval", {})
+                    approved_opportunities.append({
+                        "bookmaker": bm_name,
+                        "palpite_str": c["palpite_str"],
+                        "linha": c["line"],
+                        "odd": float(c["odd"]),
+                        "odd_justa": float(eval_info.get("odd_justa", 0.0)),
+                        "ev_percent": float(eval_info.get("ev_percent", 0.0)),
+                        "prob_eff": float(eval_info.get("prob_eff", 0.0))
+                    })
+        except Exception:
+            continue
+
+    return approved_opportunities
+
+def consultar_radar_ah(fixture_id):
+    """
+    Consulta proativa do radar analítico de Handicap Asiático para uma partida:
+    1. Linhas de referência com odds mínimas de entrada (+EV a partir de 5%);
+    2. Linhas aprovadas atualmente na Betano;
+    3. Oportunidades aprovadas em outras casas disponíveis na API (Bet365, Pinnacle, etc.).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+    fix = cursor.fetchone()
+    if not fix:
+        cursor.close()
+        conn.close()
+        return {"success": False, "message": f"Partida #{fixture_id} não encontrada em fixtures_trends."}
+
+    home_team = fix["home_team"]
+    away_team = fix["away_team"]
+
+    from asian_handicap_engine import (
+        fetch_all_betano_ah_lines,
+        calculate_unified_handicap_recommendation,
+        calculate_bivariate_poisson_matrix,
+        _betano_ah_raw_fixture_cache,
+        get_team_u5j_from_db
+    )
+
+    betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+    status_gk, best_sug, conf, reasoning, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+        fix, betano_lines=betano_lines, allow_api_fetch=False, cursor=cursor
+    )
+
+    xg_h = float(fix.get("xg_home") or 1.35)
+    xg_a = float(fix.get("xg_away") or 1.10)
+    poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+    odd_h = float(fix.get("odd_home") or 0.0)
+    odd_a = float(fix.get("odd_away") or 0.0)
+
+    h_l5 = get_team_u5j_from_db(cursor, fix.get("home_team_id"), home_team)
+    a_l5 = get_team_u5j_from_db(cursor, fix.get("away_team_id"), away_team)
+
+    ref_lines = build_ah_reference_fair_lines(fix, poisson_matrix, home_team, away_team, odd_h, odd_a, h_l5, a_l5)
+
+    raw_items = _betano_ah_raw_fixture_cache.get(fixture_id, [])
+    outras_casas_aprovadas = find_other_bookmakers_approved_lines(fix, raw_items, home_team, away_team, cursor=cursor)
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "linhas_referencia": ref_lines,
+        "linhas_aprovadas_betano": [
+            {
+                "palpite_str": c["palpite_str"],
+                "odd": float(c["odd"]),
+                "ev_percent": float(c.get("eval", {}).get("ev_percent", 0.0)),
+                "odd_justa": float(c.get("eval", {}).get("odd_justa", 0.0)),
+                "prob_eff": float(c.get("eval", {}).get("prob_eff", 0.0))
+            }
+            for c in approved_cands
+        ],
+        "oportunidades_outras_casas": outras_casas_aprovadas
+    }
+
+
 def find_best_matching_odd_for_line(ah_lines, dnb_lines, suggestion, home_team, away_team):
     """
     Localiza a cotação exata da linha recomendada dentro das linhas retornadas pela API.
@@ -603,7 +821,15 @@ def find_matching_ah_candidate(candidates, target_str, home_team, away_team):
     m_val = re.search(r'([+-]?\d+(?:\.\d+)?)', target_str)
     if m_val:
         try:
-            target_val = float(m_val.group(1))
+            raw_target_val = float(m_val.group(1))
+            # Normalização de tolerância para digitação acidental de meio gol
+            if abs(raw_target_val - (-0.05)) < 1e-4:
+                target_val = -0.5
+            elif abs(raw_target_val - 0.05) < 1e-4:
+                target_val = 0.5
+            else:
+                target_val = raw_target_val
+
             target_is_away = False
             if away_team and away_team.lower() in target_str.lower():
                 target_is_away = True
@@ -653,8 +879,14 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
         get_team_u5j_from_db
     )
 
-    betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
-    if not betano_lines:
+    betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team) or []
+
+    try:
+        odd_float = float(odd_alvo) if (odd_alvo is not None and float(odd_alvo) > 0) else None
+    except (ValueError, TypeError):
+        odd_float = None
+
+    if not betano_lines and not (linha_alvo and odd_float):
         cursor.close()
         conn.close()
         return {
@@ -663,13 +895,8 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
             "fixture_id": fixture_id,
             "aposta_id": aposta_id,
             "linha_solicitada": linha_alvo,
-            "explicacao": "⚪ No momento, a Betano não possui linhas de Handicap Asiático abertas para esta partida na API."
+            "explicacao": "⚪ No momento, não há linhas de Handicap Asiático abertas na API para esta partida e nenhuma cotação customizada foi informada."
         }
-
-    try:
-        odd_float = float(odd_alvo) if (odd_alvo is not None and float(odd_alvo) > 0) else None
-    except (ValueError, TypeError):
-        odd_float = None
 
     # Se o usuário informou uma odd personalizada para o par (linha, odd)
     eval_lines = []
@@ -686,15 +913,28 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
     if not matched_in_betano and odd_float:
         import re
         m_val = re.search(r'([+-]?\d+(?:\.\d+)?)', linha_alvo)
-        line_num = float(m_val.group(1)) if m_val else 0.0
+        raw_val = float(m_val.group(1)) if m_val else 0.0
+        # Tolerância preventiva para digitação acidental de meio gol (-0.05 -> -0.50)
+        if abs(raw_val - (-0.05)) < 1e-4:
+            line_num = -0.5
+        elif abs(raw_val - 0.05) < 1e-4:
+            line_num = 0.5
+        else:
+            line_num = raw_val
+
         is_away = bool(away_team and away_team.lower() in linha_alvo.lower())
         target_team = away_team if is_away else home_team
+        sign_str = f"{line_num:+.2f}".rstrip("0").rstrip(".")
+        if line_num == 0.0:
+            sign_str = "0.0"
+        palpite_fmt = f"{target_team} {sign_str} AH"
+
         eval_lines.append({
             'team': 'Away' if is_away else 'Home',
             'target_team': target_team,
             'is_away': is_away,
             'line': line_num,
-            'palpite_str': f"{target_team} {line_num:+.2f} AH".replace("+0.00", "0.0").replace("-0.00", "0.0").replace(".00", "").replace(".50", ".5").replace(".25", ".25").replace(".75", ".75"),
+            'palpite_str': palpite_fmt,
             'odd': odd_float,
             'raw_value': f"{'Away' if is_away else 'Home'} {line_num}",
             'source': 'USUARIO_CUSTOM'
@@ -703,6 +943,19 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
     status_gk, best_sug, conf, reasoning, best_cand, approved_cands = calculate_unified_handicap_recommendation(
         fix, betano_lines=eval_lines, allow_api_fetch=False, cursor=cursor
     )
+
+    # 0. Calcular Linhas de Referência (+EV) e Oportunidades em Outras Casas
+    from asian_handicap_engine import calculate_bivariate_poisson_matrix, _betano_ah_raw_fixture_cache
+    xg_h_val = float(fix.get("xg_home") or 1.35)
+    xg_a_val = float(fix.get("xg_away") or 1.10)
+    poisson_matrix_local = calculate_bivariate_poisson_matrix(xg_h_val, xg_a_val)
+    odd_h_val = float(fix.get("odd_home") or 0.0)
+    odd_a_val = float(fix.get("odd_away") or 0.0)
+    h_l5_local = get_team_u5j_from_db(cursor, fix.get("home_team_id"), home_team)
+    a_l5_local = get_team_u5j_from_db(cursor, fix.get("away_team_id"), away_team)
+    ref_lines = build_ah_reference_fair_lines(fix, poisson_matrix_local, home_team, away_team, odd_h_val, odd_a_val, h_l5_local, a_l5_local)
+    raw_items_local = _betano_ah_raw_fixture_cache.get(fixture_id, [])
+    outras_casas_aprovadas = find_other_bookmakers_approved_lines(fix, raw_items_local, home_team, away_team, cursor=cursor)
 
     # 1. Verificar se a linha alvo está entre as aprovadas pelo Gatekeeper
     cand_aprovado = find_matching_ah_candidate(approved_cands, linha_alvo, home_team, away_team)
@@ -732,8 +985,59 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
             "ganhos_potenciais_novos": novo_ganho,
             "explicacao": f"🎯 Par ({palpite_oficial} @ {odd_real:.2f}) APROVADO no Gatekeeper (+EV {ev_perc:+.1f}% | Odd Justa {odd_justa:.2f} | Cobertura {prob_eff:.1f}%).",
             "linhas_aprovadas_disponiveis": [c["palpite_str"] for c in approved_cands],
-            "linhas_betano_todas": [l["palpite_str"] for l in betano_lines]
+            "linhas_betano_todas": [l["palpite_str"] for l in betano_lines],
+            "linhas_referencia": ref_lines,
+            "oportunidades_outras_casas": outras_casas_aprovadas
         }
+
+    # 1.1 Avaliação Matemática Direta via Poisson para Linhas Customizadas (ex: Stake)
+    if odd_float and linha_alvo:
+        import re
+        from asian_handicap_engine import evaluate_ah_line_poisson
+        m_val_c = re.search(r'([+-]?\d+(?:\.\d+)?)', linha_alvo)
+        raw_val_c = float(m_val_c.group(1)) if m_val_c else 0.0
+        if abs(raw_val_c - (-0.05)) < 1e-4:
+            line_c = -0.5
+        elif abs(raw_val_c - 0.05) < 1e-4:
+            line_c = 0.5
+        else:
+            line_c = raw_val_c
+
+        is_away_c = bool(away_team and away_team.lower() in linha_alvo.lower())
+        target_team_c = away_team if is_away_c else home_team
+        sign_str_c = f"{line_c:+.2f}".rstrip("0").rstrip(".")
+        if line_c == 0.0:
+            sign_str_c = "0.0"
+        palpite_fmt_c = f"{target_team_c} {sign_str_c} AH"
+
+        ev_cust = evaluate_ah_line_poisson(poisson_matrix_local, is_away=is_away_c, line=line_c, odd_betano=odd_float)
+        p_eff_cust = float(ev_cust.get("prob_eff", 0.0))
+        odd_justa_cust = float(ev_cust.get("odd_justa", 0.0))
+        ev_perc_cust = float(ev_cust.get("ev_percent", 0.0))
+        odd_min_nec = max(1.45, round(odd_justa_cust * 1.05, 2))
+
+        if p_eff_cust >= 55.0 and ev_perc_cust >= 3.0 and 1.45 <= odd_float <= 2.30:
+            val_ap = float(aposta_alvo.get("valor_aposta") or 10.0) if aposta_alvo else 10.0
+            novo_ganho = round(val_ap * odd_float, 2)
+            cursor.close()
+            conn.close()
+            return {
+                "success": True,
+                "aprovado": True,
+                "fixture_id": fixture_id,
+                "aposta_id": aposta_id,
+                "linha_oficial": palpite_fmt_c,
+                "odd": odd_float,
+                "odd_justa": odd_justa_cust,
+                "ev_percent": ev_perc_cust,
+                "prob_efetiva": p_eff_cust,
+                "ganhos_potenciais_novos": novo_ganho,
+                "explicacao": f"🎯 Par ({palpite_fmt_c} @ {odd_float:.2f}) APROVADO no Gatekeeper (+EV {ev_perc_cust:+.1f}% | Odd Justa {odd_justa_cust:.2f} | Cobertura {p_eff_cust:.1f}%).",
+                "linhas_aprovadas_disponiveis": [palpite_fmt_c],
+                "linhas_betano_todas": [l["palpite_str"] for l in betano_lines],
+                "linhas_referencia": ref_lines,
+                "oportunidades_outras_casas": outras_casas_aprovadas
+            }
 
     # 2. Se não está aprovada, verificar justificativa
     cand_testado = find_matching_ah_candidate(eval_lines, linha_alvo, home_team, away_team)
@@ -747,7 +1051,16 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
     conn.close()
 
     motivo_rejeicao = ""
-    if cand_testado:
+    if odd_float and linha_alvo:
+        if odd_float < 1.45:
+            motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por cotação abaixo do piso mínimo de segurança de 1.45 da banca."
+        elif odd_float > 2.30:
+            motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por cotação acima do teto seguro de risco (2.30)."
+        elif p_eff_cust < 55.0:
+            motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por probabilidade de cobertura ({p_eff_cust:.1f}%) abaixo do mínimo de segurança exigido de 55.0%."
+        elif ev_perc_cust < 3.0:
+            motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por cotação insuficiente para gerar valor positivo (+EV). Cotação mínima necessária na casa: @ {odd_min_nec:.2f}."
+    elif cand_testado:
         palpite_b = cand_testado["palpite_str"]
         odd_b = float(cand_testado["odd"])
         for it in audit_items:
@@ -775,7 +1088,9 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
         "odd": float(cand_testado["odd"]) if cand_testado else None,
         "explicacao": motivo_limpo,
         "linhas_aprovadas_disponiveis": [c["palpite_str"] for c in approved_cands],
-        "linhas_betano_todas": [l["palpite_str"] for l in betano_lines]
+        "linhas_betano_todas": [l["palpite_str"] for l in betano_lines],
+        "linhas_referencia": ref_lines,
+        "oportunidades_outras_casas": outras_casas_aprovadas
     }
 
 def salvar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=None):
@@ -899,6 +1214,7 @@ def main():
     parser.add_argument("--aposta_id", type=int, default=None, help="ID da aposta opcional")
     parser.add_argument("--validar_linha", type=str, default=None, help="Linha AH específica para validar no Gatekeeper")
     parser.add_argument("--salvar_linha", type=str, default=None, help="Linha AH específica para salvar na aposta e fixtures_trends")
+    parser.add_argument("--radar", action="store_true", help="Consultar radar analítico de linhas elegíveis, odds mínimas e oportunidades em outras casas")
     parser.add_argument("--odd", type=float, default=None, help="Cotação/Odd específica para validar o par (linha, odd)")
     args = parser.parse_args()
 
@@ -906,7 +1222,9 @@ def main():
     captured_err = io.StringIO()
     try:
         with contextlib.redirect_stdout(captured_out), contextlib.redirect_stderr(captured_err):
-            if args.validar_linha:
+            if args.radar:
+                result = consultar_radar_ah(args.fixture_id)
+            elif args.validar_linha:
                 result = validar_linha_customizada_ah(args.fixture_id, args.aposta_id, args.validar_linha, args.odd)
             elif args.salvar_linha:
                 result = salvar_linha_customizada_ah(args.fixture_id, args.aposta_id, args.salvar_linha, args.odd)

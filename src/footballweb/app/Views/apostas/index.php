@@ -1676,7 +1676,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                   <div class="fw-bold text-warning d-flex align-items-center gap-1" style="font-size: 0.82rem;">
                     <i class="bi bi-sliders"></i> Customizar Linha AH (Validação Gatekeeper)
                   </div>
-                  <button type="button" class="btn-close btn-close-white" style="font-size: 0.65rem;" onclick="toggleCustomAhSection(<?= $aposta->id ?>)"></button>
+                  <button type="button" class="btn-close btn-close-white" style="font-size: 0.65rem;" onclick="toggleCustomAhSection(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>)"></button>
                 </div>
                 
                 <div class="row g-2 align-items-end">
@@ -1695,6 +1695,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         <option value="<?= htmlspecialchars($aposta->time_casa) ?> -0.25 AH">
                         <option value="<?= htmlspecialchars($aposta->time_casa) ?> 0.0 AH">
                         <option value="<?= htmlspecialchars($aposta->time_casa) ?> +0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> +0.5 AH">
                         <option value="<?= htmlspecialchars($aposta->time_fora) ?> -0.25 AH">
                         <option value="<?= htmlspecialchars($aposta->time_fora) ?> 0.0 AH">
                         <option value="<?= htmlspecialchars($aposta->time_fora) ?> +0.25 AH">
@@ -1704,10 +1705,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                   </div>
                   <div class="col-6 col-md-3 col-lg-3">
                     <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-tag"></i> Cotação (@):</label>
-                    <input type="number" 
-                           step="0.01" 
-                           min="1.01" 
-                           max="50.00" 
+                    <input type="text" 
+                           inputmode="decimal" 
                            id="input-custom-odd-<?= $aposta->id ?>" 
                            class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold custom-odd-input text-center" 
                            placeholder="Ex: 1.85" 
@@ -1726,6 +1725,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
                 <!-- Feedback da Validação -->
                 <div id="feedback-custom-ah-<?= $aposta->id ?>" class="mt-2" style="display: none;"></div>
+
+                <!-- Radar do Gatekeeper: Odds Mínimas e Outras Casas -->
+                <div id="radar-custom-ah-<?= $aposta->id ?>" class="mt-2.5 pt-2 border-top border-secondary border-opacity-25" style="display: none;"></div>
               </div>
             <?php endif; ?>
           </div>
@@ -1777,7 +1779,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 <button type="button" 
                         class="btn btn-sm btn-outline-warning fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-custom-ah" 
                         style="border-radius: 8px; font-size: 0.78rem;" 
-                        onclick="toggleCustomAhSection(<?= $aposta->id ?>)"
+                        onclick="toggleCustomAhSection(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>)"
                         title="Informar e validar uma linha alternativa de Handicap Asiático no Gatekeeper">
                   <i class="bi bi-sliders"></i> Ajustar Linha AH
                 </button>
@@ -4552,8 +4554,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
   }
 
-  // Alternar painel de ajuste de linha AH customizada
-  function toggleCustomAhSection(apostaId) {
+  // Alternar painel de ajuste de linha AH customizada e carregar radar proativo
+  function toggleCustomAhSection(apostaId, fixtureId) {
     if (!apostaId) return;
     const box = document.getElementById('custom-ah-box-' + apostaId);
     if (!box) return;
@@ -4562,7 +4564,122 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (!isVisible) {
       const input = document.getElementById('input-custom-ah-' + apostaId);
       if (input) input.focus();
+      if (fixtureId) {
+        carregarRadarAh(apostaId, fixtureId);
+      }
     }
+  }
+
+  // Carregar radar analítico do Gatekeeper (Odds mínimas e oportunidades em outras casas)
+  function carregarRadarAh(apostaId, fixtureId) {
+    const radarEl = document.getElementById('radar-custom-ah-' + apostaId);
+    if (!radarEl || radarEl.dataset.loaded === 'true') return;
+
+    radarEl.style.display = 'block';
+    radarEl.innerHTML = `
+      <div class="d-flex align-items-center gap-2 py-1 text-white-50" style="font-size: 0.73rem;">
+        <span class="spinner-border spinner-border-sm text-info"></span>
+        <span>Consultando radar do Gatekeeper e odds de mercado...</span>
+      </div>
+    `;
+
+    fetch('<?= base_url('apostas/radar-linhas-ah') ?>/' + fixtureId, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.success) {
+        radarEl.dataset.loaded = 'true';
+        renderRadarAhHtml(apostaId, fixtureId, data);
+      } else {
+        radarEl.style.display = 'none';
+      }
+    })
+    .catch(() => {
+      radarEl.style.display = 'none';
+    });
+  }
+
+  function renderRadarAhHtml(apostaId, fixtureId, data) {
+    const radarEl = document.getElementById('radar-custom-ah-' + apostaId);
+    if (!radarEl) return;
+
+    let html = '';
+
+    // 1. Linhas de Referência (+EV a partir de 5%)
+    if (data.linhas_referencia && data.linhas_referencia.length > 0) {
+      const badges = data.linhas_referencia.map(l => {
+        return `<button type="button" 
+                        class="btn btn-xs btn-outline-info py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.72rem; border-radius: 4px; border-color: rgba(56, 189, 248, 0.45); color: #bae6fd;" 
+                        title="Odd justa ${Number(l.odd_justa).toFixed(2)} | Cobertura ${Number(l.prob_cobertura).toFixed(1)}%"
+                        onclick="aplicarLinhaRadar(${apostaId}, '${l.linha}', ${Number(l.odd_minima).toFixed(2)})">
+                  <span>${l.linha}</span>
+                  <span class="badge bg-secondary bg-opacity-50 text-white-50" style="font-size: 0.62rem;">${Number(l.prob_cobertura).toFixed(0)}% cob.</span>
+                  <span class="badge bg-info bg-opacity-25 text-info" style="font-size: 0.65rem;">mín @ ${Number(l.odd_minima).toFixed(2)}</span>
+                </button>`;
+      }).join(' ');
+
+      html += `
+        <div class="mb-2">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="fw-bold text-info" style="font-size: 0.74rem;">
+              <i class="bi bi-compass me-1"></i> Linhas Elegíveis e Cotação Mínima (+EV no Gatekeeper):
+            </span>
+            <span class="text-white-50" style="font-size: 0.68rem;">(Clique para preencher)</span>
+          </div>
+          <div class="d-flex flex-wrap gap-1">${badges}</div>
+        </div>
+      `;
+    }
+
+    // 2. Oportunidades em Outras Casas (API Real)
+    if (data.oportunidades_outras_casas && data.oportunidades_outras_casas.length > 0) {
+      const oppBadges = data.oportunidades_outras_casas.map(op => {
+        return `<button type="button" 
+                        class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.72rem; border-radius: 4px; border-color: rgba(34, 197, 94, 0.6); color: #86efac;" 
+                        title="${op.bookmaker} | +EV ${Number(op.ev_percent).toFixed(1)}% | Prob ${Number(op.prob_eff).toFixed(1)}%"
+                        onclick="aplicarLinhaRadarEValidar(${apostaId}, ${fixtureId}, '${op.palpite_str}', ${Number(op.odd).toFixed(2)})">
+                  <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">${op.bookmaker}</span>
+                  <span>${op.palpite_str}</span>
+                  <strong class="text-warning">@ ${Number(op.odd).toFixed(2)}</strong>
+                </button>`;
+      }).join(' ');
+
+      html += `
+        <div class="mt-2 pt-1.5 border-top border-secondary border-opacity-25">
+          <div class="fw-bold text-success mb-1" style="font-size: 0.74rem;">
+            <i class="bi bi-stars me-1"></i> Oportunidades Reais Aprovadas em Outras Casas (API):
+          </div>
+          <div class="d-flex flex-wrap gap-1">${oppBadges}</div>
+        </div>
+      `;
+    }
+
+    if (!html) {
+      html = `
+        <div class="text-white-50 py-1" style="font-size: 0.72rem;">
+          <i class="bi bi-info-circle me-1"></i> No momento, todas as linhas de mercado ativas estão com margem de valor reduzida ou retidas pelo filtro de momento.
+        </div>
+      `;
+    }
+
+    radarEl.style.display = 'block';
+    radarEl.innerHTML = html;
+  }
+
+  function aplicarLinhaRadar(apostaId, linha, odd) {
+    const inputEl = document.getElementById('input-custom-ah-' + apostaId);
+    const oddEl = document.getElementById('input-custom-odd-' + apostaId);
+    if (inputEl) inputEl.value = linha;
+    if (oddEl && odd) oddEl.value = odd;
+  }
+
+  function aplicarLinhaRadarEValidar(apostaId, fixtureId, linha, odd) {
+    aplicarLinhaRadar(apostaId, linha, odd);
+    const btn = document.querySelector('#custom-ah-box-' + apostaId + ' .btn-validar-custom-ah');
+    if (btn) handleValidarCustomAh(apostaId, fixtureId, btn);
   }
 
   // Validar o par (linha, odd) no Gatekeeper via AJAX
@@ -4602,8 +4719,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       aposta_id: apostaId,
       linha_ah: linhaAh
     };
-    if (oddVal && !isNaN(parseFloat(oddVal))) {
-      postParams.odd = parseFloat(oddVal);
+    const oddSanitized = oddVal.replace(',', '.');
+    if (oddSanitized && !isNaN(parseFloat(oddSanitized))) {
+      postParams.odd = parseFloat(oddSanitized);
     }
 
     fetch('<?= base_url('apostas/validar-linha-ah') ?>', {
@@ -4628,6 +4746,11 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           </div>
         `;
         return;
+      }
+
+      // Atualiza o radar com os dados analíticos retornados
+      if (data.linhas_referencia || data.oportunidades_outras_casas) {
+        renderRadarAhHtml(apostaId, fixtureId, data);
       }
 
       if (data.aprovado) {
@@ -4685,6 +4808,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
               <span class="text-white-50 d-block mb-1">💡 Linhas Aprovadas Disponíveis na Betano:</span>
               <div class="d-flex flex-wrap gap-1">${badges}</div>
+            </div>
+          `;
+        } else {
+          alternativasHtml = `
+            <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
+              <span class="text-white-50 d-block mb-1">💡 A linha informada não atingiu os critérios de aprovação do Gatekeeper. Utilize as linhas elegíveis e cotações mínimas recomendadas pelo radar abaixo para apostar na Stake ou em qualquer outra casa.</span>
             </div>
           `;
         }

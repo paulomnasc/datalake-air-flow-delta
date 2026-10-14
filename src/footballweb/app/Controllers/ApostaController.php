@@ -3398,6 +3398,9 @@ class ApostaController extends BaseController
         }
 
         $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --validar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd)) {
+            $odd = str_replace(',', '.', (string)$odd);
+        }
         if (!empty($odd) && is_numeric($odd)) {
             $cmd .= " --odd=" . escapeshellarg((float)$odd);
         }
@@ -3420,6 +3423,53 @@ class ApostaController extends BaseController
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Erro ao validar linha de Handicap Asiático: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para obter o radar proativo de linhas de AH (Odds mínimas e oportunidades em outras casas).
+     */
+    public function radarLinhasAh($fixtureId)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para consultar o radar do Gatekeeper.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --radar";
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao consultar radar de Handicap Asiático: ' . $output
             ]);
         }
 
@@ -3469,6 +3519,9 @@ class ApostaController extends BaseController
         }
 
         $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --aposta_id={$apostaId} --salvar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd)) {
+            $odd = str_replace(',', '.', (string)$odd);
+        }
         if (!empty($odd) && is_numeric($odd)) {
             $cmd .= " --odd=" . escapeshellarg((float)$odd);
         }

@@ -219,6 +219,8 @@ class MetaDiariaModel extends Model
         // Determinação do status do dia
         if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
             $statusDia = 'STOP_LOSS_ATINGIDO';
+        } elseif ($pendentes > 0) {
+            $statusDia = 'EM_ANDAMENTO';
         } elseif ($lucroLiquido >= $lucroAlvo) {
             $statusDia = 'META_BATIDA';
         } elseif ($pendentes === 0 && $liquidadas > 0) {
@@ -447,10 +449,10 @@ class MetaDiariaModel extends Model
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
 
             $isStopLossBloco   = ($lucroBloco <= $stopLossConfig || ($redsBloco >= $maxRedsConfig && $lucroBloco < 0));
-            $isMetaBatidaBloco = ($lucroBloco >= $lucroAlvoConfig && $totalBloco >= $tamanho);
+            $isMetaBatidaBloco = ($lucroBloco >= $lucroAlvoConfig && $totalBloco >= $tamanho && $pendentesBloco === 0);
 
-            // Regra Canônica: Bloco fecha e é bloqueado se atingir Stop Loss, Meta Batida ou completar 10 apostas sem pendentes
-            $isFechado = ($isStopLossBloco || $isMetaBatidaBloco || ($totalBloco >= $tamanho && $pendentesBloco === 0));
+            // Regra Canônica: Bloco fecha e é bloqueado se atingir Stop Loss consolidado, Meta Batida consolidada ou completar 10 apostas sem pendentes
+            $isFechado = (($isStopLossBloco && $pendentesBloco === 0) || $isMetaBatidaBloco || ($totalBloco >= $tamanho && $pendentesBloco === 0));
             if ($isFechado) {
                 $ultimoCicloFechado = $c;
             }
@@ -548,15 +550,17 @@ class MetaDiariaModel extends Model
         $maxReds   = (int)($meta->max_reds ?? 3);
 
         $isStopLoss   = ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0));
-        $isMetaBatida = ($lucroLiquido >= $lucroAlvo && $totalCiclo >= $tamanho);
+        $isMetaBatida = ($lucroLiquido >= $lucroAlvo && $totalCiclo >= $tamanho && $pendentes === 0);
 
-        // Bloco é bloqueado e fechado se atingir Stop Loss, Meta Batida ou completar 10 apostas sem pendentes
-        $isFechado = ($isStopLoss || $isMetaBatida || ($totalCiclo >= $tamanho && $pendentes === 0));
+        // Bloco é bloqueado e fechado se atingir Stop Loss consolidado, Meta Batida consolidada ou completar 10 apostas sem pendentes
+        $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || ($totalCiclo >= $tamanho && $pendentes === 0));
         $isAtivo   = ($cicloAlvo === $cicloAtivoNum);
 
-        if ($isStopLoss) {
+        if ($isStopLoss && $pendentes === 0) {
             $statusCiclo = 'STOP_LOSS_ATINGIDO';
-        } elseif ($lucroLiquido >= $lucroAlvo) {
+        } elseif ($pendentes > 0) {
+            $statusCiclo = 'EM_ANDAMENTO';
+        } elseif ($isMetaBatida) {
             $statusCiclo = 'META_BATIDA';
         } elseif ($isFechado) {
             if ($lucroLiquido > 0) {
@@ -686,12 +690,14 @@ class MetaDiariaModel extends Model
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
 
             $isStopLoss = ($lucroLiq <= $stopLossConfig || ($reds >= $maxRedsConfig && $lucroLiq < 0));
-            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && $totalB >= $tamanho);
-            $isFechado = ($isStopLoss || $isMetaBatida || ($totalB >= $tamanho && $pendentes === 0));
+            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && $totalB >= $tamanho && $pendentes === 0);
+            $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || ($totalB >= $tamanho && $pendentes === 0));
 
-            if ($isStopLoss) {
+            if ($isStopLoss && $pendentes === 0) {
                 $status = 'STOP_LOSS_ATINGIDO';
-            } elseif ($lucroLiq >= $lucroAlvoConfig) {
+            } elseif ($pendentes > 0) {
+                $status = 'EM_ANDAMENTO';
+            } elseif ($isMetaBatida) {
                 $status = 'META_BATIDA';
             } elseif ($isFechado) {
                 if ($lucroLiq > 0) {

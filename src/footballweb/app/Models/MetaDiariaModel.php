@@ -612,9 +612,9 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o resumo dos ciclos fechados anteriores para histórico e auditoria
+     * Retorna o resumo dos ciclos fechados anteriores para histórico e auditoria (suporta filtro de datas)
      */
-    public function getHistoricoCiclos(int $usuarioId, int $limite = 15, int $tamanhoCiclo = 10): array
+    public function getHistoricoCiclos(int $usuarioId, int $limite = 15, int $tamanhoCiclo = 10, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
@@ -683,6 +683,17 @@ class MetaDiariaModel extends Model
                 }
             }
 
+            // Filtro por período de datas (intersecção com o intervalo do bloco)
+            $cDataIni = !empty($dtInicio) ? substr($dtInicio, 0, 10) : null;
+            $cDataFim = !empty($dtFim) ? substr($dtFim, 0, 10) : null;
+
+            if (!empty($dataInicio) && $cDataFim !== null && $cDataFim < $dataInicio) {
+                continue;
+            }
+            if (!empty($dataFim) && $cDataIni !== null && $cDataIni > $dataFim) {
+                continue;
+            }
+
             $lucroLiq = round($retornos - $liquidado, 2);
             $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
@@ -722,6 +733,8 @@ class MetaDiariaModel extends Model
                 'reds'           => $reds,
                 'cashouts'       => $cashouts,
                 'pendentes'      => $pendentes,
+                'investido'      => $liquidado,
+                'retornos'       => $retornos,
                 'lucro_liquido'  => $lucroLiq,
                 'roi_pct'        => $roi,
                 'is_fechado'     => $isFechado,
@@ -737,30 +750,79 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o histórico de dias cacheados dos últimos N dias.
+     * Retorna o histórico de dias cacheados dos últimos N dias (suporta filtro de datas).
      */
-    public function getHistoricoDias(int $usuarioId, int $limite = 30): array
+    public function getHistoricoDias(int $usuarioId, int $limite = 30, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
 
+        // Se datas forem fornecidas, assegura que dias com apostas tenham cache gerado
+        if (!empty($dataInicio) || !empty($dataFim)) {
+            $bApostas = $db->table('apostas')
+                ->select("DATE(COALESCE(data_hora_jogo, criado_em)) as dia_aposta", false)
+                ->where('usuario_id', $usuarioId)
+                ->whereNotIn('status', ['Cancelada', 'CANCELADA']);
+            if (!empty($dataInicio)) {
+                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) >=", $dataInicio, false);
+            }
+            if (!empty($dataFim)) {
+                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) <=", $dataFim, false);
+            }
+            $bApostas->groupBy("DATE(COALESCE(data_hora_jogo, criado_em))");
+            $diasComApostas = $bApostas->get()->getResultArray();
+
+            foreach ($diasComApostas as $dca) {
+                $diaStr = $dca['dia_aposta'] ?? null;
+                if (!empty($diaStr)) {
+                    $existeNoCache = $db->table('metas_diarias_cache')
+                        ->where('usuario_id', $usuarioId)
+                        ->where('data_referencia', $diaStr)
+                        ->countAllResults();
+                    if ($existeNoCache === 0) {
+                        $this->recalcularCacheDiario($usuarioId, $diaStr);
+                    }
+                }
+            }
+        }
+
         // Identifica no cache se existem dias passados gravados com jogos pendentes que já foram finalizados
-        $diasPendentesPassados = $db->table('metas_diarias_cache')
+        $builderPendentes = $db->table('metas_diarias_cache')
             ->select('data_referencia')
             ->where('usuario_id', $usuarioId)
             ->where('data_referencia <', date('Y-m-d'))
-            ->where('pendentes_count >', 0)
-            ->get()
-            ->getResultArray();
+            ->where('pendentes_count >', 0);
+
+        if (!empty($dataInicio)) {
+            $builderPendentes->where('data_referencia >=', $dataInicio);
+        }
+        if (!empty($dataFim)) {
+            $builderPendentes->where('data_referencia <=', $dataFim);
+        }
+
+        $diasPendentesPassados = $builderPendentes->get()->getResultArray();
 
         foreach ($diasPendentesPassados as $dp) {
             $this->recalcularCacheDiario($usuarioId, $dp['data_referencia']);
         }
 
-        return $db->table('metas_diarias_cache')
-            ->where('usuario_id', $usuarioId)
-            ->orderBy('data_referencia', 'DESC')
-            ->limit($limite)
-            ->get()
-            ->getResultArray();
+        $builder = $db->table('metas_diarias_cache')
+            ->where('usuario_id', $usuarioId);
+
+        if (!empty($dataInicio)) {
+            $builder->where('data_referencia >=', $dataInicio);
+        }
+        if (!empty($dataFim)) {
+            $builder->where('data_referencia <=', $dataFim);
+        }
+
+        $builder->orderBy('data_referencia', 'DESC');
+
+        if (empty($dataInicio) && empty($dataFim)) {
+            $builder->limit($limite);
+        } else {
+            $builder->limit(max($limite, 365));
+        }
+
+        return $builder->get()->getResultArray();
     }
 }

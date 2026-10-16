@@ -520,6 +520,26 @@ services:
     networks:
       - airflow_net
 
+  # 🌐 Navegador Remoto Isolado (Stake.com / Casas de Apostas)
+  remote-browser:
+    image: lscr.io/linuxserver/chromium:latest
+    container_name: remote-browser${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - LANG=pt_BR.UTF-8
+      - SUBFOLDER=/remote-browser/
+      - CHROME_CLI=https://stake.com/
+    volumes:
+      - ./data/remote-browser-profile:/config
+    shm_size: "1gb"
+    mem_limit: 1536m
+    cpus: 1.5
+    networks:
+      - airflow_net
+
   atlas:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas${ENV_SUFFIX:+-${ENV_SUFFIX}}

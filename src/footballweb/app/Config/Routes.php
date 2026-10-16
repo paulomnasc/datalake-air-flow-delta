@@ -48,6 +48,9 @@ $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerInges
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
 
+// Terminal Remoto Isolado (Stake / Geocheck) - Exclusivo Admin
+$routes->get('/terminal/stake', 'TerminalStakeController::index', ['filter' => 'adminauth', 'as' => 'terminal.stake']);
+
 // Rotas da Gestão de Apostas (CRUD com controle de tokens)
 $routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);
 $routes->post('/apostas/store', 'ApostaController::store', ['as' => 'apostas.store']);

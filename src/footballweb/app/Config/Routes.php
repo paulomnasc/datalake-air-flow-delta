@@ -50,6 +50,10 @@ $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScor
 
 // Terminal Remoto Isolado (Stake / Geocheck) - Exclusivo Admin
 $routes->get('/terminal/stake', 'TerminalStakeController::index', ['filter' => 'adminauth', 'as' => 'terminal.stake']);
+$routes->get('/terminal/stake/status', 'TerminalStakeController::status', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/start', 'TerminalStakeController::start', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/stop', 'TerminalStakeController::stop', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/restart', 'TerminalStakeController::restart', ['filter' => 'adminauth']);
 
 // Rotas da Gestão de Apostas (CRUD com controle de tokens)
 $routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);

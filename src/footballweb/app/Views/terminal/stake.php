@@ -177,6 +177,104 @@ require VIEWPATH . '/header.php';
         gap: 8px;
         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
     }
+    /* Barra de Navegação e Atalhos */
+    .terminal-navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        background: #0f172a;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .terminal-nav-controls {
+        flex: 1;
+        min-width: 280px;
+        max-width: 540px;
+    }
+    .terminal-url-group {
+        display: flex;
+        align-items: center;
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        overflow: hidden;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .terminal-url-group:focus-within {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    .url-addon {
+        padding: 6px 10px;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+    }
+    .terminal-url-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: #f8fafc;
+        font-size: 0.85rem;
+        padding: 6px 4px;
+        outline: none;
+        font-family: inherit;
+    }
+    .terminal-url-input::placeholder {
+        color: #64748b;
+    }
+    .terminal-url-submit {
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        padding: 6px 14px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.2s ease;
+    }
+    .terminal-url-submit:hover {
+        background: #1d4ed8;
+    }
+    .terminal-bookmarks {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .bookmarks-label {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .bookmark-chip {
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #cbd5e1;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .bookmark-chip:hover {
+        background: #334155;
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.25);
+        transform: translateY(-1px);
+    }
     /* Modo Tela Cheia */
     .terminal-container:fullscreen {
         height: 100vh;
@@ -204,7 +302,7 @@ require VIEWPATH . '/header.php';
         <div class="terminal-toolbar">
             <div class="terminal-title">
                 <i class="bi bi-shield-lock-fill text-primary" style="font-size: 1.25rem;"></i>
-                <span>Terminal Remoto Isolado (Stake.com)</span>
+                <span>Terminal Remoto Seguro (Cloudbet / Stake)</span>
 
                 <!-- Status Dinâmico -->
                 <span id="browserStatusBadge" class="terminal-badge-secure">
@@ -219,8 +317,8 @@ require VIEWPATH . '/header.php';
 
             <div class="terminal-actions">
                 <!-- Controle de Segurança: Iniciar / Encerrar -->
-                <button type="button" id="btnStartBrowser" class="terminal-btn terminal-btn-success" onclick="startRemoteBrowser()" title="Iniciar navegador Stake.com">
-                    <i class="bi bi-play-circle-fill"></i> Abrir Stake
+                <button type="button" id="btnStartBrowser" class="terminal-btn terminal-btn-success" onclick="startRemoteBrowser()" title="Iniciar navegador remoto">
+                    <i class="bi bi-play-circle-fill"></i> Iniciar Navegador
                 </button>
                 <button type="button" id="btnStopBrowser" class="terminal-btn terminal-btn-danger" onclick="stopRemoteBrowser()" title="Encerrar sessão do navegador imediatamente por segurança">
                     <i class="bi bi-shield-slash-fill"></i> Encerrar (Segurança)
@@ -245,6 +343,43 @@ require VIEWPATH . '/header.php';
             </div>
         </div>
 
+        <!-- Barra de Navegação de Endereços e Atalhos Rápidos -->
+        <div class="terminal-navbar">
+            <div class="terminal-nav-controls">
+                <div class="terminal-url-group">
+                    <span class="url-addon"><i class="bi bi-globe2"></i></span>
+                    <input 
+                        type="text" 
+                        id="terminalUrlInput" 
+                        class="terminal-url-input" 
+                        placeholder="Digite a URL (ex: cloudbet.com)..." 
+                        value="https://www.cloudbet.com/" 
+                        onkeydown="if(event.key === 'Enter') navigateToUrl()"
+                        autocomplete="off"
+                        spellcheck="false">
+                    <button type="button" class="terminal-url-submit" onclick="navigateToUrl()" title="Navegar para este endereço">
+                        <i class="bi bi-arrow-right-short" style="font-size: 1.1rem;"></i> Ir
+                    </button>
+                </div>
+            </div>
+
+            <div class="terminal-bookmarks">
+                <span class="bookmarks-label"><i class="bi bi-bookmark-star-fill text-warning"></i> Atalhos:</span>
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://www.cloudbet.com/')" title="Navegar para Cloudbet">
+                    <i class="bi bi-lightning-charge-fill text-primary"></i> Cloudbet
+                </button>
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://stake.com/')" title="Navegar para Stake.com">
+                    <i class="bi bi-suit-spade-fill text-danger"></i> Stake
+                </button>
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://whoer.net/')" title="Testar IP e anonimato no Whoer">
+                    <i class="bi bi-shield-check text-info"></i> Checar IP (Whoer)
+                </button>
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://browserleaks.com/ip')" title="Verificar vazamentos de IP/WebRTC">
+                    <i class="bi bi-fingerprint text-success"></i> BrowserLeaks
+                </button>
+            </div>
+        </div>
+
         <!-- Área de Exibição do Stream Chromium -->
         <div class="terminal-viewport">
             <iframe 
@@ -262,14 +397,14 @@ require VIEWPATH . '/header.php';
                         <i class="bi bi-shield-check" style="font-size: 2rem; color: #fbbf24;"></i>
                     </div>
                     <h4>Navegador em Standby por Segurança</h4>
-                    <p>O navegador foi encerrado para proteger suas credenciais e sessões da Stake. Quando quiser operar novamente, basta clicar no botão abaixo para iniciar.</p>
+                    <p>O navegador foi encerrado para proteger suas credenciais e sessões de apostas. Quando quiser operar novamente, basta clicar no botão abaixo ou escolher um atalho na barra superior.</p>
                     <div class="standby-actions">
                         <button type="button" class="terminal-btn terminal-btn-success" style="padding: 10px 20px; font-size: 0.95rem; font-weight: 600;" onclick="startRemoteBrowser()">
-                            <i class="bi bi-play-circle-fill"></i> Iniciar Navegador Stake.com
+                            <i class="bi bi-play-circle-fill"></i> Iniciar Navegador Seguro
                         </button>
                     </div>
                     <small class="d-block text-muted mt-3" style="font-size: 0.78rem;">
-                        <i class="bi bi-info-circle"></i> O IP de navegação é estritamente originado pelo servidor remoto.
+                        <i class="bi bi-info-circle"></i> O IP de navegação é estritamente originado pelo servidor remoto Hetzner.
                     </small>
                 </div>
             </div>
@@ -356,7 +491,13 @@ require VIEWPATH . '/header.php';
         if (btnStart) btnStart.style.display = 'none';
         if (btnStop) btnStop.style.display = 'inline-flex';
 
-        fetch('/terminal/stake/start', { method: 'POST' })
+        const urlInput = document.getElementById('terminalUrlInput');
+        const formData = new FormData();
+        if (urlInput && urlInput.value.trim()) {
+            formData.append('url', urlInput.value.trim());
+        }
+
+        fetch('/terminal/stake/start', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 showToast(data.message || 'Navegador iniciado!', 'success');
@@ -406,7 +547,14 @@ require VIEWPATH . '/header.php';
     // Reinicia o navegador
     function restartRemoteBrowser() {
         showToast('Reiniciando navegador...', 'info');
-        fetch('/terminal/stake/restart', { method: 'POST' })
+
+        const urlInput = document.getElementById('terminalUrlInput');
+        const formData = new FormData();
+        if (urlInput && urlInput.value.trim()) {
+            formData.append('url', urlInput.value.trim());
+        }
+
+        fetch('/terminal/stake/restart', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 showToast(data.message || 'Navegador reiniciado!', 'success');
@@ -444,6 +592,64 @@ require VIEWPATH . '/header.php';
                 document.exitFullscreen();
             }
         }
+    }
+
+    // Navega para a URL informada na barra de endereços
+    function navigateToUrl() {
+        const input = document.getElementById('terminalUrlInput');
+        if (!input) return;
+        const url = input.value.trim();
+        if (!url) {
+            showToast('Informe uma URL para navegar', 'danger');
+            return;
+        }
+
+        showToast('Navegando para ' + url + '...', 'info');
+
+        const formData = new FormData();
+        formData.append('url', url);
+
+        fetch('/terminal/stake/navigate', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message || 'Página solicitada com sucesso!', 'success');
+                if (data.url) input.value = data.url;
+
+                // Garante exibição do stream e oculta overlay
+                const overlay = document.getElementById('standbyOverlay');
+                if (overlay) overlay.style.display = 'none';
+
+                const badge = document.getElementById('browserStatusBadge');
+                const text = document.getElementById('browserStatusText');
+                if (badge) badge.className = 'terminal-badge-secure';
+                if (text) text.textContent = 'Navegador Ativo';
+
+                const btnStart = document.getElementById('btnStartBrowser');
+                const btnStop = document.getElementById('btnStopBrowser');
+                if (btnStart) btnStart.style.display = 'none';
+                if (btnStop) btnStop.style.display = 'inline-flex';
+
+                setTimeout(() => {
+                    checkBrowserStatus();
+                }, 1000);
+            } else {
+                showToast('Falha na navegação: ' + (data.message || 'Erro desconhecido'), 'danger');
+            }
+        })
+        .catch(err => {
+            showToast('Erro ao comunicar com o navegador: ' + err.message, 'danger');
+        });
+    }
+
+    // Atalho rápido de navegação
+    function quickNavigate(targetUrl) {
+        const input = document.getElementById('terminalUrlInput');
+        if (input) input.value = targetUrl;
+        navigateToUrl();
     }
 
     // Inicialização ao carregar a página

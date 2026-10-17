@@ -54,6 +54,7 @@ $routes->get('/terminal/stake/status', 'TerminalStakeController::status', ['filt
 $routes->post('/terminal/stake/start', 'TerminalStakeController::start', ['filter' => 'adminauth']);
 $routes->post('/terminal/stake/stop', 'TerminalStakeController::stop', ['filter' => 'adminauth']);
 $routes->post('/terminal/stake/restart', 'TerminalStakeController::restart', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/navigate', 'TerminalStakeController::navigate', ['filter' => 'adminauth']);
 
 // Rotas da Gestão de Apostas (CRUD com controle de tokens)
 $routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);

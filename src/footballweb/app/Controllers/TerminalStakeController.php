@@ -42,11 +42,11 @@ class TerminalStakeController extends BaseController
      */
     public function start()
     {
-        // Limpeza preventiva de travas de perfil
-        @exec('docker exec -u abc remote-browser rm -f /config/.config/chromium/Singleton* 2>&1');
+        // Limpeza preventiva de travas de perfil e reset de estado de encerramento
+        @exec('docker exec -u abc remote-browser bash -c "rm -f /config/.config/chromium/Singleton* && sed -i \'s/\"exit_type\":\"Crashed\"/\"exit_type\":\"Normal\"/g\' /config/.config/chromium/Default/Preferences 2>/dev/null || true" 2>&1');
 
-        // Disparo assíncrono do Chromium na sessão gráfica Wayland
-        $cmd = 'docker exec -d -u abc -e XDG_RUNTIME_DIR=/config/.XDG -e WAYLAND_DISPLAY=wayland-1 remote-browser /usr/bin/wrapped-chromium https://stake.com/ 2>&1';
+        // Disparo assíncrono do Chromium com flags para suprimir balão de crash/restauração
+        $cmd = 'docker exec -d -u abc -e XDG_RUNTIME_DIR=/config/.XDG -e WAYLAND_DISPLAY=wayland-1 remote-browser /usr/bin/wrapped-chromium --disable-session-crashed-bubble --hide-crash-restore-bubble https://stake.com/ 2>&1';
         @exec($cmd);
 
         usleep(600000); // 600ms para estabilização
@@ -63,7 +63,7 @@ class TerminalStakeController extends BaseController
     public function stop()
     {
         @exec('docker exec remote-browser pkill -9 -f chromium 2>&1');
-        @exec('docker exec -u abc remote-browser rm -f /config/.config/chromium/Singleton* 2>&1');
+        @exec('docker exec -u abc remote-browser bash -c "rm -f /config/.config/chromium/Singleton* && sed -i \'s/\"exit_type\":\"Crashed\"/\"exit_type\":\"Normal\"/g\' /config/.config/chromium/Default/Preferences 2>/dev/null || true" 2>&1');
 
         return $this->response->setJSON([
             'success' => true,
@@ -77,10 +77,10 @@ class TerminalStakeController extends BaseController
     public function restart()
     {
         @exec('docker exec remote-browser pkill -9 -f chromium 2>&1');
-        @exec('docker exec -u abc remote-browser rm -f /config/.config/chromium/Singleton* 2>&1');
+        @exec('docker exec -u abc remote-browser bash -c "rm -f /config/.config/chromium/Singleton* && sed -i \'s/\"exit_type\":\"Crashed\"/\"exit_type\":\"Normal\"/g\' /config/.config/chromium/Default/Preferences 2>/dev/null || true" 2>&1');
         usleep(400000);
 
-        $cmd = 'docker exec -d -u abc -e XDG_RUNTIME_DIR=/config/.XDG -e WAYLAND_DISPLAY=wayland-1 remote-browser /usr/bin/wrapped-chromium https://stake.com/ 2>&1';
+        $cmd = 'docker exec -d -u abc -e XDG_RUNTIME_DIR=/config/.XDG -e WAYLAND_DISPLAY=wayland-1 remote-browser /usr/bin/wrapped-chromium --disable-session-crashed-bubble --hide-crash-restore-bubble https://stake.com/ 2>&1';
         @exec($cmd);
 
         return $this->response->setJSON([

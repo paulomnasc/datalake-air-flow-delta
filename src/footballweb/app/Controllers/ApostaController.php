@@ -218,12 +218,29 @@ class ApostaController extends BaseController
             $stakePadrao = 10.00;
         }
 
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $activeMoedaCodigo = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : ($moedaDefault->codigo ?? 'BRL');
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? $activeMoedaCodigo;
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        if ($activeCotacao <= 0) {
+            $activeCotacao = 1.0;
+        }
+        $isCryptoActive = ($activeMoedaCodigo !== 'BRL');
+
         $data = [
             'title'              => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
             'hasTokens'          => $hasTokens,
             'userCredits'        => $userCredits,
             'saldoContaCorrente' => $saldoContaCorrente,
             'stakePadrao'        => $stakePadrao,
+            'activeMoedaCodigo'  => $activeMoedaCodigo,
+            'activeSimbolo'      => $activeSimbolo,
+            'activeDecimais'     => $activeDecimais,
+            'activeCotacao'      => $activeCotacao,
+            'isCryptoActive'     => $isCryptoActive,
             'apostas'            => $apostas,
             'resumo'             => $resumo,
             'fixtures'           => $fixtures,

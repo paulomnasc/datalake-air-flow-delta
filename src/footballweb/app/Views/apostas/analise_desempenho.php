@@ -243,8 +243,8 @@
           <i class="bi bi-shield-check text-success"></i> Confirmadas:
         </span>
         <div class="bet-slide-toggle" id="perfConfirmedSlideToggle">
-          <button type="button" class="slide-btn" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
-          <button type="button" class="slide-btn active" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn active" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+          <button type="button" class="slide-btn" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
           <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
         </div>
       </div>
@@ -798,7 +798,7 @@ function onLeagueSortChange(val) {
   updatePerformanceDashboard();
 }
 
-let perfConfirmedFilter = '1';
+let perfConfirmedFilter = 'all';
 
 function setPerfConfirmedFilter(val, btnEl) {
   perfConfirmedFilter = val;
@@ -1054,7 +1054,9 @@ function updatePerformanceDashboard() {
     const status = bet.status || 'Pendente';
     
     if (statusFilter === 'concluidas') {
-      if (status === 'Pendente') return false;
+      if (status === 'Pendente' || status === 'Cancelada' || status === 'CANCELADA' || status === 'ANULADA' || status === 'Anulada') return false;
+    } else if (statusFilter === 'all') {
+      if (status === 'Cancelada' || status === 'CANCELADA' || status === 'ANULADA' || status === 'Anulada') return false;
     } else if (statusFilter === 'Pendente') {
       if (status !== 'Pendente') return false;
     } else if (statusFilter === 'Ganha') {
@@ -1430,14 +1432,13 @@ function updatePerformanceDashboard() {
   const formatBrl = (v) => formatDynamicCurrency(v);
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  // Se o usuário selecionou visualização geral ou multi-dias, os KPIs consolidam estritamente dias concluídos
-  const useClosedOnly = (!isSingleDayToday && closedBetsCount > 0);
-  const displayApostado = useClosedOnly ? closedApostadoLiquidado : (totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado);
-  const displayRetorno = useClosedOnly ? closedRetorno : totalRetorno;
-  const displayLucro = useClosedOnly ? closedLucroLiquido : totalLucroLiquido;
-  const displayWinCount = useClosedOnly ? closedWinCount : winCount;
-  const displayDecidedCount = useClosedOnly ? closedDecidedCount : decidedCount;
-  const displayTotalApostas = useClosedOnly ? closedBetsCount : filteredBets.length;
+  // Os KPIs consolidam o volume liquidado de todas as partidas finalizadas no período filtrado
+  const displayApostado = totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado;
+  const displayRetorno = totalRetorno;
+  const displayLucro = totalLucroLiquido;
+  const displayWinCount = winCount;
+  const displayDecidedCount = decidedCount;
+  const displayTotalApostas = filteredBets.length;
 
   const baseInvestida = displayApostado > 0 ? displayApostado : 1;
   const roi = (displayLucro / baseInvestida) * 100;
@@ -1449,12 +1450,9 @@ function updatePerformanceDashboard() {
   }
   const elPendenteInfo = document.getElementById('kpiPendenteInfo');
   if (elPendenteInfo) {
-    if (openApostado > 0) {
-      if (openPendingBetsCount > 0) {
-        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
-      } else {
-        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (aguardando fechamento noturno)`;
-      }
+    if (openPendingBetsCount > 0) {
+      const openPendingApostado = openPendingBetsCount * activeStake;
+      elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openPendingApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
       elPendenteInfo.style.display = 'block';
     } else {
       elPendenteInfo.style.display = 'none';
@@ -1468,11 +1466,8 @@ function updatePerformanceDashboard() {
 
   const elLucroHoje = document.getElementById('kpiLucroHojeInfo');
   if (elLucroHoje) {
-    if (useClosedOnly && openTotalBetsCount > 0) {
-      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Hoje (em apuração): ${formatBrl(openPartialLucro)} parcial`;
-      elLucroHoje.style.display = 'block';
-    } else if (isSingleDayToday) {
-      elLucroHoje.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>Dia em andamento (aguardando fechamento noturno)`;
+    if (openPendingBetsCount > 0) {
+      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>${openPendingBetsCount} aposta(s) em andamento hoje`;
       elLucroHoje.style.display = 'block';
     } else {
       elLucroHoje.style.display = 'none';
@@ -1506,23 +1501,16 @@ function updatePerformanceDashboard() {
     const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
 
     runningApostado += b.apostado;
-    // O lucro acumulado fechado na curva gráfica só soma períodos concluídos
-    if (!isOpen || isSingleDayToday) {
-      runningLucro += b.lucro;
-    }
+    runningLucro += b.lucro;
 
     const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
-    if (!isOpen || isSingleDayToday) {
-      runningCartoesLucro += modTime.cartoesLucro;
-      runningAhLucro += modTime.ahLucro;
-    }
+    runningCartoesLucro += modTime.cartoesLucro;
+    runningAhLucro += modTime.ahLucro;
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
 
-    if (!isOpen || isSingleDayToday) {
-      runningGanhas += (b.ganhas || 0);
-      runningDecided += (b.decided || 0);
-    }
+    runningGanhas += (b.ganhas || 0);
+    runningDecided += (b.decided || 0);
     const curWinRate = runningDecided > 0 ? (runningGanhas / runningDecided) * 100 : 0;
     cumulativeWinRateData.push(parseFloat(curWinRate.toFixed(1)));
 

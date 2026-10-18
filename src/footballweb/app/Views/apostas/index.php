@@ -18,6 +18,31 @@ $userStakePadrao = isset($stakePadrao) && (float)$stakePadrao > 0 ? (float)$stak
 $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userStakePadrao, 2))) 
     ? number_format($userStakePadrao, 8, '.', '') 
     : number_format($userStakePadrao, 2, '.', '');
+
+$activeMoedaCodigo = $activeMoedaCodigo ?? 'BRL';
+$activeCotacao = (float)($activeCotacao ?? 1.0);
+$activeDecimais = (int)($activeDecimais ?? 2);
+$isCryptoActive = !empty($isCryptoActive) || ($activeMoedaCodigo !== 'BRL');
+
+if (!function_exists('fmtTopValorWithBrl')) {
+    function fmtTopValorWithBrl($val, $moeda, $cotacao, $decimais = 2, $showPlus = false, $subColor = '#94a3b8') {
+        $num = (float)$val;
+        $plus = ($showPlus && $num > 0) ? '+' : '';
+        $sign = ($num < 0) ? '-' : $plus;
+        $absNum = abs($num);
+        $dec = ($decimais > 2 && $absNum != round($absNum, 2)) ? $decimais : min(2, $decimais);
+        $numFmt = number_format($absNum, $dec, ',', '.');
+
+        if ($moeda === 'BRL') {
+            return "<span>{$sign}R$ {$numFmt}</span>";
+        }
+
+        $brlVal = $num * $cotacao;
+        $brlSign = ($brlVal < 0) ? '-' : (($showPlus && $brlVal > 0) ? '+' : '');
+        $brlFmt = number_format(abs($brlVal), 2, ',', '.');
+        return "<span>{$sign}{$numFmt} {$moeda}</span><div class=\"stat-sub-brl\" style=\"font-size: 0.85rem; color: {$subColor}; font-weight: 500; margin-top: 4px;\">~ {$brlSign}R$ {$brlFmt}</div>";
+    }
+}
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -998,25 +1023,29 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" title="Saldo de crédito disponível em conta corrente para confirmação e débito de apostas">
       <div class="stat-label" style="color: #34d399;"><i class="bi bi-wallet2"></i> Saldo Conta Corrente</div>
       <div class="stat-value current-balance-value" style="color: <?= $saldoCcVal >= 0 ? '#34d399' : '#f87171' ?>;" id="topSaldoContaCorrente" data-saldo-cc="<?= $saldoCcVal ?>">
-        R$ <?= number_format($saldoCcVal, 2, ',', '.') ?>
+        <?= fmtTopValorWithBrl($saldoCcVal, $activeMoedaCodigo, $activeCotacao, $activeDecimais) ?>
       </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-cash-stack"></i> <?= lang('App.total_staked') ?></div>
-      <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value" id="topTotalApostado">
+        <?= fmtTopValorWithBrl($resumo['total_apostado'] ?? 0, $activeMoedaCodigo, $activeCotacao, $activeDecimais) ?>
+      </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-trophy"></i> <?= lang('App.gross_return') ?></div>
-      <div class="stat-value primary" id="topRetornoBruto">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value primary" id="topRetornoBruto">
+        <?= fmtTopValorWithBrl($resumo['ganhos_totais'] ?? 0, $activeMoedaCodigo, $activeCotacao, $activeDecimais, false, '#38bdf8') ?>
+      </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-calculator"></i> <?= lang('App.net_balance') ?></div>
       <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
       <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>" id="topSaldoLiquido">
-        <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
+        <?= fmtTopValorWithBrl($saldoTop, $activeMoedaCodigo, $activeCotacao, $activeDecimais, true, ($saldoTop >= 0 ? '#94a3b8' : '#fca5a5')) ?>
       </div>
     </div>
 
@@ -1042,8 +1071,10 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
             }
             return "{$label} ({$count} - {$pctStr})";
           };
+          $concluidasCount = ($resumo['ganhas'] ?? 0) + ($resumo['meio_ganhas'] ?? 0) + ($resumo['perdidas'] ?? 0) + ($resumo['meio_perdidas'] ?? 0) + ($resumo['cashouts'] ?? 0);
         ?>
         <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge(lang('App.all_statuses'), $totalApostasCount) ?></button>
+        <button class="filter-btn" id="btnFilterConcluidas" onclick="filterBets('concluidas', this)"><?= $calcPctBadge(lang('App.status_concluded') ?? 'Concluídas', $concluidasCount) ?></button>
         <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge(lang('App.pending'), $resumo['pendentes'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge(lang('App.won'), $resumo['ganhas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge(lang('App.half_won'), $resumo['meio_ganhas'] ?? 0) ?></button>
@@ -1051,6 +1082,22 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
         <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge(lang('App.half_lost'), $resumo['meio_perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge(lang('App.lost'), $resumo['perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
+      </div>
+
+      <!-- Dropdown Status da Aposta (Alinhado com Análise de Desempenho) -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar por Status da Aposta">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?? 'Status' ?>:
+        </span>
+        <select id="betStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="onBetStatusSelectChange(this.value)" title="Filtrar por status da aposta">
+          <option value="all" selected>♾️ <?= lang('App.status_all_pending') ?? 'Todas (Inc. Pendentes)' ?></option>
+          <option value="concluidas">✅ <?= lang('App.status_concluded') ?? 'Concluídas (Encerradas)' ?></option>
+          <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?? 'Apenas Pendentes' ?></option>
+          <option value="Ganha">🟢 <?= lang('App.won') ?? 'Ganhas' ?> / Meio Ganhas</option>
+          <option value="Perdida">🔴 <?= lang('App.lost') ?? 'Perdidas' ?> / Meio Perdidas</option>
+          <option value="Cashout">💰 Cashout</option>
+          <option value="ANULADA">⚪ <?= lang('App.refunded') ?? 'Anuladas / Canceladas' ?></option>
+        </select>
       </div>
 
       <!-- Slide Button: Apostas Confirmadas [Sim/Não] -->
@@ -1100,6 +1147,21 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
         </div>
       </div>
 
+      <!-- Slide Button: Stakes [⚡ Espelhar (LTC) / 📜 Histórico Real] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Espelhar a stake padrão ou exibir histórico real">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-coin text-warning"></i> Stakes:
+        </span>
+        <div class="bet-slide-toggle" id="espelharStakeSlideToggle">
+          <button type="button" class="slide-btn <?= ($isCryptoActive ? 'active' : '') ?>" data-val="1" onclick="setEspelharStakeFilter('1', this)" title="Espelhar stake padrão configurada (<?= number_format($userStakePadrao, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo) ?>) em todo o histórico">
+            ⚡ Espelhar (<?= esc($activeMoedaCodigo) ?>)
+          </button>
+          <button type="button" class="slide-btn <?= (!$isCryptoActive ? 'active-no' : '') ?>" data-val="0" onclick="setEspelharStakeFilter('0', this)" title="Exibir valores reais gravados originalmente em cada aposta com conversão cambial exata">
+            📜 Histórico Real
+          </button>
+        </div>
+      </div>
+
       <!-- Filtro por Mercado de Simulações de Apostas -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> <?= lang('App.market') ?>:</span>
@@ -1137,31 +1199,31 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
         <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas simulações de apostas do período/filtro">
           <i class="bi bi-cash-coin text-warning"></i>
           <span class="text-light-50"><?= lang('App.total_staked') ?>:</span>
-          <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
+          <strong id="calcTotalApostado" class="text-white">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em simulações de apostas vencidas ou cashouts (Retorno Bruto)">
           <i class="bi bi-graph-up-arrow text-success"></i>
           <span class="text-light-50"><?= lang('App.total_won_label') ?>:</span>
-          <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
+          <strong id="calcTotalGanho" class="text-success">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Simulação × Odd) - Simulação)">
           <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
           <span class="text-light-50"><?= lang('App.odds_gain_label') ?>:</span>
-          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
+          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas simulações de apostas do período/filtro">
           <i class="bi bi-graph-down-arrow text-danger"></i>
           <span class="text-light-50"><?= lang('App.total_loss_label') ?>:</span>
-          <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
+          <strong id="calcTotalPerda" class="text-danger">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Simulações Liquidadas)">
           <i class="bi bi-calculator text-info"></i>
           <span class="text-light-50"><?= lang('App.net_balance') ?>:</span>
-          <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
+          <strong id="calcSaldoLiquido" class="text-info fw-bold">--</strong>
         </div>
       </div>
     </div>
@@ -2268,6 +2330,31 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
 </div>
 
 <script>
+  const activeMoedaCodigo = '<?= esc($activeMoedaCodigo) ?>';
+  const activeCotacao = <?= (float)$activeCotacao ?>;
+  const activeDecimais = <?= (int)$activeDecimais ?>;
+  const isCryptoActive = <?= $isCryptoActive ? 'true' : 'false' ?>;
+  const userStakePadrao = <?= (float)$userStakePadrao ?>;
+  let currentEspelharStake = '<?= ($isCryptoActive ? '1' : '0') ?>';
+
+  function setEspelharStakeFilter(val, btnEl) {
+    currentEspelharStake = String(val);
+    const container = document.getElementById('espelharStakeSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (btnEl) {
+        if (val === '0') {
+          btnEl.classList.add('active-no');
+        } else {
+          btnEl.classList.add('active');
+        }
+      }
+    }
+    updateCalculatedSummary();
+  }
+
   let allFixtureOptions = [];
 
   function initFixtureOptions() {
@@ -2791,7 +2878,26 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     if (btn) {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+    } else {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      let targetId = 'btnFilterAll';
+      if (status === 'concluidas') targetId = 'btnFilterConcluidas';
+      else if (status === 'Pendente') targetId = 'btnFilterPendente';
+      else if (status === 'Ganha') targetId = 'btnFilterGanha';
+      else if (status === 'Meio Ganha') targetId = 'btnFilterMeioGanha';
+      else if (status === 'Meio Perdida') targetId = 'btnFilterMeioPerdida';
+      else if (status === 'Perdida') targetId = 'btnFilterPerdida';
+      else if (status === 'Cashout') targetId = 'btnFilterCashout';
+      else if (status === 'ANULADA') targetId = 'btnFilterAnulada';
+      const targetBtn = document.getElementById(targetId);
+      if (targetBtn) targetBtn.classList.add('active');
     }
+
+    const selectEl = document.getElementById('betStatusSelect');
+    if (selectEl && selectEl.value !== status) {
+      selectEl.value = status;
+    }
+
     currentStatusFilter = status;
     currentFixtureIdFilter = null; // Reseta filtro de partida específica ao alternar abas de status
 
@@ -2805,6 +2911,10 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     }
 
     applyBetFilters();
+  }
+
+  function onBetStatusSelectChange(val) {
+    filterBets(val);
   }
 
   function searchBets() {
@@ -3140,7 +3250,24 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
         }
       }
 
-      const statusMatch = (status === 'all' || cardStatus === status);
+      let statusMatch = false;
+      if (status === 'all') {
+        statusMatch = true;
+      } else if (status === 'concluidas') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        const isPendente = (cardStatus === 'Pendente');
+        const isCanceled = cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD');
+        statusMatch = (!isPendente && !isCanceled);
+      } else if (status === 'Ganha') {
+        statusMatch = (cardStatus === 'Ganha' || cardStatus === 'Meio Ganha');
+      } else if (status === 'Perdida') {
+        statusMatch = (cardStatus === 'Perdida' || cardStatus === 'Meio Perdida');
+      } else if (status === 'ANULADA') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        statusMatch = (cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD'));
+      } else {
+        statusMatch = (cardStatus === status);
+      }
 
       if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         card.style.display = 'flex';
@@ -3250,6 +3377,7 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     }
 
     const btnAll = document.getElementById('btnFilterAll');
+    const btnConcluidas = document.getElementById('btnFilterConcluidas');
     const btnPendente = document.getElementById('btnFilterPendente');
     const btnGanha = document.getElementById('btnFilterGanha');
     const btnMeioGanha = document.getElementById('btnFilterMeioGanha');
@@ -3258,7 +3386,10 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const btnPerdida = document.getElementById('btnFilterPerdida');
     const btnCashout = document.getElementById('btnFilterCashout');
 
+    const concluidasCount = (counts['Ganha'] || 0) + (counts['Meio Ganha'] || 0) + (counts['Perdida'] || 0) + (counts['Meio Perdida'] || 0) + (counts['Cashout'] || 0);
+
     if (btnAll) btnAll.textContent = formatBadge(<?= json_encode(lang('App.all_statuses')) ?>, total);
+    if (btnConcluidas) btnConcluidas.textContent = formatBadge(<?= json_encode(lang('App.status_concluded') ?? 'Concluídas') ?>, concluidasCount);
     if (btnPendente) btnPendente.textContent = formatBadge(<?= json_encode(lang('App.pending')) ?>, counts['Pendente'] || 0);
     if (btnGanha) btnGanha.textContent = formatBadge(<?= json_encode(lang('App.won')) ?>, counts['Ganha'] || 0);
     if (btnMeioGanha) btnMeioGanha.textContent = formatBadge(<?= json_encode(lang('App.half_won')) ?>, counts['Meio Ganha'] || 0);
@@ -3268,14 +3399,63 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     if (btnCashout) btnCashout.textContent = formatBadge('Cashout', counts['Cashout'] || 0);
   }
 
+  function formatValWithBrl(val, valBrl = null, showPlus = false) {
+    const num = parseFloat(val) || 0;
+    const plus = (showPlus && num > 0) ? '+' : '';
+    const dec = (activeDecimais > 2 && num !== Math.round(num * 100) / 100) ? activeDecimais : Math.min(2, activeDecimais);
+    const numFmt = Math.abs(num).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: activeDecimais });
+    const sign = num < 0 ? '-' : plus;
+
+    if (!isCryptoActive) {
+      return sign + 'R$ ' + numFmt;
+    }
+
+    const brl = (valBrl !== null) ? (parseFloat(valBrl) || 0) : (num * activeCotacao);
+    const brlPlus = (showPlus && brl > 0) ? '+' : '';
+    const brlFmt = Math.abs(brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const brlSign = brl < 0 ? '-' : brlPlus;
+
+    return `${sign}${numFmt} ${activeMoedaCodigo} <span class="stat-sub-brl text-light-50 fw-normal" style="font-size: 0.78rem;">~ ${brlSign}R$ ${brlFmt}</span>`;
+  }
+
+  function formatTopCardWithBrl(el, val, valBrl = null, showPlus = false, subColor = '#94a3b8') {
+    if (!el) return;
+    const num = parseFloat(val) || 0;
+    const plus = (showPlus && num > 0) ? '+' : '';
+    const dec = (activeDecimais > 2 && num !== Math.round(num * 100) / 100) ? activeDecimais : Math.min(2, activeDecimais);
+    const numFmt = Math.abs(num).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: activeDecimais });
+    const sign = num < 0 ? '-' : plus;
+
+    if (!isCryptoActive) {
+      el.innerHTML = sign + 'R$ ' + numFmt;
+      return;
+    }
+
+    const brl = (valBrl !== null) ? (parseFloat(valBrl) || 0) : (num * activeCotacao);
+    const brlPlus = (showPlus && brl > 0) ? '+' : '';
+    const brlFmt = Math.abs(brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const brlSign = brl < 0 ? '-' : brlPlus;
+
+    el.innerHTML = `<span>${sign}${numFmt} ${activeMoedaCodigo}</span><div class="stat-sub-brl" style="font-size: 0.85rem; color: ${subColor}; font-weight: 500; margin-top: 4px;">~ ${brlSign}R$ ${brlFmt}</div>`;
+  }
+
   function updateCalculatedSummary() {
     const cards = document.querySelectorAll('.bet-card-item');
     let totalApostado = 0;
+    let totalApostadoBrl = 0;
     let totalApostadoLiquidado = 0;
+    let totalApostadoLiquidadoBrl = 0;
     let totalRetorno = 0;
+    let totalRetornoBrl = 0;
     let totalLucro = 0;
+    let totalLucroBrl = 0;
     let totalPerda = 0;
+    let totalPerdaBrl = 0;
     let visibleCount = 0;
+
+    // Blindagem de leitura direta do DOM para garantir o estado do toggle de Stakes
+    const espelharBtnActive = document.querySelector('#espelharStakeSlideToggle .slide-btn.active');
+    const isEspelhar = espelharBtnActive ? (espelharBtnActive.getAttribute('data-val') === '1') : (currentEspelharStake === '1');
 
     cards.forEach(card => {
       if (card.style.display !== 'none') {
@@ -3285,47 +3465,172 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
         const odd = parseFloat(card.getAttribute('data-odd') || '0') || 0;
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
         const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
+        const cardMoeda = card.getAttribute('data-moeda') || 'BRL';
+        const cotacao = parseFloat(card.getAttribute('data-cotacao') || '0') || activeCotacao || 1.0;
 
         const isCanceled = (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA');
 
+        let stakeActive = 0;
+        let stakeBrl = 0;
+
+        if (isEspelhar) {
+          // Modo Espelhar Stake: padroniza cada aposta com a stake configurada
+          stakeActive = userStakePadrao;
+          stakeBrl = userStakePadrao * (isCryptoActive ? activeCotacao : 1.0);
+        } else {
+          // Modo Histórico Real: converte com precisão moedas heterogêneas
+          if (cardMoeda === activeMoedaCodigo) {
+            stakeActive = valor;
+            stakeBrl = isCryptoActive ? (valor * cotacao) : valor;
+          } else if (cardMoeda === 'BRL') {
+            stakeBrl = valor;
+            stakeActive = isCryptoActive ? ((cotacao > 0) ? (valor / cotacao) : (valor / activeCotacao)) : valor;
+          } else {
+            stakeBrl = valor * cotacao;
+            stakeActive = (activeCotacao > 0) ? (stakeBrl / activeCotacao) : stakeBrl;
+          }
+        }
+
         if (!isCanceled) {
-          totalApostado += valor;
+          totalApostado += stakeActive;
+          totalApostadoBrl += stakeBrl;
         }
 
         if (status !== 'Pendente' && !isCanceled) {
-          totalApostadoLiquidado += valor;
+          totalApostadoLiquidado += stakeActive;
+          totalApostadoLiquidadoBrl += stakeBrl;
         }
 
-        if (status === 'Ganha') {
-          const ret = ganho > 0 ? ganho : (valor * odd);
-          totalRetorno += ret;
-          const lucroItem = (ret - valor);
-          if (lucroItem > 0) totalLucro += lucroItem;
-        } else if (status === 'Meio Ganha') {
-          const fullRet = ganho > 0 ? ganho : (valor * odd);
-          const ret = valor + ((fullRet - valor) / 2);
-          totalRetorno += ret;
-          const lucroItem = ((fullRet - valor) / 2);
-          if (lucroItem > 0) totalLucro += lucroItem;
-        } else if (status === 'Cashout') {
-          const cashVal = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
-          totalRetorno += cashVal;
-          if (cashVal > valor) {
-            totalLucro += (cashVal - valor);
+        if (isEspelhar) {
+          // Retornos e Lucros projetados/espelhados pela stake padrão
+          if (status === 'Ganha') {
+            const ret = stakeActive * odd;
+            const retBrl = stakeBrl * odd;
+            const lucro = stakeActive * (odd - 1.0);
+            const lucroBrl = stakeBrl * (odd - 1.0);
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (lucro > 0) {
+              totalLucro += lucro;
+              totalLucroBrl += lucroBrl;
+            }
+          } else if (status === 'Meio Ganha') {
+            const ret = stakeActive + ((stakeActive * (odd - 1.0)) / 2);
+            const retBrl = stakeBrl + ((stakeBrl * (odd - 1.0)) / 2);
+            const lucro = (stakeActive * (odd - 1.0)) / 2;
+            const lucroBrl = (stakeBrl * (odd - 1.0)) / 2;
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (lucro > 0) {
+              totalLucro += lucro;
+              totalLucroBrl += lucroBrl;
+            }
+          } else if (status === 'Cashout') {
+            const origStake = valor;
+            const ret = (origStake > 0 && cashout > 0) ? (stakeActive * (cashout / origStake)) : stakeActive;
+            const retBrl = (origStake > 0 && cashout > 0) ? (stakeBrl * (cashout / origStake)) : stakeBrl;
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (ret > stakeActive) {
+              totalLucro += (ret - stakeActive);
+              totalLucroBrl += (retBrl - stakeBrl);
+            }
+          } else if (status === 'Perdida') {
+            totalPerda += stakeActive;
+            totalPerdaBrl += stakeBrl;
+          } else if (status === 'Meio Perdida') {
+            totalRetorno += (stakeActive * 0.5);
+            totalRetornoBrl += (stakeBrl * 0.5);
+            totalPerda += (stakeActive * 0.5);
+            totalPerdaBrl += (stakeBrl * 0.5);
           }
-        } else if (status === 'Perdida') {
-          totalPerda += valor;
-        } else if (status === 'Meio Perdida') {
-          totalRetorno += (valor * 0.5);
-          totalPerda += (valor * 0.5);
+        } else {
+          // Histórico Real
+          if (status === 'Ganha') {
+            const rawRet = ganho > 0 ? ganho : (valor * odd);
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawRet;
+              retBrl = isCryptoActive ? (rawRet * cotacao) : rawRet;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawRet;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawRet / cotacao) : (rawRet / activeCotacao)) : rawRet;
+            } else {
+              retBrl = rawRet * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            const lucroItem = (retActive - stakeActive);
+            const lucroItemBrl = (retBrl - stakeBrl);
+            if (lucroItem > 0) {
+              totalLucro += lucroItem;
+              totalLucroBrl += lucroItemBrl;
+            }
+          } else if (status === 'Meio Ganha') {
+            const rawFull = ganho > 0 ? ganho : (valor * odd);
+            const rawRet = valor + ((rawFull - valor) / 2);
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawRet;
+              retBrl = isCryptoActive ? (rawRet * cotacao) : rawRet;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawRet;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawRet / cotacao) : (rawRet / activeCotacao)) : rawRet;
+            } else {
+              retBrl = rawRet * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            const lucroItem = (retActive - stakeActive);
+            const lucroItemBrl = (retBrl - stakeBrl);
+            if (lucroItem > 0) {
+              totalLucro += lucroItem;
+              totalLucroBrl += lucroItemBrl;
+            }
+          } else if (status === 'Cashout') {
+            const rawCash = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawCash;
+              retBrl = isCryptoActive ? (rawCash * cotacao) : rawCash;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawCash;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawCash / cotacao) : (rawCash / activeCotacao)) : rawCash;
+            } else {
+              retBrl = rawCash * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            if (retActive > stakeActive) {
+              totalLucro += (retActive - stakeActive);
+              totalLucroBrl += (retBrl - stakeBrl);
+            }
+          } else if (status === 'Perdida') {
+            totalPerda += stakeActive;
+            totalPerdaBrl += stakeBrl;
+          } else if (status === 'Meio Perdida') {
+            totalRetorno += (stakeActive * 0.5);
+            totalRetornoBrl += (stakeBrl * 0.5);
+            totalPerda += (stakeActive * 0.5);
+            totalPerdaBrl += (stakeBrl * 0.5);
+          }
         }
       }
     });
 
     // Saldo Líquido Real = Retorno Total Bruto - Total Apostado em Apostas Concluídas/Liquidadas
     const saldoLiquido = totalRetorno - totalApostadoLiquidado;
+    const saldoLiquidoBrl = totalRetornoBrl - totalApostadoLiquidadoBrl;
 
-    const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    // Total apostado para exibição: no modo espelhar, alinha com a Análise de Desempenho exibindo o volume liquidado consolidado
+    const displayApostadoVal = isEspelhar ? totalApostadoLiquidado : totalApostado;
+    const displayApostadoBrl = isEspelhar ? totalApostadoLiquidadoBrl : totalApostadoBrl;
 
     const elApostado = document.getElementById('calcTotalApostado');
     const elGanho = document.getElementById('calcTotalGanho');
@@ -3333,13 +3638,12 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const elPerda = document.getElementById('calcTotalPerda');
     const elSaldo = document.getElementById('calcSaldoLiquido');
 
-    if (elApostado) elApostado.textContent = formatBrl(totalApostado);
-    if (elGanho) elGanho.textContent = formatBrl(totalRetorno);
-    if (elLucro) elLucro.textContent = formatBrl(totalLucro);
-    if (elPerda) elPerda.textContent = formatBrl(totalPerda);
+    if (elApostado) elApostado.innerHTML = formatValWithBrl(displayApostadoVal, displayApostadoBrl);
+    if (elGanho) elGanho.innerHTML = formatValWithBrl(totalRetorno, totalRetornoBrl);
+    if (elLucro) elLucro.innerHTML = formatValWithBrl(totalLucro, totalLucroBrl);
+    if (elPerda) elPerda.innerHTML = formatValWithBrl(totalPerda, totalPerdaBrl);
     if (elSaldo) {
-      const prefix = saldoLiquido > 0 ? '+' : '';
-      elSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      elSaldo.innerHTML = formatValWithBrl(saldoLiquido, saldoLiquidoBrl, true);
       if (saldoLiquido > 0) {
         elSaldo.className = 'text-success fw-bold';
       } else if (saldoLiquido < 0) {
@@ -3355,12 +3659,12 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const topSaldo = document.getElementById('topSaldoLiquido');
     const topApostas = document.getElementById('topTotalApostas');
 
-    if (topApostado) topApostado.textContent = formatBrl(totalApostado);
-    if (topGanho) topGanho.textContent = formatBrl(totalRetorno);
+    if (topApostado) formatTopCardWithBrl(topApostado, displayApostadoVal, displayApostadoBrl, false, '#94a3b8');
+    if (topGanho) formatTopCardWithBrl(topGanho, totalRetorno, totalRetornoBrl, false, '#38bdf8');
     if (topApostas) topApostas.textContent = visibleCount;
     if (topSaldo) {
-      const prefix = saldoLiquido > 0 ? '+' : '';
-      topSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      const subColor = saldoLiquido >= 0 ? '#94a3b8' : '#fca5a5';
+      formatTopCardWithBrl(topSaldo, saldoLiquido, saldoLiquidoBrl, true, subColor);
       if (saldoLiquido > 0) {
         topSaldo.className = 'stat-value primary';
       } else if (saldoLiquido < 0) {
@@ -3378,6 +3682,8 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       firstBtn.classList.add('active');
     }
+    const statusSelect = document.getElementById('betStatusSelect');
+    if (statusSelect) statusSelect.value = 'all';
     const marketEl = document.getElementById('betMarketFilterSelect');
     if (marketEl) marketEl.value = 'all';
     const searchEl = document.getElementById('betSearchInput');
@@ -3394,6 +3700,9 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
 
     const futureGamesBtnAll = document.querySelector('#futureGamesSlideToggle .slide-btn[data-val="all"]');
     if (futureGamesBtnAll) setFutureGamesFilter('all', futureGamesBtnAll);
+
+    const espelharBtnDefault = document.querySelector(`#espelharStakeSlideToggle .slide-btn[data-val="${isCryptoActive ? '1' : '0'}"]`);
+    if (espelharBtnDefault) setEspelharStakeFilter(isCryptoActive ? '1' : '0', espelharBtnDefault);
 
     clearDateFilter();
   }
@@ -3719,8 +4028,12 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
     if (saldoEl) {
-      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
-      saldoVal = parseFloat(raw) || 0;
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
     }
     
     const proj = saldoVal - currentBetToConfirm.valor;
@@ -3728,8 +4041,24 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const curBalEl = document.getElementById('confirmBetCurrentBalance');
     const projBalEl = document.getElementById('confirmBetProjectedBalance');
     
-    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
-    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    if (curBalEl) {
+      if (isCryptoActive) {
+        const cVal = saldoVal.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (saldoVal * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        curBalEl.textContent = cVal + bVal;
+      } else {
+        curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+      }
+    }
+    if (projBalEl) {
+      if (isCryptoActive) {
+        const cVal = proj.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (proj * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        projBalEl.textContent = cVal + bVal;
+      } else {
+        projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      }
+    }
     
     const alertEl = document.getElementById('confirmBetAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBet');
@@ -3906,20 +4235,48 @@ $userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userS
     const countEl = document.getElementById('confirmBatchCount');
     const amountEl = document.getElementById('confirmBatchTotalAmount');
     if (countEl) countEl.textContent = eligibleCards.length + (eligibleCards.length === 1 ? ' aposta' : ' apostas');
-    if (amountEl) amountEl.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+    if (amountEl) {
+      if (isCryptoActive) {
+        const amtCrypto = totalValor.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const amtBrl = activeCotacao > 0 ? ' (~ R$ ' + (totalValor * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        amountEl.textContent = amtCrypto + amtBrl;
+      } else {
+        amountEl.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+      }
+    }
 
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
     if (saldoEl) {
-      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
-      saldoVal = parseFloat(raw) || 0;
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
     }
 
     const proj = saldoVal - totalValor;
     const curBalEl = document.getElementById('confirmBatchCurrentBalance');
     const projBalEl = document.getElementById('confirmBatchProjectedBalance');
-    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
-    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    if (curBalEl) {
+      if (isCryptoActive) {
+        const cVal = saldoVal.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (saldoVal * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        curBalEl.textContent = cVal + bVal;
+      } else {
+        curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+      }
+    }
+    if (projBalEl) {
+      if (isCryptoActive) {
+        const cVal = proj.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (proj * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        projBalEl.textContent = cVal + bVal;
+      } else {
+        projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      }
+    }
 
     const alertEl = document.getElementById('confirmBatchAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBatch');

@@ -1148,15 +1148,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
       </div>
 
       <!-- Slide Button: Stakes [⚡ Espelhar (LTC) / 📜 Histórico Real] -->
-      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Espelhar a stake padrão ou exibir histórico real">
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Alternar entre projeção unificada com a stake padrão atual (Espelhar) e a auditoria contábil das stakes originais (Histórico Real)">
         <span class="text-light fw-semibold d-flex align-items-center gap-1">
           <i class="bi bi-coin text-warning"></i> Stakes:
         </span>
         <div class="bet-slide-toggle" id="espelharStakeSlideToggle">
-          <button type="button" class="slide-btn <?= ($isCryptoActive ? 'active' : '') ?>" data-val="1" onclick="setEspelharStakeFilter('1', this)" title="Espelhar stake padrão configurada (<?= number_format($userStakePadrao, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo) ?>) em todo o histórico">
+          <button type="button" class="slide-btn <?= ($isCryptoActive ? 'active' : '') ?>" data-val="1" onclick="setEspelharStakeFilter('1', this)" title="⚡ Espelhar: Projeta todo o histórico com a stake padrão ativa (<?= number_format($userStakePadrao, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo) ?>) para avaliar o modelo com gestão de banca padronizada">
             ⚡ Espelhar (<?= esc($activeMoedaCodigo) ?>)
           </button>
-          <button type="button" class="slide-btn <?= (!$isCryptoActive ? 'active-no' : '') ?>" data-val="0" onclick="setEspelharStakeFilter('0', this)" title="Exibir valores reais gravados originalmente em cada aposta com conversão cambial exata">
+          <button type="button" class="slide-btn <?= (!$isCryptoActive ? 'active-no' : '') ?>" data-val="0" onclick="setEspelharStakeFilter('0', this)" title="📜 Histórico Real: Exibe a auditoria contábil exata com as stakes e moedas originais gravadas em cada aposta realizada">
             📜 Histórico Real
           </button>
         </div>

@@ -26,6 +26,7 @@ class OrdemServicoController extends BaseController
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
+        $data['demandas_list'] = [];
         return view('addOrdemServico', $data);
     }
 
@@ -40,9 +41,39 @@ class OrdemServicoController extends BaseController
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
+
+        $allowedManualTransitions = [
+            'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
+            'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
+            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
+            'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
+            'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],
+            'Liberado para faturamento' => ['Liberado para faturamento', 'Concluido'],
+            'Recebido definitivo' => ['Recebido definitivo', 'Concluido'],
+            'Concluido' => ['Concluido'],
+            'Cancelada' => ['Cancelada']
+        ];
+        $currentStatus = $record->status ?? 'Rascunho';
+        $data['allowedTransitions'] = $allowedManualTransitions[$currentStatus] ?? [$currentStatus];
         
-        // Buscar itens existentes
         $db = \Config\Database::connect();
+
+        // Buscar demandas associadas à Ordem de Serviço
+        $demandas = [];
+        if ($id && $db->tableExists('agile_demandas')) {
+            $demandas = $db->table('agile_demandas ad')
+                ->select('ad.*, asys.nome as sistema_nome, asys.sigla as sistema_sigla')
+                ->join('agile_sistemas asys', 'asys.id = ad.id_sistema', 'left')
+                ->where('ad.id_ordem_servico', $id)
+                ->orderBy('ad.id', 'DESC')
+                ->get()
+                ->getResult();
+        }
+        $data['demandas_list'] = $demandas;
+
+        // Buscar itens existentes
         $os = $db->table('ordem_servico')->where('id', $id)->get()->getRow();
         $dataEmissao = $os ? $os->Data_Emissao : date('Y-m-d');
 
@@ -228,9 +259,24 @@ class OrdemServicoController extends BaseController
             $status = 'Aguardando assinatura';
         }
 
+        $descricao = trim($this->post('descricao') ?? '');
+        if (empty($descricao)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição da ordem de serviço é obrigatória.'
+            ]);
+        }
+        if (mb_strlen($descricao) > 255) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição não pode ultrapassar 255 caracteres.'
+            ]);
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
+            'descricao' => $descricao,
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
@@ -391,9 +437,13 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução', 'Cancelada'],
-            'Recebido Provisorio' => ['Recebido Provisorio'],
-            'Recebido definitivo' => ['Recebido definitivo'],
+            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
+            'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
+            'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],
+            'Liberado para faturamento' => ['Liberado para faturamento', 'Concluido'],
+            'Recebido definitivo' => ['Recebido definitivo', 'Concluido'],
             'Concluido' => ['Concluido'],
             'Cancelada' => ['Cancelada']
         ];
@@ -405,9 +455,24 @@ class OrdemServicoController extends BaseController
             ]);
         }
 
+        $descricao = trim($this->post('descricao') ?? '');
+        if (empty($descricao)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição da ordem de serviço é obrigatória.'
+            ]);
+        }
+        if (mb_strlen($descricao) > 255) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A Descrição não pode ultrapassar 255 caracteres.'
+            ]);
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
+            'descricao' => $descricao,
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
@@ -561,11 +626,11 @@ class OrdemServicoController extends BaseController
         }
 
         $status = strtolower(trim($record->status ?? $record->Status ?? 'Rascunho'));
-        $allowedDeleteStatus = ['rascunho', 'aguardando assinatura'];
+        $allowedDeleteStatus = ['rascunho', 'cancelada'];
         if (!in_array($status, $allowedDeleteStatus, true)) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Apenas Ordens de Serviço com status "Rascunho" ou "Aguardando assinatura" podem ser excluídas.'
+                'mensagem' => 'Apenas Ordens de Serviço com status "Rascunho" ou "Cancelada" podem ser excluídas.'
             ]);
         }
 
@@ -639,6 +704,7 @@ class OrdemServicoController extends BaseController
             $data = [
                 'horas_alocadas'         => $record->horas_alocadas ?? $record->Horas_Alocadas ?? null,
                 'nup_sei'                => $record->nup_sei ?? $record->Nup_Sei ?? null,
+                'descricao'              => $record->descricao ?? $record->Descricao ?? '',
                 'data_emissao'           => $record->data_emissao ?? $record->Data_Emissao ?? date('Y-m-d H:i:s'),
                 'data_aceite'            => $record->data_aceite ?? $record->Data_Aceite ?? null,
                 'realizada_estimativa'   => $record->realizada_estimativa ?? $record->Realizada_Estimativa ?? null,

@@ -219,6 +219,8 @@ class MetaDiariaModel extends Model
         // Determinação do status do dia
         if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
             $statusDia = 'STOP_LOSS_ATINGIDO';
+        } elseif ($pendentes > 0) {
+            $statusDia = 'EM_ANDAMENTO';
         } elseif ($lucroLiquido >= $lucroAlvo) {
             $statusDia = 'META_BATIDA';
         } elseif ($pendentes === 0 && $liquidadas > 0) {
@@ -272,11 +274,11 @@ class MetaDiariaModel extends Model
      * Verifica se a meta vigente (Ciclo Sequencial Ativo) atingiu o Stop Loss e gera notificação no sininho (notificacoes_usuario),
      * evitando duplicidades para o mesmo ciclo. Se o ciclo vigente estiver saudável, despina alertas obsoletos.
      */
-    public function verificarEGerarAlertaStopLoss(int $usuarioId, ?array $cicloAtivo = null): bool
+    public function verificarEGerarAlertaStopLoss(int $usuarioId, $cicloAtivo = null): bool
     {
         $db = \Config\Database::connect();
 
-        if ($cicloAtivo === null) {
+        if (!is_array($cicloAtivo)) {
             $cicloAtivo = $this->getCicloSequencial($usuarioId);
         }
 
@@ -337,9 +339,10 @@ class MetaDiariaModel extends Model
 
     /**
      * Retorna o Ciclo Sequencial Fechado (Bloco Fixo de 10 Apostas).
-     * Se $numeroCiclo for null, retorna o ciclo ativo corrente.
+     * Se $numeroCiclo for null e $dataReferencia for informada, retorna o ciclo correspondente à data.
+     * Se ambos forem null, retorna o ciclo ativo corrente.
      */
-    public function getCicloSequencial(int $usuarioId, int $tamanhoCiclo = 10, ?int $numeroCiclo = null): array
+    public function getCicloSequencial(int $usuarioId, int $tamanhoCiclo = 10, ?int $numeroCiclo = null, ?string $dataReferencia = null): array
     {
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
@@ -391,39 +394,103 @@ class MetaDiariaModel extends Model
             $totalCiclosExistentes = 1;
         }
 
-        // O Ciclo Ativo Vigente é o primeiro bloco cronológico que ainda não foi concluído
-        // (isto é, que ainda possui apostas pendentes ou bloco incompleto < 10)
-        $cicloAtivoNum = null;
+        // Determinação estrutural do Ciclo Ativo Vigente
+        $hojeBrasil = date('Y-m-d');
+        $ultimoCicloFechado = 0;
+        $cicloComJogosHoje = null;
+
         for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
             $offsetBloco = ($c - 1) * $tamanho;
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
             $totalBloco = count($blocoTeste);
 
-            $temPendentesBloco = false;
+            $pendentesBloco = 0;
+            $temJogosHoje = false;
+            $redsBloco = 0.0;
+            $retornosBloco = 0.0;
+            $liquidadoBloco = 0.0;
+
             foreach ($blocoTeste as $bt) {
-                $stBt = strtolower(trim((string)($bt->status ?? '')));
-                if (in_array($stBt, ['pendente', 'em andamento', 'aberta', 'ns'])) {
-                    $temPendentesBloco = true;
-                    break;
+                $stBt = (string)($bt->status ?? '');
+                $stBtNorm = strtolower(trim($stBt));
+                $valBt = (float)($bt->valor_aposta ?? 0);
+                $oddBt = (float)($bt->odd ?? 0);
+
+                if (in_array($stBtNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
+                    $pendentesBloco++;
+                } else {
+                    $liquidadoBloco += $valBt;
+                    if ($stBt === 'Ganha') {
+                        $retornosBloco += ($valBt * $oddBt);
+                    } elseif ($stBt === 'Meio Ganha') {
+                        $retornosBloco += ($valBt + (($valBt * $oddBt - $valBt) / 2));
+                    } elseif (in_array($stBt, ['ANULADA', 'Anulada'])) {
+                        $retornosBloco += $valBt;
+                    } elseif ($stBt === 'Perdida') {
+                        $redsBloco += 1.0;
+                    } elseif ($stBt === 'Meio Perdida') {
+                        $redsBloco += 0.5;
+                        $retornosBloco += ($valBt * 0.5);
+                    } elseif ($stBt === 'Cashout') {
+                        $retornosBloco += (float)($bt->cash_out ?? $valBt);
+                    }
+                }
+
+                $dtAposta = !empty($bt->data_hora_jogo) ? $bt->data_hora_jogo : ($bt->criado_em ?? null);
+                $dtStr = $dtAposta ? date('Y-m-d', strtotime($dtAposta . ' -3 hours')) : $hojeBrasil;
+                if ($dtStr === $hojeBrasil) {
+                    $temJogosHoje = true;
                 }
             }
 
-            $blocoFechado = ($totalBloco >= $tamanho && !$temPendentesBloco);
-            if (!$blocoFechado) {
-                $cicloAtivoNum = $c;
-                break;
+            $lucroBloco = round($retornosBloco - $liquidadoBloco, 2);
+            $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
+            $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
+            $maxRedsConfig   = (int)($meta->max_reds ?? 3);
+
+            $isStopLossBloco   = ($lucroBloco <= $stopLossConfig || ($redsBloco >= $maxRedsConfig && $lucroBloco < 0));
+            $isMetaBatidaBloco = ($lucroBloco >= $lucroAlvoConfig && $totalBloco >= $tamanho && $pendentesBloco === 0);
+
+            // Regra Canônica: Bloco fecha e é bloqueado se atingir Stop Loss consolidado, Meta Batida consolidada ou completar 10 apostas sem pendentes
+            $isFechado = (($isStopLossBloco && $pendentesBloco === 0) || $isMetaBatidaBloco || ($totalBloco >= $tamanho && $pendentesBloco === 0));
+            if ($isFechado) {
+                $ultimoCicloFechado = $c;
+            }
+            // Um bloco que atingiu Stop Loss ou Meta Batida NUNCA participa de novos jogos ativos
+            if ($temJogosHoje && !$isFechado && $cicloComJogosHoje === null) {
+                $cicloComJogosHoje = $c;
             }
         }
 
-        if ($cicloAtivoNum === null) {
-            $totalCiclosExistentes++;
-            $cicloAtivoNum = $totalCiclosExistentes;
+        // Ciclo ativo é prioritariamente o ciclo com jogos de hoje em andamento, ou o primeiro após o último fechado
+        if ($cicloComJogosHoje !== null) {
+            $cicloAtivoNum = $cicloComJogosHoje;
+        } elseif ($ultimoCicloFechado < $totalCiclosExistentes) {
+            $cicloAtivoNum = $ultimoCicloFechado + 1;
+        } else {
+            $cicloAtivoNum = max(1, $totalCiclosExistentes);
         }
 
-        // Determina qual ciclo exibir
-        $cicloAlvo = ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes)
-            ? $numeroCiclo
-            : $cicloAtivoNum;
+        // Seleção do ciclo a ser exibido:
+        // 1. Se especificado explicitamente via query string (?ciclo=X)
+        // 2. Se informada dataReferencia, busca o ciclo que contém as apostas dessa data
+        // 3. Fallback para o ciclo ativo vigente
+        $cicloAlvo = null;
+        if ($numeroCiclo !== null && $numeroCiclo >= 1 && $numeroCiclo <= $totalCiclosExistentes) {
+            $cicloAlvo = $numeroCiclo;
+        } elseif (!empty($dataReferencia)) {
+            foreach ($todasApostas as $idx => $ap) {
+                $dtAp = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                $dtApBr = $dtAp ? date('Y-m-d', strtotime($dtAp . ' -3 hours')) : null;
+                if ($dtApBr === $dataReferencia) {
+                    $cicloAlvo = (int)floor($idx / $tamanho) + 1;
+                }
+            }
+        }
+
+        if ($cicloAlvo === null || $cicloAlvo < 1 || $cicloAlvo > $totalCiclosExistentes) {
+            $cicloAlvo = $cicloAtivoNum;
+        }
 
         $offset = ($cicloAlvo - 1) * $tamanho;
         $apostasCiclo = array_slice($todasApostas, $offset, $tamanho);
@@ -478,19 +545,25 @@ class MetaDiariaModel extends Model
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
         $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
-        $isFechado    = ($totalCiclo >= $tamanho && $pendentes === 0);
-        $isAtivo      = ($cicloAlvo === $cicloAtivoNum);
-
         $lucroAlvo = (float)($meta->lucro_alvo ?? 7.50);
         $stopLoss  = (float)($meta->stop_loss_diario ?? -30.00);
         $maxReds   = (int)($meta->max_reds ?? 3);
 
-        if ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0)) {
+        $isStopLoss   = ($lucroLiquido <= $stopLoss || ($reds >= $maxReds && $lucroLiquido < 0));
+        $isMetaBatida = ($lucroLiquido >= $lucroAlvo && $totalCiclo >= $tamanho && $pendentes === 0);
+
+        // Bloco é bloqueado e fechado se atingir Stop Loss consolidado, Meta Batida consolidada ou completar 10 apostas sem pendentes
+        $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || ($totalCiclo >= $tamanho && $pendentes === 0));
+        $isAtivo   = ($cicloAlvo === $cicloAtivoNum);
+
+        if ($isStopLoss && $pendentes === 0) {
             $statusCiclo = 'STOP_LOSS_ATINGIDO';
+        } elseif ($pendentes > 0) {
+            $statusCiclo = 'EM_ANDAMENTO';
+        } elseif ($isMetaBatida) {
+            $statusCiclo = 'META_BATIDA';
         } elseif ($isFechado) {
-            if ($lucroLiquido >= $lucroAlvo) {
-                $statusCiclo = 'META_BATIDA';
-            } elseif ($lucroLiquido > 0) {
+            if ($lucroLiquido > 0) {
                 $statusCiclo = 'SUPERAVITARIO';
             } elseif ($lucroLiquido == 0) {
                 $statusCiclo = 'NEUTRO';
@@ -539,9 +612,9 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o resumo dos ciclos fechados anteriores para histórico e auditoria
+     * Retorna o resumo dos ciclos fechados anteriores para histórico e auditoria (suporta filtro de datas)
      */
-    public function getHistoricoCiclos(int $usuarioId, int $limite = 15, int $tamanhoCiclo = 10): array
+    public function getHistoricoCiclos(int $usuarioId, int $limite = 15, int $tamanhoCiclo = 10, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
@@ -610,16 +683,35 @@ class MetaDiariaModel extends Model
                 }
             }
 
+            // Filtro por período de datas (intersecção com o intervalo do bloco)
+            $cDataIni = !empty($dtInicio) ? substr($dtInicio, 0, 10) : null;
+            $cDataFim = !empty($dtFim) ? substr($dtFim, 0, 10) : null;
+
+            if (!empty($dataInicio) && $cDataFim !== null && $cDataFim < $dataInicio) {
+                continue;
+            }
+            if (!empty($dataFim) && $cDataIni !== null && $cDataIni > $dataFim) {
+                continue;
+            }
+
             $lucroLiq = round($retornos - $liquidado, 2);
             $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
-            $isFechado = ($totalB >= $tamanho && $pendentes === 0);
+            $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
+            $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
+            $maxRedsConfig   = (int)($meta->max_reds ?? 3);
 
-            if ($lucroLiq <= (float)($meta->stop_loss_diario ?? -30.00)) {
+            $isStopLoss = ($lucroLiq <= $stopLossConfig || ($reds >= $maxRedsConfig && $lucroLiq < 0));
+            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && $totalB >= $tamanho && $pendentes === 0);
+            $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || ($totalB >= $tamanho && $pendentes === 0));
+
+            if ($isStopLoss && $pendentes === 0) {
                 $status = 'STOP_LOSS_ATINGIDO';
+            } elseif ($pendentes > 0) {
+                $status = 'EM_ANDAMENTO';
+            } elseif ($isMetaBatida) {
+                $status = 'META_BATIDA';
             } elseif ($isFechado) {
-                if ($lucroLiq >= (float)($meta->lucro_alvo ?? 7.50)) {
-                    $status = 'META_BATIDA';
-                } elseif ($lucroLiq > 0) {
+                if ($lucroLiq > 0) {
                     $status = 'SUPERAVITARIO';
                 } elseif ($lucroLiq == 0) {
                     $status = 'NEUTRO';
@@ -641,6 +733,8 @@ class MetaDiariaModel extends Model
                 'reds'           => $reds,
                 'cashouts'       => $cashouts,
                 'pendentes'      => $pendentes,
+                'investido'      => $liquidado,
+                'retornos'       => $retornos,
                 'lucro_liquido'  => $lucroLiq,
                 'roi_pct'        => $roi,
                 'is_fechado'     => $isFechado,
@@ -656,30 +750,79 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o histórico de dias cacheados dos últimos N dias.
+     * Retorna o histórico de dias cacheados dos últimos N dias (suporta filtro de datas).
      */
-    public function getHistoricoDias(int $usuarioId, int $limite = 30): array
+    public function getHistoricoDias(int $usuarioId, int $limite = 30, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
 
+        // Se datas forem fornecidas, assegura que dias com apostas tenham cache gerado
+        if (!empty($dataInicio) || !empty($dataFim)) {
+            $bApostas = $db->table('apostas')
+                ->select("DATE(COALESCE(data_hora_jogo, criado_em)) as dia_aposta", false)
+                ->where('usuario_id', $usuarioId)
+                ->whereNotIn('status', ['Cancelada', 'CANCELADA']);
+            if (!empty($dataInicio)) {
+                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) >=", $dataInicio, false);
+            }
+            if (!empty($dataFim)) {
+                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) <=", $dataFim, false);
+            }
+            $bApostas->groupBy("DATE(COALESCE(data_hora_jogo, criado_em))");
+            $diasComApostas = $bApostas->get()->getResultArray();
+
+            foreach ($diasComApostas as $dca) {
+                $diaStr = $dca['dia_aposta'] ?? null;
+                if (!empty($diaStr)) {
+                    $existeNoCache = $db->table('metas_diarias_cache')
+                        ->where('usuario_id', $usuarioId)
+                        ->where('data_referencia', $diaStr)
+                        ->countAllResults();
+                    if ($existeNoCache === 0) {
+                        $this->recalcularCacheDiario($usuarioId, $diaStr);
+                    }
+                }
+            }
+        }
+
         // Identifica no cache se existem dias passados gravados com jogos pendentes que já foram finalizados
-        $diasPendentesPassados = $db->table('metas_diarias_cache')
+        $builderPendentes = $db->table('metas_diarias_cache')
             ->select('data_referencia')
             ->where('usuario_id', $usuarioId)
             ->where('data_referencia <', date('Y-m-d'))
-            ->where('pendentes_count >', 0)
-            ->get()
-            ->getResultArray();
+            ->where('pendentes_count >', 0);
+
+        if (!empty($dataInicio)) {
+            $builderPendentes->where('data_referencia >=', $dataInicio);
+        }
+        if (!empty($dataFim)) {
+            $builderPendentes->where('data_referencia <=', $dataFim);
+        }
+
+        $diasPendentesPassados = $builderPendentes->get()->getResultArray();
 
         foreach ($diasPendentesPassados as $dp) {
             $this->recalcularCacheDiario($usuarioId, $dp['data_referencia']);
         }
 
-        return $db->table('metas_diarias_cache')
-            ->where('usuario_id', $usuarioId)
-            ->orderBy('data_referencia', 'DESC')
-            ->limit($limite)
-            ->get()
-            ->getResultArray();
+        $builder = $db->table('metas_diarias_cache')
+            ->where('usuario_id', $usuarioId);
+
+        if (!empty($dataInicio)) {
+            $builder->where('data_referencia >=', $dataInicio);
+        }
+        if (!empty($dataFim)) {
+            $builder->where('data_referencia <=', $dataFim);
+        }
+
+        $builder->orderBy('data_referencia', 'DESC');
+
+        if (empty($dataInicio) && empty($dataFim)) {
+            $builder->limit($limite);
+        } else {
+            $builder->limit(max($limite, 365));
+        }
+
+        return $builder->get()->getResultArray();
     }
 }

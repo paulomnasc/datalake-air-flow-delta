@@ -30,51 +30,7 @@ except Exception:
         return True
 
 
-def get_live_env_vars():
-    env_paths = [
-        "/root/datalake-air-flow-delta/src/footballweb/.env",
-        "/root/datalake-air-flow-delta/.env"
-    ]
-    env_vars = {}
-    for p in env_paths:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_vars[k.strip()] = v.strip().strip("'").strip('"')
-    return env_vars
-
-def get_db_connection():
-    """
-    Obtém conexão com o MySQL (tenta docker internal 'mysql' e localhost fallback).
-    """
-    hosts_ports = [
-        ("mysql", 3306),
-        ("127.0.0.1", 23306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            print(f"✅ [DAG Criar Apostas AH] Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-
-    print("❌ [ERRO CRÍTICO] Falha ao conectar em qualquer porta do MySQL.")
-    sys.exit(1)
+from db_config import get_db_connection, get_live_env_vars
 
 def get_all_user_ids(cursor):
     """
@@ -105,7 +61,10 @@ from asian_handicap_engine import (
     calculate_unified_handicap_recommendation,
     sync_fixture_and_bet_handicap,
     compose_compound_ah_reasoning,
-    determine_bet_side
+    determine_bet_side,
+    analisar_mudanca_odd_cancelamento,
+    determine_gatekeeper_category,
+    GATEKEEPER_DIDACTIC_MAP
 )
 
 def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
@@ -366,6 +325,8 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         aposta_id = aposta['id']
         usuario_id = aposta['usuario_id']
         valor = float(aposta['valor_aposta'] or 0.0)
+        palpite_anterior = aposta.get('palpite') or 'Handicap Asiático'
+        odd_anterior = float(aposta.get('odd') or 0.0)
         
         # Obter cotações 1X2 para descrição natural e clara
         cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
@@ -373,28 +334,64 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         oh = float(f_row.get('odd_home') or 0.0)
         od = float(f_row.get('odd_draw') or 0.0)
         oa = float(f_row.get('odd_away') or 0.0)
-        if oh > 0 and od > 0 and oa > 0:
-            human_desc = (
-                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}) "
-                f"e as cotações de mercado 1X2 (Casa: {oh:.2f}, Empate: {od:.2f}, Fora: {oa:.2f}), "
-                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
-                f"por ausência de margem de segurança matemática."
-            )
-        else:
-            human_desc = (
-                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}), "
-                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
-                f"por ausência de margem de segurança matemática."
-            )
+
+        # Análise aprofundada da mudança de odds e impacto econômico/esportivo (Regras 6, 8, 13 e 17)
+        nova_odd_str, nova_odd_curta, diag_curto, expl_dinamica, nova_odd_val = analisar_mudanca_odd_cancelamento(
+            palpite_anterior=palpite_anterior,
+            odd_anterior=odd_anterior,
+            motivo_calculo=motivo,
+            odd_home=oh,
+            odd_draw=od,
+            odd_away=oa,
+            home_team=aposta.get('time_casa', ''),
+            away_team=aposta.get('time_fora', '')
+        )
+
+        # REGRA ESTRUTURAL DE CLV POSITIVO (GANHO DE LINHA):
+        # Se a mesma linha continua presente e a cotação derreteu ou manteve-se
+        # favorável (nova_odd_val <= odd_anterior), o apostador obteve Closing Line Value.
+        # A aposta pendente já contratada é PRESERVADA, pois cancelar destruiria o valor da carteira!
+        is_clv_positivo = (nova_odd_val > 0.0 and nova_odd_val <= odd_anterior)
+        is_away_bet = aposta.get('time_fora', '').lower() in palpite_anterior.lower()
+        team_is_severe_dog = (is_away_bet and oa >= 3.50 and oh <= 1.80) or (not is_away_bet and oh >= 3.50 and oa <= 1.80)
+
+        if is_clv_positivo and not team_is_severe_dog:
+            print(f"🔒 [Aposta Preservada / Ganho de Linha CLV] Partida #{fixture_id} | Aposta #{aposta_id}: "
+                  f"{palpite_anterior} @ {odd_anterior:.2f} mantida (mercado Betano atual @ {nova_odd_val:.2f} com CLV Positivo).")
+            continue
+
+        cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', motivo or '')
+        didactic = GATEKEEPER_DIDACTIC_MAP.get(cat_desc, '')
+
+        human_desc = (
+            f"🚫 Cancelamento Pós-Aprovação no Pré-Jogo (Abstenção da IA / Gatekeeper NO_BET)\n\n"
+            f"• Entrada Aprovada Anteriormente: {palpite_anterior} @ {odd_anterior:.2f}\n"
+            f"• Cotação no Cancelamento: {nova_odd_str}\n"
+            f"• Mercado 1X2 Atual: Casa: {oh:.2f} | Empate: {od:.2f} | Fora: {oa:.2f}\n\n"
+            f"💡 Por que a aposta foi cancelada? (Dinâmica de Mercado e Risco):\n"
+            f"{expl_dinamica}\n\n"
+            f"🛡️ Proteção de Banca: A estimativa anterior foi cancelada preventivamente para proteger o capital. "
+            f"O valor de R$ {valor:.2f} foi estornado para o seu saldo. "
+            f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente."
+        )
+
+        full_human_desc = f"💡 Síntese da IA: {didactic}\n\n{human_desc}" if didactic else human_desc
 
         cursor.execute("""
             UPDATE apostas 
             SET status = 'Cancelada', 
                 status_gatekeeper = 'NO_BET',
+                gatekeeper_category = %s,
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
-        """, (human_desc, aposta_id))
+        """, (cat_desc, full_human_desc, aposta_id))
+
+        cursor.execute("""
+            UPDATE fixtures_trends
+            SET gatekeeper_category = %s
+            WHERE fixture_id = %s
+        """, (cat_desc, fixture_id))
         
         estornado = False
         saldo_posterior = None
@@ -444,16 +441,15 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         if is_aposta_confirmada:
             titulo_notif = f"⚠️ Aposta Cancelada (Estornada): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
-                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}). Saldo de R$ {valor:.2f} estornado em conta. "
+                f"A IA cancelou a aposta prévia em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
+                f"{diag_curto}. Saldo de R$ {valor:.2f} estornado em conta. "
                 f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
             )
         else:
             titulo_notif = f"⚠️ Sugestão Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
             msg_notif = (
-                f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
-                f"({aposta['time_casa']} vs {aposta['time_fora']}) por ausência de margem de segurança matemática (Gatekeeper NO_BET). "
-                f"Não realizar entrada nesta partida."
+                f"A IA cancelou a sugestão em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
+                f"{diag_curto}. Não realizar entrada nesta partida."
             )
 
         dj = aposta.get('data_hora_jogo')
@@ -647,7 +643,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
                 is_settled_blindado = has_pending_bet.get('status') in ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')
-                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing or has_pending_bet.get('status') == 'Pendente':
                     status_lbl = "blindada" if is_settled_blindado else "ativa"
                     print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
                     continue

@@ -1,29 +1,7 @@
-import pymysql
-import re
-
-def get_db_connection():
-    hosts_ports = [
-        ("mysql", 3306),
-        ("127.0.0.1", 23306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL em {host}:{port}")
-            return conn
-        except Exception:
-            continue
-    return None
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts")))
+from db_config import get_db_connection
 
 conn = get_db_connection()
 if conn:

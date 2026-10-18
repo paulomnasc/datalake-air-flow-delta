@@ -1,9 +1,13 @@
-import pymysql
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))
+from db_config import get_db_credentials
 
+creds = get_db_credentials()
 conn = pymysql.connect(
     host="127.0.0.1",
-    user="root",
-    password="YM11rMrT32xH0E6N",
+    user=creds["user"],
+    password=creds["password"],
     database="lista_revisao2",
     port=23306,
     cursorclass=pymysql.cursors.DictCursor

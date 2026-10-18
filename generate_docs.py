@@ -984,7 +984,7 @@ O PostgreSQL armazena dados de modelagem analítica e de BI.
 ## ⚙️ Variáveis de Ambiente da Aplicação (.env)
 
 Outros segredos estão definidos no arquivo `.env` na raiz do CodeIgniter:
-- **Senha Root MySQL**: `YM11rMrT32xH0E6N`
+- **Senha Root MySQL**: `[DEFINIDA_NO_ARQUIVO_.ENV]`
 - **Chave de Criptografia CI4**: `hex2bin:3682f0d41371c328b887285ed623b8c65d49d1f9174d6d6a512cc9f2c4afd05b`
 - **SMTP Production Password**: `kJ#212394`
 - **Google Client Secret (OAuth2)**: `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`

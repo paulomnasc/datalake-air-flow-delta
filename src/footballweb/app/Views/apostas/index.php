@@ -266,6 +266,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     box-shadow: 0 4px 20px rgba(250, 204, 21, 0.12), 0 1px 3px rgba(0, 0, 0, 0.2) !important;
   }
 
+  .bet-card-item.bet-card-volatilidade {
+    border-left: 5px solid #ef4444 !important;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.08) 0%, var(--bet-card-bg) 35%) !important;
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.18), 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  }
+
   /* Custom Searchable Dropdown Combobox */
   .custom-combobox-wrapper {
     position: relative;
@@ -391,53 +397,54 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   .bets-grid.list-view {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
   .bets-grid.list-view .bet-card-item {
     display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-    padding: 16px 24px;
-    border-radius: 12px;
-    flex-wrap: wrap;
-    gap: 20px;
+    flex-direction: column;
+    padding: 16px 22px;
+    border-radius: 14px;
+    gap: 12px;
+    width: 100%;
   }
   .bets-grid.list-view .bet-card-header {
     background: transparent;
-    padding: 0;
-    border-bottom: none;
+    padding: 0 0 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    min-width: 200px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .bets-grid.list-view .bet-card-header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 260px;
   }
   .bets-grid.list-view .match-time {
-    align-items: flex-start !important;
-    text-align: left !important;
-    margin-left: 0 !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    margin-left: auto !important;
+    flex-shrink: 0;
   }
   .bets-grid.list-view .bet-card-body {
     padding: 0;
-    flex: 1;
+    width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 20px;
-    min-width: 320px;
+    flex-direction: column;
+    gap: 12px;
   }
   .bets-grid.list-view .market-info {
     margin-bottom: 0;
-    flex: 1 1 340px;
-    min-width: 320px;
+    width: 100%;
   }
   .bets-grid.list-view .values-grid {
     margin-bottom: 0;
-    grid-template-columns: auto auto;
-    gap: 16px;
-    flex-shrink: 0;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    width: 100%;
   }
   .bets-grid.list-view .alert-volatilidade-box,
   .bets-grid.list-view .asian-handicap-widget-box,
@@ -445,7 +452,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   .bets-grid.list-view .bet-card-meta-row,
   .bets-grid.list-view .bet-card-gk-row,
   .bets-grid.list-view .bet-badge-toggle-bar,
-  .bets-grid.list-view .bet-card-section {
+  .bets-grid.list-view .bet-card-section,
+  .bets-grid.list-view .custom-ah-panel {
     width: 100%;
   }
 
@@ -504,21 +512,37 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
   .bets-grid.list-view .bet-card-footer {
     background: transparent;
-    padding: 0;
-    border-top: none;
+    padding: 10px 0 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-left: auto;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
   }
   .bets-grid.list-view .actions-primary {
     display: flex;
+    align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
   .bets-grid.list-view .actions-secondary {
     margin-top: 0;
     border-top: none;
     padding-top: 0;
+    margin-left: auto;
+  }
+
+  /* Custom Odd Input - Remove spin buttons nativos e centraliza com folga */
+  .custom-odd-input::-webkit-outer-spin-button,
+  .custom-odd-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+  .custom-odd-input {
+    -moz-appearance: textfield !important;
   }
 
   .bet-card-item:hover {
@@ -1057,8 +1081,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           <i class="bi bi-slash-circle text-danger"></i> Sem Canceladas:
         </span>
         <div class="bet-slide-toggle" id="withoutCancelledSlideToggle">
-          <button type="button" class="slide-btn active" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
-          <button type="button" class="slide-btn" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
+          <button type="button" class="slide-btn active" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas e anuladas (Ocultar canceladas e anuladas)">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas e anuladas normalmente">Não</button>
         </div>
       </div>
 
@@ -1245,8 +1269,45 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
           $leagueCountry = $aposta->league_country ?? '';
           $leagueFlag    = $aposta->league_flag ?? '';
+
+          $placarExibir = null;
+          if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
+            $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
+          } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
+            $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
+          }
+
+          $detalhadoExibir = $aposta->resultado_detalhado ?? '';
+          if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+            $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
+          }
+
+          $isAbstencaoBloqueada = (
+            $aposta->status === 'Cancelada' && (
+              ($aposta->status_gatekeeper ?? '') === 'NO_BET' ||
+              stripos($detalhadoExibir, 'abstenção') !== false ||
+              stripos($detalhadoExibir, 'abstencao') !== false ||
+              stripos($detalhadoExibir, 'gatekeeper ah no_bet') !== false ||
+              stripos($detalhadoExibir, 'entrada impedida') !== false ||
+              stripos($aposta->palpite ?? '', 'abstenção') !== false ||
+              stripos($aposta->palpite ?? '', 'abstencao') !== false ||
+              stripos($aposta->palpite ?? '', 'sem entrada') !== false
+            )
+          );
+
+          $isVolatilidade = (
+            strpos($detalhadoExibir, 'ALERTA_VOLATILIDADE') !== false ||
+            stripos($detalhadoExibir, 'confronto equilibrado') !== false ||
+            stripos($detalhadoExibir, 'odds abertas') !== false ||
+            strpos($aposta->ah_reasoning ?? '', 'ALERTA_VOLATILIDADE') !== false ||
+            stripos($aposta->ah_reasoning ?? '', 'confronto equilibrado') !== false ||
+            (!empty($aposta->odd_home) && !empty($aposta->odd_away) && (float)$aposta->odd_home >= 2.10 && (float)$aposta->odd_away >= 2.10) ||
+            (strpos($cardMercadoLower, 'handicap') !== false && (float)($aposta->odd ?? 0) >= 2.15)
+          );
+
+          $isVolatilidadeBloqueada = ($isVolatilidade && !$isAbstencaoBloqueada && (!$isConfirmada || $aposta->status === 'Não Confirmada'));
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -1260,16 +1321,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                     <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
                   </span>
                 <?php endif; ?>
-                
-                <?php 
-                  $placarExibir = null;
-                  if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
-                    $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
-                  } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
-                    $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
-                  }
-                ?>
 
+                <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
+                        style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.5) !important; letter-spacing: 0.3px;" 
+                        title="Confronto Equilibrado / Odds Abertas: Mercado com volatilidade de cotações">
+                    <span style="font-size: 0.88rem; line-height: 1;">🚨</span> Confronto Equilibrado / Odds Abertas
+                  </span>
+                <?php endif; ?>
+                
                 <?php if (!empty($placarExibir)): ?>
                   <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
                     ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
@@ -1348,10 +1408,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               );
 
               if ($isAbstencaoBloqueada) {
-                if (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
+                if (stripos($detalhadoExibir, 'Cancelamento Pós-Aprovação') !== false || stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
                   $abstencaoTexto = $detalhadoExibir;
                   // Higienização de UX (Regra 17)
-                  if (preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $abstencaoTexto, $mReasA)) {
+                  if (stripos($abstencaoTexto, 'Cancelamento Pós-Aprovação') === false && preg_match('/REASON:\s*(.+?)(?:\s*\|\|\s*(?:MEM[ÓO]RIA|U5J_DATA|PROBABILIDADES)|$)/isu', $abstencaoTexto, $mReasA)) {
                     $abstencaoTexto = trim($mReasA[1]);
                   } else {
                     $abstencaoTexto = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $abstencaoTexto);
@@ -1382,21 +1442,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             <div class="market-info">
               <div>
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
-                <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
+                <div class="palpite-name">
+                  <?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?>
+                  <?php if ($isAbstencaoBloqueada && !empty($aposta->palpite) && stripos($aposta->palpite, 'Sem Entrada') === false): ?>
+                    <div style="font-size: 0.74rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">
+                      Palpite aprovado prévio: <span style="text-decoration: line-through; color: #f87171; font-weight: 600;"><?= htmlspecialchars($aposta->palpite) ?></span>
+                    </div>
+                  <?php endif; ?>
+                </div>
               </div>
               <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
-                <?php 
-                  $bmName = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
-                  $bmUrl  = getBookmakerUrl($bmName);
-                ?>
-                <a href="<?= htmlspecialchars($bmUrl) ?>" target="_blank" rel="noopener noreferrer" 
-                   class="bookmaker-pill-badge" 
-                   title="Odd gerada por <?= htmlspecialchars($bmName) ?>. Clique para abrir o site oficial da casa em nova aba.">
-                  <span class="bm-label">Casa:</span>
-                  <strong class="bm-name"><?= htmlspecialchars($bmName) ?></strong>
-                  <i class="bi bi-box-arrow-up-right"></i>
-                </a>
-                <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+                <?php if ($isAbstencaoBloqueada): ?>
+                  <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
+                    <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+                  </div>
+                <?php else: ?>
+                  <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+                <?php endif; ?>
               </div>
             </div>
 
@@ -1440,15 +1502,6 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               }
             ?>
 
-            <?php 
-              $isVolatilidade = (
-                strpos($detalhadoExibir, 'ALERTA_VOLATILIDADE') !== false ||
-                strpos($detalhadoExibir, 'Confronto equilibrado') !== false ||
-                strpos($detalhadoExibir, 'odds abertas') !== false ||
-                (strpos($cardMercadoLower, 'handicap') !== false && (float)($aposta->odd ?? 0) >= 2.15)
-              );
-            ?>
-
             <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
               <div class="alert-volatilidade-box mb-3" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; color: #fca5a5; font-size: 0.82rem; line-height: 1.45;">
                 <div class="d-flex align-items-start gap-2">
@@ -1457,7 +1510,13 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                     <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
                       🚨 Atenção: Confronto Equilibrado / Odds Abertas
                     </strong>
-                    <span>As cotações deste jogo estão elevadas e a linha de Handicap Asiático pode sofrer oscilações no mercado. <strong>Recomendamos clicar no botão "Checar Odds Agora"</strong> abaixo para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.</span>
+                    <span>As cotações deste jogo estão elevadas e a linha de Handicap Asiático pode sofrer oscilações no mercado. 
+                    <?php if ($isVolatilidadeBloqueada): ?>
+                      <strong>É obrigatório clicar no botão "Checar Odds Agora"</strong> abaixo para auditar as cotações em tempo real e desbloquear a confirmação da aposta.
+                    <?php else: ?>
+                      <strong>Recomendamos clicar no botão "Checar Odds Agora"</strong> abaixo para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.
+                    <?php endif; ?>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1609,6 +1668,68 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 <?php endif; ?>
               </div>
             <?php endif; ?>
+
+            <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+              <!-- Painel Retrátil: Ajustar Linha de Handicap Asiático com Validação Gatekeeper -->
+              <div id="custom-ah-box-<?= $aposta->id ?>" class="custom-ah-panel mb-3" style="display: none; padding: 12px 14px; background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(245, 158, 11, 0.4); border-left: 4px solid #f59e0b; border-radius: 10px; font-size: 0.82rem;">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="fw-bold text-warning d-flex align-items-center gap-1" style="font-size: 0.82rem;">
+                    <i class="bi bi-sliders"></i> Customizar Linha AH (Validação Gatekeeper)
+                  </div>
+                  <button type="button" class="btn-close btn-close-white" style="font-size: 0.65rem;" onclick="toggleCustomAhSection(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>)"></button>
+                </div>
+                
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-6 col-lg-5">
+                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-crosshair"></i> Linha AH:</label>
+                    <div class="input-group input-group-sm">
+                      <input type="text" 
+                             id="input-custom-ah-<?= $aposta->id ?>" 
+                             class="form-control form-control-sm bg-dark text-white border-secondary" 
+                             placeholder="Ex: <?= htmlspecialchars($aposta->time_casa) ?> -0.25 AH" 
+                             value="<?= htmlspecialchars($aposta->palpite) ?>"
+                             style="font-size: 0.8rem; font-weight: 600;"
+                             list="ah-suggestions-<?= $aposta->id ?>">
+                      <datalist id="ah-suggestions-<?= $aposta->id ?>">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> -0.5 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> -0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> 0.0 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> +0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_casa) ?> +0.5 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> -0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> 0.0 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> +0.25 AH">
+                        <option value="<?= htmlspecialchars($aposta->time_fora) ?> +0.5 AH">
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3 col-lg-3">
+                    <label class="form-label text-white-50 mb-1" style="font-size: 0.72rem;"><i class="bi bi-tag"></i> Cotação (@):</label>
+                    <input type="text" 
+                           inputmode="decimal" 
+                           id="input-custom-odd-<?= $aposta->id ?>" 
+                           class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold custom-odd-input text-center" 
+                           placeholder="Ex: 1.85" 
+                           value="<?= number_format($aposta->odd, 2, '.', '') ?>"
+                           style="font-size: 0.85rem; height: 31px;">
+                  </div>
+                  <div class="col-6 col-md-3 col-lg-4 d-grid">
+                    <button type="button" 
+                            class="btn btn-sm btn-warning fw-bold d-inline-flex align-items-center justify-content-center gap-1 shadow-sm btn-validar-custom-ah" 
+                            style="font-size: 0.75rem; border-radius: 6px; height: 31px;" 
+                            onclick="handleValidarCustomAh(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)">
+                      <i class="bi bi-shield-check"></i> Validar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Feedback da Validação -->
+                <div id="feedback-custom-ah-<?= $aposta->id ?>" class="mt-2" style="display: none;"></div>
+
+                <!-- Radar do Gatekeeper: Odds Mínimas e Outras Casas -->
+                <div id="radar-custom-ah-<?= $aposta->id ?>" class="mt-2.5 pt-2 border-top border-secondary border-opacity-25" style="display: none;"></div>
+              </div>
+            <?php endif; ?>
           </div>
 
           <div class="bet-card-footer">
@@ -1618,19 +1739,49 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                   <button type="button" class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px; opacity: 0.6; cursor: not-allowed;" disabled title="Aposta cancelada pelo sistema">
                     <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
                   </button>
+                <?php elseif ($isVolatilidadeBloqueada): ?>
+                  <button type="button" 
+                          class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm btn-confirmar-bloqueado" 
+                          id="btn-confirm-<?= $aposta->id ?>"
+                          data-needs-check="1"
+                          data-aposta-id="<?= $aposta->id ?>"
+                          data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
+                          data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
+                          data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
+                          data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
+                          data-valor="<?= (float)$aposta->valor_aposta ?>"
+                          data-odd="<?= (float)($aposta->odd ?? 0) ?>"
+                          style="border-radius: 8px; background: rgba(100, 116, 139, 0.35); border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; cursor: not-allowed;" 
+                          disabled 
+                          title="Bloqueio Preventivo: Confronto equilibrado com odds abertas. Clique primeiro em 'Checar Odds Agora' para auditar as cotações em tempo real e desbloquear a confirmação.">
+                    <i class="bi bi-lock-fill me-1 text-warning"></i> <?= lang('App.confirm_bet') ?>
+                  </button>
                 <?php else: ?>
-                  <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                  <button type="button" 
+                          class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
+                          id="btn-confirm-<?= $aposta->id ?>"
+                          style="border-radius: 8px;" 
+                          onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)">
                     <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
                   </button>
                 <?php endif; ?>
               <?php endif; ?>
-              <?php if (!empty($aposta->fixture_id)): ?>
+              <?php if ((!$isConfirmada || $aposta->status === 'Não Confirmada') && !empty($aposta->fixture_id)): ?>
                 <button type="button" 
                         class="btn btn-sm btn-outline-info fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-check-odds-ah" 
                         style="border-radius: 8px; font-size: 0.78rem; border-color: #38bdf8; color: #38bdf8;" 
                         onclick="handleChecarOddsAgora(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
                         title="Auditar cotações em tempo real na API Football e recalibrar palpite">
                   <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
+                </button>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-warning fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-custom-ah" 
+                        style="border-radius: 8px; font-size: 0.78rem;" 
+                        onclick="toggleCustomAhSection(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>)"
+                        title="Informar e validar uma linha alternativa de Handicap Asiático no Gatekeeper">
+                  <i class="bi bi-sliders"></i> Ajustar Linha AH
                 </button>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
@@ -1985,6 +2136,20 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           </div>
         </div>
 
+        <div class="p-3 mb-3 rounded-3" style="background: rgba(14, 165, 233, 0.05); border: 1px solid rgba(14, 165, 233, 0.2);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label for="confirmBetOddInput" class="text-info small fw-bold mb-0">
+              <i class="bi bi-tag-fill me-1"></i> Cotação / Odd Real (Stake):
+            </label>
+            <div style="width: 110px;">
+              <input type="number" step="0.01" min="1.01" max="100.00" id="confirmBetOddInput" class="form-control form-control-sm text-end font-monospace fw-bold bg-dark text-warning border-secondary" placeholder="1.80">
+            </div>
+          </div>
+          <small class="text-muted" style="font-size: 0.78rem;">
+            Ajuste caso a odd na Stake tenha oscilado. O retorno potencial será recalculado.
+          </small>
+        </div>
+
         <div class="p-3 rounded-3" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
           <div class="d-flex justify-content-between mb-2">
             <span class="text-light-50 small"><?= lang('App.current_balance') ?>:</span>
@@ -1998,11 +2163,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
         <div id="confirmBetAlert" style="display: none;"></div>
       </div>
-      <div class="modal-footer border-top border-secondary">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
-        <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
-          <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+      <div class="modal-footer border-top border-secondary d-flex justify-content-between align-items-center">
+        <button type="button" class="btn btn-outline-danger fw-semibold btn-sm d-flex align-items-center gap-1 shadow-sm" id="btnDiscardUnavailableBet" onclick="executeDiscardUnavailableBet()" title="Descarta a aposta sem debitar nada caso a linha não esteja disponível na Stake">
+          <i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake
         </button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+          <button type="button" class="btn btn-success fw-bold px-3 btn-sm shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
+            <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2044,6 +2214,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         </div>
 
         <div id="confirmBatchAlert" style="display: none;"></div>
+        <div id="confirmBatchNoticeVolatilidade" class="alert alert-warning py-2 px-3 small mt-2 mb-0" style="display: none; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.4); color: #fef08a;"></div>
       </div>
       <div class="modal-footer border-top border-secondary">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
@@ -2108,9 +2279,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
     
-    // Selecionar data de hoje por padrão, mas com fallback se não houver apostas no dia de hoje
+    // Selecionar data de hoje por padrão, mas apenas se não houver fixture_id ou destaque_id na URL
     const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.get('fixture_id')) {
+    if (!urlParams.get('fixture_id') && !urlParams.get('destaque_id')) {
       setTodayDateFilter();
       const visibleCount = document.querySelectorAll('.bet-card-item[style*="display: flex"]').length;
       const totalCards = document.querySelectorAll('.bet-card-item').length;
@@ -2125,7 +2296,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (newBetModalEl) {
       newBetModalEl.addEventListener('show.bs.modal', function() {
         initFixtureOptions();
-        clearFixtureSelection();
+        if (!urlParams.get('fixture_id')) {
+          clearFixtureSelection();
+        }
         const vInput = document.getElementById('valorInput');
         if (vInput) {
           vInput.value = '<?= $userStakePadraoFmt ?>';
@@ -2561,6 +2734,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   let currentStatusFilter = 'all';
+  let currentFixtureIdFilter = null;
 
   function filterBets(status, btn) {
     if (btn) {
@@ -2568,6 +2742,17 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       btn.classList.add('active');
     }
     currentStatusFilter = status;
+    currentFixtureIdFilter = null; // Reseta filtro de partida específica ao alternar abas de status
+
+    // Se o usuário selecionou especificamente a aba de Anuladas ou Canceladas, desliga a ocultação
+    if (status === 'ANULADA' || status === 'CANCELADA' || status === 'Cancelada') {
+      const btnNao = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="0"]');
+      if (btnNao && currentWithoutCancelledFilter === '1') {
+        setWithoutCancelledFilter('0', btnNao);
+        return;
+      }
+    }
+
     applyBetFilters();
   }
 
@@ -2688,6 +2873,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   function clearDateFilter() {
+    currentFixtureIdFilter = null;
+    const fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (fixNotice) fixNotice.style.display = 'none';
     setBetDatePreset('all');
   }
 
@@ -2812,6 +3000,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
+    let hiddenByCancelledCount = 0;
 
     const counts = {
       all: 0,
@@ -2877,7 +3066,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       let withoutCancelledMatch = true;
       if (withoutCancelledVal === '1') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD') && !cardStatusUpper.includes('ANULAD');
       }
 
       let futureGamesMatch = true;
@@ -2887,7 +3076,13 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         futureGamesMatch = (cardGameEpoch > 0 && cardGameEpoch <= nowEpoch);
       }
 
-      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
+      const cardFixtureId = card.getAttribute('data-fixture-id') || '';
+      let fixtureMatch = true;
+      if (currentFixtureIdFilter) {
+        fixtureMatch = (String(cardFixtureId) === String(currentFixtureIdFilter));
+      }
+
+      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -2896,18 +3091,65 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
         card.style.display = 'none';
+        if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && futureGamesMatch && fixtureMatch && !withoutCancelledMatch) {
+          hiddenByCancelledCount++;
+        }
       }
     });
+
+    // Exibe faixa contextual caso esteja filtrando partida específica selecionada no Dashboard
+    let fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (currentFixtureIdFilter) {
+      if (!fixNotice) {
+        fixNotice = document.createElement('div');
+        fixNotice.id = 'fixtureFilterActiveNotice';
+        fixNotice.className = 'alert alert-info py-2 px-3 mb-3 d-flex justify-content-between align-items-center rounded-3 shadow-sm';
+        fixNotice.style.background = 'rgba(14, 165, 233, 0.15)';
+        fixNotice.style.border = '1px solid rgba(14, 165, 233, 0.35)';
+        fixNotice.style.color = '#38bdf8';
+        const container = document.getElementById('betsContainer');
+        if (container && container.parentNode) {
+          container.parentNode.insertBefore(fixNotice, container);
+        }
+      }
+      if (fixNotice) {
+        fixNotice.style.display = 'flex';
+        fixNotice.innerHTML = `
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-funnel-fill"></i>
+            <span>Exibindo bilhete da partida selecionada no Dashboard (ID Partida: <strong>${currentFixtureIdFilter}</strong>)</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-info" onclick="clearFixtureFilter()">
+            <i class="bi bi-x-circle me-1"></i> Ver todas as simulações
+          </button>
+        `;
+      }
+    } else if (fixNotice) {
+      fixNotice.style.display = 'none';
+    }
 
     updateTabBadges(counts);
 
     let emptyNotice = document.getElementById('noFilteredBetsNotice');
     if (visibleCount === 0 && cards.length > 0) {
+      const cancelledNoticeHtml = hiddenByCancelledCount > 0 ? `
+        <div class="mt-3 p-3 rounded-3 text-start mx-auto" style="max-width: 550px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24;">
+          <div class="d-flex align-items-center gap-2 mb-2 fw-bold">
+            <i class="bi bi-info-circle-fill fs-5"></i>
+            <span>Existem ${hiddenByCancelledCount} simulação(ões) cancelada(s) correspondente(s)</span>
+          </div>
+          <p class="small mb-2 text-light-50">Essa(s) aposta(s) foi(ram) cancelada(s) pela gestão de risco da IA ou pelo usuário e está(ão) oculta(s) pelo filtro <strong>"Sem Canceladas"</strong>.</p>
+          <button type="button" class="btn btn-sm btn-warning fw-semibold" onclick="setWithoutCancelledFilter('0', document.querySelector('#withoutCancelledSlideToggle [data-val=\\'0\\']'))">
+            <i class="bi bi-eye me-1"></i> Exibir Simulações Canceladas Agora
+          </button>
+        </div>
+      ` : '';
+
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
         emptyNotice.id = 'noFilteredBetsNotice';
@@ -2918,11 +3160,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           <i class="bi bi-funnel" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
           <h5>Nenhuma aposta encontrada</h5>
           <p>Nenhuma aposta corresponde aos filtros aplicados (Status, Período de datas ou Busca).</p>
-          <button class="btn btn-sm btn-outline-success mt-2" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          ${cancelledNoticeHtml}
+          <div class="mt-3">
+            <button class="btn btn-sm btn-outline-success" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          </div>
         `;
         const container = document.getElementById('betsContainer');
         if (container) container.appendChild(emptyNotice);
       } else {
+        emptyNotice.innerHTML = `
+          <i class="bi bi-funnel" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
+          <h5>Nenhuma aposta encontrada</h5>
+          <p>Nenhuma aposta corresponde aos filtros aplicados (Status, Período de datas ou Busca).</p>
+          ${cancelledNoticeHtml}
+          <div class="mt-3">
+            <button class="btn btn-sm btn-outline-success" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+          </div>
+        `;
         emptyNotice.style.display = 'block';
       }
     } else if (emptyNotice) {
@@ -3373,16 +3627,32 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
   let currentBetToConfirm = null;
 
-  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta) {
-    currentBetToConfirm = { id: apostaId, timeCasa, timeFora, mercado, palpite, valor: parseFloat(valorAposta) || 0 };
+  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta, oddAposta) {
+    const cardEl = document.getElementById('aposta-card-' + apostaId);
+    if (cardEl && cardEl.querySelector('[data-needs-check="1"]')) {
+      alert('⚠️ Este confronto possui odds abertas / equilibradas. É obrigatório clicar em "Checar Odds Agora" antes de confirmar a aposta.');
+      return;
+    }
+
+    currentBetToConfirm = { 
+      id: apostaId, 
+      timeCasa, 
+      timeFora, 
+      mercado, 
+      palpite, 
+      valor: parseFloat(valorAposta) || 0,
+      odd: parseFloat(oddAposta) || 0
+    };
     
     const matchNameEl = document.getElementById('confirmBetMatchName');
     const pickInfoEl = document.getElementById('confirmBetPickInfo');
     const betAmountEl = document.getElementById('confirmBetAmount');
+    const oddInputEl = document.getElementById('confirmBetOddInput');
     
     if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
     if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
     if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    if (oddInputEl) oddInputEl.value = currentBetToConfirm.odd > 0 ? currentBetToConfirm.odd.toFixed(2) : '';
     
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
@@ -3401,8 +3671,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     
     const alertEl = document.getElementById('confirmBetAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBet');
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
     
-    if (btnExec) btnExec.disabled = false;
+    if (btnExec) {
+      btnExec.disabled = false;
+      btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
+    }
+    if (btnDiscard) {
+      btnDiscard.disabled = false;
+      btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+    }
     
     if (proj < 0) {
       if (projBalEl) {
@@ -3430,14 +3708,23 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (!currentBetToConfirm || !currentBetToConfirm.id) return;
     
     const btnExec = document.getElementById('btnExecuteConfirmBet');
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
     if (btnExec) {
       btnExec.disabled = true;
       btnExec.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Debitando...';
     }
+    if (btnDiscard) btnDiscard.disabled = true;
+
+    const formData = new FormData();
+    const oddInputEl = document.getElementById('confirmBetOddInput');
+    if (oddInputEl && oddInputEl.value) {
+      formData.append('odd', oddInputEl.value);
+    }
     
     fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData
     })
     .then(r => r.json())
     .then(data => {
@@ -3447,8 +3734,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       } else {
         if (btnExec) {
           btnExec.disabled = false;
-          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
         }
+        if (btnDiscard) btnDiscard.disabled = false;
         alert('❌ ' + data.message);
       }
     })
@@ -3456,9 +3744,54 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       console.error(err);
       if (btnExec) {
         btnExec.disabled = false;
-        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>';
       }
+      if (btnDiscard) btnDiscard.disabled = false;
       alert('Erro na confirmação da aposta.');
+    });
+  }
+
+  function executeDiscardUnavailableBet() {
+    if (!currentBetToConfirm || !currentBetToConfirm.id) return;
+
+    if (!confirm('Deseja realmente cancelar esta aposta por indisponibilidade na Stake?\nNenhum valor será debitado da sua conta corrente.')) {
+      return;
+    }
+
+    const btnDiscard = document.getElementById('btnDiscardUnavailableBet');
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    if (btnDiscard) {
+      btnDiscard.disabled = true;
+      btnDiscard.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Descartando...';
+    }
+    if (btnExec) btnExec.disabled = true;
+
+    fetch('/apostas/cancelar-indisponivel/' + currentBetToConfirm.id, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('🗑️ ' + data.message);
+        window.location.reload();
+      } else {
+        if (btnDiscard) {
+          btnDiscard.disabled = false;
+          btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+        }
+        if (btnExec) btnExec.disabled = false;
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnDiscard) {
+        btnDiscard.disabled = false;
+        btnDiscard.innerHTML = '<i class="bi bi-x-circle-fill"></i> Linha Indisponível na Stake';
+      }
+      if (btnExec) btnExec.disabled = false;
+      alert('Erro ao descartar aposta.');
     });
   }
 
@@ -3468,6 +3801,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const cards = document.querySelectorAll('.bet-card-item');
     const eligibleCards = [];
     let totalValor = 0;
+    let skippedNeedsCheckCount = 0;
 
     cards.forEach(card => {
       // Verifica se a aposta está visível em tela de acordo com os filtros aplicados
@@ -3484,13 +3818,24 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       const isNotCancelada = !status.toLowerCase().includes('cancelad');
 
       if (cardId > 0 && isEligibleStatus && isNaoConfirmada && isNotCancelada) {
+        // Ignora apostas em confronto equilibrado que exigem auditoria prévia de odds
+        const isNeedsCheck = card.querySelector('[data-needs-check="1"]') !== null;
+        if (isNeedsCheck) {
+          skippedNeedsCheckCount++;
+          return;
+        }
+
         eligibleCards.push({ id: cardId, valor: valor });
         totalValor += valor;
       }
     });
 
     if (eligibleCards.length === 0) {
-      alert('<?= lang('App.no_pending_unconfirmed_on_screen') ?>');
+      if (skippedNeedsCheckCount > 0) {
+        alert('As ' + skippedNeedsCheckCount + ' aposta(s) pendente(s) visíveis estão em confronto equilibrado / odds abertas e exigem auditoria individual via "Checar Odds Agora" antes de serem confirmadas.');
+      } else {
+        alert('<?= lang('App.no_pending_unconfirmed_on_screen') ?>');
+      }
       return;
     }
 
@@ -3531,6 +3876,16 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     } else {
       if (projBalEl) projBalEl.className = 'fw-bold text-white';
       if (alertEl) alertEl.style.display = 'none';
+    }
+
+    const batchNoticeEl = document.getElementById('confirmBatchNoticeVolatilidade');
+    if (batchNoticeEl) {
+      if (skippedNeedsCheckCount > 0) {
+        batchNoticeEl.style.display = 'block';
+        batchNoticeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> <strong>Atenção:</strong> ' + skippedNeedsCheckCount + ' aposta(s) em confronto equilibrado foram desconsideradas deste lote pois exigem auditoria individual via "Checar Odds Agora" antes da confirmação.';
+      } else {
+        batchNoticeEl.style.display = 'none';
+      }
     }
 
     const modalEl = document.getElementById('confirmBatchModal');
@@ -3702,12 +4057,21 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   // Função Global para Destacar Aposta e Ajustar Filtros Automaticamente
-  window.destacarApostaPorId = function(destaqueId, dataJogoSugerida) {
-    if (!destaqueId) return;
+  window.destacarApostaPorId = function(destaqueId, dataJogoSugerida, fixtureId) {
+    if (!destaqueId && !fixtureId) return;
 
     // 1. Localiza a aposta no conjunto carregado
     const userApostas = <?= json_encode($apostas ?? []) ?>;
-    const targetBet = userApostas.find(a => String(a.id) === String(destaqueId));
+    let targetBet = null;
+    if (destaqueId) {
+      targetBet = userApostas.find(a => String(a.id) === String(destaqueId));
+    }
+    if (!targetBet && fixtureId) {
+      targetBet = userApostas.find(a => String(a.fixture_id) === String(fixtureId));
+      if (targetBet) {
+        destaqueId = targetBet.id;
+      }
+    }
 
     // Determina a data do jogo no fuso de Brasília
     let betDate = dataJogoSugerida || null;
@@ -3741,6 +4105,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     document.getElementById('btnFilterAll')?.classList.add('active');
 
     // 4. Garante que apostas canceladas estejam visíveis
+    const isCancelled = targetBet && targetBet.status && targetBet.status.toLowerCase().includes('cancelad');
     currentWithoutCancelledFilter = '0';
     const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
     if (toggleCanceladas) {
@@ -3762,22 +4127,37 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       futureToggle.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
     }
 
-    // 6. Aplica os filtros na grade
+    // 6. Define o filtro da partida específica para isolar o bilhete
+    if (targetBet && targetBet.fixture_id) {
+      currentFixtureIdFilter = targetBet.fixture_id;
+    } else if (fixtureId) {
+      currentFixtureIdFilter = fixtureId;
+    }
+
+    // 7. Aplica os filtros na grade
     if (typeof applyBetFilters === 'function') {
       applyBetFilters();
     }
 
-    // 7. Força visibilidade, rola a tela até o card e aplica o destaque pulsante
+    // 8. Força visibilidade, rola a tela até o card e aplica o destaque pulsante
     setTimeout(function() {
       const cardItem = document.getElementById('aposta-card-' + destaqueId);
       if (cardItem) {
         cardItem.style.display = 'flex';
         cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
         cardItem.classList.add('pulse-highlight');
-        cardItem.style.boxShadow = '0 0 32px rgba(239, 68, 68, 1)';
-        cardItem.style.border = '2px solid #ef4444';
+        cardItem.style.boxShadow = isCancelled ? '0 0 32px rgba(239, 68, 68, 0.9)' : '0 0 28px rgba(0, 230, 118, 0.85)';
+        cardItem.style.border = isCancelled ? '2px solid #ef4444' : '2px solid #00e676';
       }
     }, 350);
+  };
+
+  window.clearFixtureFilter = function() {
+    currentFixtureIdFilter = null;
+    const fixNotice = document.getElementById('fixtureFilterActiveNotice');
+    if (fixNotice) fixNotice.style.display = 'none';
+    setBetDatePreset('all');
+    applyBetFilters();
   };
 
   window.addEventListener('hashchange', function() {
@@ -3802,10 +4182,33 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const filtroStatus = urlParams.get('filtro_status');
     const dataJogoParam = urlParams.get('data_jogo');
 
-    // Se vier com destaque_id ou filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
+    const userApostas = <?= json_encode($apostas ?? []) ?>;
+
+    // Se fixture_id foi fornecido e NÃO foi explicitamente solicitado cadastrar nova aposta (new_bet=1)
+    if (fixId && !isNewBet) {
+      const existingBet = userApostas.find(a => String(a.fixture_id) === String(fixId));
+      if (existingBet) {
+        const betDate = existingBet.data_brt_dia || (existingBet.data_hora_jogo ? existingBet.data_hora_jogo.substring(0, 10) : dataJogoParam);
+        
+        // Destaca a aposta selecionada a partir do card na listagem
+        window.destacarApostaPorId(existingBet.id, betDate, fixId);
+
+        // Apenas abre o modal de edição se a URL solicitou expressamente action=edit
+        if (actionParam === 'edit') {
+          openEditModal(existingBet);
+        }
+        return;
+      }
+    }
+
+    // Se vier com destaque_id
     if (destaqueId) {
-      window.destacarApostaPorId(destaqueId, dataJogoParam);
-    } else if (filtroStatus === 'Cancelada') {
+      window.destacarApostaPorId(destaqueId, dataJogoParam, fixId);
+      return;
+    }
+
+    // Se vier com filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
+    if (filtroStatus === 'Cancelada') {
       currentWithoutCancelledFilter = '0';
       const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
       if (toggleCanceladas) {
@@ -3815,30 +4218,6 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       }
       if (typeof applyBetFilters === 'function') {
         applyBetFilters();
-      }
-    }
-
-    // Limpa a URL no histórico do navegador após ler os parâmetros para evitar reaberturas acidentais após reloads manuais
-    if (window.history && window.history.replaceState && (fixId || isNewBet)) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    const userApostas = <?= json_encode($apostas ?? []) ?>;
-
-    // Se fixture_id foi fornecido e NÃO foi explicitamente solicitado cadastrar nova aposta (new_bet=1)
-    if (fixId && !isNewBet) {
-      const existingBet = userApostas.find(a => String(a.fixture_id) === String(fixId));
-      if (existingBet) {
-        // Carrega e abre modal de EDIÇÃO com os dados completos salvos da aposta
-        openEditModal(existingBet);
-
-        // Destaca a aposta na listagem
-        const cardItem = document.getElementById('aposta-card-' + existingBet.id);
-        if (cardItem) {
-          cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          cardItem.style.boxShadow = '0 0 20px rgba(0, 230, 118, 0.6)';
-        }
-        return;
       }
     }
 
@@ -3892,6 +4271,105 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
     applyBetFilters();
   });
+
+  // Função canônica para destravar e habilitar o botão "Confirmar Aposta" após auditoria ou ajuste de linha
+  function unlockBetConfirmButton(apostaId, palpite, odd, valorAposta, fixtureId, precisaSalvarLinha = false) {
+    const cardEl = document.getElementById('aposta-card-' + apostaId);
+    const btnConfirm = document.getElementById('btn-confirm-' + apostaId) || (cardEl ? cardEl.querySelector('#btn-confirm-' + apostaId) : null) || (cardEl ? cardEl.querySelector('.btn-confirmar-bloqueado') : null);
+    if (!btnConfirm) return;
+
+    // 1. Remover atributos de bloqueio
+    btnConfirm.removeAttribute('data-needs-check');
+    btnConfirm.removeAttribute('disabled');
+    btnConfirm.disabled = false;
+
+    // 2. Atualizar classes visuais
+    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
+    btnConfirm.classList.add('btn-success', 'pulse-highlight');
+
+    // 3. Forçar estilos inline de botão verde ativo
+    btnConfirm.style.setProperty('background', '#10b981', 'important');
+    btnConfirm.style.setProperty('border-color', '#059669', 'important');
+    btnConfirm.style.setProperty('color', '#ffffff', 'important');
+    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
+    btnConfirm.style.setProperty('opacity', '1', 'important');
+    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
+    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
+
+    // 4. Recuperar metadados atualizados
+    const timeCasa = btnConfirm.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
+    const timeFora = btnConfirm.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
+    const mercado = btnConfirm.getAttribute('data-mercado') || 'Handicap Asiático';
+    const valFinal = parseFloat(valorAposta || btnConfirm.getAttribute('data-valor') || 10);
+    const oddFinal = parseFloat(odd || btnConfirm.getAttribute('data-odd') || 1.80);
+    const palpiteFinal = palpite || btnConfirm.getAttribute('data-palpite') || '';
+    const fixIdFinal = fixtureId || (cardEl ? cardEl.getAttribute('data-fixture-id') : '') || null;
+
+    if (palpite) btnConfirm.setAttribute('data-palpite', palpite);
+    if (odd) btnConfirm.setAttribute('data-odd', oddFinal);
+    if (valorAposta) btnConfirm.setAttribute('data-valor', valFinal);
+
+    // 5. Vincular função de clique do modal de confirmação
+    btnConfirm.onclick = function() {
+      if (precisaSalvarLinha && fixIdFinal && palpiteFinal) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Salvando par...';
+        const saveParams = {
+          fixture_id: fixIdFinal,
+          aposta_id: apostaId,
+          linha_ah: palpiteFinal,
+          odd: oddFinal
+        };
+        fetch('<?= base_url('apostas/salvar-linha-ah') ?>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: new URLSearchParams(saveParams)
+        })
+        .finally(() => {
+          btnConfirm.disabled = false;
+          btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
+          openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpiteFinal, valFinal, oddFinal);
+        });
+      } else {
+        openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpiteFinal, valFinal, oddFinal);
+      }
+    };
+
+    // 6. Atualização visual do card (desarma volatilidade)
+    if (cardEl) {
+      cardEl.querySelectorAll('[data-needs-check]').forEach(el => el.removeAttribute('data-needs-check'));
+      cardEl.classList.remove('bet-card-volatilidade');
+      cardEl.setAttribute('data-volatilidade', '0');
+
+      const headerBadge = cardEl.querySelector('.badge-volatilidade-header');
+      if (headerBadge) {
+        headerBadge.style.cssText = 'font-size: 0.78rem; background: rgba(16, 185, 129, 0.2) !important; color: #34d399 !important; border-color: rgba(16, 185, 129, 0.5) !important; letter-spacing: 0.3px;';
+        headerBadge.innerHTML = '<span style="font-size: 0.88rem; line-height: 1;">✅</span> Odds Auditadas em Tempo Real';
+      }
+
+      let alertBox = cardEl.querySelector('.alert-volatilidade-box');
+      if (alertBox) {
+        alertBox.style.background = 'rgba(16, 185, 129, 0.12)';
+        alertBox.style.border = '1px solid rgba(16, 185, 129, 0.45)';
+        alertBox.style.borderLeft = '4px solid #10b981';
+        alertBox.style.color = '#a7f3d0';
+        alertBox.innerHTML = `
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-check-circle-fill text-success flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
+            <div>
+              <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
+                ✅ Odds Auditadas em Tempo Real
+              </strong>
+              <span>Cotações validadas com sucesso. A aposta foi destravada e está liberada para confirmação com segurança.</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
 
   // Função para Checar Odds em Tempo Real via API Football
   function handleChecarOddsAgora(apostaId, fixtureId, btnEl) {
@@ -3964,29 +4442,31 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           detalhadoEl.textContent = cleanDetalhado;
         }
 
-        // Se for mercado aberto, garantir exibição da caixa de alerta vermelho
-        let alertBox = cardEl.querySelector('.alert-volatilidade-box');
-        if (data.is_open_market) {
-          if (!alertBox) {
-            const bodyEl = cardEl.querySelector('.bet-card-body');
-            if (bodyEl) {
-              const newAlert = document.createElement('div');
-              newAlert.className = 'alert-volatilidade-box mb-3';
-              newAlert.style.cssText = 'background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; color: #fca5a5; font-size: 0.82rem; line-height: 1.45;';
-              newAlert.innerHTML = `
-                <div class="d-flex align-items-start gap-2">
-                  <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
-                  <div>
-                    <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
-                      🚨 Atenção: Confronto Equilibrado / Odds Abertas
-                    </strong>
-                    <span>As cotações deste jogo estão elevadas e a linha de Handicap Asiático pode sofrer oscilações no mercado. <strong>Recomendamos clicar no botão "Checar Odds Agora"</strong> para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.</span>
-                  </div>
-                </div>
-              `;
-              bodyEl.insertBefore(newAlert, bodyEl.firstChild);
-            }
+        // Tratamento da decisão do Gatekeeper em tempo real
+        if (data.tipo_mudanca === 'cancelada' || data.tipo_mudanca === 'no_bet' || Number(data.odd_nova) === 0) {
+          cardEl.setAttribute('data-status', 'Cancelada');
+          const btnConfirm = cardEl.querySelector('#btn-confirm-' + apostaId);
+          if (btnConfirm) {
+            btnConfirm.className = 'btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm';
+            btnConfirm.disabled = true;
+            btnConfirm.removeAttribute('data-needs-check');
+            btnConfirm.style.opacity = '0.6';
+            btnConfirm.style.cursor = 'not-allowed';
+            btnConfirm.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Cancelada pelo Gatekeeper';
           }
+          cardEl.classList.remove('bet-card-volatilidade');
+          const headerBadge = cardEl.querySelector('.badge-volatilidade-header');
+          if (headerBadge) {
+            headerBadge.style.cssText = 'font-size: 0.78rem; background: rgba(100, 116, 139, 0.2) !important; color: #94a3b8 !important; border-color: rgba(100, 116, 139, 0.4) !important; letter-spacing: 0.3px;';
+            headerBadge.innerHTML = '<span style="font-size: 0.88rem; line-height: 1;">⚪</span> Abstenção / Cancelada';
+          }
+          let alertBox = cardEl.querySelector('.alert-volatilidade-box');
+          if (alertBox) {
+            alertBox.style.display = 'none';
+          }
+        } else {
+          // Aposta aprovada/mantida pelo Gatekeeper com odds válidas: DESBLOQUEAR BOTÃO CONFIRMAR
+          unlockBetConfirmButton(apostaId, data.palpite_novo, data.odd_nova, data.valor_aposta);
         }
       }
 
@@ -4072,5 +4552,387 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         }
       }
     }
+  }
+
+  // Alternar painel de ajuste de linha AH customizada e carregar radar proativo
+  function toggleCustomAhSection(apostaId, fixtureId) {
+    if (!apostaId) return;
+    const box = document.getElementById('custom-ah-box-' + apostaId);
+    if (!box) return;
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      const input = document.getElementById('input-custom-ah-' + apostaId);
+      if (input) input.focus();
+      if (fixtureId) {
+        carregarRadarAh(apostaId, fixtureId);
+      }
+    }
+  }
+
+  // Carregar radar analítico do Gatekeeper (Odds mínimas e oportunidades em outras casas)
+  function carregarRadarAh(apostaId, fixtureId) {
+    const radarEl = document.getElementById('radar-custom-ah-' + apostaId);
+    if (!radarEl || radarEl.dataset.loaded === 'true') return;
+
+    radarEl.style.display = 'block';
+    radarEl.innerHTML = `
+      <div class="d-flex align-items-center gap-2 py-1 text-white-50" style="font-size: 0.73rem;">
+        <span class="spinner-border spinner-border-sm text-info"></span>
+        <span>Consultando radar do Gatekeeper e odds de mercado...</span>
+      </div>
+    `;
+
+    fetch('<?= base_url('apostas/radar-linhas-ah') ?>/' + fixtureId, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.success) {
+        radarEl.dataset.loaded = 'true';
+        renderRadarAhHtml(apostaId, fixtureId, data);
+      } else {
+        radarEl.style.display = 'none';
+      }
+    })
+    .catch(() => {
+      radarEl.style.display = 'none';
+    });
+  }
+
+  function renderRadarAhHtml(apostaId, fixtureId, data) {
+    const radarEl = document.getElementById('radar-custom-ah-' + apostaId);
+    if (!radarEl) return;
+
+    let html = '';
+
+    // 1. Linhas de Referência (+EV a partir de 5%)
+    if (data.linhas_referencia && data.linhas_referencia.length > 0) {
+      const badges = data.linhas_referencia.map(l => {
+        return `<button type="button" 
+                        class="btn btn-xs btn-outline-info py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.72rem; border-radius: 4px; border-color: rgba(56, 189, 248, 0.45); color: #bae6fd;" 
+                        title="Odd justa ${Number(l.odd_justa).toFixed(2)} | Cobertura ${Number(l.prob_cobertura).toFixed(1)}%"
+                        onclick="aplicarLinhaRadar(${apostaId}, '${l.linha}', ${Number(l.odd_minima).toFixed(2)})">
+                  <span>${l.linha}</span>
+                  <span class="badge bg-secondary bg-opacity-50 text-white-50" style="font-size: 0.62rem;">${Number(l.prob_cobertura).toFixed(0)}% cob.</span>
+                  <span class="badge bg-info bg-opacity-25 text-info" style="font-size: 0.65rem;">mín @ ${Number(l.odd_minima).toFixed(2)}</span>
+                </button>`;
+      }).join(' ');
+
+      html += `
+        <div class="mb-2">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="fw-bold text-info" style="font-size: 0.74rem;">
+              <i class="bi bi-compass me-1"></i> Linhas Elegíveis e Cotação Mínima (+EV no Gatekeeper):
+            </span>
+            <span class="text-white-50" style="font-size: 0.68rem;">(Clique para preencher)</span>
+          </div>
+          <div class="d-flex flex-wrap gap-1">${badges}</div>
+        </div>
+      `;
+    }
+
+    // 2. Oportunidades em Outras Casas (API Real)
+    if (data.oportunidades_outras_casas && data.oportunidades_outras_casas.length > 0) {
+      const oppBadges = data.oportunidades_outras_casas.map(op => {
+        return `<button type="button" 
+                        class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.72rem; border-radius: 4px; border-color: rgba(34, 197, 94, 0.6); color: #86efac;" 
+                        title="${op.bookmaker} | +EV ${Number(op.ev_percent).toFixed(1)}% | Prob ${Number(op.prob_eff).toFixed(1)}%"
+                        onclick="aplicarLinhaRadarEValidar(${apostaId}, ${fixtureId}, '${op.palpite_str}', ${Number(op.odd).toFixed(2)})">
+                  <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">${op.bookmaker}</span>
+                  <span>${op.palpite_str}</span>
+                  <strong class="text-warning">@ ${Number(op.odd).toFixed(2)}</strong>
+                </button>`;
+      }).join(' ');
+
+      html += `
+        <div class="mt-2 pt-1.5 border-top border-secondary border-opacity-25">
+          <div class="fw-bold text-success mb-1" style="font-size: 0.74rem;">
+            <i class="bi bi-stars me-1"></i> Oportunidades Reais Aprovadas em Outras Casas (API):
+          </div>
+          <div class="d-flex flex-wrap gap-1">${oppBadges}</div>
+        </div>
+      `;
+    }
+
+    if (!html) {
+      html = `
+        <div class="text-white-50 py-1" style="font-size: 0.72rem;">
+          <i class="bi bi-info-circle me-1"></i> No momento, todas as linhas de mercado ativas estão com margem de valor reduzida ou retidas pelo filtro de momento.
+        </div>
+      `;
+    }
+
+    radarEl.style.display = 'block';
+    radarEl.innerHTML = html;
+  }
+
+  function aplicarLinhaRadar(apostaId, linha, odd) {
+    const inputEl = document.getElementById('input-custom-ah-' + apostaId);
+    const oddEl = document.getElementById('input-custom-odd-' + apostaId);
+    if (inputEl) inputEl.value = linha;
+    if (oddEl && odd) oddEl.value = odd;
+  }
+
+  function aplicarLinhaRadarEValidar(apostaId, fixtureId, linha, odd) {
+    aplicarLinhaRadar(apostaId, linha, odd);
+    const btn = document.querySelector('#custom-ah-box-' + apostaId + ' .btn-validar-custom-ah');
+    if (btn) handleValidarCustomAh(apostaId, fixtureId, btn);
+  }
+
+  // Validar o par (linha, odd) no Gatekeeper via AJAX
+  function handleValidarCustomAh(apostaId, fixtureId, btnEl) {
+    if (!apostaId || !fixtureId) return;
+    const inputEl = document.getElementById('input-custom-ah-' + apostaId);
+    const oddEl = document.getElementById('input-custom-odd-' + apostaId);
+    const feedbackEl = document.getElementById('feedback-custom-ah-' + apostaId);
+    if (!inputEl || !feedbackEl) return;
+
+    const linhaAh = (inputEl.value || '').trim();
+    const oddVal = oddEl ? (oddEl.value || '').trim() : '';
+
+    if (!linhaAh) {
+      alert('Por favor, informe a linha de Handicap Asiático desejada.');
+      inputEl.focus();
+      return;
+    }
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    const oddDesc = oddVal ? ` @ ${oddVal}` : '';
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = `
+      <div class="alert alert-info py-2 px-3 mb-0 d-flex align-items-center gap-2" style="font-size: 0.78rem; background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #bae6fd;">
+        <span class="spinner-border spinner-border-sm text-info"></span>
+        <span>Avaliando par (${linhaAh}${oddDesc}) no Gatekeeper...</span>
+      </div>
+    `;
+
+    const postParams = {
+      fixture_id: fixtureId,
+      aposta_id: apostaId,
+      linha_ah: linhaAh
+    };
+    const oddSanitized = oddVal.replace(',', '.');
+    if (oddSanitized && !isNaN(parseFloat(oddSanitized))) {
+      postParams.odd = parseFloat(oddSanitized);
+    }
+
+    fetch('<?= base_url('apostas/validar-linha-ah') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams(postParams)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        feedbackEl.innerHTML = `
+          <div class="alert alert-danger py-2 px-3 mb-0" style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.18); border-color: #ef4444; color: #fca5a5;">
+            <strong>Erro na validação:</strong> ${data.message || 'Falha ao consultar servidor.'}
+          </div>
+        `;
+        return;
+      }
+
+      // Atualiza o radar com os dados analíticos retornados
+      if (data.linhas_referencia || data.oportunidades_outras_casas) {
+        renderRadarAhHtml(apostaId, fixtureId, data);
+      }
+
+      if (data.aprovado) {
+        // 1. Desbloquear o botão Confirmar Aposta imediatamente com a linha e odd aprovadas!
+        const linhaOficial = data.linha_oficial || postParams.linha_ah;
+        const oddOficial = parseFloat(data.odd || postParams.odd || 0);
+        const ganhoOficial = data.ganhos_potenciais_novos;
+
+        unlockBetConfirmButton(apostaId, linhaOficial, oddOficial, ganhoOficial, fixtureId, true);
+
+        // 2. Atualizar no card a prévia visual
+        const cardEl = document.getElementById('aposta-card-' + apostaId);
+        if (cardEl) {
+          const palpiteEl = cardEl.querySelector('.palpite-name');
+          if (palpiteEl && linhaOficial) palpiteEl.textContent = linhaOficial;
+          const oddBadge = cardEl.querySelector('.odd-badge');
+          if (oddBadge && oddOficial) oddBadge.textContent = Number(oddOficial).toFixed(2);
+          const ganhoEl = cardEl.querySelector('.val-amount.primary');
+          if (ganhoEl && ganhoOficial) ganhoEl.textContent = 'R$ ' + Number(ganhoOficial).toFixed(2).replace('.', ',');
+        }
+
+        feedbackEl.innerHTML = `
+          <div class="p-2.5 rounded-2" style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.5); color: #86efac; font-size: 0.78rem;">
+            <div class="d-flex align-items-center justify-content-between mb-1.5 flex-wrap gap-1">
+              <span class="fw-bold text-success" style="font-size: 0.82rem;">
+                <i class="bi bi-shield-check me-1"></i> Par Aprovado no Gatekeeper! (Confirmação Liberada)
+              </span>
+              <div class="d-flex gap-1">
+                <span class="badge bg-success bg-opacity-75 text-white">Odd: @ ${Number(data.odd).toFixed(2)}</span>
+                <span class="badge bg-primary bg-opacity-75 text-white">EV: +${Number(data.ev_percent).toFixed(1)}%</span>
+                <span class="badge bg-info bg-opacity-75 text-dark">Prob: ${Number(data.prob_efetiva).toFixed(1)}%</span>
+              </div>
+            </div>
+            <p class="mb-2" style="color: #dcfce7; line-height: 1.4;">${data.explicacao}</p>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-1 border-top border-success border-opacity-25">
+              <span class="text-white fw-bold" style="font-size: 0.78rem;">
+                Novo Ganho Potencial: <strong class="text-warning">R$ ${Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',')}</strong>
+              </span>
+              <button type="button" 
+                      class="btn btn-sm btn-success fw-bold px-3 py-1 shadow-sm d-inline-flex align-items-center gap-1" 
+                      style="border-radius: 6px; font-size: 0.78rem;"
+                      onclick="handleSalvarCustomAh(${apostaId}, ${fixtureId}, '${data.linha_oficial}', ${Number(data.odd)}, this)">
+                <i class="bi bi-check-circle-fill"></i> Salvar Aposta com este Par
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        let alternativasHtml = '';
+        if (data.linhas_aprovadas_disponiveis && data.linhas_aprovadas_disponiveis.length > 0) {
+          const badges = data.linhas_aprovadas_disponiveis.map(l => 
+            `<button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.72rem; border-radius: 4px;" onclick="document.getElementById('input-custom-ah-${apostaId}').value='${l}'; handleValidarCustomAh(${apostaId}, ${fixtureId}, document.querySelector('#custom-ah-box-${apostaId} .btn-validar-custom-ah'));">${l}</button>`
+          ).join(' ');
+          alternativasHtml = `
+            <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
+              <span class="text-white-50 d-block mb-1">💡 Linhas Aprovadas Disponíveis na Betano:</span>
+              <div class="d-flex flex-wrap gap-1">${badges}</div>
+            </div>
+          `;
+        } else {
+          alternativasHtml = `
+            <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
+              <span class="text-white-50 d-block mb-1">💡 A linha informada não atingiu os critérios de aprovação do Gatekeeper. Utilize as linhas elegíveis e cotações mínimas recomendadas pelo radar abaixo para apostar na Stake ou em qualquer outra casa.</span>
+            </div>
+          `;
+        }
+
+        feedbackEl.innerHTML = `
+          <div class="p-2.5 rounded-2" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; font-size: 0.78rem;">
+            <div class="d-flex align-items-center gap-1.5 fw-bold text-danger mb-1" style="font-size: 0.82rem;">
+              <i class="bi bi-shield-x"></i> Par Reprovado pelo Gatekeeper
+            </div>
+            <p class="mb-1" style="color: #fee2e2; line-height: 1.4;">${data.explicacao}</p>
+            ${alternativasHtml}
+          </div>
+        `;
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      feedbackEl.innerHTML = `
+        <div class="alert alert-danger py-2 px-3 mb-0" style="font-size: 0.78rem;">
+          Falha de conexão com o servidor ao validar linha.
+        </div>
+      `;
+    });
+  }
+
+  // Salvar a linha e odd validadas na aposta
+  function handleSalvarCustomAh(apostaId, fixtureId, linhaValidada, oddValidada, btnEl) {
+    if (!apostaId || !fixtureId || !linhaValidada) return;
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Salvando...';
+    }
+
+    const saveParams = {
+      fixture_id: fixtureId,
+      aposta_id: apostaId,
+      linha_ah: linhaValidada
+    };
+    if (oddValidada && !isNaN(parseFloat(oddValidada))) {
+      saveParams.odd = parseFloat(oddValidada);
+    }
+
+    fetch('<?= base_url('apostas/salvar-linha-ah') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams(saveParams)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        alert(data.message || 'Erro ao salvar aposta.');
+        return;
+      }
+
+      // Atualizar dados visuais no card
+      const cardEl = document.getElementById('aposta-card-' + apostaId);
+      if (cardEl) {
+        const palpiteEl = cardEl.querySelector('.palpite-name');
+        if (palpiteEl && data.palpite_novo) {
+          palpiteEl.textContent = data.palpite_novo;
+          palpiteEl.classList.add('pulse-highlight');
+          setTimeout(() => palpiteEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const oddBadge = cardEl.querySelector('.odd-badge');
+        if (oddBadge && data.odd_nova) {
+          oddBadge.textContent = Number(data.odd_nova).toFixed(2);
+          oddBadge.classList.add('pulse-highlight');
+          setTimeout(() => oddBadge.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const ganhoEl = cardEl.querySelector('.val-amount.primary');
+        if (ganhoEl && data.ganhos_potenciais_novos) {
+          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          ganhoEl.classList.add('pulse-highlight');
+          setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        const gkBadge = cardEl.querySelector('.bet-toggle-badge');
+        if (gkBadge) {
+          gkBadge.className = 'bet-toggle-badge green';
+          gkBadge.innerHTML = '<i class="bi bi-shield-check me-1"></i> 🛡️ STATUS GK: APROVADO <i class="bi bi-chevron-down ms-1 icon-arrow"></i>';
+        }
+
+        const customBox = document.getElementById('custom-ah-box-' + apostaId);
+        if (customBox) {
+          customBox.style.display = 'none';
+        }
+
+        // Desbloqueia e habilita o botão Confirmar Aposta com os dados aprovados
+        unlockBetConfirmButton(apostaId, data.palpite_novo || linhaValidada, data.odd_nova || oddValidada, data.valor_aposta);
+      }
+
+      showToastOddsCheck({
+        mudou: true,
+        explicacao_mudanca: data.message || `Aposta atualizada para ${data.palpite_novo} @ ${Number(data.odd_nova).toFixed(2)}!`
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      alert('Erro ao conectar com o servidor para salvar aposta.');
+    });
   }
 </script>

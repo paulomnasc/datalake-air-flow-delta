@@ -48,6 +48,14 @@ $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerInges
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
 
+// Terminal Remoto Isolado (Stake / Geocheck) - Exclusivo Admin
+$routes->get('/terminal/stake', 'TerminalStakeController::index', ['filter' => 'adminauth', 'as' => 'terminal.stake']);
+$routes->get('/terminal/stake/status', 'TerminalStakeController::status', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/start', 'TerminalStakeController::start', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/stop', 'TerminalStakeController::stop', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/restart', 'TerminalStakeController::restart', ['filter' => 'adminauth']);
+$routes->post('/terminal/stake/navigate', 'TerminalStakeController::navigate', ['filter' => 'adminauth']);
+
 // Rotas da Gestão de Apostas (CRUD com controle de tokens)
 $routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);
 $routes->post('/apostas/store', 'ApostaController::store', ['as' => 'apostas.store']);
@@ -62,6 +70,8 @@ $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apo
 $routes->post('/apostas/confirmar/(:num)', 'ApostaController::confirmar/$1', ['as' => 'apostas.confirmar']);
 $routes->post('/apostas/confirmar', 'ApostaController::confirmar', ['as' => 'apostas.confirmar_post']);
 $routes->post('/apostas/confirmar-lote', 'ApostaController::confirmarLote', ['as' => 'apostas.confirmar_lote']);
+$routes->post('/apostas/cancelar-indisponivel/(:num)', 'ApostaController::cancelarIndisponivel/$1', ['as' => 'apostas.cancelar_indisponivel']);
+$routes->post('/apostas/cancelar-indisponivel', 'ApostaController::cancelarIndisponivel', ['as' => 'apostas.cancelar_indisponivel_post']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
@@ -74,6 +84,9 @@ $routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstenc
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
+$routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', ['as' => 'apostas.validar_linha_ah']);
+$routes->get('/apostas/radar-linhas-ah/(:num)', 'ApostaController::radarLinhasAh/$1', ['as' => 'apostas.radar_linhas_ah']);
+$routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
 
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)

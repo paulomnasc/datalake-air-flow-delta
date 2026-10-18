@@ -186,4 +186,38 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Toda a complexidade técnica, memória de cálculo detalhada e payloads JSON estruturados pertencem **exclusivamente à camada de banco de dados** (colunas de auditoria no MySQL) para alimentar os algoritmos da IA, motores analíticos e históricos preditivos.
   - A camada de apresentação (views e controllers PHP) deve obrigatoriamente higienizar todo texto antes de exibi-lo em tela, extraindo estritamente a síntese em linguagem natural (ex: o bloco `REASON:`) e suprimindo de forma irrestrita qualquer bloco que contenha `|| MEMÓRIA DE CÁLCULO` ou tags técnicas internas.
 
+---
+
+## 18. Proibição Absoluta de Hardcoding de Credenciais e Senhas (Segurança e Variáveis de Ambiente Mandatórias)
+- **Princípio de Zero Credenciais no Código:**
+  - É expressamente proibido inserir, manter ou utilizar senhas de banco de dados (MySQL, Postgres, etc.), chaves de API, segredos ou tokens de autenticação diretamente grafados no código-fonte (`.py`, `.php`, `.sh`), DAGs ou documentações.
+- **Fonte Canônica Obrigatória (`src/footballweb/.env`):**
+  - Toda e qualquer credencial de banco de dados e segredo do sistema deve ser carregada exclusivamente a partir do arquivo canônico de ambiente `src/footballweb/.env` ou variáveis de ambiente do sistema operacional (`os.environ`).
+  - Em scripts Python, as rotinas de banco de dados **DEVEM OBRIGATORIAMENTE utilizar o módulo canônico centralizado `scripts/db_config.py`** (`get_db_connection()`), que efetua a leitura dinâmica das credenciais do `.env` com mapeamento ordenado de portas e mecanismo fail-fast caso a credencial esteja ausente.
+
+---
+
+## 19. Autorização Prévia e Explícita Mandatória para Operações de Escrita no Banco de Dados (DML / DDL)
+- O assistente/agente **NUNCA DEVE** executar de forma autônoma comandos SQL de alteração, inserção, exclusão ou estruturais (`UPDATE`, `INSERT`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER TABLE`) diretamente no banco de dados sem autorização prévia e explícita do usuário desenvolvedor.
+- **Fluxo Obrigatório**:
+  1. Identificar e justificar a necessidade da intervenção no banco de dados;
+  2. Apresentar os registros afetados (ex: `fixture_id`, `aposta_id`, valores atuais e novos valores projetados);
+  3. Apresentar a consulta SQL exata ou script que realizará a operação;
+  4. Solicitar e aguardar a confirmação/autorização explícita do usuário antes de disparar o comando.
+- Consultas estritamente somente-leitura (`SELECT`, `SHOW`, `DESCRIBE`) continuam autorizadas para auditoria, inspeção e diagnóstico de causa raiz.
+
+---
+
+## 20. Proibição Absoluta de Notação LaTeX e Símbolos Acadêmicos na Comunicação com o Usuário
+- **Linguagem Natural Sem LaTeX ou Notação Acadêmica:** É expressamente proibido utilizar qualquer fragmento de sintaxe LaTeX, delimitadores matemáticos (como `$ ... $` ou `$$ ... $$`) e comandos como `\ge`, `\le`, `\times`, `\approx`, `\le 1.25`, `\ge 12` em mensagens, relatórios e respostas ao usuário.
+- **Tradução Obrigatória para Linguagem Natural:** Todo comparativo numérico, patamar de tabela, pontuação ou métrica estatística deve ser obrigatoriamente escrito em português claro, limpo e direto:
+  - Em vez de `$\ge 12$`: escrever "12º colocado ou pior", "da 12ª posição para baixo", ou "igual ou maior que 12".
+  - Em vez de `$\le 1.25$`: escrever "até 1,25 pontos por jogo" ou "igual ou inferior a 1,25".
+  - Em vez de `$xC \le 3.50$`: escrever "expectativa de no máximo 3,5 cartões".
+  - Em vez de `$\times$`: usar "x" ou "multiplicado por".
+- **Objetivo Mandatório:** Assegurar que toda comunicação técnica seja fluida, elegante, profissional e imediatamente legível sem ruídos visuais de fórmulas ou tags de formatação acadêmica.
+
+
+
+
 

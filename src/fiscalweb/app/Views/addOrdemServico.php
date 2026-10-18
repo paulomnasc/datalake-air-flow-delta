@@ -7,6 +7,24 @@ require VIEWPATH.'/header.php';
 <div id="content">
     <div class="container-menor">
         <h4 style="text-align: center;">Inclusão de OrdemServico</h4>
+
+        <ul class="nav nav-tabs mb-4" id="osTabs" role="tablist" style="border-bottom: 2px solid #1976d2;">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-dados-os" data-bs-toggle="tab" data-bs-target="#panel-dados-os" type="button" role="tab" aria-controls="panel-dados-os" aria-selected="true" style="font-weight: 600; font-size: 1rem;">
+                    📋 Dados da Ordem de Serviço
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-demandas-os" data-bs-toggle="tab" data-bs-target="#panel-demandas-os" type="button" role="tab" aria-controls="panel-demandas-os" aria-selected="false" style="font-weight: 600; font-size: 1rem;">
+                    🚀 Demandas Associadas
+                    <span class="badge bg-secondary ms-1">0</span>
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="osTabsContent">
+            <!-- ABA 1: DADOS DA OS E ITENS -->
+            <div class="tab-pane fade show active" id="panel-dados-os" role="tabpanel" aria-labelledby="tab-dados-os">
         
         <form id="addForm">
             
@@ -42,6 +60,11 @@ require VIEWPATH.'/header.php';
             <div class="form-group">
                 <label for="nup_sei">NupSei:</label>
                 <input type="text" id="nup_sei" name="nup_sei" required>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="descricao">Descrição: <span style="color: red;">*</span></label>
+                <input type="text" id="descricao" name="descricao" maxlength="255" required placeholder="Informe a descrição da ordem de serviço (até 255 caracteres)" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
 
             <div class="form-group">
@@ -165,6 +188,22 @@ require VIEWPATH.'/header.php';
                 </tr>
             </tfoot>
         </table>
+            </div> <!-- fim tab-pane #panel-dados-os -->
+
+            <!-- ABA 2: DEMANDAS ASSOCIADAS -->
+            <div class="tab-pane fade" id="panel-demandas-os" role="tabpanel" aria-labelledby="tab-demandas-os">
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-2 flex-wrap gap-2">
+                    <h5 class="mb-0 text-primary" style="font-weight: 600;"><i class="bi bi-list-task me-2"></i>Demandas Associadas</h5>
+                </div>
+
+                <div class="alert alert-info d-flex align-items-center mt-3" role="alert">
+                    <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                    <div>
+                        <strong>Ordem de Serviço em Inclusão:</strong> Para vincular e listar demandas associadas, primeiro salve o cadastro desta Ordem de Serviço. Após o salvamento, as demandas vinculadas estarão disponíveis nesta aba para acompanhamento e criação de novas demandas.
+                    </div>
+                </div>
+            </div> <!-- fim tab-pane #panel-demandas-os -->
+        </div> <!-- fim tab-content #osTabsContent -->
 
         <script>
             let osItems = [];

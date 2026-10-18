@@ -3,12 +3,12 @@
 ## 1. Criar usuário de backup no MySQL
 
 ```bash
-docker exec -i mysql mysql -uroot -p'YM11rMrT32xH0E6N' < backup/create_backup_user.sql
+docker exec -i mysql mysql -uroot -p'<SUA_SENHA_ROOT_MYSQL>' < backup/create_backup_user.sql
 ```
 
 Depois defina a senha:
 ```bash
-docker exec -i mysql mysql -uroot -p'YM11rMrT32xH0E6N' -e \
+docker exec -i mysql mysql -uroot -p'<SUA_SENHA_ROOT_MYSQL>' -e \
   "ALTER USER 'backup_lista_revisao2'@'%' IDENTIFIED BY 'SUA_SENHA_FORTE_AQUI';"
 ```
 

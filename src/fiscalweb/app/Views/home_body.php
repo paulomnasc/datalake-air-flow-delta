@@ -308,7 +308,18 @@
 
 <?php
 // Group OS by status
-$statuses = ['Rascunho', 'Aguardando assinatura', 'Execução', 'Recebido Provisorio', 'Recebido definitivo', 'Concluido'];
+$statuses = [
+    'Rascunho',
+    'Aguardando assinatura',
+    'Execução',
+    'Recebido Provisorio',
+    'Em aferição metrica',
+    'Em divergência metrica',
+    'Parecer conformidade metrica',
+    'Liberado para faturamento',
+    'Recebido definitivo',
+    'Concluido'
+];
 $osGroups = [];
 foreach ($statuses as $st) {
     $osGroups[$st] = [];
@@ -321,7 +332,9 @@ if (!isset($list)) {
 if (isset($list) && is_array($list)) {
     foreach ($list as $item) {
         $st = $item->status ?? 'Rascunho';
-        if (in_array($st, $statuses)) {
+        if ($st === 'Cancelada') {
+            $osGroups['Concluido'][] = $item;
+        } elseif (in_array($st, $statuses)) {
             $osGroups[$st][] = $item;
         } else {
             $osGroups['Rascunho'][] = $item;
@@ -422,6 +435,9 @@ if (isset($list) && is_array($list)) {
                                             <a href="<?php echo site_url('updOrdemServico?id=' . $os->id); ?>" style="color: var(--accent-blue); font-weight: bold; text-decoration: underline;">
                                                 <?php echo esc($os->nup_sei); ?>
                                             </a>
+                                            <?php if (($os->status ?? '') === 'Cancelada'): ?>
+                                                <span class="badge bg-danger ms-1" style="font-size: 0.75rem;">Cancelada</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td><?php echo $os->Horas_Alocadas; ?></td>
                                         <td><?php echo date('d/m/Y H:i', strtotime($os->Data_Emissao)); ?></td>

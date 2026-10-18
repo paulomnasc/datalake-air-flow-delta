@@ -6,59 +6,7 @@ require VIEWPATH.'/header.php';
 
 if (!function_exists('getBookmakerUrl')) {
     function getBookmakerUrl($bmName) {
-        $bm = strtoupper(trim($bmName ?? ''));
-        if (empty($bm)) {
-            return 'https://www.bet365.com/';
-        }
-
-        $urls = [
-            'BET365'       => 'https://www.bet365.com/',
-            'BETANO'       => 'https://br.betano.com/',
-            'SPORTINGBET'  => 'https://www.sportingbet.com/pt-br',
-            'SUPERBET'     => 'https://superbet.com/pt-br/',
-            'KTO'          => 'https://www.kto.com/pt/',
-            'BETFAIR'      => 'https://www.betfair.com/br',
-            'BETNACIONAL'  => 'https://betnacional.com/',
-            'NOVIBET'      => 'https://www.novibet.com.br/',
-            'STAKE'        => 'https://stake.com/',
-            'PARIMATCH'    => 'https://parimatch.com.br/',
-            'PINNACLE'     => 'https://www.pinnacle.com/',
-            'ESTRELA'      => 'https://estrelabet.com/',
-            'RIVALO'       => 'https://www.rivalo.com/pt',
-            '1XBET'        => 'https://1xbet.com/',
-            'GALERA'       => 'https://www.galera.bet/',
-            'BLAZE'        => 'https://blaze.com/',
-            'UNIBET'       => 'https://www.unibet.com/',
-            'CASUMO'       => 'https://www.casumo.com/',
-            'GROSVENOR'    => 'https://www.grosvenorcasinos.com/sport',
-            'LADBROKES'    => 'https://sports.ladbrokes.com/',
-            'BETSSON'      => 'https://www.betsson.com/',
-            'COOLBET'      => 'https://www.coolbet.com/',
-            '888SPORT'     => 'https://www.888sport.com/',
-            'WILLIAM HILL' => 'https://sports.williamhill.com/',
-            'BETWAY'       => 'https://www.betway.com/',
-            'LEOVEGAS'     => 'https://www.leovegas.com/',
-            'PADDY POWER'  => 'https://sports.paddypower.com/',
-            'CORAL'        => 'https://sports.coral.co.uk/',
-            'VIRGIN'       => 'https://www.virginbet.com/',
-            'LIVESCORE'    => 'https://www.livescorebet.com/',
-            'WINAMAX'      => 'https://www.winamax.fr/',
-            'MARATHON'     => 'https://www.marathonbet.com/',
-            'CODERE'       => 'https://www.codere.es/',
-            'BETCLIC'      => 'https://www.betclic.fr/',
-            'MATCHBOOK'    => 'https://www.matchbook.com/',
-            'BETONLINE'    => 'https://www.betonline.ag/',
-            'SMARKETS'     => 'https://smarkets.com/'
-        ];
-        
-        foreach ($urls as $key => $url) {
-            if (strpos($bm, $key) !== false) {
-                return $url;
-            }
-        }
-        
-        $cleanDomain = preg_replace('/[^a-z0-9]/', '', strtolower($bmName));
-        return 'https://www.' . $cleanDomain . '.com/';
+        return '';
     }
 }
 
@@ -1079,7 +1027,13 @@ if (!function_exists('getBetDecisionTree')) {
             }
         }
 
-        if ($xc <= 5.50 && $u65 >= 60.0) {
+        if ($xc <= 3.50 && $u45 >= 60.0) {
+            $lineTag = 'UNDER 4.5 🛡️';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '4.5', $u45, '5.5', $u55);
+        } elseif ($xc <= 4.50 && $u55 >= 60.0) {
+            $lineTag = 'UNDER 5.5 🛡️';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '5.5', $u55, '6.5', $u65);
+        } elseif ($xc <= 5.50 && $u65 >= 60.0) {
             $lineTag = 'UNDER 6.5 🛡️';
             $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '6.5', $u65, '7.5', $u75);
         } elseif ($xc <= 6.50 && $u75 >= 60.0) {
@@ -1555,11 +1509,13 @@ if (!function_exists('getBetDecisionTree')) {
         z-index: 10;
     }
 
+    .oddspedia-link-box {
+        cursor: default;
+    }
+
     .oddspedia-link-box:hover {
-        background: rgba(255, 255, 255, 0.12) !important;
-        border-color: rgba(255, 255, 255, 0.3) !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        background: rgba(255, 255, 255, 0.06) !important;
+        border-color: rgba(255, 255, 255, 0.14) !important;
     }
 
     .bet-card-header {
@@ -1614,6 +1570,20 @@ if (!function_exists('getBetDecisionTree')) {
         border-color: #00e676;
         transform: translateY(-1px);
         box-shadow: 0 0 14px rgba(0, 230, 118, 0.45);
+    }
+
+    .bet-card-playing-card-badge.bet-cancelled {
+        background: rgba(239, 68, 68, 0.12);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+
+    .bet-card-playing-card-badge.bet-cancelled:hover {
+        background: rgba(239, 68, 68, 0.25);
+        color: #ffffff;
+        border-color: #ef4444;
+        transform: translateY(-1px);
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
     }
 
     .bet-card-playing-card-badge.no-bet {
@@ -2554,8 +2524,8 @@ if (!function_exists('getBetDecisionTree')) {
             </div>
         </div>
 
-        <!-- Seção de Vídeo em Destaque / Tutorial -->
-        <section class="bet-video-section mb-4 p-3 p-md-4 rounded" style="background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
+        <!-- Seção de Vídeo em Destaque / Tutorial (Oculto) -->
+        <section class="bet-video-section mb-4 p-3 p-md-4 rounded" style="display: none !important; background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <h2 class="mb-0 text-white font-weight-bold d-flex align-items-center gap-2" style="font-size: 1.15rem;">
                     <i class="bi bi-play-circle-fill" style="color: #f47c20; font-size: 1.3rem;"></i> 
@@ -2687,10 +2657,9 @@ if (!function_exists('getBetDecisionTree')) {
                                     
                                     $showFinishedQuery = '&show_finished=' . ($showFinished ? '1' : '0');
                                     $showPostponedQuery = '&show_postponed=' . (!empty($showPostponed) ? '1' : '0');
-                                    $onlyLiveQuery = !empty($onlyLive) ? '&only_live=1' : '';
                                     $onlyResenhaQuery = !empty($onlyResenha) ? '&only_resenha=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $onlyResenhaQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyResenhaQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
@@ -2740,30 +2709,6 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($showPostponed) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.25);">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #34d399; font-weight: 600;">
-                                        <i class="bi bi-shield-fill-check"></i> <?= lang('App.safe_bets') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlySafeToggle" name="only_safe" value="1" <?= !empty($onlySafe) ? 'checked' : '' ?> onchange="toggleSafeBetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlySafeToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySafe) ? '#10b981' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySafe) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.3);">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
-                                        ⚡ <?= lang('App.surebets') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlySurebetToggle" name="only_surebet" value="1" <?= !empty($onlySurebet) ? 'checked' : '' ?> onchange="toggleSurebetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlySurebetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySurebet) ? '#00e676' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySurebet) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
                                  <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem simulações de apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 <?= lang('App.with_bets') ?>
@@ -2786,18 +2731,6 @@ if (!function_exists('getBetDecisionTree')) {
                                     </label>
                                     <span id="onlyResenhaToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyResenha) ? '#00e676' : '#8a99a8' ?>;">
                                         <?= !empty($onlyResenha) ? lang('App.yes') : lang('App.no') ?>
-                                    </span>
-                                </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #f87171; font-weight: 600;">
-                                        🔴 <?= lang('App.live_matches') ?>
-                                    </span>
-                                    <label class="bet-switch">
-                                        <input type="checkbox" id="onlyLiveToggle" name="only_live" value="1" <?= !empty($onlyLive) ? 'checked' : '' ?> onchange="toggleLiveBetsFilter(this)">
-                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
-                                    </label>
-                                    <span id="onlyLiveToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyLive) ? '#ef4444' : '#8a99a8' ?>;">
-                                        <?= !empty($onlyLive) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                             </div>
@@ -3003,8 +2936,10 @@ if (!function_exists('getBetDecisionTree')) {
                             }
                             $cardIndex++;
                             
-                            $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
                             $statusClean = strtoupper($fix->status ?? '');
+                            $isLiveExplicit = in_array($statusClean, ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
+                            $isLiveEstimated = ($statusClean === 'NS' && isset($diffMins) && $diffMins >= 0 && $diffMins <= 115);
+                            $isLiveMatch = ($isLiveExplicit || $isLiveEstimated) && (!isset($diffMins) || $diffMins <= 115);
                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
 
                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
@@ -3015,35 +2950,70 @@ if (!function_exists('getBetDecisionTree')) {
                                 $elapsedDisplay = lang('App.finished');
                             } elseif ($isLiveMatch) {
                                 $elapsedClass = 'live';
+                                $rawElapsed = (!empty($fix->elapsed) && is_numeric($fix->elapsed)) ? (int)$fix->elapsed : null;
+
                                 if ($statusClean === 'HT') {
-                                    $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
+                                    $minDisplay = lang('App.halftime');
+                                    $betanoTimeText = 'Intervalo';
+                                } elseif ($statusClean === '2H' || (isset($diffMins) && $diffMins > 60)) {
+                                    if ($rawElapsed !== null) {
+                                        $baseMin = ($rawElapsed <= 45) ? (45 + $rawElapsed) : $rawElapsed;
+                                        $minsPassed = 0;
+                                        if (!empty($fix->updated_at)) {
+                                            try {
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
+                                            } catch (\Exception $e) {}
+                                        }
+                                        $totalMin = min(90, $baseMin + $minsPassed);
+                                    } elseif (isset($diffMins) && $diffMins >= 0) {
+                                        $totalMin = min(90, max(45, $diffMins - 18));
+                                    } else {
+                                        $totalMin = null;
+                                    }
+                                    $minDisplay = $totalMin ? $totalMin . "'" : lang('App.live');
+                                    $betanoTimeText = $totalMin ? $totalMin . "'" : lang('App.live');
+                                } elseif ($statusClean === '1H' || (isset($diffMins) && $diffMins <= 45)) {
+                                    if ($rawElapsed !== null) {
+                                        $minsPassed = 0;
+                                        if (!empty($fix->updated_at)) {
+                                            try {
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
+                                            } catch (\Exception $e) {}
+                                        }
+                                        $totalMin = min(45, $rawElapsed + $minsPassed);
+                                    } elseif (isset($diffMins)) {
+                                        $totalMin = max(1, min(45, $diffMins));
+                                    } else {
+                                        $totalMin = null;
+                                    }
+                                    $minDisplay = $totalMin ? $totalMin . "'" : lang('App.live');
+                                    $betanoTimeText = $totalMin ? $totalMin . "'" : lang('App.live');
+                                } elseif (in_array($statusClean, ['ET', '120'])) {
+                                    $totalMin = ($rawElapsed !== null) ? $rawElapsed : 105;
+                                    $minDisplay = $totalMin . "'";
+                                    $betanoTimeText = "Prórr. {$totalMin}'";
+                                } elseif ($statusClean === 'P') {
+                                    $minDisplay = 'Pênaltis';
+                                    $betanoTimeText = 'Pênaltis';
                                 } else {
-                                    $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
+                                    $totalMin = $rawElapsed;
+                                    $minDisplay = $totalMin ? $totalMin . "'" : lang('App.live');
+                                    $betanoTimeText = $totalMin ? $totalMin . "'" : lang('App.live');
                                 }
                                 $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
-                            } elseif ($statusClean === 'NS') {
+                            } else {
                                 $elapsedClass = '';
                                 $elapsedDisplay = lang('App.pre_match');
-                            } else {
-                                $elapsedClass = (isset($diffMins) && $diffMins >= 0) ? 'live' : '';
-                                $elapsedDisplay = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
                             }
 
-                            $betanoTimeText = lang('App.pre_match');
                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED', 'CANC'])) {
                                 $betanoTimeText = '⚠️ ' . lang('App.postponed');
                             } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
                                 $betanoTimeText = lang('App.finished');
-                            } elseif ($isLiveMatch) {
-                                if ($statusClean === 'HT') {
-                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
-                                } else {
-                                    $betanoTimeText = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
-                                }
-                            } elseif ($statusClean === 'NS') {
+                            } elseif (!$isLiveMatch) {
                                 $betanoTimeText = lang('App.pre_match');
-                            } else {
-                                $betanoTimeText = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
                             }
                             
                             $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
@@ -3055,6 +3025,10 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInUserBets = in_array((int)$fix->fixture_id, $userBetFixtureIds ?? []);
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
+
+                             $isFixtureInUserCancelled = in_array((int)$fix->fixture_id, $userCancelledBetFixtureIds ?? []);
+                             $isFixtureInAnyCancelled  = in_array((int)$fix->fixture_id, $allCancelledBetFixtureIds ?? []);
+                             $hasCancelledAposta = !$hasAposta && ($isFixtureInUserCancelled || $isFixtureInAnyCancelled);
 
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
@@ -3099,12 +3073,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?>
                                             </span>
                                             <?php if ($hasAposta): ?>
-                                                <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 
+                                                <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge has-bet" 
-                                                   title="<?= $isFixtureInUserBets ? lang('App.click_to_edit') : lang('App.has_bet') ?>">
+                                                   title="<?= $isFixtureInUserBets ? lang('App.click_to_view') : lang('App.has_bet') ?>">
                                                     <span class="playing-card-symbol">🂠</span>
                                                     <span><?= $isFixtureInUserBets ? lang('App.your_bet') : lang('App.has_bet') ?></span>
                                                 </a>
+                                             <?php elseif (!empty($hasCancelledAposta)): ?>
+                                                 <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id . '&filtro_status=Cancelada') ?>" 
+                                                    class="bet-card-playing-card-badge bet-cancelled" 
+                                                    title="<?= lang('App.cancelled_bet_tooltip') ?>">
+                                                     <span class="playing-card-symbol">🚫</span>
+                                                     <span><?= lang('App.bet_cancelled') ?></span>
+                                                 </a>
                                             <?php else: ?>
                                                 <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge no-bet" 
@@ -3148,7 +3129,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                  ?>
                                                  <i class="bi bi-calendar3" style="font-size: 0.7rem; opacity: 0.8;"></i> <?= $fixDateBadge ?><i class="bi bi-clock"></i> <?= $timeStr ?>
                                             </span>
-                                             <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>" data-elapsed="<?= htmlspecialchars($fix->elapsed ?? '', ENT_QUOTES) ?>">
+                                             <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>" data-elapsed="<?= htmlspecialchars($fix->elapsed ?? '', ENT_QUOTES) ?>" data-updated-utc="<?= htmlspecialchars($fix->updated_at ?? '', ENT_QUOTES) ?>">
                                                 <?= $elapsedDisplay ?>
                                             </span>
                                         </div>
@@ -3325,11 +3306,6 @@ if (!function_exists('getBetDecisionTree')) {
                                      <!-- Odds 1X2 & Surebet do Oddspedia -->
                                      <?php if (!empty($fix->odd_home) && !empty($fix->odd_draw) && !empty($fix->odd_away)): ?>
                                          <?php
-                                         $urlHome = getBookmakerUrl($fix->casa_odd_home ?? '');
-                                         $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
-                                         $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
-                                         $oddSourceLabel = !empty($fix->casa_odd_home) ? htmlspecialchars($fix->casa_odd_home) : 'ODDSPEDIA';
-                                         
                                          $oddsUpdatedAtFormatted = 'Atualizado recentemente';
                                          if (!empty($fix->updated_at)) {
                                              try {
@@ -3344,7 +3320,7 @@ if (!function_exists('getBetDecisionTree')) {
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> <?= lang('App.odds_1x2') ?> (<?= $oddSourceLabel ?>)
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> <?= lang('App.odds_1x2') ?>
                                                  </span>
                                                  <div style="display: flex; align-items: center; gap: 8px;">
                                                      <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="<?= lang('App.odds_updated_tooltip') ?>">
@@ -3359,35 +3335,32 @@ if (!function_exists('getBetDecisionTree')) {
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->
-                                                 <a href="<?= $urlHome ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_home_new_tab'), htmlspecialchars($fix->casa_odd_home ?? lang('App.odds_home'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_home') ?> (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #38bdf8;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_home') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_home') ?> (1)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">
                                                          <?= number_format($fix->odd_home, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                                  <!-- Empate X -->
-                                                 <a href="<?= $urlDraw ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_draw_new_tab'), htmlspecialchars($fix->casa_odd_draw ?? lang('App.odds_draw'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_draw') ?> (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #facc15;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_draw') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_draw') ?> (X)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #facc15;">
                                                          <?= number_format($fix->odd_draw, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                                  <!-- Fora 2 -->
-                                         <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_away_new_tab'), htmlspecialchars($fix->casa_odd_away ?? lang('App.odds_away'))) ?>">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span><?= lang('App.odds_away') ?> (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
-                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #f47c20;"></i>
+                                                 <div class="oddspedia-link-box" style="display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;" title="<?= lang('App.odds_away') ?>">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                                                         <span><?= lang('App.odds_away') ?> (2)</span>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #f47c20;">
                                                          <?= number_format($fix->odd_away, 2) ?>
                                                      </div>
-                                                 </a>
+                                                 </div>
                                              </div>
                                          </div>
                                      <?php endif; ?>
@@ -3695,7 +3668,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     class="bet-toggle-badge cyan" 
                                                     style="background: rgba(6, 182, 212, 0.16) !important; border: 1px solid rgba(6, 182, 212, 0.5) !important; color: #22d3ee !important; font-weight: 700;" 
                                                     onclick="revalidarOddsEGatekeeper(<?= $fix->fixture_id ?>, this)"
-                                                    title="Consultar odds Betano em tempo real e revalidar Gatekeeper para Handicap e Cartões">
+                                                    title="Consultar odds em tempo real e revalidar Gatekeeper para Handicap e Cartões">
                                                 <i class="bi bi-arrow-repeat me-1 icon-revalidar"></i> Revalidar Odds & IA
                                             </button>
                                         <?php endif; ?>
@@ -3846,16 +3819,16 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                     <?php 
                                                         $auditLinesText = '';
-                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
+                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
                                                             $auditLinesText = trim($mAud[1]);
                                                         }
                                                     ?>
                                                     <div class="ah-lines-audit-widget-<?= $fix->fixture_id ?>" style="<?= empty($auditLinesText) ? 'display: none;' : '' ?> margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 3px solid #f87171; border-radius: 6px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; white-space: pre-line;">
                                                         <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
-                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas na Betano:
+                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas:
                                                         </div>
                                                         <div class="ah-lines-audit-content-<?= $fix->fixture_id ?>">
-                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas na Betano:\s*/u', '', $auditLinesText)) ?>
+                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*/u', '', $auditLinesText)) ?>
                                                         </div>
                                                     </div>
                                                     <?php if (!empty($ah_block_detail)): ?>
@@ -4585,6 +4558,7 @@ if (!function_exists('getBetDecisionTree')) {
             const diffMins = Math.floor(diffMs / 60000);
             
             let text = '';
+            let bText = '';
             let showPulse = false;
             
             const finishedStatuses = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
@@ -4593,37 +4567,101 @@ if (!function_exists('getBetDecisionTree')) {
             
             if (postponedStatuses.includes(status)) {
                 text = '⚠️ ADIADO';
+                bText = '⚠️ ADIADO';
                 el.classList.remove('live');
                 el.classList.add('pst');
             } else if (finishedStatuses.includes(status) || diffMins > 115) {
                 text = 'Encerrado';
+                bText = 'Encerrado';
                 el.classList.remove('live');
             } else if (status === 'HT') {
-                if (diffMins >= 65) {
-                    text = (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') ? officialElapsed + "'" : Math.max(45, diffMins - 15) + "'";
-                    showPulse = true;
-                    el.classList.add('live');
-                } else {
-                    text = 'Intervalo';
-                    showPulse = true;
-                    el.classList.add('live');
-                }
-            } else if (liveStatusesList.includes(status)) {
+                text = 'Intervalo';
+                bText = 'Intervalo';
                 showPulse = true;
                 el.classList.add('live');
-                if (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') {
-                    text = officialElapsed + "'";
-                } else if (status === '2H') {
-                    text = Math.min(90, Math.max(45, diffMins - 15)) + "'";
-                } else {
-                    text = Math.min(45, Math.max(0, diffMins)) + "'";
-                }
-            } else if (diffMins < 0 || status === 'NS') {
-                text = 'Pré-jogo';
-                el.classList.remove('live');
-            } else {
-                text = diffMins + "'";
+            } else if (status === '2H' || (diffMins > 60 && diffMins <= 115)) {
+                showPulse = true;
                 el.classList.add('live');
+                let totalMin = null;
+                if (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') {
+                    const rawEl = parseInt(officialElapsed, 10);
+                    if (!isNaN(rawEl)) {
+                        const baseMin = (rawEl <= 45) ? (45 + rawEl) : rawEl;
+                        let minsPassed = 0;
+                        const updatedStr = el.getAttribute('data-updated-utc');
+                        if (updatedStr) {
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            if (!isNaN(updatedTime) && updatedTime > 0) {
+                                minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
+                            }
+                        }
+                        totalMin = Math.min(90, baseMin + minsPassed);
+                    }
+                }
+                if (totalMin === null && diffMins !== null) {
+                    totalMin = Math.min(90, Math.max(45, diffMins - 18));
+                }
+                text = totalMin ? totalMin + "'" : 'Ao Vivo';
+                bText = totalMin ? totalMin + "'" : 'Ao Vivo';
+            } else if (status === '1H' || (diffMins >= 0 && diffMins <= 45)) {
+                showPulse = true;
+                el.classList.add('live');
+                let totalMin = null;
+                if (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') {
+                    const rawEl = parseInt(officialElapsed, 10);
+                    if (!isNaN(rawEl)) {
+                        let minsPassed = 0;
+                        const updatedStr = el.getAttribute('data-updated-utc');
+                        if (updatedStr) {
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            if (!isNaN(updatedTime) && updatedTime > 0) {
+                                minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
+                            }
+                        }
+                        totalMin = Math.min(45, rawEl + minsPassed);
+                    }
+                }
+                if (totalMin === null && diffMins !== null) {
+                    totalMin = Math.max(1, Math.min(45, diffMins));
+                }
+                text = totalMin ? totalMin + "'" : 'Ao Vivo';
+                bText = totalMin ? totalMin + "'" : 'Ao Vivo';
+            } else if (status === 'ET') {
+                showPulse = true;
+                el.classList.add('live');
+                const rawEl = parseInt(officialElapsed, 10);
+                const totalMin = (!isNaN(rawEl)) ? rawEl : 105;
+                text = totalMin + "'";
+                bText = 'Prórr. ' + totalMin + "'";
+            } else if (status === 'P') {
+                showPulse = true;
+                el.classList.add('live');
+                text = 'Pênaltis';
+                bText = 'Pênaltis';
+            } else if (diffMins < 0) {
+                text = 'Pré-jogo';
+                bText = 'Pré-jogo';
+                el.classList.remove('live');
+            } else if (diffMins >= 0 && diffMins <= 115) {
+                // Jogo cujo horário já iniciou (mesmo com status NS antes da sincronização)
+                showPulse = true;
+                el.classList.add('live');
+                if (diffMins <= 45) {
+                    const m = Math.max(1, diffMins);
+                    text = m + "'";
+                    bText = m + "'";
+                } else if (diffMins <= 60) {
+                    text = 'Intervalo';
+                    bText = 'Intervalo';
+                } else {
+                    const m = Math.min(90, Math.max(45, diffMins - 18));
+                    text = m + "'";
+                    bText = m + "'";
+                }
+            } else {
+                text = 'Encerrado';
+                bText = 'Encerrado';
+                el.classList.remove('live');
             }
             
             if (showPulse) {
@@ -4633,7 +4671,7 @@ if (!function_exists('getBetDecisionTree')) {
             }
 
             if (bTimeEl) {
-                bTimeEl.textContent = text;
+                bTimeEl.textContent = bText;
             }
         });
     }
@@ -4668,10 +4706,7 @@ if (!function_exists('getBetDecisionTree')) {
 
     let currentShowFinishedFilter = <?= $showFinished ? 'true' : 'false' ?>;
     let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
-    let currentOnlySafeFilter = <?= !empty($onlySafe) ? 'true' : 'false' ?>;
-    let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
     let currentOnlyHasBetFilter = false;
-    let currentOnlyLiveFilter = <?= !empty($onlyLive) ? 'true' : 'false' ?>;
     let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
 
     function toggleShowFinishedFilter(checkbox) {
@@ -4694,42 +4729,12 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    function toggleSafeBetsFilter(checkbox) {
-        currentOnlySafeFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlySafeToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlySafeFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlySafeFilter ? '#10b981' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
-    function toggleSurebetsFilter(checkbox) {
-        currentOnlySurebetFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlySurebetToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlySurebetFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlySurebetFilter ? '#00e676' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
     function toggleHasBetFilter(checkbox) {
         currentOnlyHasBetFilter = checkbox.checked;
         const statusSpan = document.getElementById('onlyHasBetToggleStatus');
         if (statusSpan) {
             statusSpan.innerText = currentOnlyHasBetFilter ? 'Sim' : 'Não';
             statusSpan.style.color = currentOnlyHasBetFilter ? '#c084fc' : '#8a99a8';
-        }
-        applyFilters();
-    }
-
-    function toggleLiveBetsFilter(checkbox) {
-        currentOnlyLiveFilter = checkbox.checked;
-        const statusSpan = document.getElementById('onlyLiveToggleStatus');
-        if (statusSpan) {
-            statusSpan.innerText = currentOnlyLiveFilter ? 'Sim' : 'Não';
-            statusSpan.style.color = currentOnlyLiveFilter ? '#ef4444' : '#8a99a8';
         }
         applyFilters();
     }
@@ -4764,17 +4769,14 @@ if (!function_exists('getBetDecisionTree')) {
             const isDestaque = card.getAttribute('data-is-destaque') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
-            const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0 || isDestaque);
+            const matchTab = (currentTabFilter === 'competicoes' || (isLive && !isFinished));
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
-            const matchSafe = (!currentOnlySafeFilter || isSafe);
-            const matchSurebet = (!currentOnlySurebetFilter || isSurebet);
             const matchHasBet = (!currentOnlyHasBetFilter || hasAposta);
-            const matchLive = (!currentOnlyLiveFilter || isLive);
             const matchFinished = (currentShowFinishedFilter || !isFinished);
             const matchPostponed = (currentShowPostponedFilter || !isPostponed);
             const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
             
-            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed && matchResenha) {
+            if (matchLeague && matchTab && matchText && matchHasBet && matchFinished && matchPostponed && matchResenha) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {
@@ -5094,7 +5096,7 @@ if (!function_exists('getBetDecisionTree')) {
                             if (diffMinsLive !== null && diffMinsLive > 115 && !['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
                                 isMatchFinishedNow = true;
                             }
-                            let isMatchLiveNow = liveStatuses.includes(statusUpper) && !isMatchFinishedNow;
+                            let isMatchLiveNow = (liveStatuses.includes(statusUpper) || (statusUpper === 'NS' && diffMinsLive !== null && diffMinsLive >= 0 && diffMinsLive <= 115)) && !isMatchFinishedNow;
 
                             card.setAttribute('data-is-live', isMatchLiveNow ? '1' : '0');
                             if (isMatchFinishedNow) {
@@ -5108,12 +5110,69 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 if (bTimeEl) bTimeEl.textContent = 'Encerrado';
                             } else if (isMatchLiveNow) {
-                                let minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? ((diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int') : 'Ao Vivo');
+                                let minText = '';
+                                let bText = '';
+                                const rawEl = (fix.elapsed !== null && fix.elapsed !== undefined && fix.elapsed !== '') ? parseInt(fix.elapsed, 10) : null;
+
+                                if (statusUpper === 'HT') {
+                                    minText = 'Intervalo';
+                                    bText = 'Intervalo';
+                                } else if (statusUpper === '2H' || (diffMinsLive !== null && diffMinsLive > 60)) {
+                                    let totalM = null;
+                                    if (rawEl !== null && !isNaN(rawEl)) {
+                                        const baseMin = (rawEl <= 45) ? (45 + rawEl) : rawEl;
+                                        let minsPassed = 0;
+                                        if (fix.updated_at) {
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            if (!isNaN(updatedTime) && updatedTime > 0) {
+                                                minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
+                                            }
+                                        }
+                                        totalM = Math.min(90, baseMin + minsPassed);
+                                    } else if (diffMinsLive !== null) {
+                                        totalM = Math.min(90, Math.max(45, diffMinsLive - 18));
+                                    }
+                                    minText = totalM ? totalM + "'" : 'Ao Vivo';
+                                    bText = minText;
+                                } else if (statusUpper === '1H' || (diffMinsLive !== null && diffMinsLive <= 45)) {
+                                    let totalM = null;
+                                    if (rawEl !== null && !isNaN(rawEl)) {
+                                        let minsPassed = 0;
+                                        if (fix.updated_at) {
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            if (!isNaN(updatedTime) && updatedTime > 0) {
+                                                minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
+                                            }
+                                        }
+                                        totalM = Math.min(45, rawEl + minsPassed);
+                                    } else if (diffMinsLive !== null) {
+                                        totalM = Math.max(1, Math.min(45, diffMinsLive));
+                                    }
+                                    minText = totalM ? totalM + "'" : 'Ao Vivo';
+                                    bText = minText;
+                                } else if (statusUpper === 'ET') {
+                                    const totalM = (rawEl !== null && !isNaN(rawEl)) ? rawEl : 105;
+                                    minText = totalM + "'";
+                                    bText = 'Prórr. ' + totalM + "'";
+                                } else if (statusUpper === 'P') {
+                                    minText = 'Pênaltis';
+                                    bText = 'Pênaltis';
+                                } else {
+                                    minText = rawEl ? rawEl + "'" : 'Ao Vivo';
+                                    bText = minText;
+                                }
+
                                 if (elapsedEl) {
+                                    if (fix.elapsed !== undefined && fix.elapsed !== null) {
+                                        elapsedEl.setAttribute('data-elapsed', fix.elapsed);
+                                    }
+                                    if (fix.updated_at) {
+                                        elapsedEl.setAttribute('data-updated-utc', fix.updated_at);
+                                    }
                                     elapsedEl.classList.add('live');
                                     elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
                                 }
-                                if (bTimeEl) bTimeEl.textContent = minText;
+                                if (bTimeEl) bTimeEl.textContent = bText;
                             } else if (['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
                                 if (elapsedEl) {
                                     elapsedEl.classList.remove('live');
@@ -5122,15 +5181,17 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 if (bTimeEl) bTimeEl.textContent = '⚠️ ADIADO';
                             } else if (statusUpper === 'NS') {
-                                if (elapsedEl) {
-                                    elapsedEl.classList.remove('live');
-                                    elapsedEl.textContent = 'Pré-jogo';
+                                if (diffMinsLive !== null && diffMinsLive < 0) {
+                                    if (elapsedEl) {
+                                        elapsedEl.classList.remove('live');
+                                        elapsedEl.textContent = 'Pré-jogo';
+                                    }
+                                    if (bTimeEl) bTimeEl.textContent = 'Pré-jogo';
                                 }
-                                if (bTimeEl) bTimeEl.textContent = 'Pré-jogo';
                             }
                         }
                     });
-                    if (currentOnlyLiveFilter || !currentShowFinishedFilter) {
+                    if (!currentShowFinishedFilter) {
                         applyFilters();
                     }
                 }

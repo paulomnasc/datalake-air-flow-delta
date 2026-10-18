@@ -440,9 +440,17 @@ class SubscriptionController extends BaseController
     }
 
     /**
-     * Página para comprar créditos do Grok AI via PIX
+     * Página em manutenção/construção para créditos do Grok AI
      */
     public function buyGrokCredits()
+    {
+        return view('subscription/under_construction');
+    }
+
+    /**
+     * Fluxo original de checkout preservado para reativação futura
+     */
+    public function buyGrokCreditsCheckout()
     {
         if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
             return redirect()->to('/auth/google-login')->with('error', 'Você precisa estar logado com sua conta Google para adquirir créditos.');

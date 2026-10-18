@@ -71,11 +71,70 @@ class MetaController extends BaseController
         $cicloParam  = $this->request->getGet('ciclo');
         $numeroCiclo = (!empty($cicloParam) && is_numeric($cicloParam)) ? (int)$cicloParam : null;
 
+        // Filtro de data para o Histórico (afeta abas Diário e Blocos/Ciclos)
+        $histInicio = trim((string)$this->request->getGet('hist_inicio'));
+        $histFim    = trim((string)$this->request->getGet('hist_fim'));
+        $tabAtiva   = trim((string)$this->request->getGet('tab'));
+
+        if (!in_array($tabAtiva, ['dias', 'ciclos'])) {
+            $tabAtiva = (!empty($cicloParam)) ? 'ciclos' : 'dias';
+        }
+
+        if (!empty($histInicio) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $histInicio)) {
+            $histInicio = '';
+        }
+        if (!empty($histFim) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $histFim)) {
+            $histFim = '';
+        }
+
+        // Identifica preset ativo e rótulo do período
+        $presetAtivo = 'custom';
+        if (empty($histInicio) && empty($histFim)) {
+            $presetAtivo = '30days';
+            $textoPeriodo = 'Últimos 30 Dias';
+        } else {
+            if (!empty($histInicio) && !empty($histFim)) {
+                $textoPeriodo = date('d/m/Y', strtotime($histInicio)) . ' a ' . date('d/m/Y', strtotime($histFim));
+                if ($histInicio === date('Y-m-d') && $histFim === date('Y-m-d')) {
+                    $presetAtivo = 'today';
+                } elseif ($histInicio === date('Y-m-d', strtotime('-1 day')) && $histFim === date('Y-m-d', strtotime('-1 day'))) {
+                    $presetAtivo = 'yesterday';
+                } elseif ($histInicio === date('Y-m-d', strtotime('-6 days')) && $histFim === date('Y-m-d')) {
+                    $presetAtivo = '7days';
+                } elseif ($histInicio === date('Y-m-d', strtotime('-14 days')) && $histFim === date('Y-m-d')) {
+                    $presetAtivo = '15days';
+                } elseif ($histInicio === date('Y-m-d', strtotime('-29 days')) && $histFim === date('Y-m-d')) {
+                    $presetAtivo = '30days';
+                } elseif ($histInicio === date('Y-m-01') && $histFim === date('Y-m-t')) {
+                    $presetAtivo = 'this_month';
+                }
+            } elseif (!empty($histInicio)) {
+                $textoPeriodo = 'A partir de ' . date('d/m/Y', strtotime($histInicio));
+            } else {
+                $textoPeriodo = 'Até ' . date('d/m/Y', strtotime($histFim));
+            }
+        }
+
         $metaConfig      = $this->metaDiariaModel->getMetaAtiva($userId);
         $progressoHoje   = $this->metaDiariaModel->getProgressoDiario($userId, $dataRef, $forceRecalc);
-        $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo);
-        $historicoCiclos = $this->metaDiariaModel->getHistoricoCiclos($userId, 15, (int)($metaConfig->total_apostas_alvo ?? 10));
-        $historicoDias   = $this->metaDiariaModel->getHistoricoDias($userId, 30);
+        $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo, $dataRef);
+
+        $limiteCiclos = (!empty($histInicio) || !empty($histFim)) ? 100 : 15;
+        $limiteDias   = (!empty($histInicio) || !empty($histFim)) ? 365 : 30;
+
+        $historicoCiclos = $this->metaDiariaModel->getHistoricoCiclos(
+            $userId, 
+            $limiteCiclos, 
+            (int)($metaConfig->total_apostas_alvo ?? 10),
+            $histInicio ?: null,
+            $histFim ?: null
+        );
+        $historicoDias   = $this->metaDiariaModel->getHistoricoDias(
+            $userId, 
+            $limiteDias,
+            $histInicio ?: null,
+            $histFim ?: null
+        );
 
         $data = [
             'title'            => 'Gestão de Metas Diárias & Ciclos Rotativos | Smart Betting',
@@ -86,6 +145,12 @@ class MetaController extends BaseController
             'historicoCiclos'  => $historicoCiclos,
             'historicoDias'    => $historicoDias,
             'dataRef'          => $dataRef,
+            'numeroCiclo'      => $numeroCiclo,
+            'histInicio'       => $histInicio,
+            'histFim'          => $histFim,
+            'tabAtiva'         => $tabAtiva,
+            'presetAtivo'      => $presetAtivo,
+            'textoPeriodo'     => $textoPeriodo,
             'isHoje'           => ($dataRef === date('Y-m-d'))
         ];
 

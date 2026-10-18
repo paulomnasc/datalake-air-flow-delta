@@ -55,3 +55,10 @@ certs/
 
 # Ignorar arquivos de configuração do JetBrains IDEs
 data/.minio.sys/
+
+# Dados de sessão, perfil e cache do navegador remoto isolado
+data/remote-browser-profile/
+data/
+*.crdownload
+*.dmp
+

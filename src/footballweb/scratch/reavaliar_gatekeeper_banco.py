@@ -1,16 +1,9 @@
-import math
-import re
-import pymysql
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../scripts")))
+from db_config import get_db_connection
 
-# Conexão MySQL no port 23306
-conn = pymysql.connect(
-    host='127.0.0.1',
-    port=23306,
-    user='root',
-    password='YM11rMrT32xH0E6N',
-    database='footballweb',
-    cursorclass=pymysql.cursors.DictCursor
-)
+conn = get_db_connection()
 
 def factorial(n):
     return math.factorial(n)

@@ -50,6 +50,8 @@ ALLOWED_LEAGUES = {
     265: "Primera Division (Chile)",
     267: "Copa Chile (Chile)",
     239: "Primera Division (Colombia)",
+    344: "Primera Division (Bolivia)",
+    964: "Copa de la Division Profesional (Bolivia)",
     ## 501: "Copa Paraguay (Paraguai)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
@@ -99,7 +101,8 @@ ALLOWED_LEAGUE_NAMES = [
     'k league', 'k-league', 'k league 1',
     'veikkausliiga', 'ekstraklasa', 'czech first league',
     'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
+    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional'
 ]
 
 
@@ -319,6 +322,13 @@ TIER_1_ELITE_CLUBS = {
     1176: "Cerro Porteno",
     1179: "Libertad Asuncion",
 
+    # Bolívia (Grandes Históricos)
+    3702: "Bolívar",
+    3711: "The Strongest",
+    3705: "Jorge Wilstermann",
+    3707: "Oriente Petrolero",
+    3701: "Blooming",
+
     # México (Liga MX - Quatro Grandes + Potências e Campeões Internacionais)
     2287: "Club America",
     2279: "Tigres UANL",
@@ -420,6 +430,11 @@ TIER_1_NAME_TO_ID = {
     "dinamarca": 1118, "denmark": 1118,
     "turquia": 777, "turkey": 777,
     "wales": 767, "gales": 767, "pais de gales": 767, "país de gales": 767,
+    # Bolívia
+    "bolivar": 3702, "bolívar": 3702, "club bolivar": 3702,
+    "the strongest": 3711, "strongest": 3711,
+    "jorge wilstermann": 3705, "wilstermann": 3705,
+    "oriente petrolero": 3707, "blooming": 3701,
 }
 
 # Cache em memória para consulta instantânea O(1) de seleções do Mundial
@@ -439,16 +454,18 @@ def get_world_cup_standings_cache():
     _WORLD_CUP_CACHE_BY_NAME = {}
 
     try:
+        import os
         import pymysql
         import unicodedata
-        conn = pymysql.connect(
-            host='127.0.0.1',
-            port=23306,
-            user='root',
-            password='YM11rMrT32xH0E6N',
-            database='footballweb',
-            connect_timeout=3
-        )
+        from db_config import get_db_connection
+        try:
+            conn = get_db_connection(connect_timeout=2)
+        except Exception:
+            conn = None
+
+        if conn is None:
+            return _WORLD_CUP_CACHE_BY_ID, _WORLD_CUP_CACHE_BY_NAME
+
         cursor = conn.cursor(pymysql.cursors.DictCursor)
         cursor.execute("SELECT pos, team_name, team_id, stage_reached, efficiency_tier, pedigree_bonus, is_tier1 FROM world_cup_standings_cache WHERE is_latest = 1")
         rows = cursor.fetchall()

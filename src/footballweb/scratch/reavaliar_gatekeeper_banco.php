@@ -7,8 +7,19 @@
 
 $host = '127.0.0.1';
 $user = 'root';
-$pass = 'YM11rMrT32xH0E6N';
 $dbname = 'footballweb';
+
+$envPath = dirname(__DIR__) . '/.env';
+$pass = getenv('MYSQL_ROOT_PASSWORD') ?: '';
+if (!$pass && file_exists($envPath)) {
+    foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        if (str_starts_with(trim($line), 'database.default.password')) {
+            $parts = explode('=', $line, 2);
+            $pass = trim(trim($parts[1]), "\"'");
+            break;
+        }
+    }
+}
 
 $pdo = new PDO("mysql:host={$host};dbname={$dbname};charset=utf8mb4", $user, $pass, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

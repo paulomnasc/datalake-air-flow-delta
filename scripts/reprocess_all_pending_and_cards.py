@@ -10,14 +10,8 @@ from asian_handicap_engine import (
     cancelar_e_estornar_aposta_handicap
 )
 
-conn = pymysql.connect(
-    host="127.0.0.1",
-    port=23306,
-    user="root",
-    password="YM11rMrT32xH0E6N",
-    database="footballweb",
-    cursorclass=pymysql.cursors.DictCursor
-)
+from db_config import get_db_connection
+conn = get_db_connection()
 
 print("=" * 70)
 print("INICIANDO REPROCESSAMENTO GERAL DE CARDS E APOSTAS PENDENTES DE HOJE (13/09/2026)")

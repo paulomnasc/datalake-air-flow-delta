@@ -32,25 +32,11 @@ PRIORITY_LEAGUES = [
 ]
 
 def get_mysql_connection():
-    password = os.environ.get("MYSQL_ROOT_PASSWORD") or "YM11rMrT32xH0E6N"
-    # Tenta conexão interna (Docker) ou local (host)
-    hosts = [("mysql", 3306), ("127.0.0.1", 23306), ("localhost", 3306)]
-    for host, port in hosts:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password=password,
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
-            )
-            return conn
-        except Exception:
-            continue
-    raise Exception("Não foi possível conectar ao MySQL footballweb.")
+    try:
+        from db_config import get_db_connection
+        return get_db_connection()
+    except Exception as e:
+        raise Exception(f"Não foi possível conectar ao MySQL footballweb: {e}")
 
 def backfill_league(conn, league_id, season, league_name="Liga Desconhecida"):
     api_key = os.environ.get("FOOTBALL_API_KEY") or "0327019c6fab54df2ea46009b5f0844b"

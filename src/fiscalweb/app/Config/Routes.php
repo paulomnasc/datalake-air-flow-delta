@@ -297,6 +297,8 @@ $routes->delete('deleteStatusRecebimento/(:num)', 'StatusRecebimentoController::
 $routes->get('listOrdemServico', 'OrdemServicoController::index');
 $routes->post('addOrdemServico', 'OrdemServicoController::add');
 $routes->get('addOrdemServico', 'OrdemServicoController::add');
+$routes->post('insOrdemServico', 'OrdemServicoController::add');
+$routes->get('insOrdemServico', 'OrdemServicoController::add');
 $routes->post('updOrdemServico', 'OrdemServicoController::upd');
 $routes->get('updOrdemServico', 'OrdemServicoController::upd');
 $routes->post('insertOrdemServico', 'OrdemServicoController::insert');

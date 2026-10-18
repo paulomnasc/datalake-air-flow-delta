@@ -16,29 +16,7 @@ sys.path.insert(0, "/root/datalake-air-flow-delta")
 
 from asian_handicap_engine import compose_compound_ah_reasoning
 
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("mysql", 3306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            return conn
-        except Exception:
-            continue
-    raise RuntimeError("Não foi possível conectar ao banco de dados MySQL.")
+from db_config import get_db_connection
 
 def run_remediation():
     conn = get_db_connection()

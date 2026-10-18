@@ -13,7 +13,7 @@ import json
 import argparse
 import requests
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Adicionar scripts ao path para importação dos motores
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,45 +40,7 @@ from cards_engine import (
     format_gatekeeper_result as format_cards_gk
 )
 
-def get_live_env_vars():
-    env_paths = [
-        "/root/datalake-air-flow-delta/src/footballweb/.env",
-        "/root/datalake-air-flow-delta/.env"
-    ]
-    env_vars = {}
-    for p in env_paths:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_vars[k.strip()] = v.strip().strip("'").strip('"')
-    return env_vars
-
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("mysql", 3306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=4,
-                autocommit=True
-            )
-            return conn
-        except Exception:
-            continue
-    raise RuntimeError("Não foi possível conectar ao banco de dados MySQL.")
+from db_config import get_db_connection, get_live_env_vars
 
 def get_user_ids(cursor, target_user_id=None):
     if target_user_id:
@@ -210,8 +172,30 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
     h_trend = (h_l5 or {}).get('trend') or (analyze_trend_and_momentum(home_team, h_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
     a_trend = (a_l5 or {}).get('trend') or (analyze_trend_and_momentum(away_team, a_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
 
-    # 1. Obter Odds 1X2 atualizadas da API
-    live_1x2 = fetch_live_betano_odds(fixture_id)
+    # 1. Obter Odds 1X2 atualizadas (Tenta Betano Direto com fallback para API-Sports)
+    live_1x2 = {}
+    if home_team and away_team:
+        try:
+            try:
+                from betano_direct_api import fetch_betano_event_by_teams
+            except ImportError:
+                from scripts.betano_direct_api import fetch_betano_event_by_teams
+            direct_data = fetch_betano_event_by_teams(home_team, away_team)
+            if direct_data and direct_data.get('odds_1x2'):
+                d1 = direct_data['odds_1x2']
+                if d1.get('home') and d1.get('away'):
+                    live_1x2 = {
+                        "odd_home": d1.get('home'),
+                        "odd_draw": d1.get('draw'),
+                        "odd_away": d1.get('away'),
+                        "bookmaker": "Betano (Direto)"
+                    }
+        except Exception:
+            pass
+
+    if not live_1x2 or not live_1x2.get("odd_home"):
+        live_1x2 = fetch_live_betano_odds(fixture_id)
+
     bm_name = live_1x2.get("bookmaker", "Betano")
     odd_h = live_1x2.get("odd_home") or fix.get("odd_home")
     odd_d = live_1x2.get("odd_draw") or fix.get("odd_draw")
@@ -285,24 +269,64 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
             """, (enriched_app_r, fixture_id))
     else:
-        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=clean_reason_ah[:250])
-        app_cat_ah = determine_gatekeeper_category('NO_BET', sug_ah, reason_ah)
-        odd_ah = None
-        compound_r_ah = compose_compound_ah_reasoning(
-            cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
-            fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
-        )
-        compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+        # Passa enriched_reason_ah (com audit_bullet) para que o detector de CLV Positivo reconheça a odd atual do mercado
+        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
 
+        # Verifica se a partida possui aposta preservada (CLV Positivo, aposta confirmada ou ativa)
         cursor.execute("""
-            UPDATE fixtures_trends SET
-                ah_suggestion = %s,
-                ah_confidence = %s,
-                gatekeeper_category = %s,
-                ah_reasoning = %s,
-                updated_at = NOW()
+            SELECT id, palpite, odd, odd_justa, probabilidade_poisson, ev_percentual, gatekeeper_category, confirmada, status
+            FROM apostas
             WHERE fixture_id = %s
-        """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
+              AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+              AND status NOT IN ('Não Confirmada', 'Cancelada')
+            ORDER BY (status IN ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')) DESC, confirmada DESC, id DESC
+            LIMIT 1
+        """, (fixture_id,))
+        active_ah_bet = cursor.fetchone()
+
+        if active_ah_bet:
+            status_ah = 'APROVADO'
+            sug_ah = active_ah_bet['palpite']
+            odd_ah = float(active_ah_bet['odd'] or 0.0)
+            conf_ah = float(active_ah_bet.get('probabilidade_poisson') or conf_ah or 70.0)
+            app_cat_ah = active_ah_bet.get('gatekeeper_category') or 'EQUILIBRIO_PURO_DNB'
+            clean_reason_ah = f"Aposta mantida por Closing Line Value (CLV Positivo) - Cotação prévia ({odd_ah:.2f}) preservada."
+            compound_r_ah = compose_compound_ah_reasoning(
+                cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
+                fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
+            )
+            compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    gatekeeper_category = %s,
+                    ah_reasoning = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
+            cursor.execute("""
+                UPDATE apostas SET resultado_detalhado = %s
+                WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+            """, (compound_r_ah, fixture_id))
+        else:
+            app_cat_ah = determine_gatekeeper_category('NO_BET', sug_ah, reason_ah)
+            odd_ah = None
+            compound_r_ah = compose_compound_ah_reasoning(
+                cursor, fixture_id, enriched_reason_ah, sug_ah, home_team, away_team,
+                fix.get('home_team_id'), fix.get('away_team_id'), fix.get('ah_reasoning')
+            )
+            compound_r_ah = inject_audit_into_compound_reasoning(compound_r_ah, audit_bullet)
+
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    gatekeeper_category = %s,
+                    ah_reasoning = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (sug_ah, conf_ah, app_cat_ah, compound_r_ah, fixture_id))
 
     # 3. Revalidação de Cartões (cards_engine)
     calc_res = compute_fixture_expected_cards(cursor, fix)

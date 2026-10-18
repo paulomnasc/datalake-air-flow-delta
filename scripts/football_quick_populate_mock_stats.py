@@ -6,30 +6,8 @@ import sys
 
 def get_mysql_connection():
     try:
-        conn = pymysql.connect(
-            host="mysql",
-            port=3306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return conn
-    except Exception:
-        pass
-
-    try:
-        conn = pymysql.connect(
-            host="127.0.0.1",
-            port=23306,
-            user="root",
-            password="YM11rMrT32xH0E6N",
-            database="footballweb",
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return conn
+        from db_config import get_db_connection
+        return get_db_connection()
     except Exception as e:
         print(f"ERRO CRÍTICO: Não foi possível conectar ao banco MySQL: {e}")
         sys.exit(1)

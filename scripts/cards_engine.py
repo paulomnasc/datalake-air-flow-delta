@@ -651,8 +651,9 @@ def evaluate_cards_conflict_scenario(
         (h_rk >= 12 and a_rk > 0 and (h_rk - a_rk >= 6 or a_rk <= 6))
     )
 
-    # 1. Caldeirão da Degola / Sobrevivência do Mandante
-    if is_h_under_threat:
+    # 1. Caldeirão da Degola / Sobrevivência do Mandante (Veto condicionado a atrito real)
+    # Não veta partidas com perfil comprovadamente calmo/disciplinado (h_eff > 3.0 e ausência de crise disciplinar)
+    if is_h_under_threat and (h_eff_val <= 3.0):
         r = (
             f"🚨 [Gatekeeper Cartões NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
             f"O mandante ({home_team}) está na zona de rebaixamento ou sob severa ameaça de degola ({h_rk}º colocado), jogando a vida em seus domínios. "
@@ -766,8 +767,8 @@ def evaluate_best_card_under_line(
     # Probabilidade de Over 4.5 como referência de over_cards_probability
     over_cards_prob = round(100.0 - under_probs.get(4.5, 50.0), 2)
 
-    # Restrição Canônica Exclusiva: Apenas Under 6.5, Under 7.5, Under 8.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
-    standard_lines = [6.5, 7.5, 8.5]
+    # Linhas Canônicas Autorizadas sob Margem Estrita de Segurança
+    standard_lines = [4.5, 5.5, 6.5, 7.5, 8.5]
     candidates = []
 
     friction_mult = u5j_friction_info.get('friction_mult', 1.0) if u5j_friction_info else 1.0
@@ -831,18 +832,25 @@ def evaluate_best_card_under_line(
         return None, [], pred_text, over_cards_prob
 
     for line_val in standard_lines:
-        # Trava de Piso do Árbitro Confirmado (Referee Disciplinary Ceiling Guard):
-        # Bloqueia a linha Under se a média histórica de cartões do árbitro for superior ou estiver a menos de 0.30 cartão da linha.
-        if referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
+        # Trava de Piso do Árbitro Confirmado por Linha:
+        if line_val <= 4.51 and referee_cards_avg and float(referee_cards_avg) >= 4.20:
+            continue
+        elif line_val <= 5.51 and referee_cards_avg and float(referee_cards_avg) >= 5.20:
+            continue
+        elif line_val >= 6.49 and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
             continue
 
         prob = under_probs.get(line_val, 0.0)
         odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
         palpite_str = f"Menos de {line_val} Cartões"
 
-        # Crivo de status estrito do Gatekeeper: Apenas linhas >= 6.5 com margem de segurança de pelo menos 1.0 cartão
-        if line_val >= 6.49:
-            max_xc_allowed = line_val - 1.00
+        # Crivo de status estrito do Gatekeeper com margem mínima de 1.0 cartão por linha
+        max_xc_allowed = line_val - 1.00
+        if line_val <= 4.51:
+            status_gk = 'APROVADO' if (exp_cards <= 3.50 and prob >= 60.0) else 'NO_BET'
+        elif line_val <= 5.51:
+            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
+        elif line_val >= 6.49:
             status_gk = 'APROVADO' if (exp_cards <= max_xc_allowed and prob >= 60.0) else 'NO_BET'
         else:
             status_gk = 'NO_BET'
@@ -884,8 +892,8 @@ def evaluate_best_card_under_line(
             else:
                 continue
 
-        # Piso de odd viável: >= 1.50 para Under 6.5, 7.5, 8.5 ou maiores
-        min_odd_req = 1.50
+        # Piso de odd viável: >= 1.50 para Under 4.5/5.5 e >= 1.40 para Under 6.5+
+        min_odd_req = 1.40 if line_val >= 6.49 else 1.50
         if real_odd < min_odd_req:
             continue
 
@@ -928,7 +936,7 @@ def evaluate_best_card_under_line(
             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
             reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas de Under bloqueadas. Abstenção mandatória."
         else:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 6.5, 7.5 ou 8.5). Abstenção mandatória."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 4.5 a 8.5 com odd viável). Abstenção mandatória."
         pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob

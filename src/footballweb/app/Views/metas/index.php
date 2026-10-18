@@ -1,10 +1,16 @@
 <?php
-$dataRefStr = $dataRef ?? date('Y-m-d');
-$meta       = $metaConfig ?? (object)[];
-$prog       = $progressoHoje ?? [];
-$ciclo      = $cicloAtivo ?? [];
-$historico  = $historicoDias ?? [];
-$historicoC = $historicoCiclos ?? [];
+$dataRefStr   = $dataRef ?? date('Y-m-d');
+$meta         = $metaConfig ?? (object)[];
+$prog         = $progressoHoje ?? [];
+$ciclo        = $cicloAtivo ?? [];
+$historico    = $historicoDias ?? [];
+$historicoC   = $historicoCiclos ?? [];
+$histInicio   = $histInicio ?? '';
+$histFim      = $histFim ?? '';
+$tabAtiva     = $tabAtiva ?? 'dias';
+$presetAtivo  = $presetAtivo ?? '30days';
+$textoPeriodo = $textoPeriodo ?? 'Últimos 30 Dias';
+$numeroCiclo  = $numeroCiclo ?? null;
 
 $stakePadrao = (float)($meta->stake_padrao ?? 10.00);
 $alvoApostas = (int)($meta->total_apostas_alvo ?? 10);
@@ -390,12 +396,100 @@ $fmtScore = function($v) {
   pointer-events: none;
 }
 
-/* Abas do Histórico */
+/* Abas do Histórico e Barra de Filtros */
+.history-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--meta-border);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+}
+
 .history-tabs-container {
   display: flex;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--meta-border);
-  margin-bottom: 1.25rem;
+}
+
+.history-filter-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-select-preset {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--meta-border);
+  color: #38bdf8;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+.filter-select-preset:focus {
+  border-color: #38bdf8;
+}
+
+.filter-input-date {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--meta-border);
+  color: #ffffff;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  outline: none;
+}
+.filter-input-date:focus {
+  border-color: #60a5fa;
+}
+
+.filter-label-de-ate {
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.btn-filter-apply {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+.btn-filter-apply:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+}
+
+.btn-filter-clear {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.2s ease;
+}
+.btn-filter-clear:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
 }
 
 .history-tab-btn {
@@ -813,6 +907,10 @@ $fmtScore = function($v) {
                       $slotIcon = '💰';
                       $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
                       $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} - Cashout ({$valCash})";
+                  } elseif (in_array(strtolower($st), ['cancelada'])) {
+                      $slotClass = 'slot-push';
+                      $slotIcon = '⊘';
+                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Cancelada / Slot Preservado)";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';
@@ -901,19 +999,64 @@ $fmtScore = function($v) {
 
   <!-- SEÇÃO INFERIOR: Histórico com Abas (Diário vs Ciclos Sequenciais) -->
   <div class="history-section">
-    <div class="history-tabs-container">
-      <button type="button" class="history-tab-btn active" id="tabBtnDias" onclick="switchHistoryTab('dias')">
-        <span>📅 Fechamento Diário</span>
-        <small style="color: #ffffff; opacity: 0.9;">(Últimos 30 Dias)</small>
-      </button>
-      <button type="button" class="history-tab-btn" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
-        <span>🔄 Ciclos Fechados</span>
-        <small style="color: #ffffff; opacity: 0.9;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
-      </button>
+    <div class="history-header-bar">
+      <div class="history-tabs-container">
+        <button type="button" class="history-tab-btn <?= $tabAtiva === 'dias' ? 'active' : '' ?>" id="tabBtnDias" onclick="switchHistoryTab('dias')">
+          <span>📅 Fechamento Diário</span>
+          <small style="color: #ffffff; opacity: 0.9;">(<?= htmlspecialchars($textoPeriodo) ?>)</small>
+        </button>
+        <button type="button" class="history-tab-btn <?= $tabAtiva === 'ciclos' ? 'active' : '' ?>" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
+          <span>🔄 Ciclos Fechados</span>
+          <small style="color: #ffffff; opacity: 0.9;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
+        </button>
+      </div>
+
+      <!-- Filtro por Período de Datas -->
+      <form id="formFiltroHistorico" method="GET" action="<?= site_url('/metas') ?>" class="history-filter-form">
+        <input type="hidden" name="data" value="<?= htmlspecialchars($dataRefStr) ?>">
+        <?php if (!empty($numeroCiclo)): ?>
+          <input type="hidden" name="ciclo" value="<?= htmlspecialchars((string)$numeroCiclo) ?>">
+        <?php endif; ?>
+        <input type="hidden" name="tab" id="inputTabAtiva" value="<?= htmlspecialchars($tabAtiva) ?>">
+
+        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 0.35rem; margin: 0;">
+            <i class="fas fa-calendar-alt" style="color: #38bdf8;"></i> Período:
+          </label>
+
+          <select id="selectFiltroPreset" class="filter-select-preset" onchange="aplicarPresetHistorico(this.value)" title="Atalho de Período">
+            <option value="custom" <?= $presetAtivo === 'custom' ? 'selected' : '' ?>>📅 Personalizado</option>
+            <option value="today" <?= $presetAtivo === 'today' ? 'selected' : '' ?>>⚡ Hoje</option>
+            <option value="yesterday" <?= $presetAtivo === 'yesterday' ? 'selected' : '' ?>>⏪ Ontem</option>
+            <option value="7days" <?= $presetAtivo === '7days' ? 'selected' : '' ?>>🗓️ Últimos 7 dias</option>
+            <option value="15days" <?= $presetAtivo === '15days' ? 'selected' : '' ?>>🗓️ Últimos 15 dias</option>
+            <option value="30days" <?= $presetAtivo === '30days' ? 'selected' : '' ?>>🗓️ Últimos 30 dias (Padrão)</option>
+            <option value="this_month" <?= $presetAtivo === 'this_month' ? 'selected' : '' ?>>📅 Este Mês</option>
+            <option value="last_month" <?= $presetAtivo === 'last_month' ? 'selected' : '' ?>>⏮️ Mês Anterior</option>
+            <option value="all" <?= $presetAtivo === 'all' ? 'selected' : '' ?>>♾️ Todo o Período</option>
+          </select>
+
+          <span class="filter-label-de-ate">De:</span>
+          <input type="date" name="hist_inicio" id="hist_inicio" value="<?= htmlspecialchars($histInicio) ?>" class="filter-input-date" onchange="document.getElementById('selectFiltroPreset').value='custom'" title="Data Início">
+
+          <span class="filter-label-de-ate">Até:</span>
+          <input type="date" name="hist_fim" id="hist_fim" value="<?= htmlspecialchars($histFim) ?>" class="filter-input-date" onchange="document.getElementById('selectFiltroPreset').value='custom'" title="Data Fim">
+
+          <button type="submit" class="btn-filter-apply" title="Filtrar histórico diário e blocos">
+            <i class="fas fa-search"></i> Filtrar
+          </button>
+
+          <?php if (!empty($histInicio) || !empty($histFim)): ?>
+            <a href="<?= site_url('/metas?data=' . $dataRefStr . (!empty($numeroCiclo) ? '&ciclo=' . $numeroCiclo : '') . '&tab=' . $tabAtiva) ?>" class="btn-filter-clear" title="Limpar filtro e voltar aos 30 dias padrão">
+              <i class="fas fa-times-circle"></i> Limpar
+            </a>
+          <?php endif; ?>
+        </div>
+      </form>
     </div>
 
     <!-- CONTEÚDO TAB 1: Fechamento Diário -->
-    <div id="tabContentDias">
+    <div id="tabContentDias" style="<?= $tabAtiva === 'ciclos' ? 'display: none;' : '' ?>">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
         <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; color: #ffffff;">
           <span>📊 Histórico de Fechamento Diário</span>
@@ -1056,7 +1199,7 @@ $fmtScore = function($v) {
     <!-- FIM TAB 1: Fechamento Diário -->
 
     <!-- CONTEÚDO TAB 2: Histórico de Ciclos Sequenciais Fechados -->
-    <div id="tabContentCiclos" style="display: none;">
+    <div id="tabContentCiclos" style="<?= $tabAtiva === 'ciclos' ? 'display: block;' : 'display: none;' ?>">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
         <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; color: #ffffff;">
           <span>📦 Histórico de Ciclos Sequenciais Fechados</span>
@@ -1085,12 +1228,29 @@ $fmtScore = function($v) {
           </thead>
           <tbody>
             <?php if (!empty($historicoC)): ?>
+              <?php 
+                $totCApostas   = 0;
+                $totCGreens    = 0.0;
+                $totCPushes    = 0;
+                $totCReds      = 0.0;
+                $totCCashouts  = 0;
+                $totCInvestido = 0.0;
+                $totCLucro     = 0.0;
+              ?>
               <?php foreach ($historicoC as $hc): 
                   $cLucro = (float)($hc['lucro_liquido'] ?? 0);
                   $cRoi   = (float)($hc['roi_pct'] ?? 0);
                   $cSt    = $hc['status'] ?? 'EM_ANDAMENTO';
                   $isAtiv = ((int)($hc['numero_ciclo'] ?? 0) === (int)($ciclo['ciclo_ativo_num'] ?? 0));
                   
+                  $totCApostas   += (int)($hc['total_apostas'] ?? 0);
+                  $totCGreens    += (float)($hc['greens'] ?? 0.0);
+                  $totCPushes    += (int)($hc['pushes'] ?? 0);
+                  $totCReds      += (float)($hc['reds'] ?? 0.0);
+                  $totCCashouts  += (int)($hc['cashouts'] ?? 0);
+                  $totCInvestido += (float)($hc['investido'] ?? 0.0);
+                  $totCLucro     += $cLucro;
+
                   $dtIniFmt = !empty($hc['data_inicio']) ? date('d/m', strtotime($hc['data_inicio'])) : '-';
                   $dtFimFmt = !empty($hc['data_fim']) ? date('d/m', strtotime($hc['data_fim'])) : '-';
                   $periodoStr = ($dtIniFmt === $dtFimFmt) ? $dtIniFmt : "{$dtIniFmt} a {$dtFimFmt}";
@@ -1140,11 +1300,39 @@ $fmtScore = function($v) {
             <?php else: ?>
               <tr>
                 <td colspan="11" style="text-align: center; color: #ffffff; padding: 2rem;">
-                  Nenhum ciclo fechado registrado até o momento.
+                  Nenhum ciclo fechado registrado para o período selecionado.
                 </td>
               </tr>
             <?php endif; ?>
           </tbody>
+          <?php if (!empty($historicoC)): ?>
+            <?php 
+              $totCRoi = $totCInvestido > 0 ? (($totCLucro / $totCInvestido) * 100.0) : 0.0;
+            ?>
+            <tfoot>
+              <tr class="history-table-total-row">
+                <td><strong>TOTAL (<?= count($historicoC) ?> Ciclos)</strong></td>
+                <td>-</td>
+                <td><strong><?= $totCApostas ?></strong></td>
+                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?></td>
+                <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totCPushes) ?></td>
+                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?></td>
+                <td style="color: #c084fc; font-weight: 600;"><?= $totCCashouts ?></td>
+                <td style="font-weight: 700;" class="<?= $totCLucro > 0 ? 'val-green' : ($totCLucro < 0 ? 'val-red' : '') ?>">
+                  <?= ($totCLucro > 0 ? '+' : '') ?>R$ <?= number_format($totCLucro, 2, ',', '.') ?>
+                </td>
+                <td style="font-weight: 700;" class="<?= $totCRoi > 0 ? 'val-green' : ($totCRoi < 0 ? 'val-red' : '') ?>">
+                  <?= ($totCRoi > 0 ? '+' : '') ?><?= number_format($totCRoi, 1, ',', '.') ?>%
+                </td>
+                <td>
+                  <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.72rem; padding: 0.25rem 0.6rem;">
+                    TOTAL CICLOS
+                  </span>
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          <?php endif; ?>
         </table>
       </div>
     </div>
@@ -1323,24 +1511,85 @@ function switchHistoryTab(tabName) {
   const btnCiclos = document.getElementById('tabBtnCiclos');
   const contentDias = document.getElementById('tabContentDias');
   const contentCiclos = document.getElementById('tabContentCiclos');
+  const inputTab = document.getElementById('inputTabAtiva');
 
   if (tabName === 'ciclos') {
     btnDias.classList.remove('active');
     btnCiclos.classList.add('active');
     contentDias.style.display = 'none';
     contentCiclos.style.display = 'block';
+    if (inputTab) inputTab.value = 'ciclos';
   } else {
     btnCiclos.classList.remove('active');
     btnDias.classList.add('active');
     contentCiclos.style.display = 'none';
     contentDias.style.display = 'block';
+    if (inputTab) inputTab.value = 'dias';
   }
 }
 
-// Se o usuário navegou com ?ciclo=, ativa a aba de ciclos automaticamente
-<?php if (!empty($_GET['ciclo'])): ?>
-  document.addEventListener('DOMContentLoaded', function() {
+function aplicarPresetHistorico(preset) {
+  const inputIni = document.getElementById('hist_inicio');
+  const inputFim = document.getElementById('hist_fim');
+  if (!inputIni || !inputFim) return;
+
+  const hoje = new Date();
+  const formatYmd = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  if (preset === 'today') {
+    inputIni.value = formatYmd(hoje);
+    inputFim.value = formatYmd(hoje);
+  } else if (preset === 'yesterday') {
+    const ontem = new Date();
+    ontem.setDate(hoje.getDate() - 1);
+    inputIni.value = formatYmd(ontem);
+    inputFim.value = formatYmd(ontem);
+  } else if (preset === '7days') {
+    const d7 = new Date();
+    d7.setDate(hoje.getDate() - 6);
+    inputIni.value = formatYmd(d7);
+    inputFim.value = formatYmd(hoje);
+  } else if (preset === '15days') {
+    const d15 = new Date();
+    d15.setDate(hoje.getDate() - 14);
+    inputIni.value = formatYmd(d15);
+    inputFim.value = formatYmd(hoje);
+  } else if (preset === '30days') {
+    const d30 = new Date();
+    d30.setDate(hoje.getDate() - 29);
+    inputIni.value = formatYmd(d30);
+    inputFim.value = formatYmd(hoje);
+  } else if (preset === 'this_month') {
+    const iniMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    inputIni.value = formatYmd(iniMes);
+    inputFim.value = formatYmd(fimMes);
+  } else if (preset === 'last_month') {
+    const iniMesAnt = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const fimMesAnt = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+    inputIni.value = formatYmd(iniMesAnt);
+    inputFim.value = formatYmd(fimMesAnt);
+  } else if (preset === 'all') {
+    inputIni.value = '';
+    inputFim.value = '';
+  }
+
+  if (preset !== 'custom') {
+    document.getElementById('formFiltroHistorico').submit();
+  }
+}
+
+// Inicializa a aba correta com base no parâmetro de requisição
+document.addEventListener('DOMContentLoaded', function() {
+  <?php if ($tabAtiva === 'ciclos' || !empty($_GET['ciclo'])): ?>
     switchHistoryTab('ciclos');
-  });
-<?php endif; ?>
+  <?php else: ?>
+    switchHistoryTab('dias');
+  <?php endif; ?>
+});
 </script>

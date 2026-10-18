@@ -28,30 +28,7 @@ from asian_handicap_engine import (
 )
 
 
-def get_db_connection():
-    hosts_ports = [
-        ("127.0.0.1", 23306),
-        ("mysql", 3306),
-        ("localhost", 3306)
-    ]
-    for host, port in hosts_ports:
-        try:
-            conn = pymysql.connect(
-                host=host,
-                port=port,
-                user="root",
-                password="YM11rMrT32xH0E6N",
-                database="footballweb",
-                charset="utf8mb4",
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=3,
-                autocommit=True
-            )
-            print(f"✅ Conectado ao MySQL ({host}:{port})")
-            return conn
-        except Exception:
-            continue
-    raise RuntimeError("Falha ao conectar no MySQL.")
+from db_config import get_db_connection
 
 
 def reprocessar():

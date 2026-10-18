@@ -616,11 +616,11 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Regra Canônica Exclusiva: Apenas Under 6.5, Under 7.5, Under 8.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
-                if ($line < 6.49) {
+                // Regra Canônica: Apenas Under 4.5 ou superiores são autorizadas
+                if ($line < 4.49) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Linha de Cartões Não Autorizada';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas linhas Under 6.5, Under 7.5, Under 8.5 ou maiores são autorizadas no mercado de cartões. Linhas Under 5.5 e inferiores bloqueadas por gestão de risco.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas linhas Under 4.5, Under 5.5, Under 6.5 ou superiores são autorizadas no mercado de cartões.";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
@@ -628,7 +628,7 @@ class ApostaController extends BaseController
                 $ftRow = null;
                 if ($fixtureId) {
                     $ftRow = $db->table('fixtures_trends')
-                        ->select('league_id, league_name, odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score')
+                        ->select('league_id, league_name, odd_home, odd_away, home_rank, away_rank, home_zone, home_ppg, standings_motivation_score, ah_reasoning')
                         ->where('fixture_id', $fixtureId)
                         ->get()
                         ->getRowArray();
@@ -660,11 +660,16 @@ class ApostaController extends BaseController
                     ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))
                 );
 
-                // 1. Caldeirão da Degola / Sobrevivência
-                if ($isHUnderThreat) {
+                // 1. Caldeirão da Degola / Sobrevivência (Veto condicionado a atrito real)
+                $isDisciplinaryCrisis = ($xc >= 4.20);
+                if ($ftRow && !empty($ftRow['ah_reasoning']) && preg_match('/"home":\s*\{[^}]*"pts_ef":\s*(-?\d+(?:\.\d+)?)/i', $ftRow['ah_reasoning'], $mEf)) {
+                    $hEffVal = (float)$mEf[1];
+                    $isDisciplinaryCrisis = ($hEffVal <= 3.0 || $xc >= 4.20);
+                }
+                if ($isHUnderThreat && $isDisciplinaryCrisis) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperCategory = 'Caldeirão da Degola (Sobrevivência)';
-                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): O mandante está na zona de rebaixamento ou ameaçado pela degola, jogando a vida em seus domínios. A urgência de sobrevivência e tensão de caldeirão elevam o risco de faltas táticas e indisciplina. Abstenção mandatória para Under.";
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): O mandante está na zona de rebaixamento ou ameaçado pela degola, com histórico de atrito/tensão. Risco elevado de faltas táticas e indisciplina. Abstenção mandatória para Under.";
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
@@ -701,8 +706,8 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 6.5, Under 7.5, Under 8.5 ou maiores)
-                $minOddReq  = 1.50;
+                // Critérios específicos por linha (Under 4.5/5.5: 1.50 | Under 6.5+: 1.40)
+                $minOddReq  = ($line >= 6.49) ? 1.40 : 1.50;
                 $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;
@@ -933,15 +938,25 @@ class ApostaController extends BaseController
                 ]);
             }
 
-            // Credita o retorno na Conta Corrente caso a aposta tenha sido resolvida/ganha/cashout
+            // Credita o retorno na Conta Corrente apenas se a aposta estiver confirmada e com débito prévio registrado
             if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
-                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
-                $this->contaCorrenteModel->creditarRetornoAposta(
-                    (int)$aposta->usuario_id,
-                    $apostaId,
-                    (float)$retorno,
-                    "Retorno Aposta #{$apostaId} ({$status})"
-                );
+                $isConfirmada = (isset($aposta->confirmada) && (int)$aposta->confirmada === 1);
+                $db = \Config\Database::connect();
+                $temDebito = $db->table('conta_corrente')
+                    ->where('usuario_id', (int)$aposta->usuario_id)
+                    ->where('aposta_id', $apostaId)
+                    ->where('tipo', 'DEBITO_APOSTA')
+                    ->countAllResults() > 0;
+
+                if ($isConfirmada && $temDebito) {
+                    $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                    $this->contaCorrenteModel->creditarRetornoAposta(
+                        (int)$aposta->usuario_id,
+                        $apostaId,
+                        (float)$retorno,
+                        "Retorno Aposta #{$apostaId} ({$status})"
+                    );
+                }
             }
 
             return $this->response->setJSON([
@@ -993,13 +1008,23 @@ class ApostaController extends BaseController
             'updated_at' => date('Y-m-d H:i:s')
         ]);
 
-        // Credita valor do cashout na Conta Corrente
-        $this->contaCorrenteModel->creditarRetornoAposta(
-            (int)$aposta->usuario_id,
-            $apostaId,
-            (float)$valorCashout,
-            "Cashout Aposta #{$apostaId}"
-        );
+        // Credita valor do cashout na Conta Corrente apenas se a aposta foi confirmada e debitada
+        $isConfirmada = (isset($aposta->confirmada) && (int)$aposta->confirmada === 1);
+        $db = \Config\Database::connect();
+        $temDebito = $db->table('conta_corrente')
+            ->where('usuario_id', (int)$aposta->usuario_id)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->countAllResults() > 0;
+
+        if ($isConfirmada && $temDebito) {
+            $this->contaCorrenteModel->creditarRetornoAposta(
+                (int)$aposta->usuario_id,
+                $apostaId,
+                (float)$valorCashout,
+                "Cashout Aposta #{$apostaId}"
+            );
+        }
 
         return $this->response->setJSON([
             'success' => true,
@@ -1244,11 +1269,22 @@ class ApostaController extends BaseController
         }
 
         $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
-        $this->apostaModel->update($apostaId, [
+        $updateData = [
             'confirmada' => 1,
             'status'     => $novoStatus,
             'updated_at' => date('Y-m-d H:i:s')
-        ]);
+        ];
+
+        $rawOdd = $this->request->getPost('odd');
+        if ($rawOdd !== null && trim((string)$rawOdd) !== '') {
+            $novaOdd = (float)str_replace(',', '.', trim((string)$rawOdd));
+            if ($novaOdd >= 1.01) {
+                $updateData['odd'] = $novaOdd;
+                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, 2);
+            }
+        }
+
+        $this->apostaModel->update($apostaId, $updateData);
 
         $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
 
@@ -1258,6 +1294,83 @@ class ApostaController extends BaseController
             'novo_saldo'  => $novoSaldo,
             'id'          => $apostaId,
             'novo_status' => $novoStatus
+        ]);
+    }
+
+    /**
+     * Cancela uma aposta não confirmada/pendente por indisponibilidade de linha na casa de apostas (Stake)
+     * sem efetuar débito financeiro, evitando distorção estatística e na liquidação. (AJAX)
+     */
+    public function cancelarIndisponivel($id = null)
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos.'
+            ])->setStatusCode(403);
+        }
+
+        $apostaId = (int)($id ?? $this->request->getPost('id'));
+        if ($apostaId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID de simulação de aposta inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $aposta = $this->apostaModel->find($apostaId);
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $userId = (int)$access['user_id'];
+        if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
+            ])->setStatusCode(403);
+        }
+
+        // Se por algum motivo já havia sido debitada na conta corrente, realiza o estorno preventivo
+        $db = \Config\Database::connect();
+        $qExists = $db->table('conta_corrente')
+            ->where('usuario_id', $userId)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->get();
+        $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+        if ($debitoExistente) {
+            $this->contaCorrenteModel->estornarAposta(
+                $userId,
+                $apostaId,
+                (float)$aposta->valor_aposta,
+                "Estorno Cancelamento por Linha Indisponível na Stake - Aposta #{$apostaId}"
+            );
+        }
+
+        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na Stake";
+        $this->apostaModel->update($apostaId, [
+            'status'              => 'Cancelada',
+            'confirmada'          => 0,
+            'resultado_detalhado' => $motivo,
+            'updated_at'          => date('Y-m-d H:i:s')
+        ]);
+
+        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'message'     => "Aposta #{$apostaId} descartada/cancelada com sucesso (Linha indisponível na Stake). Nenhum valor foi debitado.",
+            'novo_saldo'  => $saldoAtual,
+            'id'          => $apostaId,
+            'novo_status' => 'Cancelada'
         ]);
     }
 
@@ -3222,12 +3335,211 @@ class ApostaController extends BaseController
         $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
-        $result = json_decode($output, true);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd > $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            } else {
+                $result = json_decode($output, true);
+            }
+        }
 
         if (!$result) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Erro ao processar auditoria de odds: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para validar linha customizada de Handicap Asiático informada pelo usuário no Gatekeeper.
+     */
+    public function validarLinhaAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para validar linhas no Gatekeeper.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+        $linhaAh   = $this->request->getPost('linha_ah');
+        $odd       = $this->request->getPost('odd');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+                $linhaAh   = $jsonInput['linha_ah'] ?? '';
+                $odd       = $jsonInput['odd'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId) || empty($linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida e linha de Handicap Asiático são obrigatórios.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --validar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd)) {
+            $odd = str_replace(',', '.', (string)$odd);
+        }
+        if (!empty($odd) && is_numeric($odd)) {
+            $cmd .= " --odd=" . escapeshellarg((float)$odd);
+        }
+        if (!empty($apostaId)) {
+            $apostaId = (int)$apostaId;
+            $cmd .= " --aposta_id={$apostaId}";
+        }
+
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao validar linha de Handicap Asiático: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para obter o radar proativo de linhas de AH (Odds mínimas e oportunidades em outras casas).
+     */
+    public function radarLinhasAh($fixtureId)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para consultar o radar do Gatekeeper.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --radar";
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao consultar radar de Handicap Asiático: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para salvar linha customizada de Handicap Asiático validada e aprovada pelo Gatekeeper.
+     */
+    public function salvarLinhaAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para salvar a nova linha.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+        $linhaAh   = $this->request->getPost('linha_ah');
+        $odd       = $this->request->getPost('odd');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+                $linhaAh   = $jsonInput['linha_ah'] ?? '';
+                $odd       = $jsonInput['odd'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId) || empty($apostaId) || empty($linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Parâmetros incompletos para salvar a nova linha.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $apostaId  = (int)$apostaId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --aposta_id={$apostaId} --salvar_linha=" . escapeshellarg($linhaAh);
+        if (!empty($odd)) {
+            $odd = str_replace(',', '.', (string)$odd);
+        }
+        if (!empty($odd) && is_numeric($odd)) {
+            $cmd .= " --odd=" . escapeshellarg((float)$odd);
+        }
+
+        $output = shell_exec($cmd);
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd >= $jsonStart) {
+                $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao salvar nova linha de Handicap Asiático: ' . $output
             ]);
         }
 
@@ -3312,10 +3624,10 @@ class ApostaController extends BaseController
 
         $db = \Config\Database::connect();
 
-        // Checagem ativa de Stop Loss para o dia de hoje (em background)
+        // Checagem ativa de Stop Loss para a meta vigente (em background)
         try {
             $metaDiariaModel = new \App\Models\MetaDiariaModel();
-            $metaDiariaModel->verificarEGerarAlertaStopLoss($userId, date('Y-m-d'));
+            $metaDiariaModel->verificarEGerarAlertaStopLoss($userId);
         } catch (\Throwable $e) {
             log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
         }

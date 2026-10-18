@@ -131,7 +131,10 @@ class DashboardController extends BaseController
         ];
 
         $osModel = new \App\Models\OrdemServicoModel();
-        $data['list'] = $osModel->findAll();
+        $data['list'] = $osModel->select('ordem_servico.*, agile_sistemas.nome as Nome_Sistema, agile_sistemas.sigla as Sigla_Sistema')
+                                ->join('agile_sistemas', 'agile_sistemas.id = ordem_servico.id_sistema', 'left')
+                                ->findAll();
+        $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
 
         return view('dashboard/index', $data);
     }

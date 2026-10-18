@@ -267,6 +267,19 @@ class ContaCorrenteModel extends Model
 
         $db = \Config\Database::connect();
 
+        // Verifica se a aposta realmente teve débito registrado (blindagem contra apostas não confirmadas)
+        $qDebito = $db->table($this->table)
+            ->where('usuario_id', $usuarioId)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->get();
+
+        $debito = $qDebito ? $qDebito->getRow() : null;
+
+        if (!$debito) {
+            return ['success' => false, 'message' => 'Nenhum débito encontrado para creditar retorno (aposta não confirmada).'];
+        }
+
         // Anti-duplicidade: verifica se o retorno desta aposta já foi creditado
         $qExists = $db->table($this->table)
             ->where('usuario_id', $usuarioId)

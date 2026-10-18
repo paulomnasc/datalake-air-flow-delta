@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Técnico & Guia Operacional: Resolução de Ataque DDoS / Força Bruta SSH</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #162032;
+            --bg-card-hover: #1c2a42;
+            --accent-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-red: #f87171;
+            --accent-amber: #fbbf24;
+            --accent-purple: #a78bfa;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: #24344d;
+            --code-bg: #070b12;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            line-height: 1.65;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1040px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #162032 0%, #0d1522 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 35px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green), var(--accent-purple));
+        }
+
+        .badge-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: rgba(52, 211, 153, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .badge-warning {
+            background: rgba(251, 191, 36, 0.15);
+            color: var(--accent-amber);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .badge-danger {
+            background: rgba(248, 113, 113, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .badge-info {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #fff;
+            margin-bottom: 12px;
+            line-height: 1.25;
+        }
+
+        .subtitle {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        .meta-item strong {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        /* Sections */
+        section {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 32px;
+            margin-bottom: 28px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+        }
+
+        h2 {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin: 22px 0 10px 0;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: #d1d5db;
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 18px;
+            margin: 18px 0;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Alerts */
+        .alert {
+            border-radius: 10px;
+            padding: 18px;
+            margin: 18px 0;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            font-size: 0.95rem;
+        }
+
+        .alert-danger {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            color: #fca5a5;
+        }
+
+        .alert-success {
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            color: #6ee7b7;
+        }
+
+        .alert-info {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #7dd3fc;
+        }
+
+        /* Code Blocks */
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+            overflow-x: auto;
+            margin: 14px 0 20px 0;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 0.88em;
+            color: var(--accent-amber);
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        .code-comment {
+            color: #64748b;
+        }
+
+        .code-cmd {
+            color: var(--accent-green);
+        }
+
+        .code-flag {
+            color: var(--accent-blue);
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0;
+            font-size: 0.92rem;
+        }
+
+        th,
+        td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-card);
+            color: var(--accent-blue);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Steps */
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--accent-blue);
+            color: #000;
+            font-weight: 800;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            margin-right: 8px;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <div class="badge-bar">
+                <span class="badge badge-success">Solução Concluída</span>
+                <span class="badge badge-info">Zero Alteração em Código-Fonte</span>
+                <span class="badge badge-danger">Incidente DDoS / Brute Force</span>
+                <span class="badge badge-warning">Hetzner Cloud & Docker</span>
+            </div>
+            <h1>Mitigação de Ataque de Força Bruta & Blindagem de Servidor</h1>
+            <p class="subtitle">Guia operacional e registro técnico da resolução de instabilidade severa, quedas de SSH
+                e travamentos no ambiente de produção.</p>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <strong>Servidor / Host</strong>
+                    <span>ubuntu-16gb-nbg1-2 (Hetzner)</span>
+                </div>
+                <div class="meta-item">
+                    <strong>IP Público</strong>
+                    <span>46.224.156.251</span>
+                </div>
+                <div class="meta-item">
+                    <strong>Stack Afetada</strong>
+                    <span>Docker (Airflow, MinIO, DBs) + SSH</span>
+                </div>
+                <div class="meta-item">
+                    <strong>Tipo de Intervenção</strong>
+                    <span>Infraestrutura, Kernel e Firewall</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 1. DIAGNÓSTICO E CAUSA RAIZ -->
+        <section>
+            <h2><span class="step-number">1</span>Diagnóstico da Causa Raiz</h2>
+            <p>A instabilidade que causava a indisponibilidade do servidor, desconexões no SSH e sensação de ataque DDoS
+                teve <strong>três causas raízes simultâneas</strong> diagnosticadas:</p>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">🚨 1. Ataque de Força Bruta SSH Massivo</div>
+                    <p>Robôs mundiais (IPs identificados: <code>197.253.54.22</code>, <code>27.72.195.145</code>,
+                        <code>177.126.90.235</code>, etc.) tentavam invadir a porta 22 a cada segundo com usuários
+                        falsos (<code>blockchain</code>, <code>crypto</code>, <code>ubuntu</code>). Esse fluxo saturou o
+                        limite de conexões simultâneas do SSH (<code>MaxStartups 10</code>), descartando conexões
+                        legítimas.
+                    </p>
+                </div>
+                <div class="card">
+                    <div class="card-title">⚠️ 2. Falta Crítica de Memória Swap (0B)</div>
+                    <p>O servidor possuía 16GB de RAM e <strong>zero de Swap</strong> configurado. Ao rodar a stack
+                        completa de Docker (Airflow, Spark, Postgres, Metabase), qualquer pico momentâneo de memória
+                        levava o kernel a congelar a máquina por falta de margem de escape.</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🌐 3. Bloqueio de ICMP / MTU Black Hole</div>
+                    <p>Ao ativar o Firewall na Hetzner liberando apenas portas TCP, o tráfego <strong>ICMP</strong> foi
+                        bloqueado. Isso impediu o <em>Path MTU Discovery</em> na rota Brasil ↔ Alemanha, fazendo com que
+                        pacotes grandes de troca de chave (KEX) fossem descartados, resultando em
+                        <code>kex_exchange_identification: timed out</code>.
+                    </p>
+                </div>
+            </div>
+
+            <div class="alert alert-danger">
+                <div>
+                    <strong>Evidência do Flagrante:</strong><br>
+                    O comando <code>systemctl status ssh</code> capturou o daemon em esgotamento:
+                    <code>sshd: [listener] 2 of 10-100 startups</code> e rejeitando senhas a cada fração de segundo.
+                    Logo após a instalação do Fail2ban, <strong>274 ataques foram barrados</strong> e 6 IPs foram
+                    banidos instantaneamente.
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. PASSO A PASSO EXECUTADO -->
+        <section>
+            <h2><span class="step-number">2</span>Passo a Passo de Ações Executadas</h2>
+
+            <h3>Fase 1: Blindagem de Memória com Swapfile de 4GB</h3>
+            <p>Criou-se uma reserva de memória para absorver picos de uso do Docker sem congelar o kernel:</p>
+            <pre><code><span class="code-comment"># 1. Aloca arquivo de 4GB e aplica permissões de segurança</span>
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+
+<span class="code-comment"># 2. Formata e ativa o swap</span>
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+<span class="code-comment"># 3. Torna persistente após reinicializações</span>
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+<span class="code-comment"># 4. Ajusta a tendência de troca para poupar I/O (usar apenas se RAM > 90%)</span>
+sudo sysctl vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf</code></pre>
+
+            <h3>Fase 2: Instalação e Ativação do Fail2ban</h3>
+            <p>O Fail2ban inspeciona o journal do sistema e adiciona regras dinâmicas de <code>DROP</code> no firewall
+                do Linux para qualquer IP com tentativas repetidas de falha de autenticação:</p>
+            <pre><code><span class="code-cmd">apt-get update</span>
+<span class="code-cmd">apt-get install -y fail2ban</span>
+<span class="code-cmd">systemctl enable --now fail2ban</span></code></pre>
+
+            <h3>Fase 3: Aumento de Capacidade do Daemon SSH (Evitar Fila Cheia)</h3>
+            <p>Aumentou-se o limite de conexões não autenticadas simultâneas permitidas pelo OpenSSH para impedir que
+                ataques saturem o daemon:</p>
+            <pre><code><span class="code-comment"># Aumenta o limite para 50 conexões iniciais (padrão era 10)</span>
+echo "MaxStartups 50:30:100" >> /etc/ssh/sshd_config
+systemctl restart ssh</code></pre>
+
+            <h3>Fase 4: Resolução de Lentidão no Handshake SSH (Reverse DNS)</h3>
+            <p>Desativação de checagens reversas de DNS que adicionavam 15 a 30 segundos de atraso a cada nova conexão:
+            </p>
+            <pre><code>sudo sed -i 's/^#*UseDNS.*/UseDNS no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*GSSAPIAuthentication.*/GSSAPIAuthentication no/' /etc/ssh/sshd_config
+systemctl restart ssh</code></pre>
+        </section>
+
+        <!-- 3. CONFIGURAÇÃO IDEAL DE FIREWALL -->
+        <section>
+            <h2><span class="step-number">3</span>Configuração Definitiva do Firewall (Hetzner Cloud)</h2>
+            <p>Para evitar que os ataques sequer cheguem à máquina, as regras de firewall na Hetzner devem ser
+                configuradas na aba <strong>Firewalls &gt; firewall-1 &gt; Rules</strong> e aplicadas na aba
+                <strong>Resources</strong>:
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Protocolo</th>
+                        <th>Porta</th>
+                        <th>Origem (Source IPs)</th>
+                        <th>Finalidade / Motivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>ICMP</strong></td>
+                        <td>-</td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td><span class="badge badge-success">Crítico</span> Resolve o Path MTU Black Hole e permite
+                            ping de diagnóstico</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>22</code></td>
+                        <td><code>Seu_IP/32</code> ou <code>Any IPv4</code></td>
+                        <td>SSH (idealmente restrito ao seu IP residencial para 100% de blindagem)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>80</code></td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td>HTTP Web / Desafio Let's Encrypt</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>443</code></td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td>HTTPS Seguro (Nginx Gateway)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>28083</code></td>
+                        <td><code>Any IPv4</code></td>
+                        <td>Airflow Webserver</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>9000</code></td>
+                        <td><code>Seu_IP/32</code></td>
+                        <td>Portainer (Restringir acesso externo ao painel administrativo)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-info">
+                <div>
+                    <strong>Portas Internas Blindadas:</strong> As portas do MySQL (<code>23306</code>), PostgreSQL
+                    (<code>25432</code>, <code>25433</code>), Redis (<code>26379</code>) e MinIO
+                    (<code>29001/29002</code>) <strong>NÃO</strong> devem estar no firewall externo. Os contêineres
+                    Docker se comunicam internamente via rede privada <code>airflow_net</code> sem necessidade de
+                    exposição à internet pública.
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. COMANDOS ÚTEIS DE AUDITORIA -->
+        <section>
+            <h2><span class="step-number">4</span>Comandos Úteis de Auditoria e Manutenção</h2>
+
+            <h3>1. Verificar IPs Atualmente Banidos pelo Fail2ban:</h3>
+            <pre><code>fail2ban-client status sshd</code></pre>
+
+            <h3>2. Desbanir um IP (ex: caso seu IP seja bloqueado por engano):</h3>
+            <pre><code>fail2ban-client set sshd unbanip SEU_IP_AQUI</code></pre>
+
+            <h3>3. Ver o Status em Tempo Real da Memória e Swap:</h3>
+            <pre><code>free -h</code></pre>
+
+            <h3>4. Ver os Contêineres em Execução e Portas:</h3>
+            <pre><code>docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</code></pre>
+
+            <h3>5. Iniciar Serviços que Estiverem Parados:</h3>
+            <pre><code>docker start spark spark-worker datalake-air-flow-delta-airflow-worker-1</code></pre>
+        </section>
+
+        <!-- 5. CHECKLIST DE SUCESSO -->
+        <section>
+            <h2><span class="step-number">5</span>Checklist de Sucesso e Estabilidade</h2>
+            <div class="alert alert-success">
+                <div>
+                    ✅ <strong>Zero Código Alterado:</strong> Nenhuma linha da aplicação Python, Airflow ou CodeIgniter
+                    precisou ser modificada.<br>
+                    ✅ <strong>Memória Swap Ativa:</strong> 4GB adicionados como proteção contra picos de carga.<br>
+                    ✅ <strong>Defesa Ativa Contra Força Bruta:</strong> Fail2ban banindo agressores em tempo real.<br>
+                    ✅ <strong>Conexões SSH Desafogadas:</strong> <code>MaxStartups</code> ampliado e latência de DNS
+                    desativada.<br>
+                    ✅ <strong>Roteamento de MTU Desbloqueado:</strong> Conexões internacionais estáveis sem
+                    congelamento.
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Documento gerado automaticamente para o projeto <strong>datalake-air-flow-delta</strong>. Mantido para
+                fins de conformidade, auditoria e recuperação de desastres.</p>
+        </footer>
+    </div>
+
+</body>
+
+</html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Técnico & Guia Operacional: Resolução de Ataque DDoS / Força Bruta SSH</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #162032;
+            --bg-card-hover: #1c2a42;
+            --accent-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-red: #f87171;
+            --accent-amber: #fbbf24;
+            --accent-purple: #a78bfa;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: #24344d;
+            --code-bg: #070b12;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            line-height: 1.65;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1040px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #162032 0%, #0d1522 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 35px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green), var(--accent-purple));
+        }
+
+        .badge-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: rgba(52, 211, 153, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .badge-warning {
+            background: rgba(251, 191, 36, 0.15);
+            color: var(--accent-amber);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .badge-danger {
+            background: rgba(248, 113, 113, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .badge-info {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #fff;
+            margin-bottom: 12px;
+            line-height: 1.25;
+        }
+
+        .subtitle {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        .meta-item strong {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        /* Sections */
+        section {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 32px;
+            margin-bottom: 28px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+        }
+
+        h2 {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin: 22px 0 10px 0;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: #d1d5db;
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 18px;
+            margin: 18px 0;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Alerts */
+        .alert {
+            border-radius: 10px;
+            padding: 18px;
+            margin: 18px 0;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            font-size: 0.95rem;
+        }
+
+        .alert-danger {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            color: #fca5a5;
+        }
+
+        .alert-success {
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            color: #6ee7b7;
+        }
+
+        .alert-info {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #7dd3fc;
+        }
+
+        /* Code Blocks */
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+            overflow-x: auto;
+            margin: 14px 0 20px 0;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 0.88em;
+            color: var(--accent-amber);
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        .code-comment {
+            color: #64748b;
+        }
+
+        .code-cmd {
+            color: var(--accent-green);
+        }
+
+        .code-flag {
+            color: var(--accent-blue);
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0;
+            font-size: 0.92rem;
+        }
+
+        th,
+        td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-card);
+            color: var(--accent-blue);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Steps */
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--accent-blue);
+            color: #000;
+            font-weight: 800;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            margin-right: 8px;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <div class="badge-bar">
+                <span class="badge badge-success">Solução Concluída</span>
+                <span class="badge badge-info">Zero Alteração em Código-Fonte</span>
+                <span class="badge badge-danger">Incidente DDoS / Brute Force</span>
+                <span class="badge badge-warning">Hetzner Cloud & Docker</span>
+            </div>
+            <h1>Mitigação de Ataque de Força Bruta & Blindagem de Servidor</h1>
+            <p class="subtitle">Guia operacional e registro técnico da resolução de instabilidade severa, quedas de SSH
+                e travamentos no ambiente de produção.</p>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <strong>Servidor / Host</strong>
+                    <span>ubuntu-16gb-nbg1-2 (Hetzner)</span>
+                </div>
+                <div class="meta-item">
+                    <strong>IP Público</strong>
+                    <span>46.224.156.251</span>
+                </div>
+                <div class="meta-item">
+                    <strong>Stack Afetada</strong>
+                    <span>Docker (Airflow, MinIO, DBs) + SSH</span>
+                </div>
+                <div class="meta-item">
+                    <strong>Tipo de Intervenção</strong>
+                    <span>Infraestrutura, Kernel e Firewall</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 1. DIAGNÓSTICO E CAUSA RAIZ -->
+        <section>
+            <h2><span class="step-number">1</span>Diagnóstico da Causa Raiz</h2>
+            <p>A instabilidade que causava a indisponibilidade do servidor, desconexões no SSH e sensação de ataque DDoS
+                teve <strong>três causas raízes simultâneas</strong> diagnosticadas:</p>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">🚨 1. Ataque de Força Bruta SSH Massivo</div>
+                    <p>Robôs mundiais (IPs identificados: <code>197.253.54.22</code>, <code>27.72.195.145</code>,
+                        <code>177.126.90.235</code>, etc.) tentavam invadir a porta 22 a cada segundo com usuários
+                        falsos (<code>blockchain</code>, <code>crypto</code>, <code>ubuntu</code>). Esse fluxo saturou o
+                        limite de conexões simultâneas do SSH (<code>MaxStartups 10</code>), descartando conexões
+                        legítimas.</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">⚠️ 2. Falta Crítica de Memória Swap (0B)</div>
+                    <p>O servidor possuía 16GB de RAM e <strong>zero de Swap</strong> configurado. Ao rodar a stack
+                        completa de Docker (Airflow, Spark, Postgres, Metabase), qualquer pico momentâneo de memória
+                        levava o kernel a congelar a máquina por falta de margem de escape.</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🌐 3. Bloqueio de ICMP / MTU Black Hole</div>
+                    <p>Ao ativar o Firewall na Hetzner liberando apenas portas TCP, o tráfego <strong>ICMP</strong> foi
+                        bloqueado. Isso impediu o <em>Path MTU Discovery</em> na rota Brasil ↔ Alemanha, fazendo com que
+                        pacotes grandes de troca de chave (KEX) fossem descartados, resultando em
+                        <code>kex_exchange_identification: timed out</code>.</p>
+                </div>
+            </div>
+
+            <div class="alert alert-danger">
+                <div>
+                    <strong>Evidência do Flagrante:</strong><br>
+                    O comando <code>systemctl status ssh</code> capturou o daemon em esgotamento:
+                    <code>sshd: [listener] 2 of 10-100 startups</code> e rejeitando senhas a cada fração de segundo.
+                    Logo após a instalação do Fail2ban, <strong>274 ataques foram barrados</strong> e 6 IPs foram
+                    banidos instantaneamente.
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. PASSO A PASSO EXECUTADO -->
+        <section>
+            <h2><span class="step-number">2</span>Passo a Passo de Ações Executadas</h2>
+
+            <h3>Fase 1: Blindagem de Memória com Swapfile de 4GB</h3>
+            <p>Criou-se uma reserva de memória para absorver picos de uso do Docker sem congelar o kernel:</p>
+            <pre><code><span class="code-comment"># 1. Aloca arquivo de 4GB e aplica permissões de segurança</span>
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+
+<span class="code-comment"># 2. Formata e ativa o swap</span>
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+<span class="code-comment"># 3. Torna persistente após reinicializações</span>
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+<span class="code-comment"># 4. Ajusta a tendência de troca para poupar I/O (usar apenas se RAM > 90%)</span>
+sudo sysctl vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf</code></pre>
+
+            <h3>Fase 2: Instalação e Ativação do Fail2ban</h3>
+            <p>O Fail2ban inspeciona o journal do sistema e adiciona regras dinâmicas de <code>DROP</code> no firewall
+                do Linux para qualquer IP com tentativas repetidas de falha de autenticação:</p>
+            <pre><code><span class="code-cmd">apt-get update</span>
+<span class="code-cmd">apt-get install -y fail2ban</span>
+<span class="code-cmd">systemctl enable --now fail2ban</span></code></pre>
+
+            <h3>Fase 3: Aumento de Capacidade do Daemon SSH (Evitar Fila Cheia)</h3>
+            <p>Aumentou-se o limite de conexões não autenticadas simultâneas permitidas pelo OpenSSH para impedir que
+                ataques saturem o daemon:</p>
+            <pre><code><span class="code-comment"># Aumenta o limite para 50 conexões iniciais (padrão era 10)</span>
+echo "MaxStartups 50:30:100" >> /etc/ssh/sshd_config
+systemctl restart ssh</code></pre>
+
+            <h3>Fase 4: Resolução de Lentidão no Handshake SSH (Reverse DNS)</h3>
+            <p>Desativação de checagens reversas de DNS que adicionavam 15 a 30 segundos de atraso a cada nova conexão:
+            </p>
+            <pre><code>sudo sed -i 's/^#*UseDNS.*/UseDNS no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*GSSAPIAuthentication.*/GSSAPIAuthentication no/' /etc/ssh/sshd_config
+systemctl restart ssh</code></pre>
+        </section>
+
+        <!-- 3. CONFIGURAÇÃO IDEAL DE FIREWALL -->
+        <section>
+            <h2><span class="step-number">3</span>Configuração Definitiva do Firewall (Hetzner Cloud)</h2>
+            <p>Para evitar que os ataques sequer cheguem à máquina, as regras de firewall na Hetzner devem ser
+                configuradas na aba <strong>Firewalls &gt; firewall-1 &gt; Rules</strong> e aplicadas na aba
+                <strong>Resources</strong>:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Protocolo</th>
+                        <th>Porta</th>
+                        <th>Origem (Source IPs)</th>
+                        <th>Finalidade / Motivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>ICMP</strong></td>
+                        <td>-</td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td><span class="badge badge-success">Crítico</span> Resolve o Path MTU Black Hole e permite
+                            ping de diagnóstico</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>22</code></td>
+                        <td><code>Seu_IP/32</code> ou <code>Any IPv4</code></td>
+                        <td>SSH (idealmente restrito ao seu IP residencial para 100% de blindagem)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>80</code></td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td>HTTP Web / Desafio Let's Encrypt</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>443</code></td>
+                        <td><code>Any IPv4</code>, <code>Any IPv6</code></td>
+                        <td>HTTPS Seguro (Nginx Gateway)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>28083</code></td>
+                        <td><code>Any IPv4</code></td>
+                        <td>Airflow Webserver</td>
+                    </tr>
+                    <tr>
+                        <td><strong>TCP</strong></td>
+                        <td><code>9000</code></td>
+                        <td><code>Seu_IP/32</code></td>
+                        <td>Portainer (Restringir acesso externo ao painel administrativo)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-info">
+                <div>
+                    <strong>Portas Internas Blindadas:</strong> As portas do MySQL (<code>23306</code>), PostgreSQL
+                    (<code>25432</code>, <code>25433</code>), Redis (<code>26379</code>) e MinIO
+                    (<code>29001/29002</code>) <strong>NÃO</strong> devem estar no firewall externo. Os contêineres
+                    Docker se comunicam internamente via rede privada <code>airflow_net</code> sem necessidade de
+                    exposição à internet pública.
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. COMANDOS ÚTEIS DE AUDITORIA -->
+        <section>
+            <h2><span class="step-number">4</span>Comandos Úteis de Auditoria e Manutenção</h2>
+
+            <h3>1. Verificar IPs Atualmente Banidos pelo Fail2ban:</h3>
+            <pre><code>fail2ban-client status sshd</code></pre>
+
+            <h3>2. Desbanir um IP (ex: caso seu IP seja bloqueado por engano):</h3>
+            <pre><code>fail2ban-client set sshd unbanip SEU_IP_AQUI</code></pre>
+
+            <h3>3. Ver o Status em Tempo Real da Memória e Swap:</h3>
+            <pre><code>free -h</code></pre>
+
+            <h3>4. Ver os Contêineres em Execução e Portas:</h3>
+            <pre><code>docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</code></pre>
+
+            <h3>5. Iniciar Serviços que Estiverem Parados:</h3>
+            <pre><code>docker start spark spark-worker datalake-air-flow-delta-airflow-worker-1</code></pre>
+        </section>
+
+        <!-- 5. CHECKLIST DE SUCESSO -->
+        <section>
+            <h2><span class="step-number">5</span>Checklist de Sucesso e Estabilidade</h2>
+            <div class="alert alert-success">
+                <div>
+                    ✅ <strong>Zero Código Alterado:</strong> Nenhuma linha da aplicação Python, Airflow ou CodeIgniter
+                    precisou ser modificada.<br>
+                    ✅ <strong>Memória Swap Ativa:</strong> 4GB adicionados como proteção contra picos de carga.<br>
+                    ✅ <strong>Defesa Ativa Contra Força Bruta:</strong> Fail2ban banindo agressores em tempo real.<br>
+                    ✅ <strong>Conexões SSH Desafogadas:</strong> <code>MaxStartups</code> ampliado e latência de DNS
+                    desativada.<br>
+                    ✅ <strong>Roteamento de MTU Desbloqueado:</strong> Conexões internacionais estáveis sem
+                    congelamento.
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Documento gerado automaticamente para o projeto <strong>datalake-air-flow-delta</strong>. Mantido para
+                fins de conformidade, auditoria e recuperação de desastres.</p>
+        </footer>
+    </div>
+
+</body>
+
+</html>

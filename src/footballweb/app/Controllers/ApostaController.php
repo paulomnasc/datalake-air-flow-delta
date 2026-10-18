@@ -2397,6 +2397,9 @@ class ApostaController extends BaseController
                 a.valor_aposta,
                 a.ganhos_potenciais,
                 a.cash_out,
+                a.moeda_codigo,
+                a.cotacao_brl_snapshot,
+                a.taxa_movimentacao_estimada_brl,
                 a.status as aposta_status,
                 a.status_gatekeeper,
                 a.resultado_detalhado,
@@ -2518,6 +2521,31 @@ class ApostaController extends BaseController
         $lucroPrejuizoUnidades = 0.0;
         $totalApostadoReal = 0.0;
         $lucroLiquidoReal = 0.0;
+        $totalLucroLiquidoBrl = 0.0;
+        $totalTaxasDescontadasBrl = 0.0;
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+
+        // Recupera a meta ativa do usuário para permitir espelhar a stake e moeda configurada (Opção A)
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva(!empty($userId) ? (int)$userId : 1);
+        $activeMoedaCodigo = $metaAtiva->moeda_codigo ?? ($moedaDefault->codigo ?? 'BRL');
+        $activeStake = (float)($metaAtiva->stake_padrao ?? 10.0);
+        if ($activeStake <= 0.0) $activeStake = 10.0;
+
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? 'R$';
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        $activeStakeBrl = $activeStake * $activeCotacao;
+
+        // Toggle de espelhamento de stake: se não informado, ativa por padrão para moedas cripto
+        $espelharStakeParam = $this->request->getVar('espelhar_stake');
+        if ($espelharStakeParam !== null) {
+            $espelharStake = ($espelharStakeParam === '1' || $espelharStakeParam === 'true') ? '1' : '0';
+        } else {
+            $espelharStake = ($activeMoedaCodigo !== 'BRL') ? '1' : '0';
+        }
 
         $allGreenCount = 0;
         $allRedCount = 0;
@@ -2606,8 +2634,17 @@ class ApostaController extends BaseController
             $odd = (float)($ap->odd ?? 1.85);
             if ($odd <= 1.0) $odd = 1.85;
 
-            $stake = (float)($ap->valor_aposta ?? 10.0);
-            if ($stake <= 0.0) $stake = 10.0;
+            // Se o modo de espelhamento estiver ativo, projeta sobre a stake e moeda ativa da meta
+            if ($espelharStake === '1') {
+                $stake = $activeStake;
+                $moedaItemCodigo = $activeMoedaCodigo;
+                $cotacaoItem = $activeCotacao;
+            } else {
+                $stake = (float)($ap->valor_aposta ?? 10.0);
+                if ($stake <= 0.0) $stake = 10.0;
+                $moedaItemCodigo = $ap->moeda_codigo ?? 'BRL';
+                $cotacaoItem = !empty($ap->cotacao_brl_snapshot) ? (float)$ap->cotacao_brl_snapshot : null;
+            }
 
             $statusNorm = 'PENDING';
             $lucroAposta = 0.0;
@@ -2620,28 +2657,52 @@ class ApostaController extends BaseController
 
             $isConfirmedOrDebited = (isset($ap->confirmada) && (int)$ap->confirmada === 1) || (!empty($ap->tem_debito) && (int)$ap->tem_debito > 0);
 
-            // 1. Contabilidade Financeira Real da Carteira (Mantém ROI e Lucro Líquido intactos)
-            if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
-                $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
-                $lucroAposta = $ret - $stake;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
-            } elseif ($statusRaw === 'Meio Ganha') {
-                $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
-                $lucroAposta = ($fullRet - $stake) / 2.0;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
-            } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
-                $lucroAposta = -$stake;
-                $unidadeDelta = -1.0;
-            } elseif ($statusRaw === 'Meio Perdida') {
-                $lucroAposta = -($stake / 2.0);
-                $unidadeDelta = -0.5;
-            } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
-                $lucroAposta = 0.0;
-                $unidadeDelta = 0.0;
-            } elseif ($statusRaw === 'Cashout') {
-                $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
-                $lucroAposta = $cashVal - $stake;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+            // 1. Contabilidade Financeira (Real ou Projetada via Toggle)
+            if ($espelharStake === '1') {
+                // Cálculo proporcional exato para stake padronizada
+                if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                    $lucroAposta = $stake * ($odd - 1.0);
+                    $unidadeDelta = ($odd - 1.0);
+                } elseif ($statusRaw === 'Meio Ganha') {
+                    $lucroAposta = ($stake * ($odd - 1.0)) / 2.0;
+                    $unidadeDelta = ($odd - 1.0) / 2.0;
+                } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                    $lucroAposta = -$stake;
+                    $unidadeDelta = -1.0;
+                } elseif ($statusRaw === 'Meio Perdida') {
+                    $lucroAposta = -($stake / 2.0);
+                    $unidadeDelta = -0.5;
+                } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                    $lucroAposta = 0.0;
+                    $unidadeDelta = 0.0;
+                } elseif ($statusRaw === 'Cashout') {
+                    $origStake = (float)($ap->valor_aposta ?? 0.0);
+                    $lucroAposta = ($origStake > 0.0 && $cashout > 0.0) ? ($stake * ($cashout / $origStake) - $stake) : 0.0;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+                }
+            } else {
+                if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                    $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                    $lucroAposta = $ret - $stake;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
+                } elseif ($statusRaw === 'Meio Ganha') {
+                    $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                    $lucroAposta = ($fullRet - $stake) / 2.0;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
+                } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                    $lucroAposta = -$stake;
+                    $unidadeDelta = -1.0;
+                } elseif ($statusRaw === 'Meio Perdida') {
+                    $lucroAposta = -($stake / 2.0);
+                    $unidadeDelta = -0.5;
+                } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                    $lucroAposta = 0.0;
+                    $unidadeDelta = 0.0;
+                } elseif ($statusRaw === 'Cashout') {
+                    $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
+                    $lucroAposta = $cashVal - $stake;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+                }
             }
 
             // 2. Avaliação Esportiva do Palpite (Acurácia de Campo da IA para Win Rate, Red Rate, Cobertura e Badges)
@@ -2913,6 +2974,26 @@ class ApostaController extends BaseController
             $itemObj->red_cards_home    = $ap->red_cards_home;
             $itemObj->red_cards_away    = $ap->red_cards_away;
 
+            // Cálculo do Valor Líquido em Reais (BRL) deduzindo taxas de movimentação (saque/rede/spot)
+            $calcLiq = $moedaConfigModel->calcularValorLiquidoBrl(
+                (float)$lucroAposta, 
+                $moedaItemCodigo, 
+                $cotacaoItem
+            );
+
+            $itemObj->moeda_codigo        = $calcLiq['moeda_codigo'];
+            $itemObj->moeda_simbolo       = $calcLiq['moeda_simbolo'];
+            $itemObj->casas_decimais      = $calcLiq['casas_decimais'];
+            $itemObj->cotacao_brl         = $calcLiq['cotacao_utilizada'];
+            $itemObj->lucro_bruto_brl     = $calcLiq['lucro_bruto_brl'];
+            $itemObj->taxa_descontada_brl = $calcLiq['taxa_descontada_brl'];
+            $itemObj->lucro_liquido_brl   = $calcLiq['lucro_liquido_brl'];
+
+            if ($statusNorm !== 'NO_BET' && $statusRaw !== 'Pendente') {
+                $totalLucroLiquidoBrl += $calcLiq['lucro_liquido_brl'];
+                $totalTaxasDescontadasBrl += $calcLiq['taxa_descontada_brl'];
+            }
+
             $palpites[] = $itemObj;
         }
 
@@ -2998,12 +3079,22 @@ class ApostaController extends BaseController
             'roiPercent'            => $roiPercent,
             'totalApostadoReal'     => round($totalApostadoReal, 2),
             'lucroLiquidoReal'      => round($lucroLiquidoReal, 2),
+            'totalLucroLiquidoBrl'  => round($totalLucroLiquidoBrl, 2),
+            'totalTaxasDescontadasBrl' => round($totalTaxasDescontadasBrl, 2),
+            'moedaDefault'          => ($espelharStake === '1') ? $moedaAtivaObj : $moedaDefault,
             'openApostado'          => round($openApostado, 2),
             'openPartialLucro'      => round($openPartialLucro, 2),
             'openBetsCount'         => $openBetsCount,
             'useClosedOnly'         => $useClosedOnly,
             'contaCorrenteStats'    => $contaCorrenteStats,
-            'confirmedFilter'       => $confirmedFilter
+            'confirmedFilter'       => $confirmedFilter,
+            'espelharStake'         => $espelharStake,
+            'activeStake'           => $activeStake,
+            'activeMoedaCodigo'     => $activeMoedaCodigo,
+            'activeSimbolo'         => $activeSimbolo,
+            'activeDecimais'        => $activeDecimais,
+            'activeCotacao'         => $activeCotacao,
+            'activeStakeBrl'        => $activeStakeBrl
         ];
 
         return view('header', $data)
@@ -3096,15 +3187,35 @@ class ApostaController extends BaseController
             unset($ap);
         }
 
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva((int)$userId);
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $activeMoedaCodigo = $metaAtiva->moeda_codigo ?? ($moedaDefault->codigo ?? 'BRL');
+        $activeStake = (float)($metaAtiva->stake_padrao ?? 10.0);
+        if ($activeStake <= 0.0) $activeStake = 10.0;
+
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? 'R$';
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        $activeStakeBrl = $activeStake * $activeCotacao;
+
         $gatekeeperStats = $this->computeGatekeeperCategoryStats();
 
         $data = [
-            'title'           => 'Análise de Desempenho | Gestão de Riscos & Palpites',
-            'user'            => $access['user'],
-            'hasTokens'       => $hasTokens,
-            'userCredits'     => $userCredits,
-            'apostas'         => $apostas,
-            'gatekeeperStats' => $gatekeeperStats
+            'title'             => 'Análise de Desempenho | Gestão de Riscos & Palpites',
+            'user'              => $access['user'],
+            'hasTokens'         => $hasTokens,
+            'userCredits'       => $userCredits,
+            'apostas'           => $apostas,
+            'gatekeeperStats'   => $gatekeeperStats,
+            'activeStake'       => $activeStake,
+            'activeMoedaCodigo' => $activeMoedaCodigo,
+            'activeSimbolo'     => $activeSimbolo,
+            'activeDecimais'    => $activeDecimais,
+            'activeCotacao'     => $activeCotacao,
+            'activeStakeBrl'    => $activeStakeBrl
         ];
 
         return view('header', $data)

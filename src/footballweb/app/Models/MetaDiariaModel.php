@@ -14,6 +14,7 @@ class MetaDiariaModel extends Model
     protected $protectFields    = true;
     protected $allowedFields    = [
         'usuario_id',
+        'moeda_codigo',
         'titulo',
         'stake_padrao',
         'total_apostas_alvo',
@@ -44,10 +45,14 @@ class MetaDiariaModel extends Model
             ->getRow();
 
         if (!$meta) {
+            $moedaModel = new \App\Models\MoedaConfigModel();
+            $moedaPadrao = $moedaModel->getDefaultMoeda();
+
             // Cria meta padrão inicial
             $default = [
                 'usuario_id'         => $usuarioId,
-                'titulo'             => 'Meta Padrão - Ciclo 10 Apostas R$ 10',
+                'moeda_codigo'       => $moedaPadrao->codigo ?? 'BRL',
+                'titulo'             => 'Meta Padrão - Ciclo 10 Apostas',
                 'stake_padrao'       => 10.00,
                 'total_apostas_alvo' => 10,
                 'odd_media_alvo'     => 1.75,
@@ -77,6 +82,7 @@ class MetaDiariaModel extends Model
 
         $payload = [
             'titulo'             => !empty($dados['titulo']) ? trim($dados['titulo']) : 'Meta Diária',
+            'moeda_codigo'       => !empty($dados['moeda_codigo']) ? strtoupper(trim($dados['moeda_codigo'])) : ($metaExistente->moeda_codigo ?? 'BRL'),
             'stake_padrao'       => isset($dados['stake_padrao']) ? (float)$dados['stake_padrao'] : 10.00,
             'total_apostas_alvo' => isset($dados['total_apostas_alvo']) ? (int)$dados['total_apostas_alvo'] : 10,
             'odd_media_alvo'     => isset($dados['odd_media_alvo']) ? (float)$dados['odd_media_alvo'] : 1.75,
@@ -205,7 +211,8 @@ class MetaDiariaModel extends Model
         $liquidado   = (float)($res['total_liquidado'] ?? 0);
         $retornos    = (float)($res['retornos_totais'] ?? 0);
 
-        $lucroLiquido = round($retornos - $liquidado, 2);
+        $decRound = (!empty($meta->moeda_codigo) && strtoupper($meta->moeda_codigo) !== 'BRL') ? 8 : 2;
+        $lucroLiquido = round($retornos - $liquidado, $decRound);
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
 
         $alvoApostas = (int)($meta->total_apostas_alvo ?? 10);
@@ -399,6 +406,12 @@ class MetaDiariaModel extends Model
         $ultimoCicloFechado = 0;
         $cicloComJogosHoje = null;
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
+        $metaObj = $moedaModel->getMoedaByCodigo($metaMoeda);
+        $metaCotacaoBrl = (float)($metaObj->cotacao_brl ?? 1.0);
+        $decRound = ($metaMoeda !== 'BRL') ? 8 : 2;
+
         for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
             $offsetBloco = ($c - 1) * $tamanho;
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
@@ -413,8 +426,12 @@ class MetaDiariaModel extends Model
             foreach ($blocoTeste as $bt) {
                 $stBt = (string)($bt->status ?? '');
                 $stBtNorm = strtolower(trim($stBt));
-                $valBt = (float)($bt->valor_aposta ?? 0);
+                $rawValBt = (float)($bt->valor_aposta ?? 0);
                 $oddBt = (float)($bt->odd ?? 0);
+
+                $apMoeda = !empty($bt->moeda_codigo) ? strtoupper(trim((string)$bt->moeda_codigo)) : 'BRL';
+                $apCotacao = (float)($bt->cotacao_brl_snapshot ?? 1.0);
+                $valBt = $this->normalizarValorParaMoedaMeta($rawValBt, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
 
                 if (in_array($stBtNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
                     $pendentesBloco++;
@@ -432,7 +449,9 @@ class MetaDiariaModel extends Model
                         $redsBloco += 0.5;
                         $retornosBloco += ($valBt * 0.5);
                     } elseif ($stBt === 'Cashout') {
-                        $retornosBloco += (float)($bt->cash_out ?? $valBt);
+                        $rawCash = ($bt->cash_out !== null) ? (float)$bt->cash_out : $rawValBt;
+                        $cashBt = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                        $retornosBloco += $cashBt;
                     }
                 }
 
@@ -443,7 +462,7 @@ class MetaDiariaModel extends Model
                 }
             }
 
-            $lucroBloco = round($retornosBloco - $liquidadoBloco, 2);
+            $lucroBloco = round($retornosBloco - $liquidadoBloco, $decRound);
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
@@ -509,8 +528,13 @@ class MetaDiariaModel extends Model
 
         foreach ($apostasCiclo as $ap) {
             $st = $ap->status;
-            $val = (float)$ap->valor_aposta;
+            $rawVal = (float)$ap->valor_aposta;
             $odd = (float)$ap->odd;
+
+            $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+            $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+
             $apostado += $val;
             $somaOdds += $odd;
 
@@ -536,12 +560,14 @@ class MetaDiariaModel extends Model
                     $retornos += ($val * 0.5);
                 } elseif ($st === 'Cashout') {
                     $cashouts++;
-                    $retornos += (float)($ap->cash_out ?? $val);
+                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                    $retornos += $cashVal;
                 }
             }
         }
 
-        $lucroLiquido = round($retornos - $liquidado, 2);
+        $lucroLiquido = round($retornos - $liquidado, $decRound);
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
         $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
@@ -590,15 +616,15 @@ class MetaDiariaModel extends Model
             'reds'                => $reds,
             'cashouts'            => $cashouts,
             'odd_media'           => $oddMedia,
-            'total_apostado'      => $apostado,
-            'total_liquidado'     => $liquidado,
-            'ganhos_totais'       => round($retornos, 2),
+            'total_apostado'      => round($apostado, $decRound),
+            'total_liquidado'     => round($liquidado, $decRound),
+            'ganhos_totais'       => round($retornos, $decRound),
             'lucro_liquido'       => $lucroLiquido,
             'roi_pct'             => $roiPct,
             'progresso_pct'       => $progressoPct,
             'lucro_alvo'          => $lucroAlvo,
             'stake_padrao'        => (float)($meta->stake_padrao ?? 10.00),
-            'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), 2),
+            'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), $decRound),
             'apostas'             => $apostasCiclo
         ];
     }
@@ -636,6 +662,12 @@ class MetaDiariaModel extends Model
         $numCiclos = (int)ceil($totalApostas / $tamanho);
         $historico = [];
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
+        $metaObj = $moedaModel->getMoedaByCodigo($metaMoeda);
+        $metaCotacaoBrl = (float)($metaObj->cotacao_brl ?? 1.0);
+        $decRound = ($metaMoeda !== 'BRL') ? 8 : 2;
+
         for ($c = $numCiclos; $c >= 1; $c--) {
             $offset = ($c - 1) * $tamanho;
             $bloco = array_slice($todasApostas, $offset, $tamanho);
@@ -654,8 +686,12 @@ class MetaDiariaModel extends Model
                 $dtFim = $rawDt;
 
                 $st = $ap->status;
-                $val = (float)$ap->valor_aposta;
+                $rawVal = (float)$ap->valor_aposta;
                 $odd = (float)$ap->odd;
+
+                $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+                $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+                $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
 
                 $stNorm = strtolower(trim((string)$st));
                 if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
@@ -678,7 +714,9 @@ class MetaDiariaModel extends Model
                         $retornos += ($val * 0.5);
                     } elseif ($st === 'Cashout') {
                         $cashouts++;
-                        $retornos += (float)($ap->cash_out ?? $val);
+                        $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                        $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                        $retornos += $cashVal;
                     }
                 }
             }
@@ -694,7 +732,7 @@ class MetaDiariaModel extends Model
                 continue;
             }
 
-            $lucroLiq = round($retornos - $liquidado, 2);
+            $lucroLiq = round($retornos - $liquidado, $decRound);
             $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
@@ -824,5 +862,26 @@ class MetaDiariaModel extends Model
         }
 
         return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Converte o valor de uma aposta para a moeda da meta caso pertençam a moedas diferentes.
+     */
+    public function normalizarValorParaMoedaMeta(float $valor, string $moedaOrigem, float $cotacaoOrigemBrl, string $moedaDestino, float $cotacaoDestinoBrl): float
+    {
+        if ($moedaOrigem === $moedaDestino || $valor == 0.0) {
+            return $valor;
+        }
+
+        // Converte primeiro para BRL
+        $valorBrl = ($moedaOrigem === 'BRL') ? $valor : ($valor * ($cotacaoOrigemBrl > 0 ? $cotacaoOrigemBrl : 1.0));
+
+        // Converte de BRL para a moeda de destino
+        if ($moedaDestino === 'BRL') {
+            return $valorBrl;
+        }
+
+        $cotDestino = ($cotacaoDestinoBrl > 0) ? $cotacaoDestinoBrl : 1.0;
+        return $valorBrl / $cotDestino;
     }
 }

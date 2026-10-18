@@ -187,7 +187,10 @@
       <h1><i class="bi bi-graph-up-arrow"></i> <?= lang('App.perf_analysis_title') ?></h1>
       <div class="bet-subtitle"><?= lang('App.perf_analysis_subtitle') ?></div>
     </div>
-    <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="badge bg-primary bg-opacity-25 text-info font-weight-bold px-3 py-2 fs-6 rounded-pill border border-info border-opacity-50 shadow-sm" id="headerPerfBadge" style="display: <?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL' ? 'inline-block' : 'none') ?>;">
+        <i class="bi bi-magic me-1"></i> Projeção Ativa: <strong><?= number_format($activeStake ?? 10.0, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?></strong> (~ R$ <?= number_format($activeStakeBrl ?? 0.0, 2, ',', '.') ?>)
+      </span>
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light rounded-pill px-4 fw-semibold text-decoration-none">
         <i class="bi bi-arrow-left me-1"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
@@ -243,6 +246,21 @@
           <button type="button" class="slide-btn" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
           <button type="button" class="slide-btn active" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
           <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
+        </div>
+      </div>
+
+      <!-- Slide Button: Espelhar Stakes -->
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;">
+          <i class="bi bi-magic text-info"></i> Stakes:
+        </span>
+        <div class="bet-slide-toggle" id="perfEspelharSlideToggle">
+          <button type="button" class="slide-btn <?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL' ? 'active' : '') ?>" data-val="1" onclick="setPerfEspelharFilter('1', this)" title="Espelhar a stake padrão (<?= number_format($activeStake ?? 10.0, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?>) em todo o histórico">
+            ⚡ Espelhar (<?= esc($activeMoedaCodigo ?? 'BRL') ?>)
+          </button>
+          <button type="button" class="slide-btn <?= (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 'active-no' : '') ?>" data-val="0" onclick="setPerfEspelharFilter('0', this)" title="Exibir valores gravados originalmente em cada aposta">
+            📜 Histórico Real
+          </button>
         </div>
       </div>
 
@@ -331,15 +349,16 @@
             <th>Período</th>
             <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
             <th class="text-center"><i class="bi bi-check-circle-fill text-success me-1"></i> <?= lang('App.win_rate') ?? 'Taxa de Acerto' ?></th>
-            <th>Simulado Bruto (R$)</th>
-            <th>Retorno Bruto (R$)</th>
-            <th>Lucro Líquido (R$)</th>
+            <th>Simulado Bruto</th>
+            <th>Retorno Bruto</th>
+            <th>Lucro Bruto</th>
             <th>ROI (%)</th>
+            <th>Líquido em Reais (R$)</th>
           </tr>
         </thead>
         <tbody id="tableBreakdownBody">
           <tr>
-            <td colspan="7" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
+            <td colspan="8" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
           </tr>
         </tbody>
         <tfoot id="tableBreakdownFoot"></tfoot>
@@ -675,6 +694,47 @@
 <script>
 const rawBets = <?= json_encode($apostas ?? []) ?>;
 const gatekeeperStatsData = <?= json_encode($gatekeeperStats ?? ['total_partidas' => 0, 'categorias' => []]) ?>;
+const moedasConfigList = <?= json_encode((new \App\Models\MoedaConfigModel())->getAllMoedas(false) ?? []) ?>;
+const moedasMap = {};
+moedasConfigList.forEach(m => { moedasMap[m.codigo] = m; });
+
+let perfEspelharFilter = '<?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL') ? '1' : '0' ?>';
+const activeStake = <?= (float)($activeStake ?? 10.0) ?>;
+const activeMoedaCodigo = '<?= esc($activeMoedaCodigo ?? 'BRL') ?>';
+const activeSimbolo = '<?= esc($activeSimbolo ?? 'R$') ?>';
+const activeDecimais = <?= (int)($activeDecimais ?? 2) ?>;
+const activeCotacao = <?= (float)($activeCotacao ?? 1.0) ?>;
+const activeStakeBrl = <?= (float)($activeStakeBrl ?? 10.0) ?>;
+
+function formatDynamicCurrency(v) {
+  if (perfEspelharFilter === '1' && activeMoedaCodigo !== 'BRL') {
+    const val = Number(v) || 0;
+    return `${activeSimbolo} ${val.toLocaleString('pt-BR', { minimumFractionDigits: activeDecimais, maximumFractionDigits: activeDecimais })}`;
+  }
+  return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function setPerfEspelharFilter(val, btnEl) {
+  perfEspelharFilter = val;
+  const container = document.getElementById('perfEspelharSlideToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => {
+      btn.classList.remove('active', 'active-no');
+    });
+  }
+  if (btnEl) {
+    if (val === '0') {
+      btnEl.classList.add('active-no');
+    } else {
+      btnEl.classList.add('active');
+    }
+  }
+  const badge = document.getElementById('headerPerfBadge');
+  if (badge) {
+    badge.style.display = (val === '1') ? 'inline-block' : 'none';
+  }
+  updatePerformanceDashboard();
+}
 
 let perfChart = null;
 let modalidadesChart = null;
@@ -890,10 +950,28 @@ function getWeekKey(dateStr) {
 
 function computeNetProfit(item) {
   const status = item.status || '';
-  const valor = parseFloat(item.valor_aposta) || 0;
+  const valor = (perfEspelharFilter === '1') ? activeStake : (parseFloat(item.valor_aposta) || 0);
   const odd = parseFloat(item.odd) || 0;
   const ganho = parseFloat(item.ganhos_potenciais) || 0;
   const cashout = parseFloat(item.cash_out) || 0;
+
+  if (perfEspelharFilter === '1') {
+    if (status === 'Ganha') {
+      return valor * (odd - 1.0);
+    } else if (status === 'Meio Ganha') {
+      return (valor * (odd - 1.0)) / 2;
+    } else if (status === 'Cashout') {
+      const origStake = parseFloat(item.valor_aposta) || 0;
+      return (origStake > 0 && cashout > 0) ? (valor * (cashout / origStake) - valor) : 0;
+    } else if (status === 'Perdida') {
+      return -valor;
+    } else if (status === 'Meio Perdida') {
+      return -(valor * 0.5);
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      return 0;
+    }
+    return 0;
+  }
 
   if (status === 'Ganha') {
     const ret = ganho > 0 ? ganho : (valor * odd);
@@ -916,10 +994,28 @@ function computeNetProfit(item) {
 
 function computeGrossReturn(item) {
   const status = item.status || '';
-  const valor = parseFloat(item.valor_aposta) || 0;
+  const valor = (perfEspelharFilter === '1') ? activeStake : (parseFloat(item.valor_aposta) || 0);
   const odd = parseFloat(item.odd) || 0;
   const ganho = parseFloat(item.ganhos_potenciais) || 0;
   const cashout = parseFloat(item.cash_out) || 0;
+
+  if (perfEspelharFilter === '1') {
+    if (status === 'Ganha') {
+      return valor * odd;
+    } else if (status === 'Meio Ganha') {
+      return valor + ((valor * (odd - 1.0)) / 2);
+    } else if (status === 'Cashout') {
+      const origStake = parseFloat(item.valor_aposta) || 0;
+      return (origStake > 0 && cashout > 0) ? (valor * (cashout / origStake)) : valor;
+    } else if (status === 'Perdida') {
+      return 0;
+    } else if (status === 'Meio Perdida') {
+      return valor * 0.5;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      return valor;
+    }
+    return 0;
+  }
 
   if (status === 'Ganha') {
     return ganho > 0 ? ganho : (valor * odd);
@@ -1031,7 +1127,7 @@ function updatePerformanceDashboard() {
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
-    const valor = parseFloat(bet.valor_aposta) || 0;
+    const valor = (perfEspelharFilter === '1') ? activeStake : (parseFloat(bet.valor_aposta) || 0);
     const netProfit = computeNetProfit(bet);
     const grossReturn = computeGrossReturn(bet);
     const rawDate = getBetDateBRT(bet);
@@ -1229,6 +1325,8 @@ function updatePerformanceDashboard() {
         apostado: 0,
         retorno: 0,
         lucro: 0,
+        lucroLiquidoBrl: 0,
+        taxaDescontadaBrl: 0,
         count: 0,
         pendingCount: 0,
         hasPending: false,
@@ -1239,9 +1337,23 @@ function updatePerformanceDashboard() {
         decided: 0
       };
     }
+
+    const bMoeda = (perfEspelharFilter === '1') ? activeMoedaCodigo : (bet.moeda_codigo || 'BRL');
+    const mInfo = moedasMap[bMoeda] || { tipo: 'FIAT', cotacao_brl: 1.0, taxa_saque_fixa: 0, taxa_rede_estimada: 0, taxa_spot_percentual: 0 };
+    const cotacao = (perfEspelharFilter === '1') ? activeCotacao : (parseFloat(bet.cotacao_brl_snapshot) || parseFloat(mInfo.cotacao_brl) || 1.0);
+    let bLiqBrl = netProfit * cotacao;
+    let bTaxaBrl = 0;
+    if (mInfo.tipo === 'CRYPTO' && netProfit > 0) {
+      bTaxaBrl = ((parseFloat(mInfo.taxa_saque_fixa) || 0) + (parseFloat(mInfo.taxa_rede_estimada) || 0)) * cotacao;
+      bTaxaBrl += (bLiqBrl * ((parseFloat(mInfo.taxa_spot_percentual) || 0) / 100));
+      bLiqBrl -= bTaxaBrl;
+    }
+
     buckets[key].apostado += valor;
     buckets[key].retorno += grossReturn;
     buckets[key].lucro += netProfit;
+    buckets[key].lucroLiquidoBrl += bLiqBrl;
+    buckets[key].taxaDescontadaBrl += bTaxaBrl;
     buckets[key].count += 1;
     if (status === 'Pendente') {
       buckets[key].pendingCount += 1;
@@ -1315,7 +1427,7 @@ function updatePerformanceDashboard() {
     }
   });
 
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
   // Se o usuário selecionou visualização geral ou multi-dias, os KPIs consolidam estritamente dias concluídos
@@ -2012,7 +2124,7 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
               const meta = metaDetails[idx];
               if (!meta) return '';
 
-              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatBrl = (v) => formatDynamicCurrency(v);
               const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
               return [
@@ -2106,7 +2218,7 @@ function renderLeagueProfitChart(labels, data, bgColors, borderColors, metaDetai
               const meta = metaDetails[idx];
               if (!meta) return '';
 
-              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatBrl = (v) => formatDynamicCurrency(v);
               const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
               const lines = [
@@ -2169,7 +2281,7 @@ function renderLeagueTableBreakdown(keys, buckets, outlierCount = 0, minThreshol
     return;
   }
 
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
   let html = '';
@@ -2237,7 +2349,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 
   const now = new Date();
   const todayStr = formatDateYYYYMMDD(now);
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
 
   let html = '';
   let sumCount = 0;
@@ -2301,6 +2413,10 @@ function renderTableBreakdown(keys, buckets, groupMode) {
         <td>${formatBrl(b.retorno)}</td>
         <td class="${lucroClass}">${formatBrl(bLucro)} ${lucroBadge}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
+        <td class="${(b.lucroLiquidoBrl || 0) >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'}">
+          ${formatBrl(b.lucroLiquidoBrl || 0)}
+          ${(b.taxaDescontadaBrl || 0) > 0 ? `<div class="small text-white-50" style="font-size:0.7rem;">-R$ ${(b.taxaDescontadaBrl).toFixed(2).replace('.', ',')} taxas</div>` : ''}
+        </td>
       </tr>
     `;
   });
@@ -2353,6 +2469,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
         <td class="text-white">${formatBrl(finalSumRetorno)}</td>
         <td class="${lucroClass}">${formatBrl(finalSumLucro)}</td>
         <td class="${avgRoiClass}">${(avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',')}%</td>
+        <td class="${finalSumLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'}">${formatBrl(finalSumLucro)}</td>
       </tr>
     `;
   }

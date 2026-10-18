@@ -978,20 +978,28 @@ def sync_fixture_and_bet_cards(
         bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
         gk_detalhado = selected_cand.get('gatekeeper_reason')
 
+        # Consulta a moeda padrão ativa no sistema para criação de apostas (Regra Multi-Moedas)
+        cursor.execute("SELECT codigo, cotacao_brl, casas_decimais FROM moedas_config WHERE is_default = 1 AND ativo = 1 LIMIT 1")
+        m_def = cursor.fetchone()
+        moeda_padrao_cod = m_def['codigo'] if m_def else 'BRL'
+        cotacao_brl_padrao = float(m_def['cotacao_brl']) if m_def else 1.0
+        casas_dec_padrao = int(m_def['casas_decimais']) if m_def else 2
+
         for uid in user_ids:
             # Consulta stake ativa parametrizada do usuário em metas_diarias_config
             cursor.execute("""
-                SELECT stake_padrao 
+                SELECT stake_padrao, moeda_codigo 
                 FROM metas_diarias_config 
                 WHERE usuario_id = %s AND is_ativa = 1 
                 ORDER BY id DESC LIMIT 1
             """, (uid,))
             meta_row = cursor.fetchone()
+            user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
             user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
             if user_stake <= 0.0:
                 user_stake = 10.00
             valor_aposta = user_stake
-            ganhos_potenciais = round(valor_aposta * odd_val, 2)
+            ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
             cursor.execute("""
                 SELECT a.id, a.palpite, a.confirmada, a.status,
@@ -1031,16 +1039,16 @@ def sync_fixture_and_bet_cards(
             else:
                 cursor.execute("""
                     INSERT INTO apostas (
-                        usuario_id, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
+                        usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
                         odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
                         valor_aposta, ganhos_potenciais, status, confirmada, resultado_detalhado, data_hora_jogo, criado_em, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
                         %s, %s, %s, 'APROVADO',
                         %s, %s, 'Pendente', 0, %s, %s, NOW(), NOW()
                     )
                 """, (
-                    uid, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
+                    uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc,
                     valor_aposta, ganhos_potenciais, gk_detalhado, fixture_date
                 ))

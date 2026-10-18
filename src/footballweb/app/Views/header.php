@@ -519,6 +519,25 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </ul>
                 </div>
 
+                <?php
+                    $moedaModelHeader = new \App\Models\MoedaConfigModel();
+                    $moedaPadraoHeader = $moedaModelHeader->getDefaultMoeda();
+                ?>
+                <?php if ($moedaPadraoHeader): ?>
+                <!-- Indicador da Moeda Padrão do Sistema (Entre Idioma e Usuário) -->
+                <a href="<?= base_url('moedas') ?>" class="btn btn-outline-light btn-sm d-flex align-items-center gap-1 text-nowrap me-2 shadow-sm" style="padding: 6px 12px; font-weight: 600; background: rgba(30, 41, 59, 0.7); border-color: rgba(255,255,255,0.25); text-decoration: none;" title="Moeda Padrão do Sistema: <?= esc($moedaPadraoHeader->nome) ?><?= $moedaPadraoHeader->tipo === 'CRYPTO' ? ' (Cotação Binance: R$ ' . number_format($moedaPadraoHeader->cotacao_brl, 2, ',', '.') . ')' : '' ?> - Clique para configurar">
+                    <?php if ($moedaPadraoHeader->simbolo !== $moedaPadraoHeader->codigo): ?>
+                        <span style="color: #38bdf8; font-weight: 700;"><?= esc($moedaPadraoHeader->simbolo) ?></span>
+                    <?php endif; ?>
+                    <span style="letter-spacing: 0.5px; font-weight: 600;"><?= esc($moedaPadraoHeader->codigo) ?></span>
+                    <?php if ($moedaPadraoHeader->tipo === 'CRYPTO'): ?>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 0.68rem; padding: 2px 5px; margin-left: 2px; border: 1px solid rgba(56, 189, 248, 0.4);">
+                            R$ <?= number_format($moedaPadraoHeader->cotacao_brl, 2, ',', '.') ?>
+                        </span>
+                    <?php endif; ?>
+                </a>
+                <?php endif; ?>
+
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
@@ -701,6 +720,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="<?= base_url('metas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #38bdf8;" title="Metas Diárias & Ciclos Rotativos">
                         <i class="bi bi-bullseye" style="font-size: 19px;"></i>
                         <span>Metas Diárias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('moedas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #f59e0b;" title="Configuração de Criptomoedas & Taxas Operacionais">
+                        <i class="bi bi-coin" style="font-size: 19px;"></i>
+                        <span>Criptomoedas</span>
                     </a>
                 </li>
                 <?php endif; ?>

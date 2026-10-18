@@ -195,10 +195,15 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0 d-flex flex-column align-items-lg-end gap-2">
                 <span class="badge bg-info text-dark font-weight-bold px-3 py-2 fs-6 rounded-pill border border-info shadow-sm">
                     <i class="bi bi-shield-check me-1"></i> Apenas Jogos Encerrados (FT)
                 </span>
+                <?php if (($espelharStake ?? '0') === '1'): ?>
+                    <span class="badge bg-primary bg-opacity-25 text-info font-weight-bold px-3 py-1 fs-6 rounded-pill border border-info border-opacity-50 shadow-sm" title="Stakes e ganhos padronizados com base na meta diária ativa">
+                        <i class="bi bi-magic me-1"></i> Projeção: <strong><?= number_format($activeStake ?? 10.0, ($activeMoedaCodigo === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?></strong> (~ R$ <?= number_format($activeStakeBrl ?? 0.0, 2, ',', '.') ?>)
+                    </span>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -268,8 +273,8 @@
                 </select>
             </div>
 
-            <!-- Slide Toggle de Apostas Confirmadas + Botões de Ação -->
-            <div class="col-12 col-md-4 pt-1">
+            <!-- Slide Toggle de Apostas Confirmadas -->
+            <div class="col-12 col-md-3 pt-1">
                 <label class="form-label text-white-50 small font-weight-bold d-flex align-items-center gap-1 mb-1">
                     <i class="bi bi-shield-check text-success"></i> Apostas Confirmadas:
                 </label>
@@ -281,7 +286,23 @@
                 </div>
             </div>
 
-            <div class="col-12 col-md-8 d-flex justify-content-end align-items-end gap-2 pt-1">
+            <!-- Slide Toggle de Modo de Stakes: Espelhar Atual vs Histórico Real -->
+            <div class="col-12 col-md-5 pt-1">
+                <label class="form-label text-white-50 small font-weight-bold d-flex align-items-center gap-1 mb-1">
+                    <i class="bi bi-magic text-info"></i> Modo de Exibição de Stakes:
+                </label>
+                <div class="bet-slide-toggle" id="espelharSlideToggle">
+                    <input type="hidden" name="espelhar_stake" id="espelharStakeInput" value="<?= esc($espelharStake ?? '1') ?>">
+                    <button type="button" class="slide-btn <?= (($espelharStake ?? '1') === '1') ? 'active' : '' ?>" data-val="1" onclick="setEspelharStakeFilter('1', this)" title="Espelhar a stake padrão e moeda configurada na meta ativa">
+                        ⚡ Espelhar (<?= number_format($activeStake ?? 10.0, ($activeMoedaCodigo === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?>)
+                    </button>
+                    <button type="button" class="slide-btn <?= (($espelharStake ?? '1') === '0') ? 'active-no' : '' ?>" data-val="0" onclick="setEspelharStakeFilter('0', this)" title="Exibir o valor real gravado originalmente em cada aposta histórica">
+                        📜 Histórico Real
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-4 d-flex justify-content-end align-items-end gap-2 pt-1">
                 <button type="submit" class="btn btn-success fw-bold px-4">
                     <i class="bi bi-filter me-1"></i> Aplicar Filtros
                 </button>
@@ -367,10 +388,10 @@
                 <div class="stat-card-title">Apostas Analisadas</div>
                 <div class="stat-value mt-1" style="color: #38bdf8;"><?= number_format($totalAnalisados, 0, ',', '.') ?></div>
                 <div class="stat-card-sub mt-2" style="color: #fbbf24;">
-                    <i class="bi bi-cash-coin me-1"></i> R$ <?= number_format($totalApostadoReal ?? 0, 2, ',', '.') ?> em apostas
+                    <i class="bi bi-cash-coin me-1"></i> <?= esc($moedaDefault->simbolo ?? 'R$') ?> <?= number_format($totalApostadoReal ?? 0, (int)($moedaDefault->casas_decimais ?? 2), ',', '.') ?> em apostas
                     <?php if (!empty($openApostado) && $openApostado > 0): ?>
                         <div class="small text-warning mt-1" style="font-size: 0.72rem;">
-                            <i class="bi bi-hourglass-split me-1"></i> + R$ <?= number_format($openApostado, 2, ',', '.') ?> em andamento hoje
+                            <i class="bi bi-hourglass-split me-1"></i> + <?= esc($moedaDefault->simbolo ?? 'R$') ?> <?= number_format($openApostado, (int)($moedaDefault->casas_decimais ?? 2), ',', '.') ?> em andamento hoje
                         </div>
                     <?php endif; ?>
                 </div>
@@ -442,15 +463,25 @@
         <!-- Lucro Líquido & ROI Real -->
         <div class="col-12 col-sm-6 col-xl-2">
             <div class="stat-card-glass" style="border-color: #1d4ed8 !important;">
-                <div class="stat-card-title">Lucro Líquido Real</div>
-                <div class="stat-value mt-1" style="color: <?= ($lucroLiquidoReal ?? 0) >= 0 ? '#34d399' : '#f87171' ?>;">
-                    <?= (($lucroLiquidoReal ?? 0) >= 0 ? '+' : '') . 'R$ ' . number_format($lucroLiquidoReal ?? 0, 2, ',', '.') ?>
+                <div class="stat-card-title d-flex align-items-center justify-content-between">
+                    <span>Lucro Líquido Real</span>
+                    <?php if (($moedaDefault->codigo ?? 'BRL') !== 'BRL'): ?>
+                        <span class="badge bg-warning text-dark small" style="font-size: 0.68rem;"><?= esc($moedaDefault->codigo) ?></span>
+                    <?php endif; ?>
                 </div>
+                <div class="stat-value mt-1" style="color: <?= ($lucroLiquidoReal ?? 0) >= 0 ? '#34d399' : '#f87171' ?>;">
+                    <?= (($lucroLiquidoReal ?? 0) >= 0 ? '+' : '') . esc($moedaDefault->simbolo ?? 'R$') . ' ' . number_format($lucroLiquidoReal ?? 0, (int)($moedaDefault->casas_decimais ?? 2), ',', '.') ?>
+                </div>
+                <?php if (($moedaDefault->codigo ?? 'BRL') !== 'BRL' || (!empty($totalTaxasDescontadasBrl) && $totalTaxasDescontadasBrl > 0)): ?>
+                    <div class="small fw-bold text-info mt-1" title="Valor líquido convertido em Reais com taxas operacionais deduzidas">
+                        ≈ <?= (($totalLucroLiquidoBrl ?? 0) >= 0 ? '+' : '') . 'R$ ' . number_format($totalLucroLiquidoBrl ?? 0, 2, ',', '.') ?> Líquido BRL
+                    </div>
+                <?php endif; ?>
                 <div class="stat-card-sub mt-2" style="color: <?= ($roiPercent ?? 0) >= 0 ? '#34d399' : '#f87171' ?>;">
                     ROI Real: <strong><?= (($roiPercent ?? 0) >= 0 ? '+' : '') . $roiPercent ?>%</strong> (<?= ($lucroPrejuizoUnidades >= 0 ? '+' : '') . number_format($lucroPrejuizoUnidades, 2, ',', '.') ?> u)
                     <?php if (!empty($openApostado) && $openApostado > 0): ?>
                         <div class="small text-white-50 mt-1" style="font-size: 0.72rem;">
-                            <i class="bi bi-hourglass-split me-1 text-warning"></i> Hoje: R$ <?= number_format($openPartialLucro ?? 0, 2, ',', '.') ?> parcial
+                            <i class="bi bi-hourglass-split me-1 text-warning"></i> Hoje: <?= esc($moedaDefault->simbolo ?? 'R$') ?> <?= number_format($openPartialLucro ?? 0, 2, ',', '.') ?> parcial
                         </div>
                     <?php endif; ?>
                 </div>
@@ -528,13 +559,14 @@
                         <th>Valor Apostado</th>
                         <th>Odd Real</th>
                         <th>Retorno / Lucro</th>
+                        <th>Líquido em Reais (R$)</th>
                         <th class="pe-3 text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($palpites)): ?>
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-white-50">
+                            <td colspan="10" class="text-center py-5 text-white-50">
                                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                 Nenhuma aposta encontrada para os filtros selecionados.
                             </td>
@@ -626,7 +658,7 @@
                                     <?php if (strtoupper($p->resultado_status) === 'NO_BET'): ?>
                                         <span class="text-white-50">—</span>
                                     <?php else: ?>
-                                        <span class="fw-bold text-white">R$ <?= number_format($p->valor_aposta ?? 10.0, 2, ',', '.') ?></span>
+                                        <span class="fw-bold text-white"><?= esc($p->moeda_simbolo ?? 'R$') ?> <?= number_format($p->valor_aposta ?? 10.0, (int)($p->casas_decimais ?? 2), ',', '.') ?></span>
                                     <?php endif; ?>
                                 </td>
 
@@ -641,29 +673,57 @@
                                     <?php endif; ?>
                                 </td>
 
-                                <!-- Retorno / Lucro Real -->
+                                <!-- Retorno / Lucro Real na Moeda Nativa -->
                                 <td>
                                     <?php
                                         $st = strtoupper($p->resultado_status);
                                         $lucro = (float)($p->lucro_real ?? 0.0);
+                                        $simb = esc($p->moeda_simbolo ?? 'R$');
+                                        $dec = (int)($p->casas_decimais ?? 2);
                                         $isCashout = !empty($p->is_cashout) || (($p->aposta_status ?? '') === 'Cashout');
                                         
                                         if ($isCashout) {
-                                            $prefix = ($lucro > 0.01) ? '+R$ ' : (($lucro < -0.01) ? '-R$ ' : 'R$ ');
-                                            $colorClass = ($lucro > 0.01) ? 'text-success' : (($lucro < -0.01) ? 'text-danger' : 'text-warning');
-                                            echo '<span class="fw-bold ' . $colorClass . '">' . $prefix . number_format(abs($lucro), 2, ',', '.') . ' <small class="text-white-50">(Cashout)</small></span>';
+                                            $prefix = ($lucro > 0.00000001) ? "+{$simb} " : (($lucro < -0.00000001) ? "-{$simb} " : "{$simb} ");
+                                            $colorClass = ($lucro > 0.00000001) ? 'text-success' : (($lucro < -0.00000001) ? 'text-danger' : 'text-warning');
+                                            echo '<span class="fw-bold ' . $colorClass . '">' . $prefix . number_format(abs($lucro), $dec, ',', '.') . ' <small class="text-white-50">(Cashout)</small></span>';
                                         } elseif ($st === 'GREEN' || $st === 'MEIO_GREEN') {
-                                            echo '<span class="fw-bold text-success">+R$ ' . number_format($lucro, 2, ',', '.') . '</span>';
+                                            echo '<span class="fw-bold text-success">+' . $simb . ' ' . number_format($lucro, $dec, ',', '.') . '</span>';
                                         } elseif ($st === 'RED' || $st === 'MEIO_RED') {
-                                            echo '<span class="fw-bold text-danger">-R$ ' . number_format(abs($lucro), 2, ',', '.') . '</span>';
+                                            echo '<span class="fw-bold text-danger">-' . $simb . ' ' . number_format(abs($lucro), $dec, ',', '.') . '</span>';
                                         } elseif ($st === 'VOID') {
-                                            echo '<span class="fw-bold text-info">R$ 0,00 (Reembolso)</span>';
+                                            echo '<span class="fw-bold text-info">' . $simb . ' 0,00 (Reembolso)</span>';
                                         } elseif ($st === 'NO_BET') {
-                                            echo '<span class="text-white-50">R$ 0,00</span>';
+                                            echo '<span class="text-white-50">' . $simb . ' 0,00</span>';
                                         } else {
                                             echo '<span class="text-warning">Em aberto</span>';
                                         }
                                     ?>
+                                </td>
+
+                                <!-- Líquido em Reais (R$) com Taxas Descontadas -->
+                                <td>
+                                    <?php if (strtoupper($p->resultado_status) === 'NO_BET'): ?>
+                                        <span class="text-white-50">—</span>
+                                    <?php else: ?>
+                                        <?php
+                                            $liqBrl = (float)($p->lucro_liquido_brl ?? 0.0);
+                                            $taxaBrl = (float)($p->taxa_descontada_brl ?? 0.0);
+                                            $corBrl = ($liqBrl > 0.00) ? 'text-success' : (($liqBrl < 0.00) ? 'text-danger' : 'text-info');
+                                            $sinalBrl = ($liqBrl > 0.00) ? '+R$ ' : (($liqBrl < 0.00) ? '-R$ ' : 'R$ ');
+                                        ?>
+                                        <div class="fw-bold <?= $corBrl ?>">
+                                            <?= $sinalBrl . number_format(abs($liqBrl), 2, ',', '.') ?>
+                                        </div>
+                                        <?php if ($taxaBrl > 0.00): ?>
+                                            <div class="small text-white-50" title="Taxas previstas de movimentação (saque Stake, rede e spot) deduzidas">
+                                                <i class="bi bi-arrow-down-right text-warning"></i> -R$ <?= number_format($taxaBrl, 2, ',', '.') ?> taxas
+                                            </div>
+                                        <?php elseif (($p->moeda_codigo ?? 'BRL') !== 'BRL'): ?>
+                                            <div class="small text-white-50">
+                                                Cotação: R$ <?= number_format((float)($p->cotacao_brl ?? 1.0), 2, ',', '.') ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
                                 </td>
 
                                 <td class="pe-3 text-center">
@@ -783,6 +843,22 @@
         const inputEl = document.getElementById('confirmedFilterInput');
         if (inputEl) inputEl.value = val;
         const container = document.getElementById('confirmedSlideToggle');
+        if (container) {
+            container.querySelectorAll('.slide-btn').forEach(btn => btn.classList.remove('active', 'active-no'));
+        }
+        if (btnEl) {
+            if (val === '0') {
+                btnEl.classList.add('active-no');
+            } else {
+                btnEl.classList.add('active');
+            }
+        }
+    }
+
+    function setEspelharStakeFilter(val, btnEl) {
+        const inputEl = document.getElementById('espelharStakeInput');
+        if (inputEl) inputEl.value = val;
+        const container = document.getElementById('espelharSlideToggle');
         if (container) {
             container.querySelectorAll('.slide-btn').forEach(btn => btn.classList.remove('active', 'active-no'));
         }

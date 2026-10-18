@@ -109,6 +109,11 @@ $routes->get('/metas', 'MetaController::index', ['as' => 'metas.index']);
 $routes->post('/metas/salvar-config', 'MetaController::salvarConfig', ['as' => 'metas.salvar_config']);
 $routes->post('/metas/recalcular-dia', 'MetaController::recalcularDia', ['as' => 'metas.recalcular_dia']);
 
+// Rotas de Configuração de Moedas e Criptomoedas Operacionais
+$routes->get('/moedas', 'MoedaController::index', ['as' => 'moedas.index']);
+$routes->post('/moedas/salvar', 'MoedaController::salvar', ['as' => 'moedas.salvar']);
+$routes->post('/moedas/set-default', 'MoedaController::setDefault', ['as' => 'moedas.set_default']);
+
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
 $routes->match(['get', 'head'], '/team-logo/(:num)', 'FootballTrendsController::teamLogo/$1', ['as'=>'football.team-logo']);

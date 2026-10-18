@@ -177,6 +177,7 @@ class MetaController extends BaseController
         $titulo           = trim((string)$this->request->getPost('titulo'));
         $stakePadrao      = (float)$this->request->getPost('stake_padrao');
         $totalApostasAlvo = (int)$this->request->getPost('total_apostas_alvo');
+        $moedaCodigo      = strtoupper(trim((string)$this->request->getPost('moeda_codigo')));
         $oddMediaAlvo     = (float)$this->request->getPost('odd_media_alvo');
         $targetGreens     = (int)$this->request->getPost('target_greens');
         $targetPushes     = (int)$this->request->getPost('target_pushes');
@@ -200,15 +201,16 @@ class MetaController extends BaseController
         // Se lucro_alvo ou stop_loss não foram informados explicitamente, escala proporcionalmente à stake
         if ($lucroAlvo <= 0) {
             $lucroBase = (float)($metaAtual->lucro_alvo ?? 7.50);
-            $lucroAlvo = round($lucroBase * ($stakePadrao / $stakeAntiga), 2);
+            $lucroAlvo = round($lucroBase * ($stakePadrao / $stakeAntiga), 8);
         }
         if ($stopLossDiario == 0) {
             $stopBase = (float)($metaAtual->stop_loss_diario ?? -30.00);
-            $stopLossDiario = round($stopBase * ($stakePadrao / $stakeAntiga), 2);
+            $stopLossDiario = round($stopBase * ($stakePadrao / $stakeAntiga), 8);
         }
 
         $dados = [
             'titulo'             => !empty($titulo) ? $titulo : 'Meta Diária - Ciclo 10 Apostas',
+            'moeda_codigo'       => !empty($moedaCodigo) ? $moedaCodigo : ($metaAtual->moeda_codigo ?? 'BRL'),
             'stake_padrao'       => $stakePadrao,
             'total_apostas_alvo' => $totalApostasAlvo,
             'odd_media_alvo'     => $oddMediaAlvo > 0 ? $oddMediaAlvo : 1.75,

@@ -15,7 +15,9 @@ if (!function_exists('getBookmakerUrl')) {
     require_once APPPATH . 'Helpers/BookmakerHelper.php';
 }
 $userStakePadrao = isset($stakePadrao) && (float)$stakePadrao > 0 ? (float)$stakePadrao : 10.00;
-$userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
+$userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userStakePadrao, 2))) 
+    ? number_format($userStakePadrao, 8, '.', '') 
+    : number_format($userStakePadrao, 2, '.', '');
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1306,8 +1308,25 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           );
 
           $isVolatilidadeBloqueada = ($isVolatilidade && !$isAbstencaoBloqueada && (!$isConfirmada || $aposta->status === 'Não Confirmada'));
+
+          $apMoeda = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+          $apCotacao = (float)($aposta->cotacao_brl_snapshot ?? 1.0);
+          $isCrypto = ($apMoeda !== 'BRL');
+          $fmtValorMoeda = function($val, $moeda) {
+              $num = (float)$val;
+              if ($moeda === 'BRL') {
+                  return 'R$ ' . number_format($num, 2, ',', '.');
+              }
+              if ($num == 0.0) {
+                  return '0,00000000 ' . $moeda;
+              }
+              return number_format($num, 8, ',', '.') . ' ' . $moeda;
+          };
+          $displayGanho = ((float)($aposta->ganhos_potenciais ?? 0) > 0)
+              ? (float)$aposta->ganhos_potenciais
+              : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -1465,11 +1484,33 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             <div class="values-grid">
               <div class="val-box">
                 <div class="val-title"><?= lang('App.bet_simulation_label') ?></div>
-                <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
+                <?php if ($isCrypto): ?>
+                  <div class="val-amount" style="font-size: 0.95rem; font-weight: 700;">
+                    <?= $fmtValorMoeda($aposta->valor_aposta, $apMoeda) ?>
+                    <?php if ($apCotacao > 0): ?>
+                      <div style="font-size: 0.72rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">
+                        ~ R$ <?= number_format((float)$aposta->valor_aposta * $apCotacao, 2, ',', '.') ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
+                <?php endif; ?>
               </div>
               <div class="val-box highlight">
                 <div class="val-title"><?= lang('App.potential_earnings_label') ?></div>
-                <div class="val-amount primary">R$ <?= number_format($aposta->ganhos_potenciais, 2, ',', '.') ?></div>
+                <?php if ($isCrypto): ?>
+                  <div class="val-amount primary" style="font-size: 0.95rem; font-weight: 700;">
+                    <?= $fmtValorMoeda($displayGanho, $apMoeda) ?>
+                    <?php if ($apCotacao > 0): ?>
+                      <div style="font-size: 0.72rem; color: #38bdf8; font-weight: normal; margin-top: 2px;">
+                        ~ R$ <?= number_format((float)$displayGanho * $apCotacao, 2, ',', '.') ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="val-amount primary">R$ <?= number_format($displayGanho, 2, ',', '.') ?></div>
+                <?php endif; ?>
               </div>
             </div>
 
@@ -1785,7 +1826,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 </button>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
-                CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
+                CASH OUT <?= $isCrypto ? $fmtValorMoeda($aposta->cash_out ?? $aposta->valor_aposta, $apMoeda) : ('R$ ' . number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.')) ?>
               </button>
               <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="<?= lang('App.rebet') ?>">
                 <i class="bi bi-arrow-repeat"></i> <?= lang('App.rebet') ?>
@@ -1821,7 +1862,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         data-mercado="<?= htmlspecialchars($aposta->mercado ?? '', ENT_QUOTES, 'UTF-8') ?>" 
                         data-palpite="<?= htmlspecialchars($aposta->palpite ?? '', ENT_QUOTES, 'UTF-8') ?>" 
                         data-odd="<?= number_format((float)($aposta->odd ?? 1.0), 2, '.', '') ?>" 
-                        data-valor="<?= number_format((float)($aposta->valor_aposta ?? 10.0), 2, '.', '') ?>" 
+                        data-valor="<?= ($isCrypto ? number_format((float)($aposta->valor_aposta ?? 10.0), 8, '.', '') : number_format((float)($aposta->valor_aposta ?? 10.0), 2, '.', '')) ?>" 
                         data-tipo="<?= htmlspecialchars($aposta->tipo ?? 'Simples', ENT_QUOTES, 'UTF-8') ?>" 
                         data-status="<?= htmlspecialchars($aposta->status ?? 'Pendente', ENT_QUOTES, 'UTF-8') ?>" 
                         onclick="handleOpenEditModal(this)" 
@@ -1975,18 +2016,18 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
-              <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" oninput="calcGanhos()">
+              <input type="number" step="any" class="form-control" id="valorInput" required placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.potential_earnings') ?></label>
-              <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="R$ 14,70">
+              <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="0,00">
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.cashout_value') ?></label>
-              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="number" step="any" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -2065,15 +2106,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               <input type="number" step="0.01" min="1.01" class="form-control bg-dark text-white border-secondary fw-bold text-success" id="editOddInput" required>
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> (R$) *</label>
-              <input type="number" step="0.01" min="0.01" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
+              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> *</label>
+              <input type="number" step="any" min="0.00000001" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
-              <label class="form-label text-white"><?= lang('App.cashout') ?> (R$)</label>
-              <input type="number" step="0.01" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
+              <label class="form-label text-white"><?= lang('App.cashout') ?></label>
+              <input type="number" step="any" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -2493,7 +2534,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const valRaw = valInput ? valInput.value : '0';
     const val = parseFloat(valRaw) || 0;
     const res = odd * val;
-    document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const isCryptoVal = (val > 0 && (valRaw.includes('.') && valRaw.split('.')[1].length > 2 || val < 1));
+    if (isCryptoVal) {
+      document.getElementById('ganhosDisplay').value = res.toFixed(8).replace('.', ',');
+    } else {
+      document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    }
     const cashoutEl = document.getElementById('cashoutInput');
     if (cashoutEl) cashoutEl.value = valRaw;
   }
@@ -2504,7 +2550,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const valRaw = valInput ? valInput.value : '0';
     const val = parseFloat(valRaw) || 0;
     const res = odd * val;
-    document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const isCryptoVal = (val > 0 && (valRaw.includes('.') && valRaw.split('.')[1].length > 2 || val < 1));
+    if (isCryptoVal) {
+      document.getElementById('editGanhosDisplay').value = res.toFixed(8).replace('.', ',');
+    } else {
+      document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    }
     const editCashoutEl = document.getElementById('editCashoutInput');
     if (editCashoutEl) editCashoutEl.value = valRaw;
   }
@@ -3649,9 +3700,20 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const betAmountEl = document.getElementById('confirmBetAmount');
     const oddInputEl = document.getElementById('confirmBetOddInput');
     
+    const apMoeda = cardEl ? (cardEl.getAttribute('data-moeda') || 'BRL') : 'BRL';
+    const apCotacao = cardEl ? parseFloat(cardEl.getAttribute('data-cotacao') || '1') : 1.0;
+
     if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
     if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
-    if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    if (betAmountEl) {
+      if (apMoeda !== 'BRL') {
+        const valCrypto = currentBetToConfirm.valor.toFixed(8).replace('.', ',') + ' ' + apMoeda;
+        const valBrl = apCotacao > 0 ? ' (~ R$ ' + (currentBetToConfirm.valor * apCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        betAmountEl.textContent = valCrypto + valBrl;
+      } else {
+        betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+      }
+    }
     if (oddInputEl) oddInputEl.value = currentBetToConfirm.odd > 0 ? currentBetToConfirm.odd.toFixed(2) : '';
     
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
@@ -4429,7 +4491,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         // Atualizar ganhos potenciais
         const ganhoEl = cardEl.querySelector('.val-amount.primary');
         if (ganhoEl && data.ganhos_potenciais_novos) {
-          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+          if (cardMoeda !== 'BRL') {
+            ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+          } else {
+            ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          }
           ganhoEl.classList.add('pulse-highlight');
           setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
         }
@@ -4901,7 +4968,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
         const ganhoEl = cardEl.querySelector('.val-amount.primary');
         if (ganhoEl && data.ganhos_potenciais_novos) {
-          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+          if (cardMoeda !== 'BRL') {
+            ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+          } else {
+            ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          }
           ganhoEl.classList.add('pulse-highlight');
           setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
         }

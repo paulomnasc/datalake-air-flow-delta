@@ -3628,9 +3628,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const saldoLiquido = totalRetorno - totalApostadoLiquidado;
     const saldoLiquidoBrl = totalRetornoBrl - totalApostadoLiquidadoBrl;
 
-    // Total apostado para exibição: no modo espelhar, alinha com a Análise de Desempenho exibindo o volume liquidado consolidado
-    const displayApostadoVal = isEspelhar ? totalApostadoLiquidado : totalApostado;
-    const displayApostadoBrl = isEspelhar ? totalApostadoLiquidadoBrl : totalApostadoBrl;
+    // Total apostado para exibição: exibe o volume total simulado das apostas ativas/visíveis do período
+    const displayApostadoVal = totalApostado;
+    const displayApostadoBrl = totalApostadoBrl;
 
     const elApostado = document.getElementById('calcTotalApostado');
     const elGanho = document.getElementById('calcTotalGanho');

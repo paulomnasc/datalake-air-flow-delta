@@ -972,6 +972,9 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
             <?php if ($isCryptoMeta && $cotacaoMoedaMeta > 0): ?>
               <div style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">~ R$ <?= number_format(((float)($ciclo['lucro_liquido'] ?? 0)) * $cotacaoMoedaMeta, 2, ',', '.') ?></div>
             <?php endif; ?>
+            <?php if ($isFechadoCiclo && ($ciclo['lucro_liquido'] ?? 0) > 0): ?>
+              <span style="display: inline-block; margin-top: 4px; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; font-size: 0.68rem; color: #34d399; font-weight: 700;">💰 Saque Disponível</span>
+            <?php endif; ?>
           </div>
         </div>
         <div class="metric-box">
@@ -1019,6 +1022,38 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
           </div>
         </div>
       </div>
+
+      <?php if ($isFechadoCiclo && ($ciclo['lucro_liquido'] ?? 0) > 0): ?>
+        <?php 
+          $cLucroVal = (float)($ciclo['lucro_liquido'] ?? 0);
+          $cLiqData  = $moedaModel->calcularValorLiquidoBrl($cLucroVal, $meta->moeda_codigo ?? 'BRL');
+          $valBrlSacar = $cLiqData['lucro_liquido_brl'] ?? ($cLucroVal * $cotacaoMoedaMeta);
+        ?>
+        <div style="margin-top: 0.85rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(16, 185, 129, 0.25); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              💰
+            </div>
+            <div>
+              <div style="font-weight: 700; color: #34d399; font-size: 0.95rem;">
+                Sangria de Lucro Recomendada (Ciclo #<?= $numCicloAtual ?>)
+              </div>
+              <div style="font-size: 0.8rem; color: #cbd5e1;">
+                Ciclo finalizado no verde. Saque o lucro para sua conta e mantenha sua banca base de giro na Stake.
+              </div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 1.25rem; font-weight: 800; color: #34d399;">
+              R$ <?= number_format($valBrlSacar, 2, ',', '.') ?>
+              <span style="font-size: 0.8rem; color: #94a3b8; font-weight: normal;">(<?= $fmtValorMeta($cLucroVal, true) ?>)</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #10b981; font-weight: 600;">
+              ✓ Pronto para saque via PIX
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
 
     </div>
 

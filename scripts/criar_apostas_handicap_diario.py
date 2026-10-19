@@ -397,7 +397,7 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         saldo_posterior = None
         
         cursor.execute("""
-            SELECT id, valor FROM conta_corrente 
+            SELECT id, valor, moeda_codigo FROM conta_corrente 
             WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
             LIMIT 1
         """, (usuario_id, aposta_id))
@@ -415,17 +415,18 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
                 user_row = cursor.fetchone()
                 saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
-                saldo_posterior = round(saldo_anterior + valor, 2)
+                saldo_posterior = round(saldo_anterior + valor, 8)
+                moeda_cod = debito.get('moeda_codigo') or aposta.get('moeda_codigo') or 'BRL'
                 
                 desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
                 
                 cursor.execute("""
                     INSERT INTO conta_corrente (
-                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em
                     ) VALUES (
-                        %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
+                        %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, %s, NOW()
                     )
-                """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
+                """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior, moeda_cod))
                 
                 cursor.execute("""
                     UPDATE usuario 
@@ -434,7 +435,7 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
                 """, (saldo_posterior, usuario_id))
                 
                 estornado = True
-                print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+                print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | {moeda_cod} {valor} estornado (Novo Saldo: {moeda_cod} {saldo_posterior})")
 
         # Disparo da Notificação em Tempo Real (Sininho & Toast Pop-up) para todas as apostas canceladas
         is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)

@@ -58,12 +58,19 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             row_cc = cursor.fetchone()
             saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
 
-        saldo_posterior = round(saldo_anterior + valor, 2)
+        moeda_cod = 'BRL'
+        if aposta_id:
+            cursor.execute("SELECT moeda_codigo FROM apostas WHERE id = %s", (aposta_id,))
+            row_ap = cursor.fetchone()
+            if row_ap and row_ap.get('moeda_codigo'):
+                moeda_cod = row_ap['moeda_codigo']
+
+        saldo_posterior = round(saldo_anterior + valor, 8)
 
         cursor.execute("""
-            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
-        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior, moeda_cod))
 
         cursor.execute("""
             UPDATE usuario
@@ -71,7 +78,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             WHERE id = %s
         """, (saldo_posterior, usuario_id))
 
-        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado {moeda_cod} {valor} para Usuário #{usuario_id} (Novo Saldo: {moeda_cod} {saldo_posterior})")
         return True
     except Exception as e:
         print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")

@@ -325,13 +325,22 @@
                     <i class="bi bi-shield-check text-success me-1"></i> Dados 100% Sincronizados com Conta Corrente
                 </span>
             </div>
+            <?php
+                $ccSimbolo = $activeSimbolo ?? ($activeMoedaCodigo ?? 'R$');
+                $ccDec = (int)($activeDecimais ?? 2);
+                $ccCot = (float)($activeCotacao ?? 0.0);
+                $isCryptoCc = !empty($moedaDefault['is_crypto']) || (($activeMoedaCodigo ?? 'BRL') !== 'BRL');
+            ?>
             <div class="row g-3 text-center text-md-start">
                 <div class="col-12 col-sm-6 col-lg-3">
                     <div class="p-3 rounded bg-black bg-opacity-30 border border-secondary border-opacity-50">
                         <div class="small text-white-50 text-uppercase fw-semibold">Saldo Atual Disponível</div>
                         <div class="fs-3 fw-bold text-info mt-1">
-                            $ <?= number_format($contaCorrenteStats['saldo_atual'] ?? 0, 2, ',', '.') ?>
+                            <?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['saldo_atual'] ?? 0, $ccDec, ',', '.') ?>
                         </div>
+                        <?php if ($isCryptoCc && $ccCot > 0): ?>
+                            <div class="small text-info-50" style="font-size: 0.75rem;">≈ R$ <?= number_format(($contaCorrenteStats['saldo_atual'] ?? 0) * $ccCot, 2, ',', '.') ?></div>
+                        <?php endif; ?>
                         <div class="small text-white-50 mt-1"><i class="bi bi-bank me-1"></i> Saldo livre na Banca</div>
                     </div>
                 </div>
@@ -339,8 +348,11 @@
                     <div class="p-3 rounded bg-black bg-opacity-30 border border-secondary border-opacity-50">
                         <div class="small text-white-50 text-uppercase fw-semibold">Lucro Real das Apostas (Histórico)</div>
                         <div class="fs-3 fw-bold text-success mt-1">
-                            +$ <?= number_format($contaCorrenteStats['lucro_apostas'] ?? 0, 2, ',', '.') ?>
+                            +<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['lucro_apostas'] ?? 0, $ccDec, ',', '.') ?>
                         </div>
+                        <?php if ($isCryptoCc && $ccCot > 0): ?>
+                            <div class="small text-success-50" style="font-size: 0.75rem;">≈ +R$ <?= number_format(($contaCorrenteStats['lucro_apostas'] ?? 0) * $ccCot, 2, ',', '.') ?></div>
+                        <?php endif; ?>
                         <div class="small text-success mt-1"><i class="bi bi-arrow-up-circle-fill me-1"></i> Lucro líquido acumulado da IA</div>
                     </div>
                 </div>
@@ -348,8 +360,11 @@
                     <div class="p-3 rounded bg-black bg-opacity-30 border border-secondary border-opacity-50">
                         <div class="small text-white-50 text-uppercase fw-semibold">Retiradas / Resgates / Ajustes</div>
                         <div class="fs-3 fw-bold text-danger mt-1">
-                            -$ <?= number_format($contaCorrenteStats['total_resgates'] ?? 0, 2, ',', '.') ?>
+                            -<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['total_resgates'] ?? 0, $ccDec, ',', '.') ?>
                         </div>
+                        <?php if ($isCryptoCc && $ccCot > 0): ?>
+                            <div class="small text-danger-50" style="font-size: 0.75rem;">≈ -R$ <?= number_format(($contaCorrenteStats['total_resgates'] ?? 0) * $ccCot, 2, ',', '.') ?></div>
+                        <?php endif; ?>
                         <div class="small text-danger mt-1"><i class="bi bi-arrow-down-circle-fill me-1"></i> Saques e equiparações manuais</div>
                     </div>
                 </div>
@@ -357,8 +372,11 @@
                     <div class="p-3 rounded bg-black bg-opacity-30 border border-secondary border-opacity-50">
                         <div class="small text-white-50 text-uppercase fw-semibold">Total Depositado Adicionado</div>
                         <div class="fs-3 fw-bold text-warning mt-1">
-                            +$ <?= number_format($contaCorrenteStats['total_depositos'] ?? 0, 2, ',', '.') ?>
+                            +<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['total_depositos'] ?? 0, $ccDec, ',', '.') ?>
                         </div>
+                        <?php if ($isCryptoCc && $ccCot > 0): ?>
+                            <div class="small text-warning-50" style="font-size: 0.75rem;">≈ +R$ <?= number_format(($contaCorrenteStats['total_depositos'] ?? 0) * $ccCot, 2, ',', '.') ?></div>
+                        <?php endif; ?>
                         <div class="small text-white-50 mt-1"><i class="bi bi-plus-circle me-1"></i> Aportes e créditos adicionados</div>
                     </div>
                 </div>
@@ -367,10 +385,10 @@
                 <span>
                     <i class="bi bi-info-circle me-1 text-info"></i>
                     <strong>Fechamento Contábil:</strong>
-                    Depósitos ($ <?= number_format($contaCorrenteStats['total_depositos'] ?? 0, 2, ',', '.') ?>)
-                    + Lucro Real Apostas (+$ <?= number_format($contaCorrenteStats['lucro_apostas'] ?? 0, 2, ',', '.') ?>)
-                    - Resgates/Retiradas (-$ <?= number_format($contaCorrenteStats['total_resgates'] ?? 0, 2, ',', '.') ?>)
-                    = <strong>Saldo em Conta ($ <?= number_format($contaCorrenteStats['saldo_atual'] ?? 0, 2, ',', '.') ?>)</strong>
+                    Depósitos (<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['total_depositos'] ?? 0, $ccDec, ',', '.') ?>)
+                    + Lucro Real Apostas (+<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['lucro_apostas'] ?? 0, $ccDec, ',', '.') ?>)
+                    - Resgates/Retiradas (-<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['total_resgates'] ?? 0, $ccDec, ',', '.') ?>)
+                    = <strong>Saldo em Conta (<?= esc($ccSimbolo) ?> <?= number_format($contaCorrenteStats['saldo_atual'] ?? 0, $ccDec, ',', '.') ?>)</strong>
                 </span>
                 <span class="text-white-50">
                     Volume no período filtrado: <strong>R$ <?= number_format($totalApostadoReal ?? 0, 2, ',', '.') ?></strong> apostados

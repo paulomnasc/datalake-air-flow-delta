@@ -9,6 +9,32 @@ $totalDebitos = (float)($extrato['total_debitado_apostas'] ?? 0);
 $totalRetornos = (float)($extrato['total_retorno_apostas'] ?? 0);
 $lucroLiquido = (float)($extrato['lucro_liquido_apostas'] ?? 0);
 $transacoes = $extrato['transacoes'] ?? [];
+
+$activeMoedaCodigo = $activeMoedaCodigo ?? ($extrato['moeda']->codigo ?? 'BRL');
+$activeSimbolo     = $activeSimbolo ?? ($extrato['moeda']->simbolo ?? ($activeMoedaCodigo === 'BRL' ? 'R$' : $activeMoedaCodigo));
+$activeDecimais    = (int)($activeDecimais ?? ($extrato['moeda']->casas_decimais ?? 2));
+$activeCotacao     = (float)($activeCotacao ?? ($extrato['moeda']->cotacao_brl ?? 1.0));
+if ($activeCotacao <= 0) $activeCotacao = 1.0;
+$isCryptoActive    = !empty($isCryptoActive) || ($activeMoedaCodigo !== 'BRL');
+
+if (!function_exists('fmtExtratoValor')) {
+    function fmtExtratoValor($val, $moeda, $cotacao, $decimais = 2, $showPlus = false, $subColor = '#94a3b8') {
+        $num = (float)$val;
+        $plus = ($showPlus && $num > 0) ? '+' : '';
+        $sign = ($num < 0) ? '-' : $plus;
+        $absNum = abs($num);
+        $numFmt = number_format($absNum, $decimais, ',', '.');
+
+        if ($moeda === 'BRL') {
+            return "<span>{$sign}R$ {$numFmt}</span>";
+        }
+
+        $brlVal = $num * $cotacao;
+        $brlSign = ($brlVal < 0) ? '-' : (($showPlus && $brlVal > 0) ? '+' : '');
+        $brlFmt = number_format(abs($brlVal), 2, ',', '.');
+        return "<span>{$sign}{$numFmt} {$moeda}</span><div class=\"stat-sub-brl\" style=\"font-size: 0.82rem; color: {$subColor}; font-weight: 500; margin-top: 3px;\">~ {$brlSign}R$ {$brlFmt}</div>";
+    }
+}
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -653,18 +679,29 @@ $transacoes = $extrato['transacoes'] ?? [];
   <!-- Header Section -->
   <div class="extrato-header">
     <div class="extrato-title-box">
-      <h1><i class="fas fa-wallet"></i> Extrato da Conta Corrente</h1>
-      <p>Acompanhe em tempo real seus créditos adicionados, débitos de apostas e a evolução financeira do seu saldo.</p>
+      <h1>
+        <i class="fas fa-wallet"></i> Extrato da Conta Corrente
+        <?php if ($activeMoedaCodigo !== 'BRL'): ?>
+          <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-size: 0.85rem; padding: 4px 10px; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 8px; font-weight: 700; margin-left: 8px; vertical-align: middle;">
+            <?= esc($activeMoedaCodigo) ?> (~ R$ <?= number_format($activeCotacao, 2, ',', '.') ?>)
+          </span>
+        <?php else: ?>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.85rem; padding: 4px 10px; border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; font-weight: 700; margin-left: 8px; vertical-align: middle;">
+            BRL (R$)
+          </span>
+        <?php endif; ?>
+      </h1>
+      <p>Acompanhe em tempo real seus créditos adicionados, débitos de apostas e a evolução financeira do seu saldo em <?= esc($activeMoedaCodigo) ?>.</p>
     </div>
     <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
       <a href="<?= site_url('/metas') ?>" class="btn-redeem-credit" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); text-decoration: none;" title="Acessar Gestão de Metas Diárias">
         <i class="fas fa-bullseye"></i> Metas Diárias
       </a>
       <button type="button" class="btn-add-credit" onclick="openAddCreditModal()">
-        <i class="fas fa-plus-circle"></i> Adicionar Crédito
+        <i class="fas fa-plus-circle"></i> Adicionar Crédito (<?= esc($activeMoedaCodigo) ?>)
       </button>
       <button type="button" class="btn-redeem-credit" onclick="openRedeemCreditModal()">
-        <i class="fas fa-hand-holding-usd"></i> Resgatar Crédito
+        <i class="fas fa-hand-holding-usd"></i> Resgatar Crédito (<?= esc($activeMoedaCodigo) ?>)
       </button>
     </div>
   </div>
@@ -677,7 +714,7 @@ $transacoes = $extrato['transacoes'] ?? [];
       </div>
       <div>
         <div style="font-weight: 700; font-size: 1.05rem; color: #f8fafc;">
-          Controle de Metas Diárias & Ciclos Rotativos
+          Controle de Metas Diárias & Ciclos Rotativos (<?= esc($activeMoedaCodigo) ?>)
         </div>
         <div style="font-size: 0.85rem; color: #94a3b8;">
           Metodologia profissional com cobertura de 70% a 80% e cache de alta performance no MySQL.
@@ -695,11 +732,11 @@ $transacoes = $extrato['transacoes'] ?? [];
   <div class="kpi-grid">
     <div class="kpi-card saldo">
       <div class="kpi-header">
-        <span class="kpi-label">Saldo Atual</span>
+        <span class="kpi-label">Saldo Atual (<?= esc($activeMoedaCodigo) ?>)</span>
         <div class="kpi-icon"><i class="fas fa-coins"></i></div>
       </div>
       <div class="kpi-value" style="color: <?= $saldoAtual >= 0 ? '#34d399' : '#f87171' ?>;">
-        R$ <?= number_format($saldoAtual, 2, ',', '.') ?>
+        <?= fmtExtratoValor($saldoAtual, $activeMoedaCodigo, $activeCotacao, $activeDecimais) ?>
       </div>
     </div>
 
@@ -709,7 +746,7 @@ $transacoes = $extrato['transacoes'] ?? [];
         <div class="kpi-icon"><i class="fas fa-arrow-down-left"></i></div>
       </div>
       <div class="kpi-value" style="color: #60a5fa;">
-        R$ <?= number_format($totalCreditos, 2, ',', '.') ?>
+        <?= fmtExtratoValor($totalCreditos, $activeMoedaCodigo, $activeCotacao, $activeDecimais, false, '#93c5fd') ?>
       </div>
     </div>
 
@@ -719,7 +756,7 @@ $transacoes = $extrato['transacoes'] ?? [];
         <div class="kpi-icon"><i class="fas fa-arrow-up-right"></i></div>
       </div>
       <div class="kpi-value" style="color: #f87171;">
-        R$ <?= number_format($totalDebitos, 2, ',', '.') ?>
+        <?= fmtExtratoValor($totalDebitos, $activeMoedaCodigo, $activeCotacao, $activeDecimais, false, '#fca5a5') ?>
       </div>
     </div>
 
@@ -729,7 +766,7 @@ $transacoes = $extrato['transacoes'] ?? [];
         <div class="kpi-icon"><i class="fas fa-trophy"></i></div>
       </div>
       <div class="kpi-value" style="color: #fbbf24;">
-        R$ <?= number_format($totalRetornos, 2, ',', '.') ?>
+        <?= fmtExtratoValor($totalRetornos, $activeMoedaCodigo, $activeCotacao, $activeDecimais, false, '#fde68a') ?>
       </div>
     </div>
 
@@ -739,7 +776,7 @@ $transacoes = $extrato['transacoes'] ?? [];
         <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
       </div>
       <div class="kpi-value" style="color: <?= $lucroLiquido >= 0 ? '#a78bfa' : '#f87171' ?>;">
-        <?= $lucroLiquido >= 0 ? '+' : '' ?>R$ <?= number_format($lucroLiquido, 2, ',', '.') ?>
+        <?= fmtExtratoValor($lucroLiquido, $activeMoedaCodigo, $activeCotacao, $activeDecimais, true, ($lucroLiquido >= 0 ? '#c4b5fd' : '#fca5a5')) ?>
       </div>
     </div>
   </div>
@@ -909,11 +946,30 @@ $transacoes = $extrato['transacoes'] ?? [];
                   ?>
                   <?= $descTexto ?>
                 </td>
-                <td class="<?= $isPos ? 'val-positivo' : 'val-negativo' ?>">
-                  <?= $isPos ? '+' : '' ?>R$ <?= number_format($val, 2, ',', '.') ?>
+                <td>
+                  <?php 
+                    $txMoeda = !empty($t->moeda_codigo) ? $t->moeda_codigo : $activeMoedaCodigo;
+                    $isTxCrypto = ($txMoeda !== 'BRL');
+                    $txDec = $isTxCrypto ? $activeDecimais : 2;
+                  ?>
+                  <div class="<?= $isPos ? 'val-positivo' : 'val-negativo' ?>" style="font-weight: 700;">
+                    <?= $isPos ? '+' : '' ?><?= number_format($val, $txDec, ',', '.') ?> <?= esc($txMoeda) ?>
+                  </div>
+                  <?php if ($isTxCrypto): ?>
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">
+                      ~ <?= $isPos ? '+' : '' ?>R$ <?= number_format($val * $activeCotacao, 2, ',', '.') ?>
+                    </div>
+                  <?php endif; ?>
                 </td>
-                <td style="font-weight: 600;">
-                  R$ <?= number_format((float)$t->saldo_posterior, 2, ',', '.') ?>
+                <td>
+                  <div style="font-weight: 600; color: #f8fafc;">
+                    <?= number_format((float)$t->saldo_posterior, $txDec, ',', '.') ?> <?= esc($txMoeda) ?>
+                  </div>
+                  <?php if ($isTxCrypto): ?>
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">
+                      ~ R$ <?= number_format(((float)$t->saldo_posterior) * $activeCotacao, 2, ',', '.') ?>
+                    </div>
+                  <?php endif; ?>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -934,8 +990,13 @@ $transacoes = $extrato['transacoes'] ?? [];
     </div>
     <form id="formAddCredit" onsubmit="submitAddCredit(event)">
       <div class="filter-group" style="margin-bottom: 1rem;">
-        <label for="valor_credito">Valor do Crédito (R$)</label>
-        <input type="number" step="0.01" min="0.01" id="valor_credito" name="valor" class="filter-input" placeholder="Ex: 100.00" required>
+        <label for="valor_credito">Valor do Crédito (<?= esc($activeMoedaCodigo) ?>)</label>
+        <input type="number" step="<?= $activeMoedaCodigo === 'BRL' ? '0.01' : '0.00000001' ?>" min="<?= $activeMoedaCodigo === 'BRL' ? '0.01' : '0.00000001' ?>" id="valor_credito" name="valor" class="filter-input" placeholder="Ex: <?= $activeMoedaCodigo === 'BRL' ? '100.00' : '0.33467202' ?>" required>
+        <?php if ($isCryptoActive): ?>
+          <small style="color: #38bdf8; font-size: 0.775rem; display: block; margin-top: 4px;">
+            Cotação Binance: 1 <?= esc($activeMoedaCodigo) ?> = R$ <?= number_format($activeCotacao, 2, ',', '.') ?>
+          </small>
+        <?php endif; ?>
       </div>
       <div class="filter-group" style="margin-bottom: 1.5rem;">
         <label for="descricao_credito">Descrição / Identificador (Opcional)</label>
@@ -957,13 +1018,13 @@ $transacoes = $extrato['transacoes'] ?? [];
       <button class="cc-modal-close" onclick="closeRedeemCreditModal()">&times;</button>
     </div>
     <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.875rem; color: #fef3c7;">
-      <i class="fas fa-info-circle me-1"></i> Saldo disponível para resgate: <strong style="color: #fbbf24;">R$ <?= number_format($saldoAtual, 2, ',', '.') ?></strong>
+      <i class="fas fa-info-circle me-1"></i> Saldo disponível para resgate: <strong style="color: #fbbf24;"><?= number_format($saldoAtual, $activeDecimais, ',', '.') ?> <?= esc($activeMoedaCodigo) ?><?php if ($isCryptoActive): ?> <span style="font-size:0.8rem; color:#94a3b8;">(~ R$ <?= number_format($saldoAtual * $activeCotacao, 2, ',', '.') ?>)</span><?php endif; ?></strong>
     </div>
     <form id="formRedeemCredit" onsubmit="submitRedeemCredit(event)">
       <div class="filter-group" style="margin-bottom: 1rem;">
-        <label for="valor_resgate">Valor a Resgatar (R$)</label>
-        <input type="number" step="0.01" min="0.01" max="<?= max(0, $saldoAtual) ?>" id="valor_resgate" name="valor" class="filter-input" placeholder="Ex: 50.00" required>
-        <small style="color: var(--cc-text-secondary); font-size: 0.775rem;">Máximo permitido: R$ <?= number_format($saldoAtual, 2, ',', '.') ?></small>
+        <label for="valor_resgate">Valor a Resgatar (<?= esc($activeMoedaCodigo) ?>)</label>
+        <input type="number" step="<?= $activeMoedaCodigo === 'BRL' ? '0.01' : '0.00000001' ?>" min="<?= $activeMoedaCodigo === 'BRL' ? '0.01' : '0.00000001' ?>" max="<?= max(0, $saldoAtual) ?>" id="valor_resgate" name="valor" class="filter-input" placeholder="Ex: <?= $activeMoedaCodigo === 'BRL' ? '50.00' : '0.15000000' ?>" required>
+        <small style="color: var(--cc-text-secondary); font-size: 0.775rem;">Máximo permitido: <?= number_format($saldoAtual, $activeDecimais, ',', '.') ?> <?= esc($activeMoedaCodigo) ?></small>
       </div>
       <div class="filter-group" style="margin-bottom: 1.5rem;">
         <label for="descricao_resgate">Descrição / Motivo (Opcional)</label>
@@ -1094,6 +1155,11 @@ $transacoes = $extrato['transacoes'] ?? [];
 <script>
 // Inicializar Gráfico de Evolução Financeira
 const graficoRawData = <?= json_encode($grafico) ?>;
+const activeMoedaCod = '<?= esc($activeMoedaCodigo) ?>';
+const activeMoedaSimbolo = '<?= esc($activeSimbolo) ?>';
+const activeDec = <?= (int)$activeDecimais ?>;
+const activeCotacaoBrl = <?= (float)$activeCotacao ?>;
+const isCryptoActiveJs = <?= $isCryptoActive ? 'true' : 'false' ?>;
 
 function getExtratoGroupKey(dateStr, groupMode) {
   if (!dateStr) return { key: 'Sem Data', label: 'Sem Data' };
@@ -1185,13 +1251,14 @@ function processEvolucaoGrouping(rawData, groupMode) {
   const saldoData = [];
   const creditosData = [];
   const retornosData = [];
+  const decFactor = Math.pow(10, activeDec);
 
   bucketKeysOrder.forEach(k => {
     const b = buckets[k];
     labels.push(b.label);
     saldoData.push(b.lastSaldo);
-    creditosData.push(Math.round(b.lastCreditos * 100) / 100);
-    retornosData.push(Math.round(b.lastRetornos * 100) / 100);
+    creditosData.push(Math.round(b.lastCreditos * decFactor) / decFactor);
+    retornosData.push(Math.round(b.lastRetornos * decFactor) / decFactor);
   });
 
   return { labels, saldoData, creditosData, retornosData };
@@ -1228,7 +1295,7 @@ function renderEvolucaoChart(data) {
       labels: labels,
       datasets: [
         {
-          label: 'Saldo da Conta Corrente (R$)',
+          label: 'Saldo da Conta Corrente (' + activeMoedaCod + ')',
           data: saldoData,
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -1239,7 +1306,7 @@ function renderEvolucaoChart(data) {
           pointHoverRadius: 6
         },
         {
-          label: 'Créditos Adicionados (Acumulado R$)',
+          label: 'Créditos Adicionados (Acumulado ' + activeMoedaCod + ')',
           data: creditosData,
           borderColor: '#3b82f6',
           backgroundColor: 'transparent',
@@ -1249,7 +1316,7 @@ function renderEvolucaoChart(data) {
           pointRadius: 3
         },
         {
-          label: 'Retorno de Apostas Ganhas (Acumulado R$)',
+          label: 'Retorno de Apostas Ganhas (Acumulado ' + activeMoedaCod + ')',
           data: retornosData,
           borderColor: '#f59e0b',
           backgroundColor: 'transparent',
@@ -1281,7 +1348,14 @@ function renderEvolucaoChart(data) {
                 label += ': ';
               }
               if (context.parsed.y !== null) {
-                label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                if (activeMoedaCod === 'BRL') {
+                  label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                } else {
+                  label += context.parsed.y.toFixed(activeDec) + ' ' + activeMoedaCod;
+                  if (activeCotacaoBrl > 0) {
+                    label += ' (~ R$ ' + (context.parsed.y * activeCotacaoBrl).toFixed(2).replace('.', ',') + ')';
+                  }
+                }
               }
               return label;
             }
@@ -1298,7 +1372,10 @@ function renderEvolucaoChart(data) {
           ticks: {
             color: '#94a3b8',
             callback: function(value) {
-              return 'R$ ' + value.toFixed(2).replace('.', ',');
+              if (activeMoedaCod === 'BRL') {
+                return 'R$ ' + value.toFixed(2).replace('.', ',');
+              }
+              return value.toFixed(activeDec > 2 ? 4 : 2) + ' ' + activeMoedaCod;
             }
           }
         }
@@ -1341,7 +1418,7 @@ function submitAddCredit(e) {
   .then(res => res.json())
   .then(data => {
     if (data.success) {
-      alert('✅ Crédito de R$ ' + parseFloat(valor).toFixed(2) + ' adicionado com sucesso!');
+      alert('✅ Crédito de ' + parseFloat(valor).toFixed(activeDec) + ' ' + activeMoedaCod + ' adicionado com sucesso!');
       window.location.reload();
     } else {
       alert('❌ Erro ao adicionar crédito: ' + (data.message || 'Tente novamente.'));
@@ -1389,7 +1466,7 @@ function submitRedeemCredit(e) {
   }
 
   if (valor > saldoDisponivelAtual) {
-    alert('⚠️ O valor do resgate (R$ ' + valor.toFixed(2) + ') excede o saldo disponível na conta corrente (R$ ' + saldoDisponivelAtual.toFixed(2) + ').');
+    alert('⚠️ O valor do resgate (' + valor.toFixed(activeDec) + ' ' + activeMoedaCod + ') excede o saldo disponível na conta corrente (' + saldoDisponivelAtual.toFixed(activeDec) + ' ' + activeMoedaCod + ').');
     return;
   }
 
@@ -1410,7 +1487,7 @@ function submitRedeemCredit(e) {
   .then(res => res.json())
   .then(data => {
     if (data.success) {
-      alert('✅ Resgate de R$ ' + valor.toFixed(2) + ' realizado com sucesso!');
+      alert('✅ Resgate de ' + valor.toFixed(activeDec) + ' ' + activeMoedaCod + ' realizado com sucesso!');
       window.location.reload();
     } else {
       alert('❌ Erro ao realizar resgate: ' + (data.message || 'Tente novamente.'));
@@ -1669,8 +1746,14 @@ function abrirModalAposta(apostaId) {
 
 
       // Valores
-      document.getElementById('modalApostaValor').textContent = 'R$ ' + ap.valor_aposta;
-      document.getElementById('modalApostaGanhos').textContent = 'R$ ' + ap.ganhos_potenciais;
+      const simb = ap.moeda_simbolo || ap.moeda_codigo || activeMoedaSimbolo || 'R$';
+      const isCrypto = !!ap.is_crypto;
+
+      document.getElementById('modalApostaValor').innerHTML = 
+        `${simb} ${ap.valor_aposta}${isCrypto && ap.valor_aposta_brl ? `<span style="display:block; font-size:0.75rem; color:#94a3b8; font-weight:normal;">≈ R$ ${ap.valor_aposta_brl}</span>` : ''}`;
+
+      document.getElementById('modalApostaGanhos').innerHTML = 
+        `${simb} ${ap.ganhos_potenciais}`;
 
       const retornoCard = document.getElementById('modalApostaRetornoCard');
       const retornoEl = document.getElementById('modalApostaRetorno');
@@ -1680,7 +1763,7 @@ function abrirModalAposta(apostaId) {
 
       if (ap.retorno_obtido !== null) {
         retornoCard.style.display = 'flex';
-        retornoEl.textContent = 'R$ ' + ap.retorno_obtido;
+        retornoEl.innerHTML = `${simb} ${ap.retorno_obtido}${isCrypto && ap.retorno_obtido_brl ? `<span style="display:block; font-size:0.75rem; color:#94a3b8; font-weight:normal;">≈ R$ ${ap.retorno_obtido_brl}</span>` : ''}`;
         if (ap.status === 'Cashout') {
           retornoTitle.textContent = 'Valor do Cash Out';
         } else {
@@ -1689,7 +1772,7 @@ function abrirModalAposta(apostaId) {
 
         lucroCard.style.display = 'flex';
         const isPos = ap.lucro_liquido_positivo;
-        lucroEl.textContent = (isPos ? '+' : '') + 'R$ ' + ap.lucro_liquido;
+        lucroEl.innerHTML = `${isPos ? '+' : '-'}${simb} ${ap.lucro_liquido}${isCrypto && ap.lucro_liquido_brl ? `<span style="display:block; font-size:0.75rem; color:#94a3b8; font-weight:normal;">≈ ${isPos ? '+' : '-'}R$ ${ap.lucro_liquido_brl}</span>` : ''}`;
         lucroEl.className = 'fin-val ' + (isPos ? 'val-positivo' : 'val-negativo');
       } else {
         retornoCard.style.display = 'none';

@@ -76,14 +76,36 @@ class ContaCorrenteController extends BaseController
         $extratoData = $this->contaCorrenteModel->getExtrato($userId, $dataInicio, $dataFim, $tipo);
         $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId, $dataInicio, $dataFim);
 
+        // Identifica a moeda corrente ativa no sistema
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva($userId);
+        $activeMoedaCodigo = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : ($moedaDefault->codigo ?? 'BRL');
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? $activeMoedaCodigo;
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        if ($activeCotacao <= 0) {
+            $activeCotacao = 1.0;
+        }
+        $isCryptoActive = ($activeMoedaCodigo !== 'BRL');
+
         $data = [
-            'title'        => 'Extrato da Conta Corrente & Evolução Financeira | Smart Betting',
-            'user'         => $access['user'],
-            'extrato'      => $extratoData,
-            'grafico'      => $graficoData,
-            'data_inicio'  => $dataInicio,
-            'data_fim'     => $dataFim,
-            'tipo_filtro'  => $tipo
+            'title'              => 'Extrato da Conta Corrente & Evolução Financeira | Smart Betting',
+            'user'               => $access['user'],
+            'extrato'            => $extratoData,
+            'grafico'            => $graficoData,
+            'data_inicio'        => $dataInicio,
+            'data_fim'           => $dataFim,
+            'tipo_filtro'        => $tipo,
+            'activeMoedaCodigo'  => $activeMoedaCodigo,
+            'activeSimbolo'      => $activeSimbolo,
+            'activeDecimais'     => $activeDecimais,
+            'activeCotacao'      => $activeCotacao,
+            'isCryptoActive'     => $isCryptoActive,
+            'moedaAtivaObj'      => $moedaAtivaObj
         ];
 
         return view('header', $data)
@@ -123,11 +145,17 @@ class ContaCorrenteController extends BaseController
             ]);
         }
 
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva($userId);
+        $activeMoedaCodigo = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : ($moedaDefault->codigo ?? 'BRL');
+
         $descricao = !empty($descricaoInput) 
             ? "Aporte Manual: " . $descricaoInput 
             : "Depósito / Crédito Adicionado na Conta Corrente";
 
-        $result = $this->contaCorrenteModel->adicionarCredito($userId, $valor, $descricao);
+        $result = $this->contaCorrenteModel->adicionarCredito($userId, $valor, $descricao, $activeMoedaCodigo);
 
         return $this->response->setJSON($result);
     }
@@ -164,11 +192,20 @@ class ContaCorrenteController extends BaseController
             ]);
         }
 
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva($userId);
+        $activeMoedaCodigo = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : ($moedaDefault->codigo ?? 'BRL');
+        $moedaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaObj->simbolo ?? $activeMoedaCodigo;
+        $activeDecimais = (int)($moedaObj->casas_decimais ?? 2);
+
         $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
         if ($valor > $saldoAtual) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'O valor do resgate (R$ ' . number_format($valor, 2, ',', '.') . ') excede o saldo disponível na conta corrente (R$ ' . number_format($saldoAtual, 2, ',', '.') . ').'
+                'message' => 'O valor do resgate (' . $activeSimbolo . ' ' . number_format($valor, $activeDecimais, ',', '.') . ') excede o saldo disponível na conta corrente (' . $activeSimbolo . ' ' . number_format($saldoAtual, $activeDecimais, ',', '.') . ').'
             ]);
         }
 
@@ -176,7 +213,7 @@ class ContaCorrenteController extends BaseController
             ? "Resgate: " . $descricaoInput 
             : "Resgate de Crédito da Conta Corrente";
 
-        $result = $this->contaCorrenteModel->resgatarCredito($userId, $valor, $descricao);
+        $result = $this->contaCorrenteModel->resgatarCredito($userId, $valor, $descricao, $activeMoedaCodigo);
 
         return $this->response->setJSON($result);
     }
@@ -247,6 +284,8 @@ class ContaCorrenteController extends BaseController
             ->select('
                 a.id,
                 a.fixture_id,
+                a.moeda_codigo,
+                a.cotacao_brl_snapshot,
                 a.time_casa,
                 a.time_fora,
                 a.mercado,
@@ -281,6 +320,16 @@ class ContaCorrenteController extends BaseController
                 'message' => 'Aposta #' . $apostaId . ' não encontrada no seu histórico.'
             ])->setStatusCode(404);
         }
+
+        // Resolução da moeda da aposta
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaCod = !empty($row->moeda_codigo) ? strtoupper($row->moeda_codigo) : 'BRL';
+        $moedaObj = $moedaConfigModel->getMoedaByCodigo($moedaCod) ?? $moedaConfigModel->getDefaultMoeda();
+        $apMoedaSimbolo = $moedaObj->simbolo ?? $moedaCod;
+        $apDecimais = (int)($moedaObj->casas_decimais ?? 2);
+        $apCotacao = (float)($row->cotacao_brl_snapshot ?? $moedaObj->cotacao_brl ?? 1.0);
+        if ($apCotacao <= 0) $apCotacao = 1.0;
+        $isCrypto = ($moedaCod !== 'BRL');
 
         // Formatação de fuso horário (UTC -> Brasília)
         $tzUtc = new \DateTimeZone('UTC');
@@ -361,6 +410,11 @@ class ContaCorrenteController extends BaseController
             'aposta'  => [
                 'id'                     => (int)$row->id,
                 'fixture_id'             => !empty($row->fixture_id) ? (int)$row->fixture_id : null,
+                'moeda_codigo'           => $moedaCod,
+                'moeda_simbolo'          => $apMoedaSimbolo,
+                'casas_decimais'         => $apDecimais,
+                'is_crypto'              => $isCrypto,
+                'cotacao_brl'            => $apCotacao,
                 'time_casa'              => $row->time_casa,
                 'time_fora'              => $row->time_fora,
                 'league_name'            => $row->league_name ?? null,
@@ -370,11 +424,15 @@ class ContaCorrenteController extends BaseController
                 'mercado'                => $row->mercado,
                 'palpite'                => $row->palpite,
                 'odd'                    => number_format((float)$row->odd, 2, '.', ''),
-                'valor_aposta'           => number_format($valorAposta, 2, ',', '.'),
-                'ganhos_potenciais'      => number_format($ganhosPotenciais, 2, ',', '.'),
-                'cash_out'               => $cashOut !== null ? number_format($cashOut, 2, ',', '.') : null,
-                'retorno_obtido'         => $retornoObtido !== null ? number_format($retornoObtido, 2, ',', '.') : null,
-                'lucro_liquido'          => $lucroLiquido !== null ? number_format($lucroLiquido, 2, ',', '.') : null,
+                'valor_aposta'           => number_format($valorAposta, $apDecimais, ',', '.'),
+                'ganhos_potenciais'      => number_format($ganhosPotenciais, $apDecimais, ',', '.'),
+                'cash_out'               => $cashOut !== null ? number_format($cashOut, $apDecimais, ',', '.') : null,
+                'retorno_obtido'         => $retornoObtido !== null ? number_format($retornoObtido, $apDecimais, ',', '.') : null,
+                'lucro_liquido'          => $lucroLiquido !== null ? number_format($lucroLiquido, $apDecimais, ',', '.') : null,
+                'valor_aposta_brl'       => $isCrypto ? number_format($valorAposta * $apCotacao, 2, ',', '.') : null,
+                'ganhos_potenciais_brl'  => $isCrypto ? number_format($ganhosPotenciais * $apCotacao, 2, ',', '.') : null,
+                'retorno_obtido_brl'     => ($isCrypto && $retornoObtido !== null) ? number_format($retornoObtido * $apCotacao, 2, ',', '.') : null,
+                'lucro_liquido_brl'      => ($isCrypto && $lucroLiquido !== null) ? number_format($lucroLiquido * $apCotacao, 2, ',', '.') : null,
                 'lucro_liquido_positivo' => $lucroLiquido !== null ? ($lucroLiquido >= 0) : null,
                 'tipo'                   => $row->tipo,
                 'status'                 => $row->status,

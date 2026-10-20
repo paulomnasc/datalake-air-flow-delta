@@ -207,8 +207,8 @@ return [
     'demo_video_title'        => 'Demo Video - FootballWeb',
     'watch_on_youtube'        => 'Watch on YouTube',
     'youtube_age_disclaimer'  => 'If YouTube requires age verification in the embedded player, <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" style="color: #f47c20; text-decoration: underline;">click here to watch directly on YouTube</a>.',
-    'football_trends_heading' => 'Football Trends Today & Cards & Corners Statistics',
-    'seo_description'         => 'Follow complete statistics for today\'s matches (%s). Updated data from top leagues, referee foul history, average yellow and red cards, and mathematical predictions powered by the Grok AI smart assistant.',
+    'football_trends_heading' => 'Today\'s Football Trends & Match Statistics',
+    'seo_description'         => 'Track complete statistics for today\'s matches (%s) and simulate bets before risking your bankroll. Updated data from top leagues, referee foul history, average yellow and red cards, and mathematical predictions powered by the Grok AI smart assistant.',
     'update_games_odds'       => 'Update Matches & Odds',
 
     // Dashboard & Card Content Multilingual Keys

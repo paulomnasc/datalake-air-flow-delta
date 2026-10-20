@@ -16,6 +16,23 @@ class AdminAuthFilter implements FilterInterface
         $usuarioLogado = $session->get('usuario_logado') ?? ($_SESSION['usuario_logado'] ?? 0);
         $userEmail = trim((string) ($session->get('email_usuario_logado') ?? ($_SESSION['email_usuario_logado'] ?? '')));
 
+        $uri = $request->getUri()->getPath();
+
+        // Rota /terminal/stake (e sub-rotas) é de acesso ESTRITAMENTE EXCLUSIVO de paulomnasc@gmail.com
+        if (strpos($uri, 'terminal/stake') !== false) {
+            if (empty($usuarioLogado) || strcasecmp($userEmail, 'paulomnasc@gmail.com') !== 0) {
+                if ($request->isAJAX()) {
+                    return service('response')->setStatusCode(403)->setJSON([
+                        'success' => false,
+                        'message' => 'Acesso negado. A rota /terminal/stake é de acesso exclusivo de paulomnasc@gmail.com.'
+                    ]);
+                }
+                $session->setFlashdata('error', 'Acesso negado. A rota /terminal/stake é de acesso exclusivo de paulomnasc@gmail.com.');
+                return redirect()->to('/');
+            }
+            return null;
+        }
+
         $isAdmin = !empty($session->get('is_admin'))
             || !empty($_SESSION['is_admin'])
             || in_array(strtolower($perfil), ['admin', 'administrador'], true)

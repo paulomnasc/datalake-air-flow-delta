@@ -59,7 +59,10 @@ class SubscriptionFilter implements FilterInterface
             return;
         }
 
-        // BLOQUEIO DE ACESSO A MÓDULOS SUPERIORES SEM PAGAMENTO INICIAL
+        $userGrokCredits = (int)($usuario->grok_credits ?? 0);
+        $hasGrokCredits  = ($userGrokCredits > 0);
+
+        // BLOQUEIO DE ACESSO A MÓDULOS SUPERIORES SEM PAGAMENTO INICIAL (Isento se possui créditos Grok)
         $uri = $request->getUri()->getPath();
         // Permite acesso ao primeiro módulo, página de pagamento inicial e rotas administrativas
         $rotasPermitidasPagamento = [
@@ -68,7 +71,8 @@ class SubscriptionFilter implements FilterInterface
             '/admin/pagamento-inicial',
             '/admin/pagamento-inicial/autorizar',
         ];
-        if ((empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1)
+        if (!$hasGrokCredits
+            && (empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1)
             && !in_array($uri, $rotasPermitidasPagamento)
             && preg_match('/\/curso\/modulo\/(\d+)/', $uri, $matches)
             && intval($matches[1]) > 1) {
@@ -105,9 +109,11 @@ class SubscriptionFilter implements FilterInterface
                 
                 // Gerenciar status do usuário no Airflow baseado na assinatura
                 if ($novoStatus === 'cancelled') {
-                    // Desativar usuário no Airflow se assinatura foi cancelada
-                    AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', false);
-                    log_message('info', "[SUBSCRIPTION] Usuário {$userId} desativado no Airflow - assinatura {$novoStatus}");
+                    // Desativar usuário no Airflow se assinatura foi cancelada (a menos que possua créditos Grok)
+                    if (!$hasGrokCredits) {
+                        AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', false);
+                        log_message('info', "[SUBSCRIPTION] Usuário {$userId} desativado no Airflow - assinatura {$novoStatus}");
+                    }
                 } elseif (($statusAtual === 'cancelled') && 
                           ($novoStatus === 'active' || $novoStatus === 'trial')) {
                     // Reativar usuário no Airflow se assinatura foi renovada
@@ -127,20 +133,30 @@ class SubscriptionFilter implements FilterInterface
         $diasRestantes = SubscriptionHelper::calcularDiasRestantes($dataVencimento);
         $_SESSION['subscription_days_remaining'] = $diasRestantes;
 
-        // Verifica se deve mostrar aviso
-        $mostrarAviso = SubscriptionHelper::deveMostrarAviso($dataVencimento, $usuario->status_assinatura ?? 'trial');
-        $_SESSION['subscription_show_warning'] = $mostrarAviso;
-        
-        // Define se os serviços (menu SERVIÇOS) devem estar bloqueados (monetização agora por tokens)
-        $_SESSION['subscription_services_blocked'] = false;
+        // Se o usuário possui créditos Grok, garante acesso irrestrito às funcionalidades
+        if ($hasGrokCredits) {
+            $_SESSION['subscription_show_warning']     = false;
+            $_SESSION['subscription_services_blocked'] = false;
+            $acessoInfo = [
+                'pode_acessar' => true,
+                'mensagem'     => ''
+            ];
+            // Garante usuário ativo no Airflow
+            AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', true);
+        } else {
+            // Verifica se deve mostrar aviso
+            $mostrarAviso = SubscriptionHelper::deveMostrarAviso($dataVencimento, $usuario->status_assinatura ?? 'trial');
+            $_SESSION['subscription_show_warning'] = $mostrarAviso;
+            
+            // Define se os serviços (menu SERVIÇOS) devem estar bloqueados
+            $_SESSION['subscription_services_blocked'] = false;
 
-        // Verifica se pode acessar
-        $acessoInfo = SubscriptionHelper::podeAcessarPlataforma(
-            $usuario->status_assinatura ?? 'trial',
-            $dataVencimento
-        );
-
-
+            // Verifica se pode acessar
+            $acessoInfo = SubscriptionHelper::podeAcessarPlataforma(
+                $usuario->status_assinatura ?? 'trial',
+                $dataVencimento
+            );
+        }
 
         // Se não pode acessar, redireciona para página de renovação
         // Exceto se já estiver na página de renovação ou logout
@@ -152,6 +168,7 @@ class SubscriptionFilter implements FilterInterface
             '/subscription/buyGrokCredits',
             '/subscription/confirmGrokPayment',
             '/subscription/create-mp-pix',
+            '/subscription/process-mp-card',
             '/subscription/check-mp-pix',
             '/subscription/mp-webhook',
             '/logout',
@@ -169,7 +186,7 @@ class SubscriptionFilter implements FilterInterface
             '/api/git-push'
         ];
 
-        if (!$acessoInfo['pode_acessar'] && !in_array($uri, $rotasPermitidas)) {
+        if (!$hasGrokCredits && !$acessoInfo['pode_acessar'] && !in_array($uri, $rotasPermitidas)) {
             // Define mensagem de sessão
             $_SESSION['subscription_blocked_message'] = $acessoInfo['mensagem'];
             

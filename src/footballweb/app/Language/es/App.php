@@ -207,8 +207,8 @@ return [
     'demo_video_title'        => 'Video Demostrativo - FootballWeb',
     'watch_on_youtube'        => 'Ver en YouTube',
     'youtube_age_disclaimer'  => 'Si YouTube requiere verificación de edad en el reproductor integrado, <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" style="color: #f47c20; text-decoration: underline;">haga clic aquí para ver directamente en YouTube</a>.',
-    'football_trends_heading' => 'Tendencias de Fútbol Hoy y Estadísticas de Tarjetas y Córners',
-    'seo_description'         => 'Siga las estadísticas completas de los partidos de hoy (%s). Datos actualizados de las principales ligas, historial de faltas por árbitro, promedios de tarjetas amarillas y rojas, y predicciones matemáticas impulsadas por el asistente inteligente Grok AI.',
+    'football_trends_heading' => 'Tendencias de Fútbol Hoy y Estadísticas de los Partidos',
+    'seo_description'         => 'Siga las estadísticas completas de los partidos de hoy (%s) y simule apuestas antes de arriesgar su patrimonio. Datos actualizados de las principales ligas, historial de faltas por árbitro, promedios de tarjetas amarillas y rojas, y predicciones matemáticas impulsadas por el asistente inteligente Grok AI.',
     'update_games_odds'       => 'Actualizar Partidos y Cuotas',
 
     // Dashboard & Card Content Multilingual Keys

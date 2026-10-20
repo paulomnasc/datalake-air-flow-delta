@@ -7,10 +7,36 @@ use App\Controllers\BaseController;
 class TerminalStakeController extends BaseController
 {
     /**
+     * Valida acesso estritamente exclusivo para o administrador Paulo (paulomnasc@gmail.com)
+     */
+    protected function checkExclusiveAccess(): ?\CodeIgniter\HTTP\ResponseInterface
+    {
+        $session = session();
+        $userEmail = trim((string) ($session->get('email_usuario_logado') ?? ($_SESSION['email_usuario_logado'] ?? '')));
+        $usuarioLogado = $session->get('usuario_logado') ?? ($_SESSION['usuario_logado'] ?? 0);
+
+        if (empty($usuarioLogado) || strcasecmp($userEmail, 'paulomnasc@gmail.com') !== 0) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setStatusCode(403)->setJSON([
+                    'success' => false,
+                    'message' => 'Acesso negado. A rota /terminal/stake é de acesso exclusivo de paulomnasc@gmail.com.'
+                ]);
+            }
+            $session->setFlashdata('error', 'Acesso negado. A rota /terminal/stake é de acesso exclusivo de paulomnasc@gmail.com.');
+            return redirect()->to('/');
+        }
+        return null;
+    }
+
+    /**
      * Interface do Terminal Remoto Isolado (Stake.com / Casas de Apostas)
      */
     public function index()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         $data = [
             'title'      => 'Terminal Remoto Seguro (Cloudbet / Stake)',
             'browserUrl' => '/remote-browser/',
@@ -24,6 +50,10 @@ class TerminalStakeController extends BaseController
      */
     public function status()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         $output = [];
         $returnVar = 0;
         @exec('docker exec remote-browser pgrep chromium 2>&1', $output, $returnVar);
@@ -42,6 +72,10 @@ class TerminalStakeController extends BaseController
      */
     public function start()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
             $url = 'https://www.cloudbet.com/';
@@ -72,6 +106,10 @@ class TerminalStakeController extends BaseController
      */
     public function stop()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         @exec('docker exec remote-browser pkill -15 -f chromium 2>&1');
         usleep(250000);
         @exec('docker exec remote-browser pkill -9 -f chromium 2>&1');
@@ -88,6 +126,10 @@ class TerminalStakeController extends BaseController
      */
     public function restart()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
             $url = 'https://www.cloudbet.com/';
@@ -118,6 +160,10 @@ class TerminalStakeController extends BaseController
      */
     public function navigate()
     {
+        if ($deny = $this->checkExclusiveAccess()) {
+            return $deny;
+        }
+
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
             return $this->response->setJSON([

@@ -14,8 +14,22 @@ class TerminalStakeController extends BaseController
         $session = session();
         $userEmail = trim((string) ($session->get('email_usuario_logado') ?? ($_SESSION['email_usuario_logado'] ?? '')));
         $usuarioLogado = $session->get('usuario_logado') ?? ($_SESSION['usuario_logado'] ?? 0);
+        $userId = $session->get('id_usuario_logado') ?? ($_SESSION['id_usuario_logado'] ?? null);
 
-        if (empty($usuarioLogado) || strcasecmp($userEmail, 'paulomnasc@gmail.com') !== 0) {
+        // Fallback de resolução do e-mail do usuário se ausente na sessão
+        if (empty($userEmail) && !empty($userId)) {
+            $usuarioModel = new \App\Models\UsuarioModel();
+            $u = $usuarioModel->find($userId);
+            if ($u && !empty($u->email)) {
+                $userEmail = trim((string) $u->email);
+                $_SESSION['email_usuario_logado'] = $userEmail;
+                $session->set('email_usuario_logado', $userEmail);
+            }
+        }
+
+        $isPaulo = (strcasecmp($userEmail, 'paulomnasc@gmail.com') === 0) || ((int) $userId === 558);
+
+        if ((empty($usuarioLogado) && empty($userId)) || !$isPaulo) {
             if ($this->request->isAJAX()) {
                 return $this->response->setStatusCode(403)->setJSON([
                     'success' => false,

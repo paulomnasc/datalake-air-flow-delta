@@ -329,7 +329,8 @@
                 $ccSimbolo = $activeSimbolo ?? ($activeMoedaCodigo ?? 'R$');
                 $ccDec = (int)($activeDecimais ?? 2);
                 $ccCot = (float)($activeCotacao ?? 0.0);
-                $isCryptoCc = !empty($moedaDefault['is_crypto']) || (($activeMoedaCodigo ?? 'BRL') !== 'BRL');
+                $isCryptoDefault = is_object($moedaDefault) ? !empty($moedaDefault->is_crypto) : (is_array($moedaDefault) ? !empty($moedaDefault['is_crypto']) : false);
+                $isCryptoCc = $isCryptoDefault || (($activeMoedaCodigo ?? 'BRL') !== 'BRL');
             ?>
             <div class="row g-3 text-center text-md-start">
                 <div class="col-12 col-sm-6 col-lg-3">

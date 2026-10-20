@@ -2649,6 +2649,8 @@ if (!function_exists('getBetDecisionTree')) {
 
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <?php
+                                    $startDate = $startDate ?? date('Y-m-d');
+                                    $endDate = $endDate ?? date('Y-m-d');
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));
                                     $today = date('Y-m-d');
                                     $tomorrow = date('Y-m-d', strtotime('+1 day'));

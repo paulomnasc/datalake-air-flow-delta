@@ -59,8 +59,8 @@ class SubscriptionFilter implements FilterInterface
             return;
         }
 
-        $userGrokCredits = (int)($usuario->grok_credits ?? 0);
-        $hasGrokCredits  = ($userGrokCredits > 0);
+        $userGrokCredits = (float)($usuario->grok_credits ?? 0.0);
+        $hasGrokCredits  = ($userGrokCredits > 0.0);
 
         // BLOQUEIO DE ACESSO A MÓDULOS SUPERIORES SEM PAGAMENTO INICIAL (Isento se possui créditos Grok)
         $uri = $request->getUri()->getPath();

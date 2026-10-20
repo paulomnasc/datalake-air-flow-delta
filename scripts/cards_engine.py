@@ -1037,6 +1037,15 @@ def sync_fixture_and_bet_cards(
                     updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:
+                # Validação de saldo de créditos para usuários comuns (isento admin 558 ou assinatura ativa)
+                cursor.execute("SELECT grok_credits, status_assinatura FROM usuario WHERE id = %s", (uid,))
+                u_info = cursor.fetchone()
+                u_cred = float(u_info.get('grok_credits') or 0.0) if u_info else 0.0
+                u_st = u_info.get('status_assinatura') if u_info else ''
+                if uid != 558 and u_st != 'active' and u_cred < 0.5:
+                    print(f"⚠️ [Saldo Insuficiente User #{uid}] Créditos insuficientes ({u_cred} < 0.5). Aposta de cartões não criada.")
+                    continue
+
                 cursor.execute("""
                     INSERT INTO apostas (
                         usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
@@ -1055,6 +1064,11 @@ def sync_fixture_and_bet_cards(
                 aposta_id = cursor.lastrowid
                 created_count += 1
                 print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name})")
+
+                # Debita 0.5 crédito do usuário pela aposta gerada
+                if uid != 558 and u_st != 'active':
+                    cursor.execute("UPDATE usuario SET grok_credits = GREATEST(0.0, grok_credits - 0.5) WHERE id = %s", (uid,))
+                    print(f"🪙 [Crédito Debitado User #{uid}] -0.5 crédito | Aposta #{aposta_id} (Novo saldo: {max(0.0, u_cred - 0.5):.2f})")
 
     # Sincroniza fixtures_trends com o texto de predição estruturado (se não houver aposta confirmada conflitante)
     if not has_confirmed_bet and prediction_text:

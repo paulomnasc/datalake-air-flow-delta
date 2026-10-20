@@ -51,8 +51,8 @@ class ApostaController extends BaseController
             ];
         }
 
-        $credits = (int)($userRow->grok_credits ?? 0);
-        $hasTokens = ($credits > 0);
+        $credits = (float)($userRow->grok_credits ?? 0.0);
+        $hasTokens = ($credits > 0.0);
 
         return [
             'authenticated' => true,

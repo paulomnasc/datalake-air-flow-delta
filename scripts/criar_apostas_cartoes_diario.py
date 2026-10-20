@@ -204,29 +204,20 @@ from db_config import get_db_connection
 
 def get_all_user_ids(cursor):
     """
-    Retorna lista de IDs contendo exclusivamente o usuário 'paulomnasc'.
+    Retorna lista de IDs de usuários elegíveis para receber apostas automatizadas:
+    - Usuários com créditos suficientes (grok_credits >= 0.5)
+    - Usuários com assinatura ativa (status_assinatura = 'active')
+    - Administrador Paulo (id = 558)
     """
     cursor.execute("""
         SELECT id FROM usuario 
-        WHERE email LIKE '%paulomnasc%' OR nome LIKE '%paulomnasc%' OR id = 558
+        WHERE (grok_credits >= 0.5 OR status_assinatura = 'active' OR id = 558)
         ORDER BY id ASC
-        LIMIT 1
     """)
     rows = cursor.fetchall()
     if rows:
         return [r['id'] for r in rows]
-    
-    cursor.execute("SELECT id FROM usuario ORDER BY id ASC LIMIT 1")
-    first_user = cursor.fetchone()
-    if first_user:
-        return [first_user['id']]
-
-    print("ℹ️ Criando usuário paulomnasc no sistema para vinculação de apostas...")
-    cursor.execute("""
-        INSERT INTO usuario (nome, email, senha, email_confirmado, criado_em)
-        VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
-    """)
-    return [cursor.lastrowid]
+    return [558]
 # Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
 

@@ -2803,6 +2803,15 @@ def sync_fixture_and_bet_handicap(
                 except Exception as e_notif_react:
                     print(f"Aviso ao registrar notificação de oportunidade reativada: {e_notif_react}")
         else:
+            # Validação de saldo de créditos para usuários comuns (isento admin 558 ou assinatura ativa)
+            cursor.execute("SELECT grok_credits, status_assinatura FROM usuario WHERE id = %s", (uid,))
+            u_info = cursor.fetchone()
+            u_cred = float(u_info.get('grok_credits') or 0.0) if u_info else 0.0
+            u_st = u_info.get('status_assinatura') if u_info else ''
+            if uid != 558 and u_st != 'active' and u_cred < 0.5:
+                print(f"⚠️ [Saldo Insuficiente User #{uid}] Créditos insuficientes ({u_cred} < 0.5). Aposta AH não criada.")
+                continue
+
             # Inserir nova aposta
             cursor.execute("""
                 INSERT INTO apostas (
@@ -2823,6 +2832,11 @@ def sync_fixture_and_bet_handicap(
             aposta_id = cursor.lastrowid
             created_count += 1
             print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f} | Categoria: '{app_cat}'")
+
+            # Debita 0.5 crédito do usuário pela aposta gerada
+            if uid != 558 and u_st != 'active':
+                cursor.execute("UPDATE usuario SET grok_credits = GREATEST(0.0, grok_credits - 0.5) WHERE id = %s", (uid,))
+                print(f"🪙 [Crédito Debitado User #{uid}] -0.5 crédito | Aposta #{aposta_id} (Novo saldo: {max(0.0, u_cred - 0.5):.2f})")
 
             if confirmada_val == 1:
                 cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))

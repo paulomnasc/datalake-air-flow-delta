@@ -584,9 +584,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     if ($userId) {
         $db = \Config\Database::connect();
         $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
-        $userGrokCredits = $userRow ? (int)$userRow->grok_credits : 0;
+        $userGrokCredits = $userRow ? (float)$userRow->grok_credits : 0.0;
         $isGoogleUser = $userRow && !empty($userRow->google_id);
-        $userHasBalance = ($userGrokCredits > 0) || ($userRow && in_array($userRow->status_assinatura ?? '', ['active', 'trial']));
+        $userHasBalance = ($userGrokCredits > 0.0) || ($userRow && in_array($userRow->status_assinatura ?? '', ['active', 'trial']));
     }
 }
 
@@ -2505,7 +2505,7 @@ if (!function_exists('getBetDecisionTree')) {
                 <?php if ($userLoggedIn && $isGoogleUser): ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🤖</span>
-                        <span>Grok: <strong><?= $userGrokCredits ?></strong> <?= lang('App.queries') ?></span>
+                        <span>Grok: <strong><?= ((float)$userGrokCredits == (int)$userGrokCredits) ? (int)$userGrokCredits : number_format($userGrokCredits, 1, ',', '.') ?></strong> <?= lang('App.queries') ?></span>
                         <a href="/subscription/buy-grok-credits" class="btn-recarregar"><?= lang('App.reload') ?></a>
                     </div>
                 <?php elseif ($userLoggedIn): ?>

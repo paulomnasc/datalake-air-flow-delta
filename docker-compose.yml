@@ -531,7 +531,7 @@ services:
       - TZ=America/Sao_Paulo
       - LANG=pt_BR.UTF-8
       - SUBFOLDER=/remote-browser/
-      - CHROME_CLI=${CHROME_CLI:-https://thunderpick.io}
+      - CHROME_CLI=${CHROME_CLI:-https://44evav22.com/pt}
     volumes:
       - ./data/remote-browser-profile:/config
       - ./data/remote-browser-policies:/etc/chromium/policies/managed:ro

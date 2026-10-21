@@ -178,3 +178,13 @@ Para iniciar a operação com máxima tranquilidade e estabilidade operacional, 
 3. **Transferência de Proteção:** Saque os ~5,15 LTC da Binance para sua carteira privada (Trust Wallet ou Exodus).
 4. **Depósito na Stake:** Envie os LTC da sua carteira privada diretamente para o endereço de depósito da Stake.com e inicie as apostas do ciclo.
 
+---
+
+## 8. Ponto de Atenção: Rota de Transferência (Binance vs. Carteira Intermediária)
+
+> [!IMPORTANT]
+> **Ponto de atenção:**
+> * **Se for um teste rápido com valor pequeno:** Pode mandar direto da Binance para o Thunderpick.
+> * **Se for movimentar banca com frequência e realizar saques regulares:** Vale muito a pena baixar uma carteira rápida (como **Trust Wallet** ou **Exodus**) para servir de intermediária e blindar sua conta da Binance.
+
+

@@ -302,7 +302,7 @@ require VIEWPATH . '/header.php';
         <div class="terminal-toolbar">
             <div class="terminal-title">
                 <i class="bi bi-shield-lock-fill text-primary" style="font-size: 1.25rem;"></i>
-                <span>Terminal Remoto Seguro (Cloudbet / Stake)</span>
+                <span>Terminal Remoto Seguro (1xBet / Sportsbet.io)</span>
 
                 <!-- Status Dinâmico -->
                 <span id="browserStatusBadge" class="terminal-badge-secure">
@@ -352,8 +352,8 @@ require VIEWPATH . '/header.php';
                         type="text" 
                         id="terminalUrlInput" 
                         class="terminal-url-input" 
-                        placeholder="Digite a URL (ex: cloudbet.com)..." 
-                        value="https://www.cloudbet.com/" 
+                        placeholder="Digite a URL (ex: sportsbet.io)..." 
+                        value="https://sportsbet.io/pt/sports" 
                         onkeydown="if(event.key === 'Enter') navigateToUrl()"
                         autocomplete="off"
                         spellcheck="false">
@@ -365,11 +365,11 @@ require VIEWPATH . '/header.php';
 
             <div class="terminal-bookmarks">
                 <span class="bookmarks-label"><i class="bi bi-bookmark-star-fill text-warning"></i> Atalhos:</span>
-                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://www.cloudbet.com/')" title="Navegar para Cloudbet">
-                    <i class="bi bi-lightning-charge-fill text-primary"></i> Cloudbet
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://sportsbet.io/pt/sports')" title="Navegar para Sportsbet.io (Cripto & Props)">
+                    <i class="bi bi-lightning-charge-fill text-success"></i> Sportsbet.io
                 </button>
-                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://stake.com/')" title="Navegar para Stake.com">
-                    <i class="bi bi-suit-spade-fill text-danger"></i> Stake
+                <button type="button" class="bookmark-chip" onclick="quickNavigate('https://1xbet.com/pt/')" title="Navegar para 1xBet (Cartões & Odds)">
+                    <i class="bi bi-wallet2 text-primary"></i> 1xBet
                 </button>
                 <button type="button" class="bookmark-chip" onclick="quickNavigate('https://whoer.net/')" title="Testar IP e anonimato no Whoer">
                     <i class="bi bi-shield-check text-info"></i> Checar IP (Whoer)

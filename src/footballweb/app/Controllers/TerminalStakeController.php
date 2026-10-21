@@ -52,7 +52,7 @@ class TerminalStakeController extends BaseController
         }
 
         $data = [
-            'title'      => 'Terminal Remoto Seguro (Cloudbet / Stake)',
+            'title'      => 'Terminal Remoto Seguro (1xBet / Sportsbet.io)',
             'browserUrl' => '/remote-browser/',
         ];
 
@@ -92,12 +92,14 @@ class TerminalStakeController extends BaseController
 
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
-            $url = 'https://www.cloudbet.com/';
+            $safeUrl = 'https://sportsbet.io/pt/sports';
+            $url = 'https://sportsbet.io/pt/sports';
+        } else {
+            if (! preg_match('#^https?://#i', $url)) {
+                $url = 'https://' . $url;
+            }
+            $safeUrl = escapeshellarg($url);
         }
-        if (! preg_match('#^https?://#i', $url)) {
-            $url = 'https://' . $url;
-        }
-        $safeUrl = escapeshellarg($url);
 
         // Limpeza preventiva de travas de perfil e reset de estado de encerramento
         @exec('docker exec -u abc remote-browser bash -c "rm -f /config/.config/chromium/Singleton* && sed -i \'s/\"exit_type\":\"Crashed\"/\"exit_type\":\"Normal\"/g\' /config/.config/chromium/Default/Preferences 2>/dev/null || true" 2>&1');
@@ -146,12 +148,14 @@ class TerminalStakeController extends BaseController
 
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
-            $url = 'https://www.cloudbet.com/';
+            $safeUrl = 'https://sportsbet.io/pt/sports';
+            $url = 'https://sportsbet.io/pt/sports';
+        } else {
+            if (! preg_match('#^https?://#i', $url)) {
+                $url = 'https://' . $url;
+            }
+            $safeUrl = escapeshellarg($url);
         }
-        if (! preg_match('#^https?://#i', $url)) {
-            $url = 'https://' . $url;
-        }
-        $safeUrl = escapeshellarg($url);
 
         @exec('docker exec remote-browser pkill -15 -f chromium 2>&1');
         usleep(250000);

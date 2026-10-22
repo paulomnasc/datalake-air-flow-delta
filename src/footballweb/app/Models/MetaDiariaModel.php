@@ -31,6 +31,29 @@ class MetaDiariaModel extends Model
 
     protected $useTimestamps = false;
 
+    public const DATA_CORTE_DEBITO = '2026-10-22';
+
+    /**
+     * Retorna a cláusula SQL para filtrar apostas válidas nas metas diárias:
+     * Para datas anteriores a 2026-10-22, preserva o histórico original.
+     * A partir de 2026-10-22, exige aposta confirmada (confirmada = 1) E com registro de débito em conta corrente (DEBITO_APOSTA).
+     */
+    public function getSqlCondicaoApostaValida(string $aliasAposta = 'a'): string
+    {
+        $corte = self::DATA_CORTE_DEBITO;
+        return "(
+            DATE(DATE_SUB(COALESCE({$aliasAposta}.data_hora_jogo, {$aliasAposta}.criado_em), INTERVAL 3 HOUR)) < '{$corte}'
+            OR (
+                {$aliasAposta}.confirmada = 1
+                AND EXISTS (
+                    SELECT 1 FROM conta_corrente cc 
+                    WHERE cc.aposta_id = {$aliasAposta}.id 
+                      AND cc.tipo = 'DEBITO_APOSTA'
+                )
+            )
+        )";
+    }
+
     /**
      * Retorna a meta ativa do usuário (ou gera a padrão se não existir).
      */
@@ -127,14 +150,16 @@ class MetaDiariaModel extends Model
                 $temPendentes = ((int)($cache['pendentes_count'] ?? 0) > 0);
 
                 // Consulta leve no banco para verificar integridade e frescor das apostas
+                $condValida = $this->getSqlCondicaoApostaValida('a');
                 $betCheck = $db->query("
                     SELECT 
                         COUNT(*) as total_apostas,
-                        MAX(updated_at) as max_updated_at
-                    FROM apostas
-                    WHERE usuario_id = ?
-                      AND status NOT IN ('Cancelada', 'CANCELADA')
-                      AND DATE(DATE_SUB(COALESCE(data_hora_jogo, criado_em), INTERVAL 3 HOUR)) = ?
+                        MAX(a.updated_at) as max_updated_at
+                    FROM apostas a
+                    WHERE a.usuario_id = ?
+                      AND a.status NOT IN ('Cancelada', 'CANCELADA')
+                      AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) = ?
+                      AND {$condValida}
                 ", [$usuarioId, $dataReferencia])->getRowArray();
 
                 $totalApostas = (int)($betCheck['total_apostas'] ?? 0);
@@ -173,29 +198,31 @@ class MetaDiariaModel extends Model
         $meta = $this->getMetaAtiva($usuarioId);
 
         // Agregação direta das apostas confirmadas para a data informada
+        $condValida = $this->getSqlCondicaoApostaValida('a');
         $sql = "
             SELECT 
                 COUNT(*) as total_cadastradas,
-                SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN 1 ELSE 0 END) as total_liquidadas,
-                SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
-                SUM(CASE WHEN status = 'Ganha' THEN 1.0 WHEN status = 'Meio Ganha' THEN 0.5 ELSE 0.0 END) as greens,
-                SUM(CASE WHEN status IN ('ANULADA', 'Anulada') THEN 1 ELSE 0 END) as pushes,
-                SUM(CASE WHEN status = 'Perdida' THEN 1.0 WHEN status = 'Meio Perdida' THEN 0.5 ELSE 0.0 END) as reds,
-                COALESCE(AVG(odd), 0) as odd_media,
-                COALESCE(SUM(valor_aposta), 0) as total_apostado,
-                COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_liquidado,
+                SUM(CASE WHEN a.status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN 1 ELSE 0 END) as total_liquidadas,
+                SUM(CASE WHEN a.status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
+                SUM(CASE WHEN a.status = 'Ganha' THEN 1.0 WHEN a.status = 'Meio Ganha' THEN 0.5 ELSE 0.0 END) as greens,
+                SUM(CASE WHEN a.status IN ('ANULADA', 'Anulada') THEN 1 ELSE 0 END) as pushes,
+                SUM(CASE WHEN a.status = 'Perdida' THEN 1.0 WHEN a.status = 'Meio Perdida' THEN 0.5 ELSE 0.0 END) as reds,
+                COALESCE(AVG(a.odd), 0) as odd_media,
+                COALESCE(SUM(a.valor_aposta), 0) as total_apostado,
+                COALESCE(SUM(CASE WHEN a.status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN a.valor_aposta ELSE 0 END), 0) as total_liquidado,
                 COALESCE(SUM(CASE 
-                    WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
-                    WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))
-                    WHEN status IN ('ANULADA', 'Anulada') THEN valor_aposta
-                    WHEN status = 'Meio Perdida' THEN (valor_aposta * 0.5)
-                    WHEN status = 'Cashout' THEN COALESCE(NULLIF(cash_out, 0), COALESCE(NULLIF(ganhos_potenciais, 0), valor_aposta))
+                    WHEN a.status = 'Ganha' THEN COALESCE(NULLIF(a.ganhos_potenciais, 0), (a.valor_aposta * a.odd))
+                    WHEN a.status = 'Meio Ganha' THEN (a.valor_aposta + ((COALESCE(NULLIF(a.ganhos_potenciais, 0), (a.valor_aposta * a.odd)) - a.valor_aposta) / 2))
+                    WHEN a.status IN ('ANULADA', 'Anulada') THEN a.valor_aposta
+                    WHEN a.status = 'Meio Perdida' THEN (a.valor_aposta * 0.5)
+                    WHEN a.status = 'Cashout' THEN COALESCE(NULLIF(a.cash_out, 0), COALESCE(NULLIF(a.ganhos_potenciais, 0), a.valor_aposta))
                     ELSE 0 
                 END), 0) as retornos_totais
-            FROM apostas
-            WHERE usuario_id = ?
-              AND status NOT IN ('Cancelada', 'CANCELADA')
-              AND DATE(DATE_SUB(COALESCE(data_hora_jogo, criado_em), INTERVAL 3 HOUR)) = ?
+            FROM apostas a
+            WHERE a.usuario_id = ?
+              AND a.status NOT IN ('Cancelada', 'CANCELADA')
+              AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) = ?
+              AND {$condValida}
         ";
 
         $res = $db->query($sql, [$usuarioId, $dataReferencia])->getRowArray();
@@ -356,11 +383,14 @@ class MetaDiariaModel extends Model
         $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
 
         // Busca todas as apostas válidas em ordem cronológica
-        $todasApostas = $db->table('apostas')
-            ->where('usuario_id', $usuarioId)
-            ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
-            ->orderBy('id', 'ASC')
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $todasApostas = $db->table('apostas a')
+            ->select('a.*')
+            ->where('a.usuario_id', $usuarioId)
+            ->whereNotIn('a.status', ['Cancelada', 'CANCELADA'])
+            ->where($condValida)
+            ->orderBy('COALESCE(a.data_hora_jogo, a.criado_em)', 'ASC', false)
+            ->orderBy('a.id', 'ASC')
             ->get()
             ->getResultObject();
 
@@ -646,11 +676,14 @@ class MetaDiariaModel extends Model
         $meta = $this->getMetaAtiva($usuarioId);
         $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
 
-        $todasApostas = $db->table('apostas')
-            ->where('usuario_id', $usuarioId)
-            ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
-            ->orderBy('id', 'ASC')
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $todasApostas = $db->table('apostas a')
+            ->select('a.*')
+            ->where('a.usuario_id', $usuarioId)
+            ->whereNotIn('a.status', ['Cancelada', 'CANCELADA'])
+            ->where($condValida)
+            ->orderBy('COALESCE(a.data_hora_jogo, a.criado_em)', 'ASC', false)
+            ->orderBy('a.id', 'ASC')
             ->get()
             ->getResultObject();
 
@@ -796,10 +829,12 @@ class MetaDiariaModel extends Model
 
         // Se datas forem fornecidas, assegura que dias com apostas tenham cache gerado
         if (!empty($dataInicio) || !empty($dataFim)) {
-            $bApostas = $db->table('apostas')
-                ->select("DATE(COALESCE(data_hora_jogo, criado_em)) as dia_aposta", false)
-                ->where('usuario_id', $usuarioId)
-                ->whereNotIn('status', ['Cancelada', 'CANCELADA']);
+            $condValida = $this->getSqlCondicaoApostaValida('a');
+            $bApostas = $db->table('apostas a')
+                ->select("DATE(COALESCE(a.data_hora_jogo, a.criado_em)) as dia_aposta", false)
+                ->where('a.usuario_id', $usuarioId)
+                ->whereNotIn('a.status', ['Cancelada', 'CANCELADA'])
+                ->where($condValida);
             if (!empty($dataInicio)) {
                 $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) >=", $dataInicio, false);
             }

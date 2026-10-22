@@ -341,8 +341,8 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
-  padding: 0.25rem 0.15rem;
+  gap: 0.15rem;
+  padding: 0.2rem 0.1rem;
   font-size: 0.8rem;
   font-weight: 700;
   transition: all 0.2s ease;
@@ -350,7 +350,15 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
 }
 
 .slot-date {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.slot-time {
+  font-size: 0.65rem;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.01em;
@@ -358,7 +366,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
 }
 
 .slot-symbol {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -898,6 +906,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               $slotClass = 'slot-empty';
               $slotIcon = ($i + 1);
               $slotDate = '';
+              $slotTime = '';
               $slotTitle = "Slot #".($i+1)." vazio";
 
               if ($ap) {
@@ -907,38 +916,41 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                           $dt = new \DateTime($rawDate, new \DateTimeZone('UTC'));
                           $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
                           $slotDate = $dt->format('d/m');
+                          $slotTime = $dt->format('H:i');
                       } catch (\Throwable $e) {
                           $slotDate = date('d/m', strtotime($rawDate));
+                          $slotTime = date('H:i', strtotime($rawDate));
                       }
                   }
 
                   $st = $ap->status;
                   $timesJogo = (!empty($ap->time_casa) && !empty($ap->time_fora)) ? "{$ap->time_casa} x {$ap->time_fora}" : "Jogo #{$ap->id}";
+                  $dataHoraTxt = !empty($slotTime) ? "{$slotDate} às {$slotTime}" : $slotDate;
                   if (in_array($st, ['Ganha', 'Meio Ganha'])) {
                       $slotClass = 'slot-green';
                       $slotIcon = '✓';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} ({$st})";
                   } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⚪';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Reembolso / Push)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Reembolso / Push)";
                   } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
                       $slotClass = 'slot-red';
                       $slotIcon = '✕';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} ({$st})";
                   } elseif ($st === 'Cashout') {
                       $slotClass = 'slot-cashout';
                       $slotIcon = '💰';
                       $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} - Cashout ({$valCash})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} - Cashout ({$valCash})";
                   } elseif (in_array(strtolower($st), ['cancelada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⊘';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Cancelada / Slot Preservado)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Cancelada / Slot Preservado)";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Pendente)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Pendente)";
                   }
               }
         ?>
@@ -947,6 +959,9 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               <span class="slot-date"><?= $slotDate ?></span>
             <?php endif; ?>
             <span class="slot-symbol"><?= $slotIcon ?></span>
+            <?php if (!empty($slotTime)): ?>
+              <span class="slot-time"><?= $slotTime ?></span>
+            <?php endif; ?>
           </div>
         <?php endfor; ?>
       </div>

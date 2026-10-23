@@ -303,7 +303,10 @@ def evaluate_bet(aposta, stats):
     mercado = aposta.get('mercado', '').strip()
     valor_aposta = float(aposta.get('valor_aposta', 0.0) or 0.0)
     odd_original = float(aposta.get('odd', 1.0) or 1.0)
-    ganhos_originais = float(aposta.get('ganhos_potenciais', 0.0) or (valor_aposta * odd_original))
+    
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+    ganhos_reais = round(valor_aposta * odd_original, dec)
     
     total_cards = stats['total_cards']
     total_goals = stats['total_goals']
@@ -354,21 +357,22 @@ def evaluate_bet(aposta, stats):
         adj = diff_gols + line
 
         if adj > 0.25:
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA!"
-            return 'Ganha', detalhe, ganhos_originais
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA! (Retorno {moeda_cod} {ganhos_reais})"
+            return 'Ganha', detalhe, ganhos_reais
         elif abs(adj - 0.25) < 0.01:
             # MEIO GANHA (50% ganha na odd + 50% reembolsada)
-            valor_computado = valor_aposta * ((odd_original + 1.0) / 2.0)
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {valor_computado:.2f})"
+            valor_computado = round(valor_aposta * ((odd_original + 1.0) / 2.0), dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno {moeda_cod} {valor_computado})"
             return 'Meio Ganha', detalhe, valor_computado
         elif abs(adj) < 0.01:
             # ANULADA (100% Reembolsada)
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
-            return 'ANULADA', detalhe, valor_aposta
+            valor_computado = round(valor_aposta, dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso {moeda_cod} {valor_computado})"
+            return 'ANULADA', detalhe, valor_computado
         elif abs(adj - (-0.25)) < 0.01:
             # MEIO PERDIDA (50% Reembolsada + 50% Perdida)
-            valor_computado = valor_aposta * 0.5
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {valor_computado:.2f})"
+            valor_computado = round(valor_aposta * 0.5, dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno {moeda_cod} {valor_computado})"
             return 'Meio Perdida', detalhe, valor_computado
         else:
             # PERDIDA (100% Perdida)
@@ -430,7 +434,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT | {target_name}: {actual_cards} ({breakdown}) {comp} Limite {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
     elif 'gol' in mercado_norm or 'gol' in palpite_norm:
@@ -449,7 +453,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Total {total_goals} Gols {comp} {threshold}) -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # 3. MERCADO: RESULTADO / VENCEDOR (Ex: "Casa Vence", "Empate", "Fora Vence")
     elif 'vencedor' in mercado_norm or 'resultado' in mercado_norm or 'vence' in palpite_norm:
@@ -464,7 +468,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar Final: {goals_home}x{goals_away} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # FALLBACK GENÉRICO (Trata palpites tipo "Menos de X")
     match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
@@ -473,10 +477,10 @@ def evaluate_bet(aposta, stats):
         won = (total_cards < threshold)
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Resultado {total_cards} vs Limite {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # Se não conseguir avaliar, marca como Ganha por default para simulação
-    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!", ganhos_originais
+    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!", ganhos_reais
 
 def process_pending_bets():
     """

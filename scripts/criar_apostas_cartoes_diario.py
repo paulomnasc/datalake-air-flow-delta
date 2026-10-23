@@ -105,7 +105,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
 
     agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     total_apostas = len(novas_apostas)
-    subject = f"🟨 [Apostas Cartões] {total_apostas} Nova(s) Aposta(s) Criada(s)! - {agora_str}"
+    subject = f"🟨 [Sugestões Cartões] {total_apostas} Nova(s) Sugestão(ões)! - {agora_str}"
 
     rows_html = ""
     for aposta in novas_apostas:
@@ -143,7 +143,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         </div>
         
         <div style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 15px;">
-            <strong>🚀 NOVAS APOSTAS GERADAS!</strong> Foram identificadas e cadastradas <strong>{total_apostas}</strong> nova(s) aposta(s) no mercado de Total de Cartões (Estratégia Under).
+            <strong>💡 NOVAS SUGESTÕES GERADAS!</strong> Foram identificadas <strong>{total_apostas}</strong> nova(s) sugestão(ões) no mercado de Total de Cartões (Estratégia Under).
         </div>
 
         <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 13px; margin-bottom: 20px;">
@@ -436,27 +436,10 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_duplicadas += len(user_ids)
             continue
 
-        # Helper para remover apostas pendentes/não-confirmadas caso a partida não passe mais no crivo do Gatekeeper
+        # Helper para preservar apostas existentes sem exclusão/cancelamento automático via DAG
         def cancelar_apostas_pendentes_existentes(motivo):
-            nonlocal apostas_canceladas
-            for uid in user_ids:
-                cursor.execute("""
-                    SELECT a.id, a.confirmada,
-                           (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-                    FROM apostas a 
-                    WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões' AND a.status IN ('Pendente', 'Cancelada')
-                """, (fixture_id, uid))
-                rows_p = cursor.fetchall()
-                for r_p in rows_p:
-                    tem_deb = (int(r_p.get('tem_debito') or 0) > 0)
-                    is_conf = (int(r_p.get('confirmada') or 0) == 1) or tem_deb
-                    if is_conf:
-                        print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{r_p['id']} possui confirmação do usuário ou débito efetuado. Remoção via Gatekeeper ignorada.")
-                        continue
-
-                    cursor.execute("DELETE FROM apostas WHERE id = %s", (r_p['id'],))
-                    apostas_canceladas += 1
-                    print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
+            # Preserva apostas existentes sem exclusão ou cancelamento automático via DAG
+            return
 
         if not is_allowed_league(league_id, league_name, fixture_date):
             print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
@@ -661,7 +644,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     if apostas_criadas > 0:
         recipient = os.environ.get("CART_BETS_EMAIL_RECIPIENT", "paulomnasc@gmail.com")
-        send_created_bets_email(novas_apostas_detalhes, recipient=recipient)
+        # send_created_bets_email(novas_apostas_detalhes, recipient=recipient)
 
     conn.close()
 

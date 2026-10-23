@@ -74,8 +74,8 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, home_tea
         if ja_notificado:
             return False
 
-        titulo = f"🎯 Aposta Aprovada: {home_team} vs {away_team}"
-        msg = f"Gatekeeper aprovou '{palpite_str}' @ {odd_val:.2f} ({bookmaker}) com EV de +{ev_perc}%. A partida inicia em instantes!"
+        titulo = f"💡 Sugestão de Cartões: {home_team} vs {away_team}"
+        msg = f"Sugestão de entrada da IA: '{palpite_str}' @ {odd_val:.2f} ({bookmaker}) com EV de +{ev_perc}%. A partida inicia em instantes!"
         link = "/apostas"
 
         cursor.execute("""

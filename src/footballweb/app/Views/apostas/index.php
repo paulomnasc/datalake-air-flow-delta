@@ -1388,7 +1388,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -1837,38 +1837,28 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
           <div class="bet-card-footer">
             <div class="actions-primary">
-              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                <?php if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada'): ?>
-                  <button type="button" class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px; opacity: 0.6; cursor: not-allowed;" disabled title="Aposta cancelada pelo sistema">
-                    <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php elseif ($isVolatilidadeBloqueada): ?>
-                  <button type="button" 
-                          class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm btn-confirmar-bloqueado" 
-                          id="btn-confirm-<?= $aposta->id ?>"
-                          data-needs-check="1"
-                          data-aposta-id="<?= $aposta->id ?>"
-                          data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
-                          data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
-                          data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
-                          data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
-                          data-valor="<?= (float)$aposta->valor_aposta ?>"
-                          data-odd="<?= (float)($aposta->odd ?? 0) ?>"
-                          style="border-radius: 8px; background: rgba(100, 116, 139, 0.35); border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; cursor: not-allowed;" 
-                          disabled 
-                          title="Bloqueio Preventivo: Confronto equilibrado com odds abertas. Clique primeiro em 'Checar Odds Agora' para auditar as cotações em tempo real e desbloquear a confirmação.">
-                    <i class="bi bi-lock-fill me-1 text-warning"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php else: ?>
-                  <button type="button" 
-                          class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
-                          id="btn-confirm-<?= $aposta->id ?>"
-                          style="border-radius: 8px;" 
-                          onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)">
-                    <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php endif; ?>
-              <?php endif; ?>
+              <?php 
+                $btnConfirmClass = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
+                  ? 'btn-outline-success' 
+                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : 'btn-success');
+                $btnConfirmIcon = ($isConfirmada && $aposta->status !== 'Não Confirmada') ? 'bi-check2-circle' : 'bi-lightning-charge-fill';
+                $btnConfirmTitle = ($isConfirmada && $aposta->status !== 'Não Confirmada') ? 'Aposta já confirmada' : 'Confirmar Aposta';
+              ?>
+              <button type="button" 
+                      class="btn btn-sm <?= $btnConfirmClass ?> fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
+                      id="btn-confirm-<?= $aposta->id ?>"
+                      data-aposta-id="<?= $aposta->id ?>"
+                      data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
+                      data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
+                      data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
+                      data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
+                      data-valor="<?= (float)$aposta->valor_aposta ?>"
+                      data-odd="<?= (float)($aposta->odd ?? 0) ?>"
+                      style="border-radius: 8px; cursor: pointer;" 
+                      onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)"
+                      title="<?= $btnConfirmTitle ?>">
+                <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= lang('App.confirm_bet') ?>
+              </button>
               <?php if ((!$isConfirmada || $aposta->status === 'Não Confirmada') && !empty($aposta->fixture_id)): ?>
                 <button type="button" 
                         class="btn btn-sm btn-outline-info fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-check-odds-ah" 
@@ -3989,9 +3979,50 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
   function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta, oddAposta) {
     const cardEl = document.getElementById('aposta-card-' + apostaId);
-    if (cardEl && cardEl.querySelector('[data-needs-check="1"]')) {
-      alert('⚠️ Este confronto possui odds abertas / equilibradas. É obrigatório clicar em "Checar Odds Agora" antes de confirmar a aposta.');
-      return;
+    if (cardEl) {
+      const statusRaw = (cardEl.getAttribute('data-status') || '').trim();
+      const status = statusRaw.toLowerCase();
+      const isConfirmada = (cardEl.getAttribute('data-confirmada') === '1') && status !== 'não confirmada' && status !== 'nao confirmada';
+      const gatekeeper = (cardEl.getAttribute('data-gatekeeper') || '').toUpperCase().trim();
+      const palpiteLower = (palpite || '').toLowerCase();
+      const isNobet = gatekeeper === 'NO_BET' || status === 'cancelada' || palpiteLower.includes('abstenção') || palpiteLower.includes('abstencao') || palpiteLower.includes('sem entrada');
+
+      // 1. Já confirmada: avisa com mensagem clara
+      if (isConfirmada) {
+        alert('ℹ️ Esta aposta já foi confirmada anteriormente e o débito foi lançado em sua conta corrente.');
+        return;
+      }
+
+      // 2. Cancelada: avisa com mensagem clara
+      if (status === 'cancelada') {
+        alert('⚠️ Esta simulação de aposta foi cancelada e não pode ser confirmada.');
+        return;
+      }
+
+      // 3. Anulada: avisa com mensagem clara
+      if (status === 'anulada') {
+        alert('⚠️ Esta aposta foi anulada e não pode ser confirmada.');
+        return;
+      }
+
+      // 4. Encerrada com resultado
+      if (['ganha', 'perdida', 'meio ganha', 'meio perdida', 'cashout'].includes(status)) {
+        alert('ℹ️ Esta aposta já foi encerrada com o resultado: ' + statusRaw + '.');
+        return;
+      }
+
+      // 5. NO_BET / Abstenção da IA: avisa com diálogo sem impedir
+      if (isNobet) {
+        const prosseguir = confirm('⚠️ Aviso da IA / Gestão de Risco:\nEsta aposta possui recomendação de NO_BET (Abstenção).\n\nDeseja abrir a tela de confirmação mesmo assim?');
+        if (!prosseguir) {
+          return;
+        }
+      } else if (cardEl.getAttribute('data-volatilidade') === '1' || cardEl.querySelector('[data-needs-check="1"]')) {
+        const prosseguir = confirm('⚠️ Alerta de Volatilidade / Odds Abertas:\nEste confronto possui cotações equilibradas. Recomenda-se auditar em "Checar Odds Agora" antes de enviar para a banca.\n\nDeseja prosseguir com a confirmação mesmo assim?');
+        if (!prosseguir) {
+          return;
+        }
+      }
     }
 
     currentBetToConfirm = { 
@@ -4869,14 +4900,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
         // Tratamento da decisão do Gatekeeper em tempo real
         if (data.tipo_mudanca === 'cancelada' || data.tipo_mudanca === 'no_bet' || Number(data.odd_nova) === 0) {
           cardEl.setAttribute('data-status', 'Cancelada');
+          cardEl.setAttribute('data-gatekeeper', 'NO_BET');
           const btnConfirm = cardEl.querySelector('#btn-confirm-' + apostaId);
           if (btnConfirm) {
             btnConfirm.className = 'btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm';
-            btnConfirm.disabled = true;
+            btnConfirm.disabled = false;
             btnConfirm.removeAttribute('data-needs-check');
-            btnConfirm.style.opacity = '0.6';
-            btnConfirm.style.cursor = 'not-allowed';
-            btnConfirm.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Cancelada pelo Gatekeeper';
+            btnConfirm.style.opacity = '1';
+            btnConfirm.style.cursor = 'pointer';
+            btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
           }
           cardEl.classList.remove('bet-card-volatilidade');
           const headerBadge = cardEl.querySelector('.badge-volatilidade-header');

@@ -1189,13 +1189,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     badgeEl.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> ⚡ OPORTUNIDADE AO VIVO (IN-PLAY)';
                 } else if (notif.tipo === 'NOVA_OPORTUNIDADE_AH') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-bullseye"></i> 🎯 NOVA OPORTUNIDADE (HANDICAP)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO (HANDICAP)';
                 } else if (notif.tipo === 'APOSTA_CARTAO_APROVADA') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO +EV (CARTÕES)';
                 } else if (isAprovada) {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 APOSTA GERADA (IA)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO GERADA (IA)';
                 } else {
                     badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA (ABSTENÇÃO IA)';
@@ -1205,7 +1205,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             if (linkEl) {
                 if (isAprovada) {
                     linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
-                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Sugestão';
                 } else {
                     linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
                     linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out';

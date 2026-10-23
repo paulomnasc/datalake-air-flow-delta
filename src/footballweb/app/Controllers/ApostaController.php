@@ -300,16 +300,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        $moedaCodStore = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : 'BRL';
+        $decimaisStore = $this->contaCorrenteModel->getDecimais($moedaCodStore);
+
         if ($status === 'ANULADA') {
             $ganhosPotenciais = $valorAposta;
         } elseif ($status === 'Meio Ganha') {
-            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), $decimaisStore);
         } elseif ($status === 'Meio Perdida') {
-            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+            $ganhosPotenciais = round($valorAposta * 0.5, $decimaisStore);
         } elseif ($status === 'Perdida') {
             $ganhosPotenciais = 0.00;
         } else {
-            $ganhosPotenciais = round($odd * $valorAposta, 2);
+            $ganhosPotenciais = round($odd * $valorAposta, $decimaisStore);
         }
 
         // Validação do Gatekeeper
@@ -891,16 +894,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        $moedaCodUpd = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+        $decimaisUpd = $this->contaCorrenteModel->getDecimais($moedaCodUpd);
+
         if ($status === 'ANULADA') {
             $ganhosPotenciais = $valorAposta;
         } elseif ($status === 'Meio Ganha') {
-            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), $decimaisUpd);
         } elseif ($status === 'Meio Perdida') {
-            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+            $ganhosPotenciais = round($valorAposta * 0.5, $decimaisUpd);
         } elseif ($status === 'Perdida') {
             $ganhosPotenciais = 0.00;
         } else {
-            $ganhosPotenciais = round($odd * $valorAposta, 2);
+            $ganhosPotenciais = round($odd * $valorAposta, $decimaisUpd);
         }
 
         // Reavalia o Gatekeeper ao editar a aposta
@@ -971,7 +977,8 @@ class ApostaController extends BaseController
                         (int)$aposta->usuario_id,
                         $apostaId,
                         (float)$retorno,
-                        "Retorno Aposta #{$apostaId} ({$status})"
+                        "Retorno Aposta #{$apostaId} ({$status})",
+                        $moedaCodUpd
                     );
                 }
             }
@@ -1244,6 +1251,13 @@ class ApostaController extends BaseController
             ])->setStatusCode(400);
         }
 
+        if (!empty($aposta->status) && in_array(strtolower($aposta->status), ['ganha', 'perdida', 'meio ganha', 'meio perdida', 'anulada', 'cashout'], true)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => "Esta aposta já foi encerrada com o status '{$aposta->status}' e não pode ser confirmada."
+            ])->setStatusCode(400);
+        }
+
         $userId = (int)$access['user_id'];
         if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
             return $this->response->setJSON([
@@ -1296,8 +1310,11 @@ class ApostaController extends BaseController
         if ($rawOdd !== null && trim((string)$rawOdd) !== '') {
             $novaOdd = (float)str_replace(',', '.', trim((string)$rawOdd));
             if ($novaOdd >= 1.01) {
+                $moedaCodConf = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+                $decimaisConf = $this->contaCorrenteModel->getDecimais($moedaCodConf);
                 $updateData['odd'] = $novaOdd;
-                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, 2);
+                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, $decimaisConf);
+                $updateData['ganhos_potenciais']  = round($valorAposta * $novaOdd, $decimaisConf);
             }
         }
 
@@ -3536,6 +3553,7 @@ class ApostaController extends BaseController
             $apostaId = (int)$apostaId;
             $cmd .= " --aposta_id={$apostaId}";
         }
+        $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
         $result = null;
@@ -3653,6 +3671,7 @@ class ApostaController extends BaseController
         if (!empty($odd) && is_numeric($odd)) {
             $cmd .= " --odd=" . escapeshellarg((float)$odd);
         }
+        $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
         $result = null;
@@ -3760,16 +3779,22 @@ class ApostaController extends BaseController
             log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
         }
 
-        // Contar total de não lidas para o usuário
+        // Contar total de não lidas para o usuário (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
         $totalNaoLidas = $db->table('notificacoes_usuario n')
+            ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
             ->where('n.usuario_id', $userId)
             ->where('n.lida', 0)
+            ->where("n.tipo != 'APOSTA_CANCELADA'")
+            ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->countAllResults();
 
-        // Buscar as últimas 15 notificações (Pinadas e não lidas no topo absoluto, depois não lidas, depois mais recentes)
+        // Buscar as últimas 15 notificações (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
         $notificacoes = $db->table('notificacoes_usuario n')
             ->select('n.*')
+            ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
             ->where('n.usuario_id', $userId)
+            ->where("n.tipo != 'APOSTA_CANCELADA'")
+            ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
             ->orderBy('n.lida', 'ASC')
             ->orderBy('n.criado_em', 'DESC')

@@ -337,9 +337,12 @@ def evaluate_cards_under_bet(aposta, total_cards, yellow_home, yellow_away, red_
         won = (actual_cards < threshold)
         comp = "<"
 
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+
     if won:
-        payout = round(valor_aposta * odd, 2)
-        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> GANHA (Retorno R$ {payout:.2f})"
+        payout = round(valor_aposta * odd, dec)
+        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> GANHA (Retorno {moeda_cod} {payout})"
         return 'Ganha', payout, detalhe
     else:
         detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> PERDIDA"

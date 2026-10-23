@@ -150,29 +150,32 @@ def evaluate_asian_handicap_bet(aposta, goals_home, goals_away):
     # Saldo ajustado do Handicap
     adj = diff_gols + line
 
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+
     if adj > 0.25:
         # Aposta GANHA (100% Lucro + 100% Stake)
-        payout = valor_aposta * odd
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> GANHA (Retorno R$ {payout:.2f})"
-        return 'Ganha', round(payout, 2), detalhe
+        payout = round(valor_aposta * odd, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> GANHA (Retorno {moeda_cod} {payout})"
+        return 'Ganha', payout, detalhe
 
     elif abs(adj - 0.25) < 0.01:
         # MEIO GANHA (50% Lucro + 100% Stake)
-        payout = valor_aposta * ((odd + 1.0) / 2.0)
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {payout:.2f})"
-        return 'Meio Ganha', round(payout, 2), detalhe
+        payout = round(valor_aposta * ((odd + 1.0) / 2.0), dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno {moeda_cod} {payout})"
+        return 'Meio Ganha', payout, detalhe
 
     elif abs(adj) < 0.01:
         # ANULADA / EMPATE ANULA (100% Reembolso da Stake)
-        payout = valor_aposta
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> ANULADA (Reembolso R$ {payout:.2f})"
-        return 'ANULADA', round(payout, 2), detalhe
+        payout = round(valor_aposta, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> ANULADA (Reembolso {moeda_cod} {payout})"
+        return 'ANULADA', payout, detalhe
 
     elif abs(adj - (-0.25)) < 0.01:
         # MEIO PERDIDA (50% Stake de volta + 50% Perdida)
-        payout = valor_aposta * 0.5
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {payout:.2f})"
-        return 'Meio Perdida', round(payout, 2), detalhe
+        payout = round(valor_aposta * 0.5, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno {moeda_cod} {payout})"
+        return 'Meio Perdida', payout, detalhe
 
     else:
         # PERDIDA (100% Perdida)

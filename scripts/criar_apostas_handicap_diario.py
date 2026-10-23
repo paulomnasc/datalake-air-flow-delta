@@ -137,11 +137,11 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
 
     subject_parts = []
     if num_novas > 0:
-        subject_parts.append(f"🟢 {num_novas} Nova(s) Aposta(s)")
+        subject_parts.append(f"🟢 {num_novas} Nova(s) Sugestão(ões)")
     if num_canc > 0:
         subject_parts.append(f"🚫 {num_canc} Cancelada(s)/Estornada(s)")
     
-    subject = f"🛡️ [Apostas Handicap Betano] {' | '.join(subject_parts)} - {agora_str}"
+    subject = f"🛡️ [Sugestões Handicap Betano] {' | '.join(subject_parts)} - {agora_str}"
 
     rows_novas_html = ""
     for aposta in novas_apostas:
@@ -277,213 +277,41 @@ def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulo
 def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link):
     """
     Insere notificação na tabela notificacoes_usuario para exibição em tempo real (Sino + Toast Pop-up).
+    TRAVA DE DATA: Somente emite alertas se a partida ocorrer na data de HOJE (horário BRT).
     """
     try:
+        if fixture_id:
+            cursor.execute("""
+                SELECT DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) as game_date,
+                       DATE(CONVERT_TZ(NOW(), '+00:00', '-03:00')) as today_date
+                FROM fixtures_trends
+                WHERE fixture_id = %s
+                LIMIT 1
+            """, (fixture_id,))
+            row_date = cursor.fetchone()
+            if row_date and row_date.get('game_date') and row_date.get('today_date'):
+                if str(row_date['game_date']) != str(row_date['today_date']):
+                    print(f"ℹ️ [Alerta Suprimido / Data Futura] Partida #{fixture_id} ocorre em {row_date['game_date']}. Alertas permitidos apenas para a data de hoje ({row_date['today_date']}).")
+                    return False
+
         cursor.execute("""
             INSERT INTO notificacoes_usuario (
                 usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criado_em
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, NOW())
         """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
         print(f"🔔 [Notificação Registrada User #{usuario_id}] {titulo}")
+        return True
     except Exception as e:
         print(f"⚠️ [Notificação] Falha ao registrar notificação para user #{usuario_id}: {e}")
+        return False
 
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):
     """
-    Busca apostas pendentes no mercado de Handicap Asiático para o fixture_id.
-    Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
-    efetua o estorno financeiro (ESTORNO_APOSTA) atualizando o saldo do usuário.
-    Gera notificação em tempo real (notificacoes_usuario) com link direto para ação de Cash Out na Betano.
-    Retorna lista de dicionários com detalhes das apostas canceladas/estornadas.
+    Cancelamento automático desativado conforme diretriz operacional (Diário de Bordo 22/10/2026).
+    Preserva apostas existentes (confirmadas ou não confirmadas) como 'Pendente' sem estorno ou cancelamento forçado.
     """
-    cursor.execute("""
-        SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
-               a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status,
-               (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-        FROM apostas a
-        WHERE a.fixture_id = %s 
-          AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
-          AND a.status = 'Pendente'
-    """, (fixture_id,))
-    apostas_pendentes = cursor.fetchall()
-    
-    # Se a abstenção for decorrente de indisponibilidade de odds da API, cota esgotada ou ausência de linhas em tempo real,
-    # NUNCA cancela apostas pendentes já criadas anteriormente com +EV
-    is_api_odds_missing = any(k.lower() in (motivo or '').lower() for k in [
-        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker',
-        'ausência de linhas reais', 'cotações oficiais de handicap asiático indisponíveis', 'linhas reais', 'ausência de cotações'
-    ]) and 'odds 1x2 ausentes' not in (motivo or '').lower()
-    if is_api_odds_missing:
-        print(f"🔒 [Apostas Preservadas / Indisponibilidade de Odds API] Partida #{fixture_id} possui aposta(s) pendente(s). Cancelamento abortado pois a ausência de odds da Betano via API é temporária/cota.")
-        return []
-
-    canceladas_detalhes = []
-    for aposta in apostas_pendentes:
-        aposta_id = aposta['id']
-        usuario_id = aposta['usuario_id']
-        valor = float(aposta['valor_aposta'] or 0.0)
-        palpite_anterior = aposta.get('palpite') or 'Handicap Asiático'
-        odd_anterior = float(aposta.get('odd') or 0.0)
-        
-        # Obter cotações 1X2 para descrição natural e clara
-        cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
-        f_row = cursor.fetchone() or {}
-        oh = float(f_row.get('odd_home') or 0.0)
-        od = float(f_row.get('odd_draw') or 0.0)
-        oa = float(f_row.get('odd_away') or 0.0)
-
-        # Análise aprofundada da mudança de odds e impacto econômico/esportivo (Regras 6, 8, 13 e 17)
-        nova_odd_str, nova_odd_curta, diag_curto, expl_dinamica, nova_odd_val = analisar_mudanca_odd_cancelamento(
-            palpite_anterior=palpite_anterior,
-            odd_anterior=odd_anterior,
-            motivo_calculo=motivo,
-            odd_home=oh,
-            odd_draw=od,
-            odd_away=oa,
-            home_team=aposta.get('time_casa', ''),
-            away_team=aposta.get('time_fora', '')
-        )
-
-        # REGRA ESTRUTURAL DE CLV POSITIVO (GANHO DE LINHA):
-        # Se a mesma linha continua presente e a cotação derreteu ou manteve-se
-        # favorável (nova_odd_val <= odd_anterior), o apostador obteve Closing Line Value.
-        # A aposta pendente já contratada é PRESERVADA, pois cancelar destruiria o valor da carteira!
-        is_clv_positivo = (nova_odd_val > 0.0 and nova_odd_val <= odd_anterior)
-        is_away_bet = aposta.get('time_fora', '').lower() in palpite_anterior.lower()
-        team_is_severe_dog = (is_away_bet and oa >= 3.50 and oh <= 1.80) or (not is_away_bet and oh >= 3.50 and oa <= 1.80)
-
-        if is_clv_positivo and not team_is_severe_dog:
-            print(f"🔒 [Aposta Preservada / Ganho de Linha CLV] Partida #{fixture_id} | Aposta #{aposta_id}: "
-                  f"{palpite_anterior} @ {odd_anterior:.2f} mantida (mercado Betano atual @ {nova_odd_val:.2f} com CLV Positivo).")
-            continue
-
-        cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', motivo or '')
-        didactic = GATEKEEPER_DIDACTIC_MAP.get(cat_desc, '')
-
-        human_desc = (
-            f"🚫 Cancelamento Pós-Aprovação no Pré-Jogo (Abstenção da IA / Gatekeeper NO_BET)\n\n"
-            f"• Entrada Aprovada Anteriormente: {palpite_anterior} @ {odd_anterior:.2f}\n"
-            f"• Cotação no Cancelamento: {nova_odd_str}\n"
-            f"• Mercado 1X2 Atual: Casa: {oh:.2f} | Empate: {od:.2f} | Fora: {oa:.2f}\n\n"
-            f"💡 Por que a aposta foi cancelada? (Dinâmica de Mercado e Risco):\n"
-            f"{expl_dinamica}\n\n"
-            f"🛡️ Proteção de Banca: A estimativa anterior foi cancelada preventivamente para proteger o capital. "
-            f"O valor de R$ {valor:.2f} foi estornado para o seu saldo. "
-            f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente."
-        )
-
-        full_human_desc = f"💡 Síntese da IA: {didactic}\n\n{human_desc}" if didactic else human_desc
-
-        cursor.execute("""
-            UPDATE apostas 
-            SET status = 'Cancelada', 
-                status_gatekeeper = 'NO_BET',
-                gatekeeper_category = %s,
-                resultado_detalhado = %s, 
-                updated_at = NOW() 
-            WHERE id = %s
-        """, (cat_desc, full_human_desc, aposta_id))
-
-        cursor.execute("""
-            UPDATE fixtures_trends
-            SET gatekeeper_category = %s
-            WHERE fixture_id = %s
-        """, (cat_desc, fixture_id))
-        
-        estornado = False
-        saldo_posterior = None
-        
-        cursor.execute("""
-            SELECT id, valor, moeda_codigo FROM conta_corrente 
-            WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
-            LIMIT 1
-        """, (usuario_id, aposta_id))
-        debito = cursor.fetchone()
-        
-        if debito:
-            cursor.execute("""
-                SELECT id FROM conta_corrente 
-                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
-                LIMIT 1
-            """, (usuario_id, aposta_id))
-            estorno_existente = cursor.fetchone()
-            
-            if not estorno_existente:
-                cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
-                user_row = cursor.fetchone()
-                saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
-                saldo_posterior = round(saldo_anterior + valor, 8)
-                moeda_cod = debito.get('moeda_codigo') or aposta.get('moeda_codigo') or 'BRL'
-                
-                desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
-                
-                cursor.execute("""
-                    INSERT INTO conta_corrente (
-                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em
-                    ) VALUES (
-                        %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, %s, NOW()
-                    )
-                """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior, moeda_cod))
-                
-                cursor.execute("""
-                    UPDATE usuario 
-                    SET saldo_conta_corrente = %s 
-                    WHERE id = %s
-                """, (saldo_posterior, usuario_id))
-                
-                estornado = True
-                print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | {moeda_cod} {valor} estornado (Novo Saldo: {moeda_cod} {saldo_posterior})")
-
-        # Disparo da Notificação em Tempo Real (Sininho & Toast Pop-up) para todas as apostas canceladas
-        is_aposta_confirmada = (aposta.get('confirmada') == 1) or (aposta.get('tem_debito', 0) > 0)
-        if is_aposta_confirmada:
-            titulo_notif = f"⚠️ Aposta Cancelada (Estornada): {aposta['time_casa']} vs {aposta['time_fora']}"
-            msg_notif = (
-                f"A IA cancelou a aposta prévia em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
-                f"{diag_curto}. Saldo de R$ {valor:.2f} estornado em conta. "
-                f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
-            )
-        else:
-            titulo_notif = f"⚠️ Sugestão Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
-            msg_notif = (
-                f"A IA cancelou a sugestão em {palpite_anterior} (Odd aprovada: {odd_anterior:.2f} ➔ {nova_odd_curta}). "
-                f"{diag_curto}. Não realizar entrada nesta partida."
-            )
-
-        dj = aposta.get('data_hora_jogo')
-        dj_str = ""
-        if isinstance(dj, datetime):
-            try:
-                from zoneinfo import ZoneInfo
-                dj_brt = dj.astimezone(ZoneInfo("America/Sao_Paulo")) if dj.tzinfo else (dj - timedelta(hours=3))
-                dj_str = dj_brt.strftime("%Y-%m-%d")
-            except Exception:
-                dj_str = (dj - timedelta(hours=3)).strftime("%Y-%m-%d")
-        elif isinstance(dj, str) and len(dj) >= 10:
-            dj_str = dj[:10]
-
-        data_query = f"&data_jogo={dj_str}" if dj_str else ""
-        link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}{data_query}#aposta-card-{aposta_id}"
-        registrar_notificacao_usuario(
-            cursor=cursor,
-            usuario_id=usuario_id,
-            aposta_id=aposta_id,
-            fixture_id=fixture_id,
-            tipo="APOSTA_CANCELADA",
-            titulo=titulo_notif,
-            mensagem=msg_notif,
-            link=link_notif
-        )
-
-        detail = dict(aposta)
-        detail['motivo'] = motivo
-        detail['estornado'] = estornado
-        detail['saldo_posterior'] = saldo_posterior
-        canceladas_detalhes.append(detail)
-        
-        print(f"🚫 [Aposta Handicap Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
-
-    return canceladas_detalhes
+    print(f"🔒 [Aposta Preservada / Cancelamento Automático Desativado] Partida #{fixture_id}: cancelamento automático ignorado. Apostas mantidas intactas.")
+    return []
 
 def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bool:
     """
@@ -599,10 +427,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
         if not is_allowed_league(league_id, league_name, fixture_date):
             print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo global monitorado")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
+            # Preserva apostas existentes sem cancelamento automático via DAG
             continue
 
         # Chamada unificada do Asian Handicap Engine (Single Source of Truth)
@@ -625,10 +450,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 continue
 
             apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, detalhe_calculo)
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
+            # Preserva apostas existentes sem cancelamento automático via DAG
             # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
             cursor.execute("""
                 SELECT id, palpite, confirmada, status FROM apostas 
@@ -883,7 +705,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
     if novas_apostas_detalhes or apostas_canceladas_detalhes:
         recipient = os.environ.get("AH_BETS_EMAIL_RECIPIENT", "paulomnasc@gmail.com")
-        send_handicap_bets_email(novas_apostas_detalhes, apostas_canceladas_detalhes, recipient=recipient)
+        # send_handicap_bets_email(novas_apostas_detalhes, apostas_canceladas_detalhes, recipient=recipient)
 
     conn.close()
 

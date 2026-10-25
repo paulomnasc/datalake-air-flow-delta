@@ -224,6 +224,7 @@ GATEKEEPER_DIDACTIC_MAP = {
     'Valor Esperado Positivo (+EV)': 'Assimetria estatística identificada: a probabilidade de vitória/cobertura calculada pelo modelo Poisson supera a probabilidade precificada pela casa de apostas.',
     'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.',
     'Sobrevivência do Mandante': 'Caldeirão da Degola / Sobrevivência do Mandante: O mandante está afundado no Z-4 ou próximo da degola, mas joga a vida em seus domínios contra visitante do topo em jogo equilibrado; abstenção por risco de caldeirão.',
+    'Armadilha da Odd Inflada': 'Armadilha da Odd Inflada / Drift de Mercado: A cotação subiu mais de 5% em relação à odd original, sinalizando fuga do mercado profissional e perda de favoritismo por desfalques ou desconfiança técnica.',
     'Mando de Campo Soberano': 'Mando de Campo Soberano / Divergência de Mercado: As casas de apostas alertam que o mandante é o favorito nas cotações, indicando que a força e adaptação do estádio local superam o momento do visitante.'
 }
 
@@ -259,6 +260,8 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
     # 2. Busca pelas tags formais no bloco principal do Gatekeeper
     if any(k in main_text for k in ['Sobrevivência do Mandante', 'Caldeirão da Degola', 'pressão crítica na tabela']):
         return 'Sobrevivência do Mandante'
+    if any(k in main_text for k in ['Odd Inflada', 'Armadilha da Odd Inflada', 'drift de mercado', 'cotação inflou']):
+        return 'Armadilha da Odd Inflada'
     if any(k in main_text for k in ['Duelo de Crises', 'crise severa', 'ambas as equipes em momento técnico desfavorável']):
         return 'Duelo de Crises'
     if any(k in main_text for k in ['Mando de Campo Soberano', 'Divergência de Mercado']):
@@ -1633,6 +1636,46 @@ def calculate_unified_handicap_recommendation(
             standings_mot_val = float(fixture_dict.get('standings_motivation_score'))
     except Exception:
         standings_mot_val = 0.0
+
+    # Verificação Dinâmica de Drift Pré-Jogo (Armadilha da Odd Inflada > 5%)
+    prior_odd_db = 0.0
+    prior_palpite_db = ""
+    diff_drift = 0.0
+    pct_drift = 0.0
+    existing_bet = None
+
+    if cursor and fixture_id:
+        try:
+            cursor.execute("""
+                SELECT id, palpite, odd, odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper, resultado_detalhado
+                FROM apostas
+                WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                  AND status NOT IN ('Cancelada', 'CANCELADA')
+                ORDER BY confirmada DESC, id DESC LIMIT 1
+            """, (fixture_id,))
+            existing_bet = cursor.fetchone()
+            if existing_bet:
+                prior_odd_db = float(existing_bet.get('odd') or 0.0)
+                prior_palpite_db = str(existing_bet.get('palpite') or '')
+        except Exception as e_bet_fetch:
+            print(f"⚠️ [Asian Handicap Engine / DB SELECT] Falha ao consultar aposta prévia para fixture #{fixture_id}: {e_bet_fetch}")
+
+    if prior_odd_db > 1.0 and prior_palpite_db and betano_lines:
+        matched_cand = next((c for c in betano_lines if c.get('palpite_str') == prior_palpite_db or (c.get('line') == 0.0 and str(c.get('line')) in prior_palpite_db and (away_team.lower() in prior_palpite_db.lower() if c.get('is_away') else home_team.lower() in prior_palpite_db.lower()))), None)
+        if matched_cand:
+            live_cand_odd = float(matched_cand.get('odd') or 0.0)
+            diff_drift = live_cand_odd - prior_odd_db
+            pct_drift = ((diff_drift / prior_odd_db) * 100.0) if prior_odd_db > 0 else 0.0
+            if pct_drift > 5.0 and diff_drift >= 0.02:
+                reason_drift = (
+                    f"🚨 [Gatekeeper AH NO_BET / Armadilha da Odd Inflada] A seleção '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
+                    f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}) no mercado da Betano. "
+                    f"No mercado esportivo, uma elevação acima de 5% sinaliza desconfiança ou descarte da equipe pelo fluxo profissional "
+                    f"(risco de desfalques ou desvantagem tática). A entrada perdeu a margem de segurança e recomenda-se cancelamento/saída preventiva."
+                )
+                clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção - Odd Inflada)', reason_drift, category='Armadilha da Odd Inflada')
+                compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção - Odd Inflada)', home_team, away_team, h_tid, a_tid, reasoning)
+                return 'NO_BET', 'Sem Entrada (Abstenção - Odd Inflada)', 50.0, compound_r, None, []
 
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,

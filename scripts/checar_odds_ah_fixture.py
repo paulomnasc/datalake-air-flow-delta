@@ -669,12 +669,22 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
             f"Motivo: As oscilações do mercado indicam maior consistência e proteção na nova linha."
         )
     elif odd_mudou:
-        tipo_mudanca = "odd"
-        sentido = "subiu" if final_odd > old_odd else "derreteu"
-        explicacao = (
-            f"⚡ Cotação atualizada na casa {bm_name} ({agora_brt}): "
-            f"A linha recomendada permanece '{new_suggestion}', mas a cotação {sentido} de @ {old_odd:.2f} para @ {final_odd:.2f}."
-        )
+        diff_val = round(final_odd - old_odd, 2)
+        pct_mudanca = round(((diff_val / old_odd) * 100.0), 1) if old_odd > 0 else 0.0
+        if old_odd > 1.0 and pct_mudanca > 5.0 and diff_val >= 0.02:
+            tipo_mudanca = "alerta_odd_inflada"
+            explicacao = (
+                f"⚠️ [ALERTA DE RISCO - ARMADILHA DA ODD INFLADA] ({agora_brt}): "
+                f"A cotação de '{new_suggestion}' subiu {pct_mudanca:+.1f}% (de @ {old_odd:.2f} para @ {final_odd:.2f}). "
+                f"Essa elevação reflete descarte ou desconfiança do mercado na equipe. Sugere-se cancelamento ou Cash Out preventivo da aposta."
+            )
+        else:
+            tipo_mudanca = "odd"
+            sentido = "subiu" if final_odd > old_odd else "derreteu"
+            explicacao = (
+                f"⚡ Cotação atualizada na casa {bm_name} ({agora_brt}): "
+                f"A linha recomendada permanece '{new_suggestion}', mas a cotação {sentido} de @ {old_odd:.2f} para @ {final_odd:.2f}."
+            )
     else:
         tipo_mudanca = "inalterado"
         explicacao = (

@@ -4053,6 +4053,10 @@ class ApostaController extends BaseController
                                 $cat = 'Sobrevivência do Mandante';
                                 $regra = 'Caldeirão da Degola: mandante no Z-4 ou ameaçado joga a vida da temporada';
                                 $badgeColor = '#e11d48';
+                            } elseif (stripos($tag, 'Odd Inflada') !== false || stripos($tag, 'Armadilha da Odd Inflada') !== false) {
+                                $cat = 'Armadilha da Odd Inflada';
+                                $regra = 'Drift de Risco: a odd inflou mais de 5% no pré-jogo, indicando fuga do mercado';
+                                $badgeColor = '#f97316';
                             } else {
                                 $cat = 'AH: ' . $tag;
                             }
@@ -4064,6 +4068,10 @@ class ApostaController extends BaseController
                             $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
                             $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
                             $badgeColor = '#f59e0b';
+                        } elseif (stripos($fullAh, 'Odd Inflada') !== false || stripos($fullAh, 'Armadilha da Odd Inflada') !== false) {
+                            $cat = 'Armadilha da Odd Inflada';
+                            $regra = 'Drift de Risco: a odd inflou mais de 5% no pré-jogo, indicando fuga do mercado';
+                            $badgeColor = '#f97316';
                         } elseif (stripos($fullAh, 'Mando de Campo Soberano') !== false || stripos($fullAh, 'Divergência de Mercado') !== false) {
                             $cat = 'Mando de Campo Soberano';
                             $regra = 'Divergência de Mercado: força e adaptação do estádio superam momento do visitante';

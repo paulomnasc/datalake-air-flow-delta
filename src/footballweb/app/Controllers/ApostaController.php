@@ -693,6 +693,14 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
+                // Restrição Canônica: Apenas linhas Under 6.5 e 7.5+ (linhas < 6.5 descontinuadas)
+                if ($line < 6.49) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Linha Curta Descontinuada';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Linhas Under inferiores a 6.5 (Under 3.5, 4.5 e 5.5) estão permanentemente descontinuadas por excessiva volatilidade estatística e armadilha de seleção de mercado. Autorizadas estritamente linhas Under 6.5 e Under 7.5+.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                }
+
                 // 2. Disparidade Técnica Extrema / Massacre (Veto Under 5.5)
                 $isExtremeDisparity = false;
                 if ($ftOddH > 1.0 && $ftOddA > 1.0) {
@@ -726,8 +734,8 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 4.5/5.5: 1.50 | Under 6.5+: 1.40)
-                $minOddReq  = ($line >= 6.49) ? 1.40 : 1.50;
+                // Critérios específicos por linha (Under 6.5+: 1.40)
+                $minOddReq  = 1.40;
                 $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;

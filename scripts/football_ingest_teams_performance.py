@@ -158,13 +158,29 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 12 horas e possui amostragem válida, ignora para poupar API)
+        # 1. Verificar se precisa de atualização (se atualizado há menos de 12 horas ou sem partidas recentes, ignora para poupar API)
         cursor.execute("SELECT updated_at, avg_cards, matches_count FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
         if row and int(row.get("matches_count") or 0) >= 5 and os.environ.get("FORCE_REFRESH") != "1":
             updated_at = row["updated_at"]
+            # Se atualizado há menos de 12 horas, pula imediatamente
             if datetime.now() - updated_at < timedelta(hours=12):
                 print(f"⏩ {team_name} já atualizado recentemente ({updated_at}) com amostragem válida ({row.get('matches_count')} jogos). Pulando...")
+                continue
+            
+            # Se atualizado há mais de 12 horas, verifica se o time disputou alguma partida após updated_at
+            cursor.execute("""
+                SELECT COUNT(*) as recent_matches
+                FROM fixtures_trends
+                WHERE (home_team_id = %s OR away_team_id = %s)
+                  AND status IN ('FT', 'AET', 'PEN')
+                  AND fixture_date >= %s
+                LIMIT 1
+            """, (team_id, team_id, updated_at))
+            m_row = cursor.fetchone()
+            recent_count = int(m_row.get("recent_matches") or 0) if m_row else 0
+            if recent_count == 0 and (datetime.now() - updated_at < timedelta(days=5)):
+                print(f"⏩ {team_name} não disputou partidas após {updated_at}. Médias permanecem idênticas. Pulando API...")
                 continue
         
         # 2. Tentar buscar `/teams/statistics` nas temporadas disponíveis (temporada atual, anterior, etc.)

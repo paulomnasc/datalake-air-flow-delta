@@ -491,17 +491,27 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_abstencao += 1
             continue
 
-        # Checa se já existe aposta ativa de cartões para esta partida no banco
+        # Checa se já existe aposta ativa ou cancelada pelo usuário de cartões para esta partida no banco
         cursor.execute("""
-            SELECT id FROM apostas 
+            SELECT id, palpite, confirmada, status, status_gatekeeper, resultado_detalhado FROM apostas 
             WHERE fixture_id = %s 
               AND (mercado = 'Total de Cartões' OR mercado LIKE '%%Cartõ%%')
-              AND status NOT IN ('Não Confirmada', 'Cancelada')
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
         """, (fixture_id,))
         ja_tem_aposta = cursor.fetchone()
 
-        if ja_tem_aposta:
+        # Se a aposta existente foi cancelada pelo usuário, preserva o cancelamento e ignora nova candidatura
+        if ja_tem_aposta and ja_tem_aposta.get('status') == 'Cancelada':
+            is_user_cancel = (
+                ja_tem_aposta.get('status_gatekeeper') == 'CANCELADA_USUARIO' or
+                'cancelada pelo usuário' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower() or
+                'indisponível' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower()
+            )
+            if is_user_cancel:
+                print(f"🛑 [Trava Cancelamento Usuário Cartões] Partida #{fixture_id} possui aposta #{ja_tem_aposta['id']} cancelada manualmente pelo usuário. Ignorando nova candidatura.")
+                continue
+
+        if ja_tem_aposta and ja_tem_aposta.get('status') not in ('Não Confirmada', 'Cancelada'):
             # Já existe aposta ativa: sincroniza imediatamente (não consome nova vaga diária)
             c_cnt, u_cnt = sync_fixture_and_bet_cards(
                 cursor=cursor,

@@ -998,7 +998,7 @@ def sync_fixture_and_bet_cards(
             ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
             cursor.execute("""
-                SELECT a.id, a.palpite, a.confirmada, a.status,
+                SELECT a.id, a.palpite, a.confirmada, a.status, a.status_gatekeeper, a.resultado_detalhado,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
                 FROM apostas a
                 WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões'
@@ -1011,6 +1011,18 @@ def sync_fixture_and_bet_cards(
                 if is_conf:
                     has_confirmed_bet = True
                     print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} possui débito em conta corrente ou confirmação mantida intacta.")
+                    continue
+
+                # Preservação mandatória de cancelamento manual pelo usuário (Regra de Salvaguarda)
+                was_canceled_by_user = (
+                    ja_existe.get('status') == 'Cancelada' and (
+                        ja_existe.get('status_gatekeeper') == 'CANCELADA_USUARIO' or
+                        'cancelada pelo usuário' in str(ja_existe.get('resultado_detalhado') or '').lower() or
+                        'indisponível' in str(ja_existe.get('resultado_detalhado') or '').lower()
+                    )
+                )
+                if was_canceled_by_user:
+                    print(f"🛑 [Aposta Cartões Cancelada pelo Usuário Mantida #{uid}] ID #{ja_existe['id']}: cancelamento manual preservado. Reativação bloqueada.")
                     continue
 
                 if ja_existe.get('status') in ('Pendente', 'Cancelada'):

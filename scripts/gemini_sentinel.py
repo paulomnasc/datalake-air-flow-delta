@@ -91,7 +91,7 @@ def extrair_resumo_u5j(reasoning_text):
     return clean_text[:200].strip() or "Histórico recente disponível no banco"
 
 
-def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg):
+def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA"):
     """
     Registra alerta no Sininho da interface web (tabela notificacoes_usuario).
     Prevenção de duplicidade: não insere se já foi notificado nos últimos 45 minutos.
@@ -101,21 +101,21 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, 
             SELECT id FROM notificacoes_usuario 
             WHERE usuario_id = %s 
               AND fixture_id = %s 
-              AND tipo = 'ALERTA_SENTINELA_IA'
+              AND tipo = %s
               AND criado_em >= DATE_SUB(NOW(), INTERVAL 45 MINUTE)
             LIMIT 1
-        """, (usuario_id, fixture_id))
+        """, (usuario_id, fixture_id, tipo))
         if cursor.fetchone():
             return False
 
-        link = "/apostas"
+        link = f"/apostas?fixture_id={fixture_id}"
         cursor.execute("""
             INSERT INTO notificacoes_usuario (
                 usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
             ) VALUES (
-                %s, %s, %s, 'ALERTA_SENTINELA_IA', %s, %s, %s, 0, 1, NOW()
+                %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
             )
-        """, (usuario_id, aposta_id, fixture_id, titulo, msg, link))
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, link))
         print(f"🔔 [Sininho Alerta Notificado User #{usuario_id}] {titulo}")
         return True
     except Exception as e:
@@ -277,7 +277,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         if specific_fixture_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status,
+                       a.resultado_detalhado, a.status as aposta_status, a.confirmada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
                 FROM apostas a
@@ -289,7 +290,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         else:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status,
+                       a.resultado_detalhado, a.status as aposta_status, a.confirmada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
                 FROM apostas a
@@ -317,6 +319,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             home_team = item['home_team']
             away_team = item['away_team']
             match_time = item['fixture_date'].strftime('%d/%m/%Y %H:%M') if item.get('fixture_date') else 'Hoje'
+            is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
 
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
             u5j_summary = extrair_resumo_u5j(reasoning)
@@ -374,13 +377,26 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
                     print(f"📝 [Parecer IA]: {parecer}")
-                    # Dispara notificação no Sininho do site
+                    # Dispara notificação de risco no Sininho
                     for uid in user_ids:
-                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer)
+                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="ALERTA_SENTINELA_IA")
                     conn.commit()
                 else:
                     total_confirmados += 1
                     print(f"✅ [FORÇA MÁXIMA CONFIRMADA]: {resumo}")
+                    # Manifestação sempre ativa da Sentinela (Sinal Verde / Hora de Apostar)
+                    if not is_confirmada:
+                        tit_verde = f"🟢 Sinal Verde: {home_team} vs {away_team} - Hora de Apostar!"
+                        msg_verde = f"Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
+                        tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
+                    else:
+                        tit_verde = f"🟢 Força Máxima Confirmada: {home_team} vs {away_team}"
+                        msg_verde = f"Auditoria de escalação concluída: {resumo}. Titulares confirmados para apoiar sua aposta já registrada. Início: {match_time}."
+                        tipo_notif = "SINAL_VERDE_CONFIRMADA"
+
+                    for uid in user_ids:
+                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, tit_verde, msg_verde, tipo=tipo_notif)
+                    conn.commit()
 
             except Exception as e_sql:
                 total_erros += 1

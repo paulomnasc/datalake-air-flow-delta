@@ -533,17 +533,27 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
-        # Checa se já existe aposta ativa para esta partida no banco
+        # Checa se já existe aposta ativa ou cancelada pelo usuário para esta partida no banco
         cursor.execute("""
-            SELECT id, palpite, confirmada, status FROM apostas 
+            SELECT id, palpite, confirmada, status, status_gatekeeper, resultado_detalhado FROM apostas 
             WHERE fixture_id = %s 
               AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-              AND status NOT IN ('Não Confirmada', 'Cancelada')
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
         """, (fixture_id,))
         ja_tem_aposta = cursor.fetchone()
 
-        if ja_tem_aposta:
+        # Se a aposta existente foi cancelada pelo usuário, preserva o cancelamento e ignora nova candidatura
+        if ja_tem_aposta and ja_tem_aposta.get('status') == 'Cancelada':
+            is_user_cancel = (
+                ja_tem_aposta.get('status_gatekeeper') == 'CANCELADA_USUARIO' or
+                'cancelada pelo usuário' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower() or
+                'indisponível' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower()
+            )
+            if is_user_cancel:
+                print(f"🛑 [Trava Cancelamento Usuário] Partida #{fixture_id} possui aposta #{ja_tem_aposta['id']} cancelada manualmente pelo usuário. Ignorando nova candidatura.")
+                continue
+
+        if ja_tem_aposta and ja_tem_aposta.get('status') not in ('Não Confirmada', 'Cancelada'):
             # Já existe aposta ativa: sincroniza imediatamente (não consome nova vaga diária)
             c_cnt, u_cnt, s_cnt = sync_fixture_and_bet_handicap(
                 cursor=cursor,

@@ -1397,9 +1397,10 @@ class ApostaController extends BaseController
             );
         }
 
-        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na Stake";
+        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na casa de aposta";
         $this->apostaModel->update($apostaId, [
             'status'              => 'Cancelada',
+            'status_gatekeeper'   => 'CANCELADA_USUARIO',
             'confirmada'          => 0,
             'resultado_detalhado' => $motivo,
             'updated_at'          => date('Y-m-d H:i:s')

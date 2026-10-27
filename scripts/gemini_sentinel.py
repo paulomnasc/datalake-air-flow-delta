@@ -322,6 +322,182 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         }
 
 
+def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> dict:
+    """
+    Audita e recalibra linhas de Handicap Asiático antes da auditoria do Gemini:
+    1. Consulta cotações AH em tempo real na Betano (API direta).
+    2. Identifica se houve distorção / inversão de favoritismo no mercado (ex: steam move).
+    3. Se aposta confirmada (dinheiro real em conta): NUNCA altera a aposta, gera alerta para cashout.
+    4. Se aposta pendente (não confirmada):
+       - Submete as novas linhas ao Gatekeeper (calculate_unified_handicap_recommendation).
+       - Se APROVADO: recalibra e atualiza a aposta pendente via sync_fixture_and_bet_handicap,
+         permitindo que o Gemini audite a nova linha e confirme o Sinal Verde.
+       - Se REPROVADO (NO_BET): veta o Sinal Verde e decreta ALERTA_RISCO / DESVIO_DE_LINHA.
+    """
+    # Inicialização explícita de variáveis numéricas locais (Regra 8)
+    target_line = 0.0
+    curr_odd = 0.0
+    opp_odd = 0.0
+    odd_abertura = float(item.get('odd') or 1.0)
+
+    mercado = str(item.get('mercado') or '').lower()
+    palpite_atual = str(item.get('palpite') or '').strip()
+    is_handicap = ('handicap' in mercado) or ('ah' in palpite_atual.lower()) or (re.search(r'[+-]?\d+(?:\.\d+)?\s*ah', palpite_atual.lower()) is not None)
+
+    if not is_handicap:
+        return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+    fixture_id = item['fixture_id']
+    home_team = item['home_team']
+    away_team = item['away_team']
+    is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
+
+    try:
+        from asian_handicap_engine import (
+            fetch_all_betano_ah_lines,
+            calculate_unified_handicap_recommendation,
+            sync_fixture_and_bet_handicap
+        )
+    except ImportError as e_imp:
+        print(f"⚠️ [Sentinela Recalibragem] Falha ao importar asian_handicap_engine: {e_imp}")
+        return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+    lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+    if not lines:
+        print(f"ℹ️ [Sentinela Linhas AH] Sem cotações Betano em tempo real para {home_team} vs {away_team}. Mantendo linha original.")
+        return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+    is_away = away_team.lower() in palpite_atual.lower()
+    m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite_atual)
+    target_line = float(m_line.group(1)) if m_line else 0.0
+
+    supported_team = away_team if is_away else home_team
+    opp_team = home_team if is_away else away_team
+
+    for l in lines:
+        l_line = float(l.get('line', 99))
+        if abs(l_line - target_line) < 0.01:
+            if l.get('is_away') == is_away:
+                curr_odd = float(l.get('odd') or 0.0)
+            else:
+                opp_odd = float(l.get('odd') or 0.0)
+
+    houve_distorcao = False
+    motivo_distorcao = ""
+
+    # Cenário A: Inversão de favoritismo na linha DNB (0.0 AH)
+    if abs(target_line) < 0.01 and opp_odd > 1.0 and opp_odd < curr_odd and curr_odd >= 1.90:
+        houve_distorcao = True
+        motivo_distorcao = f"Inversão de favoritismo na linha 0.0: odd de {supported_team} subiu para {curr_odd:.2f} enquanto {opp_team} virou favorito a {opp_odd:.2f}."
+    # Cenário B: Movimentação reversa expressiva de mercado (Steam Move contra o time apoiado)
+    elif curr_odd >= (odd_abertura + 0.15) and curr_odd > 1.0:
+        houve_distorcao = True
+        motivo_distorcao = f"Movimentação reversa de mercado: odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} (pressão vendedora contra a tese)."
+    # Cenário C: Derretimento abaixo do piso viável
+    elif 1.0 < curr_odd < 1.45:
+        houve_distorcao = True
+        motivo_distorcao = f"Derretimento de cotação: odd caiu para {curr_odd:.2f}, abaixo do piso rentável do Gatekeeper (1.50)."
+    # Cenário D: Linha retirada / indisponível
+    elif curr_odd <= 1.0 and len(lines) > 0:
+        houve_distorcao = True
+        motivo_distorcao = f"Linha {palpite_atual} retirada ou sem liquidez na casa no pré-jogo."
+
+    if not houve_distorcao:
+        return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+    print(f"⚠️ [Distorção de Linha AH Detectada] {home_team} vs {away_team}: {motivo_distorcao}")
+
+    # Tratamento 1: Aposta Já Confirmada com Dinheiro Real
+    if is_confirmada:
+        tit_alerta = f"⚠️ Alerta de Mercado: Linha desfavorável em {home_team} vs {away_team}"
+        par_alerta = (
+            f"{motivo_distorcao} Sua aposta #{item['aposta_id']} ({palpite_atual} @ {odd_abertura:.2f}) "
+            f"já foi confirmada anteriormente. Por segurança, a aposta foi mantida intacta. "
+            f"Avalie a conveniência de cashout ou cobertura na sua casa de apostas."
+        )
+        return {
+            'bloquear_sinal_verde': True,
+            'alerta_risco': True,
+            'titulo_alerta': tit_alerta,
+            'parecer_alerta': par_alerta,
+            'linha_recalibrada': False
+        }
+
+    # Tratamento 2: Aposta Pendente (Não Confirmada) -> Reavaliação Oficial no Gatekeeper
+    try:
+        cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        fix_dict = cursor.fetchone()
+        if not fix_dict:
+            fix_dict = {
+                'fixture_id': fixture_id,
+                'home_team': home_team,
+                'away_team': away_team,
+                'ah_reasoning': item.get('resultado_detalhado') or item.get('ah_reasoning')
+            }
+
+        status_gk, palpite_sug, confianca, reasoning_gk, best_cand, approved_list = calculate_unified_handicap_recommendation(
+            fixture_dict=fix_dict,
+            betano_lines=lines,
+            allow_api_fetch=False,
+            cursor=cursor
+        )
+
+        if status_gk == 'APROVADO' and best_cand:
+            novo_palpite = best_cand['palpite']
+            nova_odd = float(best_cand['odd'])
+
+            # Atualiza no banco sincronizando card e aposta
+            sync_fixture_and_bet_handicap(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                home_team=home_team,
+                away_team=away_team,
+                fixture_date=item.get('fixture_date'),
+                selected_palpite=novo_palpite,
+                odd_val=nova_odd,
+                odd_justa=float(best_cand.get('odd_justa', 1.80)),
+                prob_poisson=float(best_cand.get('probabilidade', 60.0)),
+                ev_perc=float(best_cand.get('ev', 5.0)),
+                detalhe_calculo=reasoning_gk,
+                user_ids=user_ids,
+                confirmada_val=0,
+                destaque_val=1,
+                best_cand=best_cand
+            )
+            cursor.connection.commit()
+
+            print(f"🎯 [Gatekeeper Recalibrado com Sucesso] Aposta #{item['aposta_id']} ajustada para '{novo_palpite}' (@ {nova_odd:.2f})")
+
+            return {
+                'bloquear_sinal_verde': False,
+                'alerta_risco': False,
+                'linha_recalibrada': True,
+                'novo_palpite': novo_palpite,
+                'nova_odd': nova_odd,
+                'novo_reasoning': reasoning_gk,
+                'motivo_recalibragem': motivo_distorcao
+            }
+        else:
+            # Gatekeeper reprovou todas as linhas disponíveis no mercado atual
+            print(f"🛑 [Gatekeeper Reprovou Linhas Vivas] {home_team} vs {away_team}: nenhuma linha aprovada no mercado atual.")
+            tit_alerta = f"⚠️ Alerta: Distorção de Linha AH em {home_team} vs {away_team}"
+            par_alerta = (
+                f"{motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo na Betano "
+                f"e reprovou novas entradas por ausência de valor seguro (+EV). "
+                f"Recomendado NÃO apostar nesta partida."
+            )
+            return {
+                'bloquear_sinal_verde': True,
+                'alerta_risco': True,
+                'titulo_alerta': tit_alerta,
+                'parecer_alerta': par_alerta,
+                'linha_recalibrada': False
+            }
+    except Exception as e_gk:
+        print(f"❌ [Sentinela Recalibragem] Falha durante recálculo do Gatekeeper: {e_gk}")
+        return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+
 def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None):
     """
     Executa a auditoria das partidas que iniciam entre T-50min e T-15min.
@@ -402,32 +578,56 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
             u5j_summary = extrair_resumo_u5j(reasoning)
 
-            # Monta o dossiê consolidado
-            dossie = {
-                "fixture_id": fixture_id,
-                "home_team": home_team,
-                "away_team": away_team,
-                "league_name": item.get('league_name', 'Liga'),
-                "country": item.get('country', ''),
-                "match_time": match_time,
-                "referee_name": item.get('referee_name', 'Não informado'),
-                "palpite": item.get('palpite', ''),
-                "odd": float(item.get('odd') or 1.0),
-                "u5j_summary": u5j_summary,
-                "xg_summary": f"Casa {item.get('goals_home') or 0} x {item.get('goals_away') or 0} Fora",
-                "motivo_gatekeeper": (reasoning[:300] if reasoning else "Aprovado no modelo matemático +EV.")
-            }
+            # Recalibragem de Linhas AH e Salvaguarda contra Distorção de Mercado
+            recalib = auditar_e_recalibrar_linha_handicap(cursor, item, user_ids)
+            linha_recalibrada = recalib.get('linha_recalibrada', False)
+            bloquear_sinal_verde = recalib.get('bloquear_sinal_verde', False)
 
-            print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")
+            if recalib.get('alerta_risco'):
+                # Gatekeeper reprovou novas linhas ou aposta confirmada com linha desfavorável
+                st = 'ALERTA_RISCO'
+                resumo = "Distorção de mercado: Gatekeeper reprovou novas linhas"
+                parecer = recalib['parecer_alerta']
+                tem_alerta = True
+                titulo_alerta = recalib['titulo_alerta']
+            else:
+                if linha_recalibrada:
+                    item['palpite'] = recalib['novo_palpite']
+                    item['odd'] = recalib['nova_odd']
+                    if recalib.get('novo_reasoning'):
+                        reasoning = recalib['novo_reasoning']
+                        u5j_summary = extrair_resumo_u5j(reasoning)
 
-            # Consulta o Gemini com Google Search Grounding
-            resultado = consultar_gemini_com_grounding(dossie, api_key)
+                motivo_gk = (reasoning[:300] if reasoning else "Aprovado no modelo matemático +EV.")
+                if linha_recalibrada:
+                    motivo_gk += f" [Linha recalculada pelo Gatekeeper no pré-jogo devido a: {recalib.get('motivo_recalibragem')}]"
 
-            st = resultado["status"]
-            resumo = resultado["resumo_escalacao"]
-            parecer = resultado["parecer_explicativo"]
-            tem_alerta = resultado["tem_alerta"]
-            titulo_alerta = resultado.get("titulo_alerta") or f"⚠️ Alerta Pré-Jogo: {home_team} vs {away_team}"
+                # Monta o dossiê consolidado
+                dossie = {
+                    "fixture_id": fixture_id,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "league_name": item.get('league_name', 'Liga'),
+                    "country": item.get('country', ''),
+                    "match_time": match_time,
+                    "referee_name": item.get('referee_name', 'Não informado'),
+                    "palpite": item.get('palpite', ''),
+                    "odd": float(item.get('odd') or 1.0),
+                    "u5j_summary": u5j_summary,
+                    "xg_summary": f"Casa {item.get('goals_home') or 0} x {item.get('goals_away') or 0} Fora",
+                    "motivo_gatekeeper": motivo_gk
+                }
+
+                print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")
+
+                # Consulta o Gemini com Google Search Grounding
+                resultado = consultar_gemini_com_grounding(dossie, api_key)
+
+                st = resultado["status"]
+                resumo = resultado["resumo_escalacao"]
+                parecer = resultado["parecer_explicativo"]
+                tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde
+                titulo_alerta = resultado.get("titulo_alerta") or f"⚠️ Alerta Pré-Jogo: {home_team} vs {away_team}"
 
             # Atualiza no banco (apostas e fixtures_trends)
             try:
@@ -476,8 +676,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     print(f"✅ [FORÇA MÁXIMA CONFIRMADA]: {resumo}")
                     # Manifestação sempre ativa da Sentinela (Sinal Verde / Hora de Apostar)
                     if not is_confirmada:
-                        tit_verde = f"🟢 Sinal Verde: {home_team} vs {away_team} - Hora de Apostar!"
-                        msg_verde = f"Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
+                        if linha_recalibrada:
+                            tit_verde = f"🟢 Sinal Verde: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
+                            msg_verde = f"Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo começa às {match_time}. Hora de garantir a entrada na sua bookmaker!"
+                        else:
+                            tit_verde = f"🟢 Sinal Verde: {home_team} vs {away_team} - Hora de Apostar!"
+                            msg_verde = f"Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
                         tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
                     else:
                         tit_verde = f"🟢 Força Máxima Confirmada: {home_team} vs {away_team}"

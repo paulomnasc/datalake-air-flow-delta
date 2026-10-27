@@ -439,16 +439,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
     padding: 0 0 10px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .bets-grid.list-view .bet-card-header > div:first-child {
-    flex: 1 1 auto;
-    min-width: 260px;
+    gap: 8px;
   }
   .bets-grid.list-view .match-time {
     align-items: flex-end !important;
@@ -579,11 +573,21 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
   .bet-card-header {
     background: #1c2128;
-    padding: 16px 20px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--bet-card-border);
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .bet-card-header-top {
+    display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .match-teams {
@@ -591,15 +595,56 @@ if (!function_exists('fmtTopValorWithBrl')) {
     font-weight: 700;
     font-size: 1.1rem;
     color: #ffffff;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
   }
 
   .match-time {
-    font-size: 0.8rem;
-    color: var(--bet-text-muted);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
+    text-align: right;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .match-time-game {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #ffffff !important;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .match-time-game strong {
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  .match-time-game i {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.85rem;
+  }
+
+  .match-time-created {
+    font-size: 0.76rem;
+    color: var(--bet-accent);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .match-badges-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .bet-card-body {
@@ -1391,81 +1436,83 @@ if (!function_exists('fmtTopValorWithBrl')) {
         <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
-            <div class="d-flex flex-column align-items-start gap-1">
-              <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
+            <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
+              <div class="match-teams">
                 <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
-                
-                <?php if (!empty($aposta->destaque)): ?>
-                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
-                        style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
-                        title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
-                    <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
-                  </span>
-                <?php endif; ?>
-
-                <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
-                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
-                        style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.5) !important; letter-spacing: 0.3px;" 
-                        title="Confronto Equilibrado / Odds Abertas: Mercado com volatilidade de cotações">
-                    <span style="font-size: 0.88rem; line-height: 1;">🚨</span> Confronto Equilibrado / Odds Abertas
-                  </span>
-                <?php endif; ?>
-                
-                <?php if (!empty($placarExibir)): ?>
-                  <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
-                    ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
-                  </span>
-                <?php endif; ?>
-
-                <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                  <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
-                    ⚠️ <?= lang('App.unconfirmed_badge') ?>
-                  </span>
-                <?php else: ?>
-                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
-                    ✅ <?= lang('App.debited_badge') ?>
-                  </span>
-                <?php endif; ?>
-                <?php if (!empty($aposta->fixture_id)): ?>
-                  <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                     target="_blank" rel="noopener noreferrer"
-                     class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
-                     style="font-size: 0.75rem; transition: all 0.2s ease;" 
-                     title="<?= lang('App.origin_card') ?>">
-                    <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                  </a>
-                <?php endif; ?>
               </div>
 
-              <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
-                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                  <?php if (!empty($leagueFlag)): ?>
-                    <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
-                  <?php endif; ?>
-                  <?php if (!empty($leagueCountry)): ?>
-                    <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
-                  <?php endif; ?>
-                  <?php if (!empty($leagueCountry) && !empty($aposta->league_name)): ?>
-                    <span style="color: #475569;">•</span>
-                  <?php endif; ?>
-                  <?php if (!empty($aposta->league_name)): ?>
-                    <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
-                    <span><?= htmlspecialchars($aposta->league_name) ?></span>
-                  <?php endif; ?>
+              <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto">
+                <div class="match-time-game" title="<?= lang('App.match') ?>">
+                  <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>
                 </div>
+                <?php if (!empty($displayCreatedTime)): ?>
+                  <div class="match-time-created" title="<?= lang('App.created') ?>">
+                    <i class="bi bi-clock-history me-1"></i> <?= lang('App.created') ?>: <strong><?= $displayCreatedTime ?></strong>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </div>
+
+            <div class="match-badges-header d-flex align-items-center gap-1.5 flex-wrap w-100 mt-1">
+              <?php if (!empty($aposta->destaque)): ?>
+                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
+                      title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
+                  <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
+                </span>
+              <?php endif; ?>
+
+              <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
+                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
+                      style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.5) !important; letter-spacing: 0.3px;" 
+                      title="Confronto Equilibrado / Odds Abertas: Mercado com volatilidade de cotações">
+                  <span style="font-size: 0.88rem; line-height: 1;">🚨</span> Confronto Equilibrado / Odds Abertas
+                </span>
+              <?php endif; ?>
+              
+              <?php if (!empty($placarExibir)): ?>
+                <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
+                  ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
+                </span>
+              <?php endif; ?>
+
+              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
+                  ⚠️ <?= lang('App.unconfirmed_badge') ?>
+                </span>
+              <?php else: ?>
+                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
+                  ✅ <?= lang('App.debited_badge') ?>
+                </span>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id)): ?>
+                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                   target="_blank" rel="noopener noreferrer"
+                   class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
+                   style="font-size: 0.75rem; transition: all 0.2s ease;" 
+                   title="<?= lang('App.origin_card') ?>">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
+                </a>
               <?php endif; ?>
             </div>
 
-            <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto" style="font-size: 0.78rem; gap: 2px;">
-              <div title="<?= lang('App.match') ?>" style="color: var(--bet-text-muted);">
-                <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>
+            <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
+              <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                <?php if (!empty($leagueFlag)): ?>
+                  <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
+                <?php endif; ?>
+                <?php if (!empty($leagueCountry)): ?>
+                  <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
+                <?php endif; ?>
+                <?php if (!empty($leagueCountry) && !empty($aposta->league_name)): ?>
+                  <span style="color: #475569;">•</span>
+                <?php endif; ?>
+                <?php if (!empty($aposta->league_name)): ?>
+                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
+                  <span><?= htmlspecialchars($aposta->league_name) ?></span>
+                <?php endif; ?>
               </div>
-              <?php if (!empty($displayCreatedTime)): ?>
-                <div title="<?= lang('App.created') ?>" style="color: var(--bet-accent); font-weight: 500;">
-                  <i class="bi bi-clock-history me-1"></i> <?= lang('App.created') ?>: <strong><?= $displayCreatedTime ?></strong>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
 
           <div class="bet-card-body">

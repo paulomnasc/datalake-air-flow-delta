@@ -1182,11 +1182,22 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             msgEl.textContent = notif.mensagem;
 
             const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA' || notif.tipo === 'NOVA_OPORTUNIDADE_AH' || notif.tipo === 'OPORTUNIDADE_AO_VIVO');
+            const isSinalVerde = (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR' || notif.tipo === 'SINAL_VERDE_CONFIRMADA');
+            const isAlertaSentinela = (notif.tipo === 'ALERTA_SENTINELA_IA');
 
             if (badgeEl) {
                 if (notif.tipo === 'OPORTUNIDADE_AO_VIVO') {
                     badgeEl.className = 'badge bg-warning text-dark d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
                     badgeEl.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> ⚡ OPORTUNIDADE AO VIVO (IN-PLAY)';
+                } else if (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR') {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-clock-history"></i> 🟢 HORA DE APOSTAR (SINAL VERDE)';
+                } else if (notif.tipo === 'SINAL_VERDE_CONFIRMADA') {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-shield-check"></i> 🟢 FORÇA MÁXIMA CONFIRMADA';
+                } else if (isAlertaSentinela) {
+                    badgeEl.className = 'badge bg-warning text-dark d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ⚠️ ALERTA PRÉ-JOGO (SENTINELA IA)';
                 } else if (notif.tipo === 'NOVA_OPORTUNIDADE_AH') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO (HANDICAP)';
@@ -1203,7 +1214,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }
 
             if (linkEl) {
-                if (isAprovada) {
+                if (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR') {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-check2-circle"></i> Ver Aposta & Fazer Entrada';
+                } else if (notif.tipo === 'SINAL_VERDE_CONFIRMADA') {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta Confirmada';
+                } else if (isAlertaSentinela) {
+                    linkEl.className = 'btn btn-sm btn-warning text-dark fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Avaliar Risco';
+                } else if (isAprovada) {
                     linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
                     linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Sugestão';
                 } else {
@@ -1212,7 +1232,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
             }
 
-            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
+            const defaultLink = (isAprovada || isSinalVerde || isAlertaSentinela) ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
             const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 

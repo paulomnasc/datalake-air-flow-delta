@@ -80,12 +80,19 @@ def get_db_connection(cursorclass=pymysql.cursors.DictCursor, autocommit=True, c
     """
     user, password, database = get_db_credentials()
 
-    hosts_ports = [
+    custom_host = os.environ.get("MYSQL_HOST")
+    custom_port = int(os.environ.get("MYSQL_PORT", 3306))
+
+    hosts_ports = []
+    if custom_host:
+        hosts_ports.append((custom_host, custom_port))
+    hosts_ports.extend([
+        ("172.18.0.13", 3306),
         ("127.0.0.1", 23306),
         ("localhost", 3306),
         ("mysql", 3306),
         ("127.0.0.1", 3306)
-    ]
+    ])
 
     last_error = None
     for host, port in hosts_ports:
@@ -99,7 +106,8 @@ def get_db_connection(cursorclass=pymysql.cursors.DictCursor, autocommit=True, c
                 charset="utf8mb4",
                 cursorclass=cursorclass,
                 autocommit=autocommit,
-                connect_timeout=connect_timeout
+                connect_timeout=connect_timeout,
+                read_timeout=connect_timeout
             )
             return conn
         except Exception as e:

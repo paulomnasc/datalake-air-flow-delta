@@ -123,6 +123,76 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, 
         return False
 
 
+def enviar_push_mobile(titulo: str, mensagem: str, fixture_id: int = None, prioridade: int = 3, tags: list = None) -> bool:
+    """
+    Dispara notificação push instantânea para o smartphone Android via ntfy.sh.
+    Parâmetros carregados dinamicamente de src/footballweb/.env (Regra 18).
+    Fail-safe: falhas no envio mobile nunca interrompem o fluxo principal do pipeline.
+    """
+    try:
+        env_vars = get_live_env_vars()
+        enabled = os.environ.get("NTFY_ENABLED") or env_vars.get("NTFY_ENABLED", "true")
+        if str(enabled).strip().lower() not in ("true", "1", "yes", "on"):
+            return False
+
+        topic = os.environ.get("NTFY_TOPIC") or env_vars.get("NTFY_TOPIC", "footbalweb_sentinela")
+        if not topic:
+            return False
+
+        server = os.environ.get("NTFY_SERVER") or env_vars.get("NTFY_SERVER", "https://ntfy.sh")
+        server = server.rstrip("/")
+
+        base_url = os.environ.get("NTFY_BASE_URL") or env_vars.get("NTFY_BASE_URL", "https://cristalbet.com.br")
+        click_url = f"{base_url.rstrip('/')}/apostas?fixture_id={fixture_id}" if fixture_id else f"{base_url.rstrip('/')}/apostas"
+
+        payload = {
+            "topic": topic,
+            "title": titulo,
+            "message": mensagem,
+            "priority": prioridade,
+            "tags": tags or ["soccer"],
+            "click": click_url
+        }
+
+        resp = requests.post(
+            f"{server}",
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=8
+        )
+        if resp.status_code == 200:
+            print(f"📲 [Push Mobile ntfy] Notificação enviada para o tópico '{topic}': {titulo}")
+            return True
+        else:
+            print(f"⚠️ [Push Mobile ntfy] Servidor retornou HTTP {resp.status_code}: {resp.text}")
+            return False
+    except Exception as e:
+        print(f"⚠️ [Push Mobile ntfy] Falha ao disparar push notification: {e}")
+        return False
+
+
+def testar_push_mobile() -> bool:
+    """
+    Envia mensagem fake de teste forçada para validação imediata do app ntfy no smartphone.
+    """
+    agora_gmt3 = datetime.now()
+    hora_str = agora_gmt3.strftime("%d/%m/%Y %H:%M")
+    print(f"🚀 [Teste NTFY] Disparando notificação fake de teste às {hora_str} (GMT -3)...")
+    sucesso = enviar_push_mobile(
+        titulo="🟢 Sinal Verde: Teste Sentinela - Hora de Apostar!",
+        mensagem=f"Esta é uma mensagem de teste forçada da Sentinela Pré-Jogo (Gemini IA) enviada às {hora_str} (GMT -3). Se você recebeu esta notificação, seu aplicativo ntfy está 100% configurado e operacional!",
+        fixture_id=1550174,
+        prioridade=4,  # High
+        tags=["white_check_mark", "green_circle", "soccer"]
+    )
+    if sucesso:
+        print("✅ [Teste NTFY] Push fake entregue com sucesso aos servidores da ntfy.sh!")
+    else:
+        print("❌ [Teste NTFY] Falha no disparo do push de teste.")
+    return sucesso
+
+
+
 def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     """
     Executa a chamada HTTP oficial para a API v1beta do Gemini Pro com Google Search Grounding ativo.
@@ -298,7 +368,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
                   AND a.auditoria_ia_status IS NULL
-                  AND ft.fixture_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL %s MINUTE)
+                  AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+                                          AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
                 LIMIT 20
             """
@@ -318,7 +389,14 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             fixture_id = item['fixture_id']
             home_team = item['home_team']
             away_team = item['away_team']
-            match_time = item['fixture_date'].strftime('%d/%m/%Y %H:%M') if item.get('fixture_date') else 'Hoje'
+            if item.get('fixture_date'):
+                # fixtures_trends.fixture_date está armazenado em UTC; converte para GMT -3 (Horário de Brasília)
+                dt_raw = item['fixture_date']
+                dt_utc = dt_raw if isinstance(dt_raw, datetime) else datetime.fromisoformat(str(dt_raw))
+                dt_local = dt_utc - timedelta(hours=3)
+                match_time = dt_local.strftime('%d/%m/%Y %H:%M')
+            else:
+                match_time = 'Hoje'
             is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
 
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
@@ -378,9 +456,21 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
                     print(f"📝 [Parecer IA]: {parecer}")
                     # Dispara notificação de risco no Sininho
+                    alerta_enviado = False
                     for uid in user_ids:
-                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="ALERTA_SENTINELA_IA")
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="ALERTA_SENTINELA_IA"):
+                            alerta_enviado = True
                     conn.commit()
+
+                    # Dispara push notification para o smartphone via ntfy (alta prioridade)
+                    if alerta_enviado:
+                        enviar_push_mobile(
+                            titulo=titulo_alerta,
+                            mensagem=parecer,
+                            fixture_id=fixture_id,
+                            prioridade=4,  # High
+                            tags=["warning", "rotating_light", "soccer"]
+                        )
                 else:
                     total_confirmados += 1
                     print(f"✅ [FORÇA MÁXIMA CONFIRMADA]: {resumo}")
@@ -394,9 +484,21 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         msg_verde = f"Auditoria de escalação concluída: {resumo}. Titulares confirmados para apoiar sua aposta já registrada. Início: {match_time}."
                         tipo_notif = "SINAL_VERDE_CONFIRMADA"
 
+                    verde_enviado = False
                     for uid in user_ids:
-                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, tit_verde, msg_verde, tipo=tipo_notif)
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, tit_verde, msg_verde, tipo=tipo_notif):
+                            verde_enviado = True
                     conn.commit()
+
+                    # Dispara push notification para o smartphone via ntfy (prioridade padrão)
+                    if verde_enviado:
+                        enviar_push_mobile(
+                            titulo=tit_verde,
+                            mensagem=msg_verde,
+                            fixture_id=fixture_id,
+                            prioridade=4,  # High (desperta notificação ativa com som no celular)
+                            tags=["white_check_mark", "green_circle", "soccer"]
+                        )
 
             except Exception as e_sql:
                 total_erros += 1
@@ -413,6 +515,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Auditor Sentinela Pré-Jogo (Gemini Pro + Google Search)")
     parser.add_argument("--fixture_id", type=int, help="Auditar fixture_id específico sob demanda")
     parser.add_argument("--window", type=int, default=50, help="Janela de minutos pré-jogo para varredura (padrão: 50)")
+    parser.add_argument("--test-ntfy", action="store_true", help="Disparar push fake de teste forçado para validação no app ntfy")
     args = parser.parse_args()
 
-    processar_auditoria_prejogo(window_minutes=args.window, specific_fixture_id=args.fixture_id)
+    if args.test_ntfy:
+        testar_push_mobile()
+    else:
+        processar_auditoria_prejogo(window_minutes=args.window, specific_fixture_id=args.fixture_id)
+

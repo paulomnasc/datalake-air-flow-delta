@@ -313,6 +313,7 @@ $statuses = [
     'Aguardando assinatura',
     'Execução',
     'Recebido Provisorio',
+    'Abrir aferição metrica',
     'Em aferição metrica',
     'Em divergência metrica',
     'Parecer conformidade metrica',

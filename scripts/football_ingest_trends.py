@@ -3426,6 +3426,8 @@ def main():
                 'league_id': f.get('league', {}).get('id'),
                 'league_name': f.get('league', {}).get('name'),
                 'fixture_date': f.get('fixture', {}).get('date'),
+                'home_team': f.get('teams', {}).get('home', {}).get('name'),
+                'away_team': f.get('teams', {}).get('away', {}).get('name'),
                 'referee_name': f.get('fixture', {}).get('referee') or existing_db_referees.get(f['fixture']['id'])
             } for f in filtered_fixtures]
             enriched_refs = enrich_missing_referees_batch(cursor, conn, flat_fixtures)
@@ -4226,7 +4228,7 @@ def main():
                             home_team_id = VALUES(home_team_id),
                             away_team_id = VALUES(away_team_id),
                             league_round = COALESCE(VALUES(league_round), league_round),
-                            referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), referee_name),
+                            referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), COALESCE(referee_name, VALUES(referee_name))),
                             prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
                             over_cards_probability = VALUES(over_cards_probability),
                             status = VALUES(status),
@@ -4628,7 +4630,7 @@ def update_oddspedia_odds(conn):
             b1, m1 = max(valid_c1.items(), key=lambda x: x[1])
             bX, mX = max(valid_cX.items(), key=lambda x: x[1])
             b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
-            return b1, m1, bX, mX, b2, m2
+            return m1, b1, mX, bX, m2, b2
 
         def find_source_match_odds(matches_list, home_team, away_team):
             if not matches_list:

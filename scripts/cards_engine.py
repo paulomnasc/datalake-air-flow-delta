@@ -1131,12 +1131,19 @@ def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
 
         if fid and is_unassigned:
             cursor.execute("""
-                SELECT referee_name, referee_api_checked_at 
+                SELECT referee_name, referee_api_checked_at, home_team, away_team, league_id
                 FROM fixtures_trends 
                 WHERE fixture_id = %s
             """, (fid,))
             row_chk = cursor.fetchone()
             if row_chk:
+                if not fix.get('home_team') and row_chk.get('home_team'):
+                    fix['home_team'] = row_chk.get('home_team')
+                if not fix.get('away_team') and row_chk.get('away_team'):
+                    fix['away_team'] = row_chk.get('away_team')
+                if not fix.get('league_id') and row_chk.get('league_id'):
+                    fix['league_id'] = row_chk.get('league_id')
+
                 db_ref = (row_chk.get('referee_name') or '').strip()
                 db_ref_low = db_ref.lower()
                 if db_ref and not any(un in db_ref_low for un in [
@@ -1230,5 +1237,42 @@ def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
                 conn.commit()
         except Exception as err:
             print(f"⚠️ [Enriquecimento Árbitro] Erro ao consultar API-Sports para lote {chunk}: {err}")
+
+    # Fallback sistêmico ultra-leve via Futbol24 (HTTP direto + Regex, sem navegador) para partidas ainda sem árbitro na API-Sports
+    candidate_set = set(candidate_ids)
+    still_missing = [
+        fix for fix in target_fixtures
+        if fix.get('fixture_id') in candidate_set and fix.get('fixture_id') not in enriched
+    ]
+    if still_missing:
+        try:
+            dags_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/dags'))
+            if os.path.exists(dags_path) and dags_path not in sys.path:
+                sys.path.insert(0, dags_path)
+            from lib.scrapers import scrape_futbol24_referees_for_fixtures
+            f24_refs = scrape_futbol24_referees_for_fixtures(still_missing)
+            for fid, ref_name in (f24_refs or {}).items():
+                if ref_name and ref_name.strip():
+                    try:
+                        cursor.execute("""
+                            INSERT IGNORE INTO referee_stats (
+                                name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level, updated_at
+                            ) VALUES (%s, 4.20, 0.20, 24.00, 50, 'Moderado', NOW())
+                        """, (ref_name,))
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                referee_name = %s,
+                                referee_api_checked_at = NOW(),
+                                updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (ref_name, fid))
+                        enriched[fid] = ref_name
+                        print(f"✅ [Árbitro Enriquecido via Futbol24] Fixture #{fid} -> Árbitro oficial atribuído: '{ref_name}'")
+                    except Exception as err_f24_db:
+                        print(f"⚠️ [Árbitro Enriquecido via Futbol24] Erro de banco (UPDATE fixtures_trends / INSERT referee_stats) para fixture #{fid} ('{ref_name}'): {err_f24_db}")
+            if f24_refs and conn and hasattr(conn, 'commit'):
+                conn.commit()
+        except Exception as e_f24_ref:
+            print(f"⚠️ [Enriquecimento Árbitro Futbol24] Aviso ao consultar fallback Futbol24: {e_f24_ref}")
 
     return enriched

@@ -1084,7 +1084,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
         </button>
         <button type="button" class="history-tab-btn <?= $tabAtiva === 'ciclos' ? 'active' : '' ?>" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
           <span>🔄 Ciclos Fechados</span>
-          <small style="color: #ffffff; opacity: 0.9;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
+          <small style="color: #ffffff; opacity: 0.9;">(<?= count($historicoC) ?> Ciclos · <?= htmlspecialchars($textoPeriodo) ?>)</small>
         </button>
       </div>
 
@@ -1101,7 +1101,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
             <i class="fas fa-calendar-alt" style="color: #38bdf8;"></i> Período:
           </label>
 
-          <select id="selectFiltroPreset" class="filter-select-preset" onchange="aplicarPresetHistorico(this.value)" title="Atalho de Período">
+          <select id="selectFiltroPreset" name="preset" class="filter-select-preset" onchange="aplicarPresetHistorico(this.value)" title="Atalho de Período">
             <option value="custom" <?= $presetAtivo === 'custom' ? 'selected' : '' ?>>📅 Personalizado</option>
             <option value="today" <?= $presetAtivo === 'today' ? 'selected' : '' ?>>⚡ Hoje</option>
             <option value="yesterday" <?= $presetAtivo === 'yesterday' ? 'selected' : '' ?>>⏪ Ontem</option>
@@ -1256,11 +1256,11 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
           ?>
           <tfoot>
             <tr class="history-table-total-row">
-              <td><strong>TOTAL</strong></td>
-              <td><strong><?= $totCadastradas ?></strong></td>
-              <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totGreens) ?></td>
+              <td><strong>TOTAL (<?= count($historico) ?> Dias)</strong></td>
+              <td><strong><?= $totCadastradas ?> apostas</strong></td>
+              <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totGreens) ?> greens</td>
               <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totPushes) ?></td>
-              <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totReds) ?></td>
+              <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totReds) ?> reds</td>
               <td><strong><?= $totOddMedia > 0 ? number_format($totOddMedia, 2) : '-' ?></strong></td>
               <td><strong><?= $fmtValorMeta($totInvestido) ?></strong></td>
               <td style="font-weight: 700;" class="<?= $totLucro > 0 ? 'val-green' : ($totLucro < 0 ? 'val-red' : '') ?>">
@@ -1413,10 +1413,10 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               <tr class="history-table-total-row">
                 <td><strong>TOTAL (<?= count($historicoC) ?> Ciclos)</strong></td>
                 <td>-</td>
-                <td><strong><?= $totCApostas ?></strong></td>
-                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?></td>
+                <td><strong><?= $totCApostas ?> apostas</strong></td>
+                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?> greens</td>
                 <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totCPushes) ?></td>
-                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?></td>
+                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?> reds</td>
                 <td style="color: #c084fc; font-weight: 600;"><?= $totCCashouts ?></td>
                 <td style="font-weight: 700;" class="<?= $totCLucro > 0 ? 'val-green' : ($totCLucro < 0 ? 'val-red' : '') ?>">
                   <?= $fmtValorMeta($totCLucro, true) ?>

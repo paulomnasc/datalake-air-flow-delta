@@ -71,10 +71,11 @@ class MetaController extends BaseController
         $cicloParam  = $this->request->getGet('ciclo');
         $numeroCiclo = (!empty($cicloParam) && is_numeric($cicloParam)) ? (int)$cicloParam : null;
 
-        // Filtro de data para o Histórico (afeta abas Diário e Blocos/Ciclos)
-        $histInicio = trim((string)$this->request->getGet('hist_inicio'));
-        $histFim    = trim((string)$this->request->getGet('hist_fim'));
-        $tabAtiva   = trim((string)$this->request->getGet('tab'));
+        // Filtro de data para o Histórico (afeta abas Diário e Blocos/Ciclos de forma 100% equivalente)
+        $histInicio  = trim((string)$this->request->getGet('hist_inicio'));
+        $histFim     = trim((string)$this->request->getGet('hist_fim'));
+        $presetParam = trim((string)$this->request->getGet('preset'));
+        $tabAtiva    = trim((string)$this->request->getGet('tab'));
 
         if (!in_array($tabAtiva, ['dias', 'ciclos'])) {
             $tabAtiva = (!empty($cicloParam)) ? 'ciclos' : 'dias';
@@ -87,12 +88,26 @@ class MetaController extends BaseController
             $histFim = '';
         }
 
-        // Identifica preset ativo e rótulo do período
+        // Identifica preset ativo, rótulo do período e janela efetiva unificada para ambas as abas
         $presetAtivo = 'custom';
-        if (empty($histInicio) && empty($histFim)) {
-            $presetAtivo = '30days';
+        $filtroInicio = null;
+        $filtroFim    = null;
+
+        if ($presetParam === 'all') {
+            $presetAtivo  = 'all';
+            $textoPeriodo = 'Todo o Período';
+            $histInicio   = '';
+            $histFim      = '';
+            $filtroInicio = null;
+            $filtroFim    = null;
+        } elseif (empty($histInicio) && empty($histFim)) {
+            $presetAtivo  = '30days';
             $textoPeriodo = 'Últimos 30 Dias';
+            $filtroInicio = date('Y-m-d', strtotime('-29 days'));
+            $filtroFim    = date('Y-m-d');
         } else {
+            $filtroInicio = $histInicio ?: null;
+            $filtroFim    = $histFim ?: null;
             if (!empty($histInicio) && !empty($histFim)) {
                 $textoPeriodo = date('d/m/Y', strtotime($histInicio)) . ' a ' . date('d/m/Y', strtotime($histFim));
                 if ($histInicio === date('Y-m-d') && $histFim === date('Y-m-d')) {
@@ -119,21 +134,22 @@ class MetaController extends BaseController
         $progressoHoje   = $this->metaDiariaModel->getProgressoDiario($userId, $dataRef, $forceRecalc);
         $cicloAtivo      = $this->metaDiariaModel->getCicloSequencial($userId, (int)($metaConfig->total_apostas_alvo ?? 10), $numeroCiclo, $dataRef);
 
-        $limiteCiclos = (!empty($histInicio) || !empty($histFim)) ? 100 : 15;
-        $limiteDias   = (!empty($histInicio) || !empty($histFim)) ? 365 : 30;
+        // Sem trava artificial de 15 ciclos: exibe todos os ciclos e dias necessários para cobrir a janela selecionada
+        $limiteCiclos = 1000;
+        $limiteDias   = 1000;
 
         $historicoCiclos = $this->metaDiariaModel->getHistoricoCiclos(
             $userId, 
             $limiteCiclos, 
             (int)($metaConfig->total_apostas_alvo ?? 10),
-            $histInicio ?: null,
-            $histFim ?: null
+            $filtroInicio,
+            $filtroFim
         );
         $historicoDias   = $this->metaDiariaModel->getHistoricoDias(
             $userId, 
             $limiteDias,
-            $histInicio ?: null,
-            $histFim ?: null
+            $filtroInicio,
+            $filtroFim
         );
 
         $data = [

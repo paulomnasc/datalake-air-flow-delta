@@ -428,7 +428,8 @@ def main():
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
                 avg_cards = VALUES(avg_cards),
-                matches_count = VALUES(matches_count)
+                matches_count = VALUES(matches_count),
+                updated_at = NOW()
         """, (team_id, team_name, avg_goals_for_home, avg_goals_against_home, clean_sheets_pct_home, avg_corners_home, avg_cards_home, matches_count_home))
         
         # Away
@@ -444,7 +445,8 @@ def main():
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
                 avg_cards = VALUES(avg_cards),
-                matches_count = VALUES(matches_count)
+                matches_count = VALUES(matches_count),
+                updated_at = NOW()
         """, (team_id, team_name, avg_goals_for_away, avg_goals_against_away, clean_sheets_pct_away, avg_corners_away, avg_cards_away, matches_count_away))
         
         conn.commit()

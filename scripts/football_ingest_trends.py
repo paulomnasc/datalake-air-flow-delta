@@ -2751,14 +2751,17 @@ def sync_pending_past_fixtures(conn, headers):
                 fallback_updated = sync_scores_from_the_odds_api_fallback(cursor, still_pending, conn)
                 updated_count += fallback_updated
 
-        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias com cartões NULL
+        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias
+        # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
         cursor.execute("""
             SELECT fixture_id, home_team_id, away_team_id, home_team, away_team
             FROM fixtures_trends
             WHERE fixture_date <= UTC_TIMESTAMP()
               AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
               AND status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
-              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL)
+              AND score_processed_at IS NOT NULL
+              AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
+              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL OR cards_api_checked_at IS NULL)
             ORDER BY fixture_date DESC
             LIMIT 40
         """)
@@ -3384,10 +3387,11 @@ def main():
         cursor.execute("""
             SELECT fixture_id FROM fixtures_trends 
             WHERE status IN ('FT', 'AET', 'PEN') 
-              AND (
-                  cards_api_checked_at IS NOT NULL 
-                  OR (yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL)
-              )
+              AND score_processed_at IS NOT NULL
+              AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
+              AND cards_api_checked_at IS NOT NULL
+              AND yellow_cards_home IS NOT NULL
+              AND yellow_cards_away IS NOT NULL
         """)
         rows_ft = cursor.fetchall()
         cached_ft_stats = {r['fixture_id'] for r in rows_ft}
@@ -3613,27 +3617,28 @@ def main():
 
                 # Prioriza o histórico real competitivo do banco de dados (excluindo amistosos)
                 # Se houver histórico de jogos competitivos no banco (>= 3 jogos), utiliza a média competitiva direta do clube
+                prev_cards = float(res_stats.get("avg_cards", 0.0) or 0.0)
                 real_c_avg, real_c_cnt = get_team_cards_from_db_history(cur_db, t_name, None, t_id, l_id)
                 if real_c_cnt >= 3 and real_c_avg > 0:
                     res_stats["avg_cards"] = real_c_avg
                     res_stats["matches_count"] = max(res_stats.get("matches_count", 0), real_c_cnt)
-                    if t_id:
+                    if t_id and abs(prev_cards - real_c_avg) > 0.001:
                         try:
                             cur_db.execute("""
                                 UPDATE team_moving_averages
-                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
+                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = updated_at
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
                         except Exception as e_ma:
                             print(f"⚠️ [team_moving_averages] Erro ao atualizar médias de cartões do time #{t_id}: {e_ma}")
-                elif (res_stats.get("avg_cards", 0.0) <= 0.50 or res_stats.get("matches_count", 0) < 3) and real_c_avg > 0:
+                elif (prev_cards <= 0.50 or res_stats.get("matches_count", 0) < 3) and real_c_avg > 0:
                     res_stats["avg_cards"] = real_c_avg
                     res_stats["matches_count"] = max(res_stats.get("matches_count", 0), real_c_cnt)
-                    if t_id:
+                    if t_id and abs(prev_cards - real_c_avg) > 0.001:
                         try:
                             cur_db.execute("""
                                 UPDATE team_moving_averages
-                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
+                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = updated_at
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
                         except Exception as e_ma:
@@ -4235,7 +4240,7 @@ def main():
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
                             score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
-                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(yellow_cards_home) IS NOT NULL OR yellow_cards_home IS NOT NULL OR VALUES(last_event) IS NOT NULL OR last_event IS NOT NULL), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
+                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND score_processed_at IS NOT NULL AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE) AND (VALUES(yellow_cards_home) IS NOT NULL OR yellow_cards_home IS NOT NULL OR VALUES(last_event) IS NOT NULL OR last_event IS NOT NULL), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),

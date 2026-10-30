@@ -97,6 +97,9 @@ def get_fixture_handicap_stats(fixture):
     score_processed_at = fixture.get('score_processed_at')
     if not score_processed_at:
         return None
+    if isinstance(score_processed_at, datetime) and (datetime.now() - score_processed_at).total_seconds() < 1200:
+        print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
+        return None
 
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')

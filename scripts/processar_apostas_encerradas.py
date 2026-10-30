@@ -233,6 +233,12 @@ def get_fixture_stats(fixture, cursor=None):
     if not score_processed_at:
         return None
 
+    # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
+    if isinstance(score_processed_at, datetime):
+        if (datetime.now() - score_processed_at).total_seconds() < 1200:
+            print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
+            return None
+
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')
 
@@ -727,6 +733,7 @@ def process_palpites_gerados(cursor):
         JOIN fixtures_trends f ON p.fixture_id = f.fixture_id
         WHERE f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
           AND f.score_processed_at IS NOT NULL
+          AND f.score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
           AND f.goals_home IS NOT NULL
           AND f.goals_away IS NOT NULL
     """)

@@ -2963,7 +2963,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         $minsPassed = 0;
                                         if (!empty($fix->updated_at)) {
                                             try {
-                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                 $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
                                             } catch (\Exception $e) {}
                                         }
@@ -2980,7 +2980,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         $minsPassed = 0;
                                         if (!empty($fix->updated_at)) {
                                             try {
-                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                 $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
                                             } catch (\Exception $e) {}
                                         }
@@ -3311,7 +3311,7 @@ if (!function_exists('getBetDecisionTree')) {
                                          $oddsUpdatedAtFormatted = 'Atualizado recentemente';
                                          if (!empty($fix->updated_at)) {
                                              try {
-                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                  $dtOdds->setTimezone(new DateTimeZone('America/Sao_Paulo'));
                                                  $oddsUpdatedAtFormatted = $dtOdds->format('d/m/Y \à\s H:i');
                                              } catch (\Exception $eFormat) {
@@ -4592,7 +4592,7 @@ if (!function_exists('getBetDecisionTree')) {
                         let minsPassed = 0;
                         const updatedStr = el.getAttribute('data-updated-utc');
                         if (updatedStr) {
-                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + '-03:00').getTime();
                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                             }
@@ -4615,7 +4615,7 @@ if (!function_exists('getBetDecisionTree')) {
                         let minsPassed = 0;
                         const updatedStr = el.getAttribute('data-updated-utc');
                         if (updatedStr) {
-                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + '-03:00').getTime();
                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                             }
@@ -5125,7 +5125,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         const baseMin = (rawEl <= 45) ? (45 + rawEl) : rawEl;
                                         let minsPassed = 0;
                                         if (fix.updated_at) {
-                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + '-03:00').getTime();
                                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                                             }
@@ -5141,7 +5141,7 @@ if (!function_exists('getBetDecisionTree')) {
                                     if (rawEl !== null && !isNaN(rawEl)) {
                                         let minsPassed = 0;
                                         if (fix.updated_at) {
-                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + '-03:00').getTime();
                                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                                             }

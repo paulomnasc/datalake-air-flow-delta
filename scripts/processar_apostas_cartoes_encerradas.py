@@ -220,9 +220,17 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 def ensure_fixture_card_stats(cursor, fixture):
     """
     Garante estatísticas de cartões de fim de jogo (FT) para a partida consultando a API se estiverem NULAS.
+    Exige janela mínima de consolidação de 20 minutos após score_processed_at.
     """
     fixture_id = fixture['fixture_id']
     home_team_id = fixture.get('home_team_id')
+
+    score_processed_at = fixture.get('score_processed_at')
+    if not score_processed_at:
+        return None
+    if isinstance(score_processed_at, datetime) and (datetime.now() - score_processed_at).total_seconds() < 1200:
+        print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture_id} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
+        return None
 
     yellow_home = fixture.get('yellow_cards_home')
     yellow_away = fixture.get('yellow_cards_away')

@@ -852,6 +852,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="#" id="toast-notif-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
                         <i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out
                     </a>
+                    <button type="button" id="btn-copiar-toast-notif" class="btn btn-sm btn-outline-light text-nowrap d-flex align-items-center gap-1 shadow-sm" title="Copiar texto do alerta" style="border-radius: 8px; font-size: 0.80rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3);">
+                        <i class="bi bi-clipboard"></i> Copiar
+                    </button>
                 </div>
             </div>
         </div>
@@ -970,6 +973,44 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             .catch(() => {});
         }
 
+        function fallbackCopiarTexto(texto, callback) {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                if (callback) callback();
+            } catch(e) {}
+            document.body.removeChild(ta);
+        }
+
+        function copiarTextoParaClipboard(texto, btnElement) {
+            if (!texto) return;
+            function feedbackOk() {
+                if (!btnElement) return;
+                const icon = btnElement.querySelector('i');
+                const originalHtml = btnElement.innerHTML;
+                btnElement.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                btnElement.classList.add('border-success');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHtml;
+                    btnElement.classList.remove('border-success');
+                }, 2000);
+            }
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(texto).then(feedbackOk).catch(() => {
+                    fallbackCopiarTexto(texto, feedbackOk);
+                });
+            } else {
+                fallbackCopiarTexto(texto, feedbackOk);
+            }
+        }
+
         function checkNotificacoes() {
             fetch(notifApiUrl, {
                 method: 'GET',
@@ -1012,6 +1053,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                             </strong>
                                         </a>
                                         <div class="d-flex align-items-center gap-1">
+                                            <button type="button" class="btn btn-xs btn-copiar-notif" data-msg="${encodeURIComponent(n.mensagem)}" title="Copiar texto do alerta" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; color: #cbd5e1; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
                                             ${isPinada ? `
                                                 <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
                                                 <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-despinar-item" data-notif-id="${n.id}" title="Despinar alerta para não reexibir" style="font-size: 0.70rem; border-radius: 4px; line-height: 1.2; background: rgba(239,68,68,0.15);">
@@ -1032,17 +1076,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             const iconHtml = (n.tipo === 'OPORTUNIDADE_AO_VIVO') ? '<i class="bi bi-lightning-charge-fill text-warning me-1"></i>' : (isItemAprovada ? '<i class="bi bi-bullseye text-success me-1"></i>' : '');
                             const titleColor = isUnread ? (isItemAprovada ? '#4ade80' : '#f87171') : '#f1f5f9';
                             html += `
-                                <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                <div class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <strong style="font-size: 0.85rem; color: ${titleColor};">
-                                            ${iconHtml}${n.titulo}
-                                        </strong>
-                                        <span class="notif-time">${timeStr}</span>
+                                        <a href="${linkHref}" class="text-decoration-none d-flex align-items-center flex-grow-1 me-2" style="color: inherit;">
+                                            <strong style="font-size: 0.85rem; color: ${titleColor};">
+                                                ${iconHtml}${n.titulo}
+                                            </strong>
+                                        </a>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="notif-time me-1">${timeStr}</span>
+                                            <button type="button" class="btn btn-xs btn-copiar-notif" data-msg="${encodeURIComponent(n.mensagem)}" title="Copiar texto do alerta" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; color: #cbd5e1; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
+                                    <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
                                         ${n.mensagem}
-                                    </div>
-                                </a>
+                                    </a>
+                                </div>
                             `;
                         }
                     });
@@ -1058,10 +1109,29 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         });
                     });
 
+                    // Copiar texto do alerta ao clicar no botão de cópia
+                    container.querySelectorAll('.btn-copiar-notif').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const rawMsg = this.getAttribute('data-msg');
+                            let textToCopy = '';
+                            if (rawMsg) {
+                                try { textToCopy = decodeURIComponent(rawMsg); } catch(err) { textToCopy = rawMsg; }
+                            }
+                            if (!textToCopy) {
+                                const itemEl = this.closest('.notif-item');
+                                const msgEl = itemEl ? (itemEl.querySelector('.notif-mensagem-texto') || itemEl.querySelector('a:last-child')) : null;
+                                textToCopy = msgEl ? msgEl.textContent.trim() : '';
+                            }
+                            copiarTextoParaClipboard(textToCopy, this);
+                        });
+                    });
+
                     // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
-                            if (e.target.closest('.btn-despinar-item')) return;
+                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif')) return;
 
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
@@ -1270,6 +1340,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (!slEl || slEl.style.display === 'none') {
                         if (stackContainer) stackContainer.style.display = 'none';
                     }
+                };
+            }
+
+            const btnCopiarToast = document.getElementById('btn-copiar-toast-notif');
+            if (btnCopiarToast) {
+                btnCopiarToast.onclick = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    copiarTextoParaClipboard(notif.mensagem, btnCopiarToast);
                 };
             }
 

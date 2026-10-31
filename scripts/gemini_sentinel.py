@@ -541,15 +541,18 @@ Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕE
 
 --- INSTRUÇÕES DE AUDITORIA ---
 1. Avalie rigorosamente os 11 titulares escalados na súmula oficial e a lista de lesionados/suspensos.
-2. Verifique se a equipe apoiada pela aposta escalou time reserva/misto (5 ou mais mudanças em relação ao jogo anterior) ou está sem seu goleiro titular, zagueiro xerife ou artilheiro.
-3. Caso haja escalação mista/reserva, ausência do goleiro titular ou excesso de desfalques nos titulares da equipe apoiada, classifique OBRIGATORIAMENTE como "ALERTA_RISCO" (tem_alerta: true).
-4. Avalie se o contexto do confronto (clássico regional tenso, desgaste por sequência de jogos em copa) contradiz a segurança da linha recomendada.
-5. Emita seu parecer em linguagem natural clara, direta e sem fórmulas matemáticas, citando nominalmente os jogadores escalados ou ausentes que fundamentam a conclusão.
+2. Defina com precisão o GRAU DE RISCO da partida para a aposta sugerida:
+   - "ALTO": Se houver ausência do goleiro titular, time misto/reserva (4 ou mais mudanças nos titulares), desfalque do artilheiro principal ou capitão/zagueiro xerife na equipe apoiada, ou se a súmula oficial com os 11 titulares ainda estiver indisponível no pré-jogo com desfalques importantes.
+   - "MEDIO": Se houver 1 ou 2 desfalques pontuais de linha (ex: volante ou lateral), mas com goleiro, artilheiro e a espinha dorsal mantidos.
+   - "BAIXO": Força máxima confirmada (10 a 11 titulares mantidos); eventuais desfalques apenas de reservas ou atletas de composição de elenco.
+3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
+4. Emita seu parecer em linguagem natural clara, direta e sem fórmulas matemáticas, citando nominalmente os jogadores escalados ou ausentes que fundamentam a conclusão.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
 {{
   "status": "CONFIRMADO" ou "ALERTA_RISCO",
+  "grau_risco": "ALTO", "MEDIO" ou "BAIXO",
   "tem_alerta": true ou false,
   "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares escalados e eventuais baixas",
   "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: Al-Ahli com time reserva e goleiro suplente')",
@@ -608,16 +611,22 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
 
         if not raw_text.strip():
             # Se ambas as IAs falharem, NUNCA emite falso "CONFIRMADO" sem avaliar a súmula!
+            h_t = dossie.get("home_team", "Mandante")
+            a_t = dossie.get("away_team", "Visitante")
             if alerta_estrutural:
                 return {
                     "status": "ALERTA_RISCO",
+                    "grau_risco": "ALTO",
+                    "badge_risco": "🔴 Risco Alto",
                     "tem_alerta": True,
                     "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
-                    "titulo_alerta": f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}",
-                    "parecer_explicativo": "Auditoria automática da súmula oficial detectou risco relevante na escalação: " + "; ".join(motivos_elenco) + "."
+                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
+                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
                 }
             return {
                 "status": None,
+                "grau_risco": "DESCONHECIDO",
+                "badge_risco": "⚪ Indefinido",
                 "tem_alerta": False,
                 "resumo_escalacao": "Auditoria de IA indisponível no momento",
                 "titulo_alerta": "",
@@ -634,31 +643,69 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
             clean_text = re.sub(r'\s*```$', '', clean_text)
             data = json.loads(clean_text)
 
-        tem_alerta_final = bool(data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural)
+        raw_grau = str(data.get("grau_risco") or "").strip().upper()
+        if alerta_estrutural:
+            grau_risco = "ALTO"
+        elif raw_grau in ("ALTO", "HIGH"):
+            grau_risco = "ALTO"
+        elif raw_grau in ("MEDIO", "MÉDIO", "MEDIUM"):
+            grau_risco = "MEDIO"
+        elif raw_grau in ("BAIXO", "LOW"):
+            grau_risco = "BAIXO"
+        else:
+            grau_risco = "ALTO" if (data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO") else "BAIXO"
+
+        badge_risco = "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo")
+
+        tem_alerta_final = bool(grau_risco in ("ALTO", "MEDIO") or data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural)
         status_final = "ALERTA_RISCO" if tem_alerta_final else "CONFIRMADO"
-        parecer_final = str(data.get("parecer_explicativo", "Auditoria de campo concluída."))
+        parecer_final = str(data.get("parecer_explicativo", "Auditoria de campo concluída.")).strip()
         if alerta_estrutural and motivos_elenco and not data.get("tem_alerta"):
             parecer_final = f"[Alerta de Súmula: {'; '.join(motivos_elenco)}] {parecer_final}"
 
+        # Assegura que a explicação inicie com o confronto e a badge de risco (Time A x Time B [🔴 Risco Alto]: ...)
+        h_t = dossie.get("home_team")
+        a_t = dossie.get("away_team")
+        if h_t and a_t:
+            prefixo_jogo_badge = f"{h_t} x {a_t} [{badge_risco}]: "
+            # Limpa prefixos parciais anteriores se houver
+            parecer_final = re.sub(r'^' + re.escape(h_t) + r'\s*x\s*' + re.escape(a_t) + r'(?:\s*\[[^\]]+\])?:\s*', '', parecer_final).strip()
+            parecer_final = f"{prefixo_jogo_badge}{parecer_final}"
+
+        if grau_risco == "ALTO":
+            titulo_final = f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}"
+        elif grau_risco == "MEDIO":
+            titulo_final = f"🟡 Alerta [Risco Médio]: {h_t} vs {a_t}"
+        else:
+            titulo_final = f"🟢 Sinal Verde [Risco Baixo]: {h_t} vs {a_t}"
+
         return {
             "status": status_final,
+            "grau_risco": grau_risco,
+            "badge_risco": badge_risco,
             "tem_alerta": tem_alerta_final,
             "resumo_escalacao": str(data.get("resumo_escalacao") or sumula_info.get("resumo_curto") or "Escalações checadas"),
-            "titulo_alerta": str(data.get("titulo_alerta") or f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}"),
+            "titulo_alerta": titulo_final,
             "parecer_explicativo": parecer_final
         }
     except Exception as e:
         print(f"⚠️ [Sentinela IA] Falha no processamento da inferência: {e}")
+        h_t = dossie.get("home_team", "Mandante")
+        a_t = dossie.get("away_team", "Visitante")
         if alerta_estrutural:
             return {
                 "status": "ALERTA_RISCO",
+                "grau_risco": "ALTO",
+                "badge_risco": "🔴 Risco Alto",
                 "tem_alerta": True,
                 "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta na súmula oficial"),
-                "titulo_alerta": f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}",
-                "parecer_explicativo": "A súmula oficial indicou alerta importante: " + "; ".join(motivos_elenco) + "."
+                "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
+                "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: A súmula oficial indicou alteração crítica: " + "; ".join(motivos_elenco) + "."
             }
         return {
             "status": None,
+            "grau_risco": "DESCONHECIDO",
+            "badge_risco": "⚪ Indefinido",
             "tem_alerta": False,
             "resumo_escalacao": "Auditoria pendente",
             "titulo_alerta": "",
@@ -755,7 +802,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
     if is_confirmada:
         tit_alerta = f"⚠️ Alerta de Mercado: Linha desfavorável em {home_team} vs {away_team}"
         par_alerta = (
-            f"{motivo_distorcao} Sua aposta #{item['aposta_id']} ({palpite_atual} @ {odd_abertura:.2f}) "
+            f"{home_team} x {away_team}: {motivo_distorcao} Sua aposta #{item['aposta_id']} ({palpite_atual} @ {odd_abertura:.2f}) "
             f"já foi confirmada anteriormente. Por segurança, a aposta foi mantida intacta. "
             f"Avalie a conveniência de cashout ou cobertura na sua casa de apostas."
         )
@@ -826,7 +873,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
             print(f"🛑 [Gatekeeper Reprovou Linhas Vivas] {home_team} vs {away_team}: nenhuma linha aprovada no mercado atual.")
             tit_alerta = f"⚠️ Alerta: Distorção de Linha AH em {home_team} vs {away_team}"
             par_alerta = (
-                f"{motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo na Betano "
+                f"{home_team} x {away_team}: {motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo na Betano "
                 f"e reprovou novas entradas por ausência de valor seguro (+EV). "
                 f"Recomendado NÃO apostar nesta partida."
             )
@@ -986,8 +1033,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     continue
                 resumo = resultado["resumo_escalacao"]
                 parecer = resultado["parecer_explicativo"]
+                grau_risco = resultado.get("grau_risco", "ALTO" if st == "ALERTA_RISCO" else "BAIXO")
+                badge_risco = resultado.get("badge_risco", "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo"))
+
                 tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde
-                titulo_alerta = resultado.get("titulo_alerta") or f"⚠️ Alerta Pré-Jogo: {home_team} vs {away_team}"
+                titulo_alerta = resultado.get("titulo_alerta") or f"{'🔴' if grau_risco == 'ALTO' else '🟡'} Alerta [{badge_risco}]: {home_team} vs {away_team}"
 
             # Atualiza no banco (apostas e fixtures_trends)
             try:
@@ -1023,13 +1073,14 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     conn.commit()
 
                     # Dispara push notification para o smartphone via ntfy (alta prioridade)
+                    tag_color = "red_circle" if grau_risco == "ALTO" else "yellow_circle"
                     if alerta_enviado:
                         enviar_push_mobile(
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
                             prioridade=4,  # High
-                            tags=["warning", "rotating_light", "soccer"]
+                            tags=[tag_color, "warning", "soccer"]
                         )
                 else:
                     total_confirmados += 1
@@ -1037,15 +1088,15 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     # Manifestação sempre ativa da Sentinela (Sinal Verde / Hora de Apostar)
                     if not is_confirmada:
                         if linha_recalibrada:
-                            tit_verde = f"🟢 Sinal Verde: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
-                            msg_verde = f"Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo começa às {match_time}. Hora de garantir a entrada na sua bookmaker!"
+                            tit_verde = f"🟢 Sinal Verde [Risco Baixo]: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo começa às {match_time}. Hora de garantir a entrada na sua bookmaker!"
                         else:
-                            tit_verde = f"🟢 Sinal Verde: {home_team} vs {away_team} - Hora de Apostar!"
-                            msg_verde = f"Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
+                            tit_verde = f"🟢 Sinal Verde [Risco Baixo]: {home_team} vs {away_team} - Hora de Apostar!"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
                         tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
                     else:
-                        tit_verde = f"🟢 Força Máxima Confirmada: {home_team} vs {away_team}"
-                        msg_verde = f"Auditoria de escalação concluída: {resumo}. Titulares confirmados para apoiar sua aposta já registrada. Início: {match_time}."
+                        tit_verde = f"🟢 Força Máxima Confirmada [Risco Baixo]: {home_team} vs {away_team}"
+                        msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria de escalação concluída: {resumo}. Titulares confirmados para apoiar sua aposta já registrada. Início: {match_time}."
                         tipo_notif = "SINAL_VERDE_CONFIRMADA"
 
                     verde_enviado = False

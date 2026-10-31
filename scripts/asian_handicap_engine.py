@@ -1121,8 +1121,8 @@ def evaluate_and_select_best_ah_candidate(
             if c_line == -0.5:
                 if not (is_eligible_negative or is_home_poisson_dominant_minus_half):
                     continue
-                # Faixa de odd segura para -0.5 AH (permite cotas a partir de 1.35 para mandantes de elite)
-                if c_odd < 1.35 or c_odd > 1.95:
+                # Faixa de odd segura para -0.5 AH (piso elevado para 1.45 para evitar prêmios esmagados)
+                if c_odd < 1.45 or c_odd > 1.95:
                     continue
                 required_prob = 58.0 if is_super_fav_crushed else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
                 required_ev = 8.0 if is_super_fav_crushed else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
@@ -1180,6 +1180,12 @@ def evaluate_and_select_best_ah_candidate(
             else:
                 if c_odd < 1.50 or c_odd > 2.10:
                     continue
+                # Trava de Proteção de Mando de Campo em Odds Altas para Visitante (0.0 AH @ >= 1.60):
+                # Se o candidato for visitante e a odd for >= 1.60, o risco de mando desfavorável é crítico.
+                # Só autoriza se o visitante tiver superioridade dominante no U5J (vantagem >= 5.0 pts) e mandante fragilizado (<= 4 pts).
+                if c_is_away and c_line == 0.0 and c_odd >= 1.60:
+                    if not (cand_pts_eff >= opp_pts_eff + 5.0 and opp_pts <= 4):
+                        continue
                 required_prob = min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
             if is_cand_fav and c_line > 0.0:

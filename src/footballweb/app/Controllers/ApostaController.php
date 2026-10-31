@@ -734,8 +734,8 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 6.5+: 1.40)
-                $minOddReq  = 1.40;
+                // Critérios específicos por linha (Under 6.5+: 1.50)
+                $minOddReq  = 1.50;
                 $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;

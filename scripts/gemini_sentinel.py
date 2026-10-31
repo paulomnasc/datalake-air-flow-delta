@@ -957,9 +957,11 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
 
-def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None):
+def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, phase: int = 2):
     """
-    Executa a auditoria das partidas que iniciam entre T-50min e T-15min.
+    Executa a auditoria da esteira da Sentinela em dois estágios:
+    - Fase 1 (Antecipação Matinal - Janela 24h): qualificação prévia com notícias web para emitir Sinal Verde no topo da odd.
+    - Fase 2 (Repescagem Pré-Jogo e Vigilância de Mercado - Janela 50m): repescagem de partidas em observação via súmula oficial e monitor de drift nas confirmadas.
     Regra 8: inicialização prévia de contadores numéricos.
     """
     total_processados = 0
@@ -979,11 +981,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
     try:
         user_ids = get_target_user_ids(cursor)
 
-        # 1. Seleciona apostas elegíveis na janela pré-jogo
+        # 1. Seleciona apostas elegíveis conforme a Fase da esteira
         if specific_fixture_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status, a.confirmada,
+                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
@@ -993,10 +995,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                   AND a.status = 'Pendente'
             """
             cursor.execute(query, (specific_fixture_id,))
-        else:
+        elif phase == 1:
+            # FASE 1: Antecipação Matinal (Janela de 24h) - Seleciona partidas do dia sem parecer prévio
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status, a.confirmada,
+                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
@@ -1004,20 +1007,38 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
                   AND a.auditoria_ia_status IS NULL
+                  AND DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR)) = DATE(DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 HOUR))
+                  AND ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+                ORDER BY ft.fixture_date ASC
+                LIMIT 25
+            """
+            cursor.execute(query)
+        else:
+            # FASE 2: Repescagem Pré-Jogo (T-50m a T-15m) e Vigilância de Drift de Mercado
+            query = """
+                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
+                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
+                FROM apostas a
+                JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+                WHERE a.status = 'Pendente'
+                  AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status = 'EM_OBSERVACAO' OR a.confirmada = 1)
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
-                LIMIT 20
+                LIMIT 25
             """
             cursor.execute(query, (window_minutes,))
 
         apostas_para_auditar = cursor.fetchall()
 
         if not apostas_para_auditar:
-            print(f"ℹ️ [Sentinela IA] Nenhuma aposta pendente necessitando auditoria na janela de {window_minutes} min.")
+            print(f"ℹ️ [Sentinela IA - Fase {phase}] Nenhuma aposta pendente necessitando auditoria na janela de {window_minutes} min.")
             return
 
-        print(f"🚀 [Sentinela IA] Iniciando auditoria para {len(apostas_para_auditar)} aposta(s) elegível(is)...")
+        print(f"🚀 [Sentinela IA - Fase {phase}] Iniciando auditoria para {len(apostas_para_auditar)} aposta(s) elegível(is)...")
 
         for item in apostas_para_auditar:
             total_processados += 1
@@ -1030,13 +1051,24 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 dt_raw = item['fixture_date']
                 dt_utc = dt_raw if isinstance(dt_raw, datetime) else datetime.fromisoformat(str(dt_raw))
                 dt_local = dt_utc - timedelta(hours=3)
-                match_time = dt_local.strftime('%d/%m/%Y %H:%M')
+                now_local = datetime.utcnow() - timedelta(hours=3)
+                diff_days = (dt_local.date() - now_local.date()).days
+                if diff_days == 0:
+                    dia_ref = f"hoje às {dt_local.strftime('%H:%M')}"
+                elif diff_days == 1:
+                    dia_ref = f"amanhã ({dt_local.strftime('%d/%m')}) às {dt_local.strftime('%H:%M')}"
+                else:
+                    dia_ref = f"em {dt_local.strftime('%d/%m/%Y às %H:%M')}"
+                match_time = f"{dia_ref} (Horário de Brasília)"
             else:
                 match_time = 'Hoje'
             is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
 
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
             u5j_summary = extrair_resumo_u5j(reasoning)
+
+            status_anterior = item.get('auditoria_ia_status')
+            era_observacao = (status_anterior == 'EM_OBSERVACAO')
 
             # Recalibragem de Linhas AH e Salvaguarda contra Distorção de Mercado
             recalib = auditar_e_recalibrar_linha_handicap(cursor, item, user_ids)
@@ -1115,6 +1147,34 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde
                 titulo_alerta = resultado.get("titulo_alerta") or f"{'🔴' if grau_risco == 'ALTO' else '🟡'} Alerta [{badge_risco}]: {home_team} vs {away_team}"
 
+                # LÓGICA DE TRANSIÇÃO POR FASE DA ESTEIRA:
+                if phase == 1:
+                    # FASE 1: Antecipação Matinal (Janela 24h)
+                    if tem_alerta or grau_risco in ('MEDIO', 'ALTO'):
+                        st = 'EM_OBSERVACAO'
+                        badge_risco = '🟡 Em Observação'
+                        resumo = f"🟡 Em Observação (Fase 1): {resumo} | Retida para repescagem na Fase 2 (T-50 min)"
+                        titulo_alerta = f"🟡 Em Observação [Aguardar Fase 2]: {home_team} vs {away_team}"
+                        parecer = f"[Fase 1 - Em Observação] {parecer}"
+                    else:
+                        st = 'CONFIRMADO'
+                        resumo = f"🟢 Sinal Verde Antecipado: {resumo}"
+                else:
+                    # FASE 2: Repescagem Pré-Jogo e Vigilância de Mercado
+                    if is_confirmada and recalib.get('alerta_risco'):
+                        st = 'ALERTA_RISCO'
+                        badge_risco = '🔴 Risco Crítico de Mercado'
+                        titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                        parecer = recalib['parecer_alerta']
+                    elif era_observacao:
+                        if not tem_alerta:
+                            st = 'CONFIRMADO'
+                            resumo = f"🟢 Promovida na Repescagem: Súmula oficial confirmou titulares com força máxima ({resumo})"
+                        else:
+                            st = 'ALERTA_RISCO'
+                            resumo = f"🔴 Reprovada na Repescagem: Súmula confirmou desfalques/rodízio ({resumo})"
+                            titulo_alerta = f"🔴 Repescagem Reprovada [Risco Alto]: Desfalque Confirmado em {home_team} vs {away_team}"
+
             # Atualiza no banco (apostas e fixtures_trends)
             try:
                 cursor.execute("""
@@ -1137,38 +1197,53 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
                 conn.commit()
 
-                if tem_alerta:
+                if phase == 1 and st == 'EM_OBSERVACAO':
+                    # Em Fase 1, se ficar em observação, apenas registra aviso informativo no Sininho (sem push ruidoso)
+                    total_alertas += 1
+                    print(f"🟡 [FASE 1 - RETIDA EM OBSERVAÇÃO]: {titulo_alerta}")
+                    for uid in user_ids:
+                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="OBSERVACAO_FASE1")
+                    conn.commit()
+                elif tem_alerta or st == 'ALERTA_RISCO':
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
                     print(f"📝 [Parecer IA]: {parecer}")
-                    # Dispara notificação de risco no Sininho
+                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if (is_confirmada and recalib.get('alerta_risco')) else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
                     alerta_enviado = False
                     for uid in user_ids:
-                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="ALERTA_SENTINELA_IA"):
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta):
                             alerta_enviado = True
                     conn.commit()
 
                     # Dispara push notification para o smartphone via ntfy (alta prioridade)
-                    tag_color = "red_circle" if grau_risco == "ALTO" else "yellow_circle"
+                    tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else "yellow_circle"
                     if alerta_enviado:
                         enviar_push_mobile(
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
-                            prioridade=4,  # High
+                            prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
                             tags=[tag_color, "warning", "soccer"]
                         )
                 else:
                     total_confirmados += 1
                     print(f"✅ [FORÇA MÁXIMA CONFIRMADA]: {resumo}")
-                    # Manifestação sempre ativa da Sentinela (Sinal Verde / Hora de Apostar)
-                    if not is_confirmada:
+                    # Notificações contextuais por estágio
+                    if phase == 1:
+                        tit_verde = f"🟢 Sinal Verde Antecipado [Risco Baixo]: {home_team} vs {away_team} - Hora de Cravar a Cotação Máxima!"
+                        msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo Antecipado]: Auditoria matinal concluída com elenco estável e sem desfalques reportados na imprensa! O jogo é {match_time}. Hora de garantir a entrada com odd no topo antes do mercado derreter!"
+                        tipo_notif = "SINAL_VERDE_ANTECIPADO"
+                    elif era_observacao:
+                        tit_verde = f"🟢 Repescagem Concluída [Risco Baixo]: Força Máxima Confirmada na Súmula! {home_team} vs {away_team}"
+                        msg_verde = f"{home_team} x {away_team} [🟢 Sinal Verde na Repescagem]: A súmula oficial acaba de ser publicada e confirmou os 11 titulares com força máxima! O jogo é {match_time}. Hora de garantir a entrada com segurança factual!"
+                        tipo_notif = "SINAL_VERDE_REPESCAGEM"
+                    elif not is_confirmada:
                         if linha_recalibrada:
                             tit_verde = f"🟢 Sinal Verde [Risco Baixo]: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
-                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo começa às {match_time}. Hora de garantir a entrada na sua bookmaker!"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo é {match_time}. Hora de garantir a entrada na sua bookmaker!"
                         else:
                             tit_verde = f"🟢 Sinal Verde [Risco Baixo]: {home_team} vs {away_team} - Hora de Apostar!"
-                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo começa às {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo é {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
                         tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
                     else:
                         tit_verde = f"🟢 Força Máxima Confirmada [Risco Baixo]: {home_team} vs {away_team}"
@@ -1181,13 +1256,13 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             verde_enviado = True
                     conn.commit()
 
-                    # Dispara push notification para o smartphone via ntfy (prioridade padrão)
+                    # Dispara push notification para o smartphone via ntfy (prioridade alta)
                     if verde_enviado:
                         enviar_push_mobile(
                             titulo=tit_verde,
                             mensagem=msg_verde,
                             fixture_id=fixture_id,
-                            prioridade=4,  # High (desperta notificação ativa com som no celular)
+                            prioridade=4,
                             tags=["white_check_mark", "green_circle", "soccer"]
                         )
 
@@ -1206,11 +1281,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Auditor Sentinela Pré-Jogo (Gemini Pro + Google Search)")
     parser.add_argument("--fixture_id", type=int, help="Auditar fixture_id específico sob demanda")
     parser.add_argument("--window", type=int, default=50, help="Janela de minutos pré-jogo para varredura (padrão: 50)")
+    parser.add_argument("--phase", type=int, default=2, choices=[1, 2], help="Fase da esteira: 1 (Antecipação Matinal - 24h) ou 2 (Repescagem Pré-Jogo e Drift - 50m)")
     parser.add_argument("--test-ntfy", action="store_true", help="Disparar push fake de teste forçado para validação no app ntfy")
     args = parser.parse_args()
 
     if args.test_ntfy:
         testar_push_mobile()
     else:
-        processar_auditoria_prejogo(window_minutes=args.window, specific_fixture_id=args.fixture_id)
+        win = args.window if (args.phase == 2 or args.window != 50) else 1440
+        processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, phase=args.phase)
 

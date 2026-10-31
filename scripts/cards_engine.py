@@ -888,8 +888,8 @@ def evaluate_best_card_under_line(
             else:
                 continue
 
-        # Piso de odd viável: >= 1.40 para Under 6.5+
-        min_odd_req = 1.40
+        # Piso de odd viável: >= 1.50 para Under 6.5+ (evita cotas deprimidas)
+        min_odd_req = 1.50
         if real_odd < min_odd_req:
             continue
 

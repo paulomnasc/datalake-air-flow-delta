@@ -1240,7 +1240,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
       </div>
 
       <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
-      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
+      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-2 rounded-3 border border-secondary flex-wrap" style="font-size: 0.94rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
         <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas simulações de apostas do período/filtro">
           <i class="bi bi-cash-coin text-warning"></i>
           <span class="text-light-50"><?= lang('App.total_staked') ?>:</span>
@@ -1269,6 +1269,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
           <i class="bi bi-calculator text-info"></i>
           <span class="text-light-50"><?= lang('App.net_balance') ?>:</span>
           <strong id="calcSaldoLiquido" class="text-info fw-bold">--</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: ROI = (Saldo Líquido / Total Apostado Liquidado) × 100">
+          <i class="bi bi-pie-chart-fill text-warning"></i>
+          <span class="text-light-50"><?= lang('App.roi') ?>:</span>
+          <strong id="calcRoiResultante" class="text-info fw-bold">--</strong>
         </div>
       </div>
     </div>
@@ -3452,7 +3458,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const brlFmt = Math.abs(brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const brlSign = brl < 0 ? '-' : brlPlus;
 
-    return `${sign}${numFmt} ${activeMoedaCodigo} <span class="stat-sub-brl text-light-50 fw-normal" style="font-size: 0.78rem;">~ ${brlSign}R$ ${brlFmt}</span>`;
+    return `${sign}${numFmt} ${activeMoedaCodigo} <span class="stat-sub-brl text-light-50 fw-normal" style="font-size: 0.85rem;">~ ${brlSign}R$ ${brlFmt}</span>`;
   }
 
   function formatTopCardWithBrl(el, val, valBrl = null, showPlus = false, subColor = '#94a3b8') {
@@ -3687,6 +3693,23 @@ if (!function_exists('fmtTopValorWithBrl')) {
         elSaldo.className = 'text-danger fw-bold';
       } else {
         elSaldo.className = 'text-info fw-bold';
+      }
+    }
+
+    // Cálculo do ROI % (Retorno sobre Investimento Liquidado)
+    const baseInvestida = totalApostadoLiquidado > 0 ? totalApostadoLiquidado : (totalApostado > 0 ? totalApostado : 0);
+    const roiResultante = baseInvestida > 0 ? ((saldoLiquido / baseInvestida) * 100) : 0;
+    const elRoi = document.getElementById('calcRoiResultante');
+    if (elRoi) {
+      const roiSign = roiResultante > 0 ? '+' : '';
+      const roiFmt = roiResultante.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      elRoi.textContent = `${roiSign}${roiFmt}%`;
+      if (roiResultante > 0) {
+        elRoi.className = 'text-success fw-bold';
+      } else if (roiResultante < 0) {
+        elRoi.className = 'text-danger fw-bold';
+      } else {
+        elRoi.className = 'text-info fw-bold';
       }
     }
 

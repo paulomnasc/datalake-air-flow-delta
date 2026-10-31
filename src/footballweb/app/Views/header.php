@@ -1040,8 +1040,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         const isUnread = (parseInt(n.lida) === 0);
                         const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
                         const isPinada = (parseInt(n.pinada || 0) === 1);
-                        const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
+
+                        // Alertas de apostas, sentinela e in-play sempre direcionam canonicamente para /apostas com scroll e highlight
+                        let linkHref = '#';
+                        if (isStopLoss) {
+                            linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
+                        } else {
+                            const fixIdParam = n.fixture_id ? 'fixture_id=' + n.fixture_id : '';
+                            const destIdParam = n.aposta_id ? 'destaque_id=' + n.aposta_id : '';
+                            const queryParts = [fixIdParam, destIdParam].filter(Boolean).join('&');
+                            if (queryParts) {
+                                linkHref = '<?= base_url('apostas') ?>?' + queryParts;
+                            } else if (n.link && !n.link.includes('trends')) {
+                                linkHref = n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link);
+                            } else {
+                                linkHref = '<?= base_url('apostas') ?>';
+                            }
+                        }
 
                         if (isStopLoss) {
                             html += `
@@ -1128,7 +1144,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         });
                     });
 
-                    // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
+                    // Evento de clique para marcar lida e direcionar para tela de apostas com scroll e highlight
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
                             if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif')) return;
@@ -1138,26 +1154,34 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                             }
 
-                            const href = this.getAttribute('href') || this.getAttribute('data-href');
-                            if (href && typeof window.destacarApostaPorId === 'function') {
-                                try {
-                                    const parsedUrl = new URL(href, window.location.origin);
-                                    const destaqueId = parsedUrl.searchParams.get('destaque_id');
-                                    const dataJogo = parsedUrl.searchParams.get('data_jogo');
-                                    if (destaqueId) {
-                                        e.preventDefault();
-                                        window.history.pushState({}, '', href);
-                                        window.destacarApostaPorId(destaqueId, dataJogo);
+                            const href = this.getAttribute('data-href') || this.getAttribute('href');
+                            if (!href || href === '#') return;
 
-                                        // Fecha o dropdown de notificações
-                                        const notifDropdownEl = document.getElementById('notificacoesDropdown');
-                                        if (notifDropdownEl && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
-                                            const bsDrop = bootstrap.Dropdown.getInstance(notifDropdownEl);
-                                            if (bsDrop) bsDrop.hide();
-                                        }
+                            try {
+                                const parsedUrl = new URL(href, window.location.origin);
+                                const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                                const fixtureId = parsedUrl.searchParams.get('fixture_id');
+                                const dataJogo = parsedUrl.searchParams.get('data_jogo');
+
+                                // Se já estiver na tela de apostas (destacarApostaPorId existe), aplica scroll e highlight suave
+                                if (typeof window.destacarApostaPorId === 'function' && (destaqueId || fixtureId)) {
+                                    e.preventDefault();
+                                    window.history.pushState({}, '', href);
+                                    window.destacarApostaPorId(destaqueId, dataJogo, fixtureId);
+
+                                    // Fecha o dropdown de notificações
+                                    const notifDropdownEl = document.getElementById('notificacoesDropdown');
+                                    if (notifDropdownEl && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+                                        const bsDrop = bootstrap.Dropdown.getInstance(notifDropdownEl);
+                                        if (bsDrop) bsDrop.hide();
                                     }
-                                } catch(err) {}
-                            }
+                                    return;
+                                }
+                            } catch(err) {}
+
+                            // Se estiver em outra página, navega diretamente para /apostas
+                            e.preventDefault();
+                            window.location.href = href;
                         });
                     });
                 }
@@ -1302,8 +1326,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
             }
 
-            const defaultLink = (isAprovada || isSinalVerde || isAlertaSentinela) ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
-            const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
+            let linkHref = defaultLink;
+            if (notif.fixture_id || notif.aposta_id) {
+                const fixIdParam = notif.fixture_id ? 'fixture_id=' + notif.fixture_id : '';
+                const destIdParam = notif.aposta_id ? 'destaque_id=' + notif.aposta_id : '';
+                const queryParts = [fixIdParam, destIdParam].filter(Boolean).join('&');
+                linkHref = '<?= base_url('apostas') ?>?' + queryParts;
+            } else if (notif.link && !notif.link.includes('trends')) {
+                linkHref = notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link);
+            }
             linkEl.href = linkHref;
 
             linkEl.onclick = function(e) {
@@ -1316,17 +1347,23 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (stackContainer) stackContainer.style.display = 'none';
                 }
 
-                if (linkHref && typeof window.destacarApostaPorId === 'function') {
+                if (linkHref) {
                     try {
                         const parsedUrl = new URL(linkHref, window.location.origin);
                         const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                        const fixtureId = parsedUrl.searchParams.get('fixture_id');
                         const dataJogo = parsedUrl.searchParams.get('data_jogo');
-                        if (destaqueId) {
+
+                        if (typeof window.destacarApostaPorId === 'function' && (destaqueId || fixtureId)) {
                             e.preventDefault();
                             window.history.pushState({}, '', linkHref);
-                            window.destacarApostaPorId(destaqueId, dataJogo);
+                            window.destacarApostaPorId(destaqueId, dataJogo, fixtureId);
+                            return;
                         }
                     } catch(err) {}
+
+                    e.preventDefault();
+                    window.location.href = linkHref;
                 }
             };
 

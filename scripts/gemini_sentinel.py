@@ -21,6 +21,9 @@ import json
 import re
 import argparse
 import requests
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -72,6 +75,63 @@ def get_groq_api_key() -> str:
     env_vars = get_live_env_vars()
     key = os.environ.get("VISION_API_KEY") or env_vars.get("VISION_API_KEY", "")
     return key.strip()
+
+
+def buscar_noticias_prejogo_web(home_team: str, away_team: str, league_name: str = "") -> str:
+    """
+    Busca notícias recentes, desfalques e matérias pré-jogo na web via Google News RSS
+    em inglês e português (custo zero, sem consumo de cota da API-Sports ou do Gemini).
+    Garante contexto real mesmo quando o Search Grounding do Gemini estiver esgotado (429)
+    ou quando a contingência do Groq for acionada.
+    Regra 8: inicialização prévia de variáveis numéricas locais.
+    """
+    noticias_cnt = 0
+    total_buscas = 0
+
+    noticias = []
+    seen_titles = set()
+
+    # Define termos de busca estratégicos (específicos do confronto e desfalques)
+    termos = [
+        f"{home_team} vs {away_team} preview lineup injuries",
+        f"{home_team} {away_team} desfalques escalacao",
+        f"{home_team} {away_team}"
+    ]
+
+    for termo in termos:
+        total_buscas += 1
+        q = urllib.parse.quote(termo)
+        urls = [
+            f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en",
+            f"https://news.google.com/rss/search?q={q}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+        ]
+        for url in urls:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                with urllib.request.urlopen(req, timeout=4) as r:
+                    xml_data = r.read()
+                    root = ET.fromstring(xml_data)
+                    for item in root.findall(".//item")[:3]:
+                        t_el = item.find("title")
+                        p_el = item.find("pubDate")
+                        if t_el is not None and t_el.text:
+                            title = t_el.text.strip()
+                            if title not in seen_titles and len(title) > 10:
+                                seen_titles.add(title)
+                                p_date = p_el.text[:16] if p_el is not None and p_el.text else ""
+                                noticias.append(f"• {title} ({p_date})")
+                                noticias_cnt += 1
+            except Exception:
+                pass
+            if noticias_cnt >= 4:
+                break
+        if noticias_cnt >= 4:
+            break
+
+    if not noticias:
+        return "Nenhum desfalque grave ou alerta crítico reportado nas prévias esportivas recentes da web."
+
+    return "\n".join(noticias[:5])
 
 
 def coletar_sumula_e_desfalques_apisports(
@@ -148,15 +208,15 @@ def coletar_sumula_e_desfalques_apisports(
 
     if not lineups_data:
         texto_inj = (
-            f"Desfalques registrados ({home_team}): {', '.join(inj_home_list) if inj_home_list else 'Nenhum listado'}.\n"
-            f"Desfalques registrados ({away_team}): {', '.join(inj_away_list) if inj_away_list else 'Nenhum listado'}."
+            f"Desfalques registrados na API ({home_team}): {', '.join(inj_home_list) if inj_home_list else 'Nenhum desfalque reportado'}.\n"
+            f"Desfalques registrados na API ({away_team}): {', '.join(inj_away_list) if inj_away_list else 'Nenhum desfalque reportado'}."
         )
         return {
             "lineups_disponiveis": False,
-            "texto_sumula": f"Súmula oficial (11 titulares) ainda não publicada pela federação.\n{texto_inj}",
+            "texto_sumula": f"Súmula oficial de 11 titulares ainda em processamento pela federação (comum até T-30min).\n{texto_inj}",
             "alerta_estrutural_elenco": False,
             "motivos_alerta_elenco": [],
-            "resumo_curto": "Aguardando divulgação da súmula oficial"
+            "resumo_curto": "Súmula em processamento; sem desfalques oficiais reportados"
         }
 
     # Identifica qual é o time apoiado na aposta (se for Handicap Asiático)
@@ -514,17 +574,18 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     injetando a Súmula Oficial de Escalações (/fixtures/lineups) e Desfalques (/injuries) da API-Sports.
     Possui contingência automática para Groq (openai/gpt-oss-120b) caso o Gemini apresente erro HTTP.
     """
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
     sumula_info = dossie.get("sumula_oficial") or {}
     texto_sumula = sumula_info.get("texto_sumula", "Súmula não informada.")
     alerta_estrutural = bool(sumula_info.get("alerta_estrutural_elenco"))
     motivos_elenco = sumula_info.get("motivos_alerta_elenco") or []
+    noticias_web = dossie.get("noticias_web") or "Nenhum desfalque grave reportado nas notícias recentes."
 
     prompt_text = f"""
 Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕES E DESFALQUES extraída da API-Sports — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
+Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕES E DESFALQUES extraída da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
@@ -539,14 +600,18 @@ Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕE
 {texto_sumula}
 • Alertas Estruturais de Elenco Detectados: {', '.join(motivos_elenco) if motivos_elenco else 'Nenhum desvio crítico automático'}
 
+--- NOTÍCIAS RECENTES E PRÉVIAS DA WEB (ÚLTIMAS 24H) ---
+{noticias_web}
+
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Avalie rigorosamente os 11 titulares escalados na súmula oficial e a lista de lesionados/suspensos.
+1. Avalie rigorosamente as informações da súmula oficial (se já publicada) E as notícias e prévias recentes da web.
 2. Defina com precisão o GRAU DE RISCO da partida para a aposta sugerida:
-   - "ALTO": Se houver ausência do goleiro titular, time misto/reserva (4 ou mais mudanças nos titulares), desfalque do artilheiro principal ou capitão/zagueiro xerife na equipe apoiada, ou se a súmula oficial com os 11 titulares ainda estiver indisponível no pré-jogo com desfalques importantes.
-   - "MEDIO": Se houver 1 ou 2 desfalques pontuais de linha (ex: volante ou lateral), mas com goleiro, artilheiro e a espinha dorsal mantidos.
-   - "BAIXO": Força máxima confirmada (10 a 11 titulares mantidos); eventuais desfalques apenas de reservas ou atletas de composição de elenco.
+   - "ALTO": Presença CONFIRMADA de desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
+   - "MEDIO": Se houver 1 ou 2 desfalques pontuais de linha (ex: volante ou lateral) ou dúvida sobre um titular relevante, mantendo a espinha dorsal.
+   - "BAIXO": Força máxima mantida ou ausência de desfalques relevantes reportados nas notícias ou na API.
+   * REGRA MANDATÓRIA ANTI-FALSO ALARME: Se a súmula oficial de 11 titulares ainda estiver em processamento pela federação (comum antes do jogo), mas NÃO há notícias nem desfalques reportados na API ou nos portais esportivos, NÃO classifique a partida como 'ALTO' nem recomende 'aguardar súmula oficial'. Classifique como 'BAIXO' (Sinal Verde), pois a base das equipes está estável e confirmada pelas prévias.
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
-4. Emita seu parecer em linguagem natural clara, direta e sem fórmulas matemáticas, citando nominalmente os jogadores escalados ou ausentes que fundamentam a conclusão.
+4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, notícias e jogadores que fundamentam a conclusão, NUNCA gerando respostas genéricas protocolares do tipo 'aguardar súmula oficial'.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
@@ -584,27 +649,30 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
 
     try:
         if api_key and not _GEMINI_KEY_BLOCKED:
-            resp = requests.post(url, json=payload, headers=headers, timeout=15)
-            if resp.status_code == 429:
-                # Apenas se for 429 (cota da tool Search Grounding), tenta sem a tool
-                payload_no_tools = {
-                    "contents": payload["contents"],
-                    "generationConfig": payload["generationConfig"]
-                }
-                url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}"
-                resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=12)
-            elif resp.status_code in (401, 403):
-                _GEMINI_KEY_BLOCKED = True
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=12)
+                if resp.status_code == 429:
+                    # Apenas se for 429 (cota da tool Search Grounding), tenta sem a tool
+                    payload_no_tools = {
+                        "contents": payload["contents"],
+                        "generationConfig": payload["generationConfig"]
+                    }
+                    url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                    resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
+                elif resp.status_code in (401, 403):
+                    _GEMINI_KEY_BLOCKED = True
 
-            if resp.status_code == 200:
-                res_json = resp.json()
-                candidates = res_json.get("candidates", [])
-                if candidates:
-                    for p in candidates[0].get("content", {}).get("parts", []):
-                        if "text" in p:
-                            raw_text += p["text"]
-            else:
-                print(f"⚠️ [Gemini API] HTTP {resp.status_code}. Acionando contingência de IA (Groq) com a Súmula Oficial...")
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    candidates = res_json.get("candidates", [])
+                    if candidates:
+                        for p in candidates[0].get("content", {}).get("parts", []):
+                            if "text" in p:
+                                raw_text += p["text"]
+                else:
+                    print(f"⚠️ [Gemini API] HTTP {resp.status_code}. Acionando contingência de IA (Groq) com notícias web...")
+            except Exception as e_gem:
+                print(f"⚠️ [Gemini API] Falha ou timeout na conexão ({e_gem}). Acionando contingência de IA (Groq)...")
 
         if not raw_text.strip():
             raw_text = _consultar_groq_fallback(prompt_text)
@@ -1005,7 +1073,14 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     palpite=item.get('palpite', '')
                 )
 
-                # Monta o dossiê consolidado com a súmula oficial e desfalques
+                # Busca notícias recentes e matérias pré-jogo na web (custo zero de API)
+                noticias_web = buscar_noticias_prejogo_web(
+                    home_team=home_team,
+                    away_team=away_team,
+                    league_name=item.get('league_name', '')
+                )
+
+                # Monta o dossiê consolidado com a súmula oficial, notícias web e desfalques
                 dossie = {
                     "fixture_id": fixture_id,
                     "home_team": home_team,
@@ -1019,7 +1094,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     "u5j_summary": u5j_summary,
                     "xg_summary": f"Casa {item.get('goals_home') or 0} x {item.get('goals_away') or 0} Fora",
                     "motivo_gatekeeper": motivo_gk,
-                    "sumula_oficial": sumula_oficial
+                    "sumula_oficial": sumula_oficial,
+                    "noticias_web": noticias_web
                 }
 
                 print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")

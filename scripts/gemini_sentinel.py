@@ -39,6 +39,278 @@ def get_gemini_api_key() -> str:
     return api_key.strip()
 
 
+def get_apisports_key() -> str:
+    """
+    Carrega a chave da API-Sports de forma segura a partir do .env (Regra 18).
+    """
+    env_vars = get_live_env_vars()
+    key = (
+        os.environ.get("FOOTBALL_API_KEY")
+        or env_vars.get("FOOTBALL_API_KEY")
+        or os.environ.get("API_SPORTS_KEY")
+        or env_vars.get("API_SPORTS_KEY")
+        or os.environ.get("APISPORTS_KEY")
+        or env_vars.get("APISPORTS_KEY", "")
+    )
+    if not key:
+        root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.env"))
+        if os.path.exists(root_env):
+            with open(root_env, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("FOOTBALL_API_KEY="):
+                        key = line.split("=", 1)[1].strip().strip("'").strip('"')
+                        break
+    return key.strip()
+
+
+def get_groq_api_key() -> str:
+    """
+    Carrega a chave da API Groq (VISION_API_KEY) de forma segura a partir do .env (Regra 18)
+    para contingência de inferência quando a API do Gemini estiver indisponível ou bloqueada.
+    """
+    env_vars = get_live_env_vars()
+    key = os.environ.get("VISION_API_KEY") or env_vars.get("VISION_API_KEY", "")
+    return key.strip()
+
+
+def coletar_sumula_e_desfalques_apisports(
+    cursor,
+    fixture_id: int,
+    home_team_id: int,
+    away_team_id: int,
+    home_team: str,
+    away_team: str,
+    palpite: str
+) -> dict:
+    """
+    Consulta a súmula oficial de escalações (/fixtures/lineups) e a lista de desfalques (/injuries)
+    na API-Sports na janela pré-jogo, cruzando os 11 titulares escalados hoje com a última partida
+    oficial de cada equipe para detectar objetivamente:
+    - Escalação de goleiro reserva;
+    - Rodízio pesado / time misto ou reserva (>= 5 alterações nos titulares);
+    - Acúmulo de desfalques por lesão ou suspensão.
+    """
+    # Inicialização explícita de variáveis numéricas locais (Regra 8)
+    rotacao_home_cnt = 0
+    rotacao_away_cnt = 0
+    desfalques_home_cnt = 0
+    desfalques_away_cnt = 0
+
+    api_key = get_apisports_key()
+    if not api_key:
+        return {
+            "lineups_disponiveis": False,
+            "texto_sumula": "Chave API-Sports ausente para consulta de súmula.",
+            "alerta_estrutural_elenco": False,
+            "motivos_alerta_elenco": [],
+            "resumo_curto": "Súmula não consultada"
+        }
+
+    headers = {"x-apisports-key": api_key}
+    base_url = "https://v3.football.api-sports.io"
+
+    lineups_data = []
+    injuries_data = []
+
+    try:
+        r_lin = requests.get(f"{base_url}/fixtures/lineups", params={"fixture": fixture_id}, headers=headers, timeout=12)
+        if r_lin.status_code == 200:
+            lineups_data = r_lin.json().get("response", [])
+    except Exception as e_lin:
+        print(f"⚠️ [Sentinela Súmula] Falha ao consultar /fixtures/lineups para #{fixture_id}: {e_lin}")
+
+    try:
+        r_inj = requests.get(f"{base_url}/injuries", params={"fixture": fixture_id}, headers=headers, timeout=12)
+        if r_inj.status_code == 200:
+            injuries_data = r_inj.json().get("response", [])
+    except Exception as e_inj:
+        print(f"⚠️ [Sentinela Desfalques] Falha ao consultar /injuries para #{fixture_id}: {e_inj}")
+
+    # Agrupa desfalques oficiais por equipe
+    inj_home_list = []
+    inj_away_list = []
+    for inj in injuries_data:
+        t_id = (inj.get("team") or {}).get("id")
+        t_name = (inj.get("team") or {}).get("name", "")
+        p_name = (inj.get("player") or {}).get("name", "Jogador")
+        p_reason = (inj.get("player") or {}).get("reason") or (inj.get("player") or {}).get("type", "Ausente")
+        desc_inj = f"{p_name} ({p_reason})"
+        if (home_team_id and t_id == home_team_id) or (home_team.lower() in t_name.lower()):
+            if desc_inj not in inj_home_list:
+                inj_home_list.append(desc_inj)
+        elif (away_team_id and t_id == away_team_id) or (away_team.lower() in t_name.lower()):
+            if desc_inj not in inj_away_list:
+                inj_away_list.append(desc_inj)
+
+    desfalques_home_cnt = len(inj_home_list)
+    desfalques_away_cnt = len(inj_away_list)
+
+    if not lineups_data:
+        texto_inj = (
+            f"Desfalques registrados ({home_team}): {', '.join(inj_home_list) if inj_home_list else 'Nenhum listado'}.\n"
+            f"Desfalques registrados ({away_team}): {', '.join(inj_away_list) if inj_away_list else 'Nenhum listado'}."
+        )
+        return {
+            "lineups_disponiveis": False,
+            "texto_sumula": f"Súmula oficial (11 titulares) ainda não publicada pela federação.\n{texto_inj}",
+            "alerta_estrutural_elenco": False,
+            "motivos_alerta_elenco": [],
+            "resumo_curto": "Aguardando divulgação da súmula oficial"
+        }
+
+    # Identifica qual é o time apoiado na aposta (se for Handicap Asiático)
+    palpite_lower = (palpite or "").lower()
+    is_under_cards = ("menos" in palpite_lower) or ("under" in palpite_lower)
+    apoiado_is_away = (away_team.lower() in palpite_lower) if not is_under_cards else None
+
+    blocos_sumula = []
+    motivos_alerta = []
+    resumos_equipes = []
+
+    for team_entry in lineups_data:
+        t_info = team_entry.get("team") or {}
+        t_id = t_info.get("id")
+        t_name = t_info.get("name", "Equipe")
+        coach_name = (team_entry.get("coach") or {}).get("name", "Não informado")
+        formation = team_entry.get("formation", "N/D")
+        start_xi = team_entry.get("startXI") or []
+        subs = team_entry.get("substitutes") or []
+
+        titulares_nomes = []
+        titulares_ids = set()
+        gk_atual_nome = "N/D"
+        gk_atual_id = None
+
+        for item_p in start_xi:
+            p_obj = item_p.get("player") or {}
+            pid = p_obj.get("id")
+            pname = p_obj.get("name", "")
+            ppos = p_obj.get("pos", "")
+            if pid:
+                titulares_ids.add(pid)
+            titulares_nomes.append(f"{pname} ({ppos})")
+            if ppos == "G" and gk_atual_id is None:
+                gk_atual_id = pid
+                gk_atual_nome = pname
+
+        reservas_nomes = [
+            f"{(s.get('player') or {}).get('name', '')} ({(s.get('player') or {}).get('pos', '')})"
+            for s in subs[:12]
+        ]
+
+        # Compara com a escalação titular do último jogo encerrado da mesma equipe no banco
+        mudancas_titulares = 0
+        gk_anterior_nome = None
+        gk_mudou = False
+        titulares_ausentes_hoje = []
+
+        if t_id and cursor:
+            try:
+                cursor.execute("""
+                    SELECT fixture_id FROM fixtures_trends
+                    WHERE (home_team_id = %s OR away_team_id = %s)
+                      AND status IN ('FT', 'AET', 'PEN')
+                      AND fixture_id != %s
+                    ORDER BY fixture_date DESC
+                    LIMIT 1
+                """, (t_id, t_id, fixture_id))
+                prev_row = cursor.fetchone()
+                prev_fid = (prev_row["fixture_id"] if isinstance(prev_row, dict) else prev_row[0]) if prev_row else None
+
+                if prev_fid:
+                    r_prev = requests.get(
+                        f"{base_url}/fixtures/lineups",
+                        params={"fixture": prev_fid, "team": t_id},
+                        headers=headers,
+                        timeout=10
+                    )
+                    if r_prev.status_code == 200:
+                        prev_resp = r_prev.json().get("response", [])
+                        if prev_resp:
+                            prev_xi = prev_resp[0].get("startXI") or []
+                            prev_ids = set()
+                            for pp in prev_xi:
+                                pobj = pp.get("player") or {}
+                                ppid = pobj.get("id")
+                                ppname = pobj.get("name", "")
+                                pppos = pobj.get("pos", "")
+                                if ppid:
+                                    prev_ids.add(ppid)
+                                    if ppid not in titulares_ids:
+                                        titulares_ausentes_hoje.append(f"{ppname} ({pppos})")
+                                if pppos == "G":
+                                    gk_anterior_nome = ppname
+                                    if gk_atual_id and ppid and gk_atual_id != ppid:
+                                        gk_mudou = True
+                            if prev_ids and titulares_ids:
+                                mantidos = len(titulares_ids.intersection(prev_ids))
+                                mudancas_titulares = max(0, 11 - mantidos)
+            except Exception as e_prev:
+                print(f"⚠️ [Sentinela Comparativo Lineup] Erro ao comparar escalação anterior do time {t_name}: {e_prev}")
+
+        is_home_entry = (home_team_id and t_id == home_team_id) or (home_team.lower() in t_name.lower())
+        if is_home_entry:
+            rotacao_home_cnt = mudancas_titulares
+        else:
+            rotacao_away_cnt = mudancas_titulares
+
+        is_time_apoiado = (
+            (apoiado_is_away is False and is_home_entry)
+            or (apoiado_is_away is True and not is_home_entry)
+        )
+
+        # Regras objetivas de alerta estrutural de elenco na equipe apoiada
+        if is_time_apoiado:
+            if gk_mudou and gk_anterior_nome:
+                motivos_alerta.append(
+                    f"Goleiro titular ausente em {t_name}: {gk_atual_nome} escalado na vaga de {gk_anterior_nome}"
+                )
+            if mudancas_titulares >= 5:
+                motivos_alerta.append(
+                    f"Rodízio pesado / time misto detectado em {t_name}: {mudancas_titulares} alterações nos 11 titulares ({', '.join(titulares_ausentes_hoje[:5])} fora do XI inicial)"
+                )
+            inj_list_team = inj_home_list if is_home_entry else inj_away_list
+            if len(inj_list_team) >= 4:
+                motivos_alerta.append(
+                    f"{t_name} com {len(inj_list_team)} baixas/desfalques oficiais ({', '.join(inj_list_team[:5])})"
+                )
+
+        resumos_equipes.append(
+            f"{t_name} ({formation}, Téc: {coach_name}, GK: {gk_atual_nome}"
+            + (f", {mudancas_titulares} mud." if mudancas_titulares > 0 else "")
+            + ")"
+        )
+
+        bloco = (
+            f"• {t_name} | Esquema: {formation} | Técnico: {coach_name}\n"
+            f"  - 11 Titulares: {', '.join(titulares_nomes)}\n"
+            f"  - Banco de Reservas: {', '.join(reservas_nomes[:10])}\n"
+        )
+        if mudancas_titulares > 0:
+            bloco += f"  - Comparativo Jogo Anterior: {mudancas_titulares} mudança(s) nos 11 titulares. Saíram do XI: {', '.join(titulares_ausentes_hoje)}.\n"
+        if gk_mudou and gk_anterior_nome:
+            bloco += f"  - ALERTA DE GOLEIRO: Goleiro alterado de {gk_anterior_nome} para {gk_atual_nome}.\n"
+        blocos_sumula.append(bloco)
+
+    blocos_sumula.append(
+        f"• Baixas e Suspensões Oficiais ({home_team}): {', '.join(inj_home_list) if inj_home_list else 'Nenhuma reportada'}\n"
+        f"• Baixas e Suspensões Oficiais ({away_team}): {', '.join(inj_away_list) if inj_away_list else 'Nenhuma reportada'}"
+    )
+
+    return {
+        "lineups_disponiveis": True,
+        "texto_sumula": "\n".join(blocos_sumula),
+        "alerta_estrutural_elenco": len(motivos_alerta) > 0,
+        "motivos_alerta_elenco": motivos_alerta,
+        "rotacao_home_cnt": rotacao_home_cnt,
+        "rotacao_away_cnt": rotacao_away_cnt,
+        "desfalques_home_cnt": desfalques_home_cnt,
+        "desfalques_away_cnt": desfalques_away_cnt,
+        "resumo_curto": " | ".join(resumos_equipes)
+    }
+
+
 def get_target_user_ids(cursor):
     """
     Retorna IDs de usuários ativos para envio de notificações no Sininho.
@@ -193,18 +465,66 @@ def testar_push_mobile() -> bool:
 
 
 
+def _consultar_groq_fallback(prompt_text: str) -> str:
+    """
+    Contingência automática via API Groq (openai/gpt-oss-120b) caso a chave do Gemini
+    retorne erro HTTP 401/403/429. Garante que a análise tática da súmula nunca falhe.
+    """
+    groq_key = get_groq_api_key()
+    if not groq_key:
+        return ""
+
+    env_vars = get_live_env_vars()
+    model_groq = os.environ.get("TEXT_API_MODEL") or env_vars.get("TEXT_API_MODEL", "openai/gpt-oss-120b")
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model_groq,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb. Responda estritamente em JSON válido."
+                    },
+                    {"role": "user", "content": prompt_text}
+                ],
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"}
+            },
+            timeout=25
+        )
+        if resp.status_code == 200:
+            choices = resp.json().get("choices", [])
+            if choices:
+                return choices[0].get("message", {}).get("content", "")
+        else:
+            print(f"⚠️ [Groq Fallback] HTTP {resp.status_code}: {resp.text[:200]}")
+    except Exception as e_g:
+        print(f"⚠️ [Groq Fallback] Erro na chamada de contingência: {e_g}")
+    return ""
+
+
 def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     """
-    Executa a chamada HTTP oficial para a API v1beta do Gemini Pro com Google Search Grounding ativo.
-    Retorna dicionário estruturado com a avaliação e parecer textual.
+    Executa a chamada HTTP oficial para a API v1beta do Gemini Pro com Google Search Grounding ativo,
+    injetando a Súmula Oficial de Escalações (/fixtures/lineups) e Desfalques (/injuries) da API-Sports.
+    Possui contingência automática para Groq (openai/gpt-oss-120b) caso o Gemini apresente erro HTTP.
     """
-    # Utiliza gemini-3.1-flash-lite (alta estabilidade e Search Grounding ativo)
     model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
+    sumula_info = dossie.get("sumula_oficial") or {}
+    texto_sumula = sumula_info.get("texto_sumula", "Súmula não informada.")
+    alerta_estrutural = bool(sumula_info.get("alerta_estrutural_elenco"))
+    motivos_elenco = sumula_info.get("motivos_alerta_elenco") or []
+
     prompt_text = f"""
 Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê abaixo e pesquise na web (Google Search) as notícias e escalações de última hora para emitir um diagnóstico executivo.
+Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕES E DESFALQUES extraída da API-Sports — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
@@ -215,21 +535,25 @@ Analise o dossiê abaixo e pesquise na web (Google Search) as notícias e escala
 • Aposta Sugerida pelo Gatekeeper: {dossie.get('palpite')} (@ {dossie.get('odd')})
 • Motivo Técnico Original: {dossie.get('motivo_gatekeeper')}
 
+--- SÚMULA OFICIAL DAS ESCALAÇÕES E DESFALQUES (API-SPORTS) ---
+{texto_sumula}
+• Alertas Estruturais de Elenco Detectados: {', '.join(motivos_elenco) if motivos_elenco else 'Nenhum desvio crítico automático'}
+
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Pesquise no Google as notícias e escalações confirmadas/prováveis de hoje para este confronto ({dossie.get('home_team')} vs {dossie.get('away_team')}).
-2. Verifique se a equipe apoiada pela aposta ou o adversário poupou jogadores titulares (foco em jogos decisivos de copa/Libertadores, time reserva, misto).
-3. Identifique ausências críticas de última hora (goleiro titular, zagueiro principal, artilheiro).
-4. Avalie se o clima do confronto (clássico tenso, pressão extracampo, gramado impraticável) contradiz a tese matemática original.
-5. Emita seu parecer de auditoria de forma clara e objetiva.
+1. Avalie rigorosamente os 11 titulares escalados na súmula oficial e a lista de lesionados/suspensos.
+2. Verifique se a equipe apoiada pela aposta escalou time reserva/misto (5 ou mais mudanças em relação ao jogo anterior) ou está sem seu goleiro titular, zagueiro xerife ou artilheiro.
+3. Caso haja escalação mista/reserva, ausência do goleiro titular ou excesso de desfalques nos titulares da equipe apoiada, classifique OBRIGATORIAMENTE como "ALERTA_RISCO" (tem_alerta: true).
+4. Avalie se o contexto do confronto (clássico regional tenso, desgaste por sequência de jogos em copa) contradiz a segurança da linha recomendada.
+5. Emita seu parecer em linguagem natural clara, direta e sem fórmulas matemáticas, citando nominalmente os jogadores escalados ou ausentes que fundamentam a conclusão.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
 {{
   "status": "CONFIRMADO" ou "ALERTA_RISCO",
   "tem_alerta": true ou false,
-  "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares em campo",
-  "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: River Plate poupa 8 titulares')",
-  "parecer_explicativo": "Explicação fluida nas suas próprias palavras (linguagem natural clara e sem jargões matemáticos) detalhando a realidade factual de campo e o impacto sobre a aposta recomendada."
+  "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares escalados e eventuais baixas",
+  "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: Al-Ahli com time reserva e goleiro suplente')",
+  "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e o impacto real sobre a aposta recomendada."
 }}
 """
 
@@ -248,53 +572,59 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         }
     }
 
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
+    raw_text = ""
+
+    global _GEMINI_KEY_BLOCKED
+    if "_GEMINI_KEY_BLOCKED" not in globals():
+        _GEMINI_KEY_BLOCKED = False
 
     try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=35)
-        
-        # Se der 429 por cota da ferramenta Search Grounding, tenta fallback analítico sem a tool
-        if resp.status_code == 429 and "tools" in payload:
-            print("⚠️ [Gemini Grounding] Search Grounding com cota/billing pendente (429). Acionando fallback analítico do Dossiê...")
-            payload_fallback = {
-                "contents": payload["contents"],
-                "generationConfig": payload["generationConfig"]
-            }
-            # Utiliza o modelo gemini-3.1-flash-lite que aceita requisições livres
-            url_fallback = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}"
-            resp = requests.post(url_fallback, json=payload_fallback, headers=headers, timeout=25)
+        if api_key and not _GEMINI_KEY_BLOCKED:
+            resp = requests.post(url, json=payload, headers=headers, timeout=15)
+            if resp.status_code == 429:
+                # Apenas se for 429 (cota da tool Search Grounding), tenta sem a tool
+                payload_no_tools = {
+                    "contents": payload["contents"],
+                    "generationConfig": payload["generationConfig"]
+                }
+                url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}"
+                resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=12)
+            elif resp.status_code in (401, 403):
+                _GEMINI_KEY_BLOCKED = True
 
-        if resp.status_code != 200:
-            print(f"⚠️ [Gemini API] Erro HTTP {resp.status_code}: {resp.text[:300]}")
+            if resp.status_code == 200:
+                res_json = resp.json()
+                candidates = res_json.get("candidates", [])
+                if candidates:
+                    for p in candidates[0].get("content", {}).get("parts", []):
+                        if "text" in p:
+                            raw_text += p["text"]
+            else:
+                print(f"⚠️ [Gemini API] HTTP {resp.status_code}. Acionando contingência de IA (Groq) com a Súmula Oficial...")
+
+        if not raw_text.strip():
+            raw_text = _consultar_groq_fallback(prompt_text)
+
+        if not raw_text.strip():
+            # Se ambas as IAs falharem, NUNCA emite falso "CONFIRMADO" sem avaliar a súmula!
+            if alerta_estrutural:
+                return {
+                    "status": "ALERTA_RISCO",
+                    "tem_alerta": True,
+                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
+                    "titulo_alerta": f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}",
+                    "parecer_explicativo": "Auditoria automática da súmula oficial detectou risco relevante na escalação: " + "; ".join(motivos_elenco) + "."
+                }
             return {
-                "status": "CONFIRMADO",
+                "status": None,
                 "tem_alerta": False,
-                "resumo_escalacao": "Auditoria de campo pendente",
+                "resumo_escalacao": "Auditoria de IA indisponível no momento",
                 "titulo_alerta": "",
-                "parecer_explicativo": "Auditoria de campo temporariamente indisponível; aposta mantida pelos fundamentos estatísticos."
+                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
             }
-
-        res_json = resp.json()
-        candidates = res_json.get("candidates", [])
-        if not candidates:
-            return {
-                "status": "CONFIRMADO",
-                "tem_alerta": False,
-                "resumo_escalacao": "Sem resposta de auditoria",
-                "titulo_alerta": "",
-                "parecer_explicativo": "Auditoria inconclusiva; aposta mantida por fundamentos pré-jogo."
-            }
-
-        content_parts = candidates[0].get("content", {}).get("parts", [])
-        raw_text = ""
-        for p in content_parts:
-            if "text" in p:
-                raw_text += p["text"]
 
         raw_text = raw_text.strip()
-        # Localiza o primeiro bloco JSON {...} no texto
         json_match = re.search(r'(\{.*\})', raw_text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(1))
@@ -304,21 +634,35 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
             clean_text = re.sub(r'\s*```$', '', clean_text)
             data = json.loads(clean_text)
 
+        tem_alerta_final = bool(data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural)
+        status_final = "ALERTA_RISCO" if tem_alerta_final else "CONFIRMADO"
+        parecer_final = str(data.get("parecer_explicativo", "Auditoria de campo concluída."))
+        if alerta_estrutural and motivos_elenco and not data.get("tem_alerta"):
+            parecer_final = f"[Alerta de Súmula: {'; '.join(motivos_elenco)}] {parecer_final}"
+
         return {
-            "status": "ALERTA_RISCO" if data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" else "CONFIRMADO",
-            "tem_alerta": bool(data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO"),
-            "resumo_escalacao": str(data.get("resumo_escalacao", "Escalações checadas")),
-            "titulo_alerta": str(data.get("titulo_alerta", "Alerta Pré-Jogo da IA")),
-            "parecer_explicativo": str(data.get("parecer_explicativo", "Auditoria de campo concluída."))
+            "status": status_final,
+            "tem_alerta": tem_alerta_final,
+            "resumo_escalacao": str(data.get("resumo_escalacao") or sumula_info.get("resumo_curto") or "Escalações checadas"),
+            "titulo_alerta": str(data.get("titulo_alerta") or f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}"),
+            "parecer_explicativo": parecer_final
         }
     except Exception as e:
-        print(f"⚠️ [Gemini Grounding] Falha na comunicação/parsing com a API do Gemini: {e}")
+        print(f"⚠️ [Sentinela IA] Falha no processamento da inferência: {e}")
+        if alerta_estrutural:
+            return {
+                "status": "ALERTA_RISCO",
+                "tem_alerta": True,
+                "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta na súmula oficial"),
+                "titulo_alerta": f"⚠️ Alerta de Escalação: {dossie.get('home_team')} vs {dossie.get('away_team')}",
+                "parecer_explicativo": "A súmula oficial indicou alerta importante: " + "; ".join(motivos_elenco) + "."
+            }
         return {
-            "status": "CONFIRMADO",
+            "status": None,
             "tem_alerta": False,
-            "resumo_escalacao": "Auditoria de escalação pendente",
+            "resumo_escalacao": "Auditoria pendente",
             "titulo_alerta": "",
-            "parecer_explicativo": "Não foi possível conectar à auditoria em tempo real; mantida por base matemática."
+            "parecer_explicativo": ""
         }
 
 
@@ -509,8 +853,9 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
     total_erros = 0
 
     api_key = get_gemini_api_key()
-    if not api_key:
-        print("❌ [Gemini Sentinela] GEMINI_API_KEY não encontrada no arquivo .env. Abortando execução.")
+    groq_key = get_groq_api_key()
+    if not api_key and not groq_key:
+        print("❌ [Sentinela IA] Nenhuma chave de IA (GEMINI_API_KEY / VISION_API_KEY) encontrada no .env. Abortando execução.")
         return
 
     conn = get_db_connection()
@@ -525,7 +870,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.resultado_detalhado, a.status as aposta_status, a.confirmada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
-                       ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -538,7 +883,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.resultado_detalhado, a.status as aposta_status, a.confirmada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
-                       ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -602,7 +947,18 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 if linha_recalibrada:
                     motivo_gk += f" [Linha recalculada pelo Gatekeeper no pré-jogo devido a: {recalib.get('motivo_recalibragem')}]"
 
-                # Monta o dossiê consolidado
+                # Coleta a súmula oficial das escalações (/fixtures/lineups) e desfalques (/injuries) na API-Sports
+                sumula_oficial = coletar_sumula_e_desfalques_apisports(
+                    cursor=cursor,
+                    fixture_id=fixture_id,
+                    home_team_id=item.get('home_team_id'),
+                    away_team_id=item.get('away_team_id'),
+                    home_team=home_team,
+                    away_team=away_team,
+                    palpite=item.get('palpite', '')
+                )
+
+                # Monta o dossiê consolidado com a súmula oficial e desfalques
                 dossie = {
                     "fixture_id": fixture_id,
                     "home_team": home_team,
@@ -615,15 +971,19 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     "odd": float(item.get('odd') or 1.0),
                     "u5j_summary": u5j_summary,
                     "xg_summary": f"Casa {item.get('goals_home') or 0} x {item.get('goals_away') or 0} Fora",
-                    "motivo_gatekeeper": motivo_gk
+                    "motivo_gatekeeper": motivo_gk,
+                    "sumula_oficial": sumula_oficial
                 }
 
                 print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")
 
-                # Consulta o Gemini com Google Search Grounding
+                # Consulta o Gemini com Google Search Grounding (com fallback para Groq + Súmula API-Sports)
                 resultado = consultar_gemini_com_grounding(dossie, api_key)
 
                 st = resultado["status"]
+                if st is None:
+                    print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
+                    continue
                 resumo = resultado["resumo_escalacao"]
                 parecer = resultado["parecer_explicativo"]
                 tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde

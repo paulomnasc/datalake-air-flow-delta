@@ -967,15 +967,19 @@ def evaluate_and_select_best_ah_candidate(
             else:
                 continue
 
-        # 1. Trava de Coerência de Mercado 1X2:
-        # Se a equipe for azarão de mercado (cand_odd > opp_odd com margem >= 0.20):
-        # Se a equipe NÃO tiver melhor performance, proíbe 0.0 AH seco.
-        # Mas se a equipe TIVER melhor performance (mais pontos/ascensão), a odd alta é distorção da banca:
-        # permite 0.0 AH (DNB com odd alta) ou colchão positivo!
+        # 1. Trava de Coerência de Mercado 1X2 para Linha Seca (0.0 AH / DNB):
+        # Proibido apoiar 0.0 AH (Empate Anula) em visitante que NÃO seja favorito de mercado 1X2 (cand_odd >= opp_odd)
+        # ou em mandante azarão claro ((cand_odd - opp_odd) >= 0.25). Nesses cenários de paridade ou azarão fora de casa,
+        # qualquer entrada a favor dessa equipe exige obrigatoriamente linha de proteção (+0.5 AH ou +1.0 AH).
         is_cand_fav = (cand_odd < opp_odd)
         is_cand_underdog = (cand_odd > opp_odd and (cand_odd - opp_odd) >= 0.20)
-        if is_cand_underdog and c_line == 0.0 and not cand_is_better_performance:
-            continue
+        if c_line == 0.0:
+            if c_is_away and cand_odd >= opp_odd:
+                continue
+            if not c_is_away and (cand_odd - opp_odd) >= 0.25:
+                continue
+            if is_cand_underdog and not cand_is_better_performance:
+                continue
 
         # 1.1 Trava Anti-Queda e Estagnação em Linha Seca (0.0 AH / DNB):
         # Apoiar vitória seca DNB (0.0 AH) em equipe com curva descendente ou platô de estagnação
@@ -1373,8 +1377,10 @@ def calculate_unified_handicap_recommendation(
                 if 'x' in sc:
                     try:
                         p = sc.split('x')
-                        h_sc.append(int(p[0]))
-                        h_con.append(int(p[1]))
+                        # Teto de 3 gols por partida no fallback U5J para evitar que goleadas atípicas
+                        # em copas contra equipes amadoras inflacionem artificialmente o xG na liga
+                        h_sc.append(min(3, int(p[0])))
+                        h_con.append(min(3, int(p[1])))
                     except (ValueError, TypeError):
                         pass
             for m in a_m:
@@ -1382,8 +1388,8 @@ def calculate_unified_handicap_recommendation(
                 if 'x' in sc:
                     try:
                         p = sc.split('x')
-                        a_sc.append(int(p[0]))
-                        a_con.append(int(p[1]))
+                        a_sc.append(min(3, int(p[0])))
+                        a_con.append(min(3, int(p[1])))
                     except (ValueError, TypeError):
                         pass
             if h_sc and a_con:

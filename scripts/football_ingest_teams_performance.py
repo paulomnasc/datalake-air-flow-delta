@@ -111,7 +111,7 @@ def main():
     cursor = conn.cursor()
     
     today = datetime.now().strftime('%Y-%m-%d')
-    seven_days_later = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
+    horizon_days_later = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     
     query = """
         SELECT DISTINCT home_team_id as team_id, home_team as team_name, league_id, YEAR(fixture_date) as season
@@ -127,7 +127,7 @@ def main():
           AND away_team_id IS NOT NULL
     """
     
-    cursor.execute(query, (seven_days_later, seven_days_later))
+    cursor.execute(query, (horizon_days_later, horizon_days_later))
     teams = cursor.fetchall()
     
     if args.team_id:
@@ -135,7 +135,7 @@ def main():
         teams = [t for t in teams if t["team_id"] in filter_ids]
         print(f"Filtrado para {len(teams)} time(s) especificado(s): {filter_ids}")
     else:
-        print(f"Encontrados {len(teams)} times únicos na agenda para processar nos próximos 7 dias.")
+        print(f"Encontrados {len(teams)} times únicos na agenda imediata (hoje e amanhã) para processar.")
     
     api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
     headers = {
@@ -143,6 +143,7 @@ def main():
         "Content-Type": "application/json"
     }
     
+    MAX_API_CALLS_PER_RUN = 50
     api_calls_made = 0
     
     def rate_limit_delay():
@@ -151,6 +152,10 @@ def main():
         time.sleep(6.5)
 
     for t in teams:
+        if api_calls_made >= MAX_API_CALLS_PER_RUN and os.environ.get("FORCE_REFRESH") != "1":
+            print(f"\n🛑 [Quota Guard] Teto de segurança atingido ({api_calls_made}/{MAX_API_CALLS_PER_RUN} requisições). Preservando cota diária da API-Football.")
+            break
+
         team_id = t["team_id"]
         team_name = t["team_name"]
         league_id = t["league_id"]
@@ -158,17 +163,18 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 12 horas ou sem partidas recentes, ignora para poupar API)
+        # 1. Verificar se precisa de atualização (Cache-First no MySQL - Regra 1)
         cursor.execute("SELECT updated_at, avg_cards, matches_count FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
-        if row and int(row.get("matches_count") or 0) >= 5 and os.environ.get("FORCE_REFRESH") != "1":
+        if row and os.environ.get("FORCE_REFRESH") != "1":
             updated_at = row["updated_at"]
-            # Se atualizado há menos de 12 horas, pula imediatamente
-            if datetime.now() - updated_at < timedelta(hours=12):
-                print(f"⏩ {team_name} já atualizado recentemente ({updated_at}) com amostragem válida ({row.get('matches_count')} jogos). Pulando...")
+            matches_cnt = int(row.get("matches_count") or 0)
+            # Se atualizado há menos de 24 horas (ou se tem amostragem >= 3 atualizada há menos de 48h), pula imediatamente
+            if (datetime.now() - updated_at < timedelta(hours=24)) or (matches_cnt >= 3 and datetime.now() - updated_at < timedelta(hours=48)):
+                print(f"⏩ {team_name} já consolidado em cache local ({updated_at}, {matches_cnt} jogos). Pulando API (Regra 1)...")
                 continue
             
-            # Se atualizado há mais de 12 horas, verifica se o time disputou alguma partida após updated_at
+            # Se atualizado há mais tempo, verifica se o time disputou alguma partida nova após updated_at
             cursor.execute("""
                 SELECT COUNT(*) as recent_matches
                 FROM fixtures_trends
@@ -179,14 +185,14 @@ def main():
             """, (team_id, team_id, updated_at))
             m_row = cursor.fetchone()
             recent_count = int(m_row.get("recent_matches") or 0) if m_row else 0
-            if recent_count == 0 and (datetime.now() - updated_at < timedelta(days=5)):
+            if recent_count == 0 and (datetime.now() - updated_at < timedelta(days=7)):
                 print(f"⏩ {team_name} não disputou partidas após {updated_at}. Médias permanecem idênticas. Pulando API...")
                 continue
         
-        # 2. Tentar buscar `/teams/statistics` nas temporadas disponíveis (temporada atual, anterior, etc.)
+        # 2. Tentar buscar `/teams/statistics` na temporada atual ou imediatamente anterior
         stats_data = None
         use_season = season
-        seasons_to_try = [season, season - 1, season - 2]
+        seasons_to_try = [season, season - 1] if season else [2026, 2025]
         
         for s in seasons_to_try:
             stats_url = f"https://v3.football.api-sports.io/teams/statistics?league={league_id}&season={s}&team={team_id}"

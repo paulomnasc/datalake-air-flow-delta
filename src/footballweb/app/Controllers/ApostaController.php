@@ -1328,6 +1328,13 @@ class ApostaController extends BaseController
 
         $this->apostaModel->update($apostaId, $updateData);
 
+        // Marca como lidas notificações prévias de Sinal Verde desta aposta já confirmada
+        $db->table('notificacoes_usuario')
+            ->where('aposta_id', $apostaId)
+            ->where('lida', 0)
+            ->like('tipo', 'VERDE')
+            ->update(['lida' => 1]);
+
         $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
 
         return $this->response->setJSON([
@@ -1510,6 +1517,13 @@ class ApostaController extends BaseController
                 'status'     => $novoStatus,
                 'updated_at' => $now
             ]);
+
+            // Marca como lidas notificações prévias de Sinal Verde desta aposta já confirmada
+            $db->table('notificacoes_usuario')
+                ->where('aposta_id', $apostaId)
+                ->where('lida', 0)
+                ->like('tipo', 'VERDE')
+                ->update(['lida' => 1]);
 
             $confirmedCount++;
         }

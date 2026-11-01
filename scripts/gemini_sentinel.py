@@ -402,10 +402,11 @@ def extrair_resumo_u5j(reasoning_text):
     if not reasoning_text:
         return "Histórico recente não detalhado"
 
-    match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*?\})', reasoning_text)
+    match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*)', reasoning_text or '', re.DOTALL)
     if match:
         try:
-            data = json.loads(match.group(1))
+            raw_json = match.group(1).split('||')[0].strip()
+            data = json.loads(raw_json)
             home_u5j = data.get('home', {})
             away_u5j = data.get('away', {})
             return (
@@ -421,6 +422,135 @@ def extrair_resumo_u5j(reasoning_text):
     clean_text = re.sub(r'\|\|.*?\|\|', '', reasoning_text)
     clean_text = re.sub(r'\{.*?\}', '', clean_text)
     return clean_text[:200].strip() or "Histórico recente disponível no banco"
+
+
+def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) -> dict:
+    """
+    Audita com rigor matemático a integridade, coerência, ausência de dados vitais
+    e outliers da aposta gravada no MySQL pelo Gatekeeper antes de qualquer checagem externa (Data-First).
+    
+    Retorna:
+    {
+        "risco_base": "ALTO" | "MEDIO" | "BAIXO",
+        "alerta_critico": bool,
+        "confronto_equilibrado": bool,
+        "motivos_risco": list[str],
+        "resumo_auditoria_dados": str
+    }
+    """
+    motivos_risco = []
+    alerta_critico = False
+    confronto_equilibrado = False
+    
+    odd_aposta = float(item.get('odd') or 0.0)
+    odd_home = float(item.get('odd_home') or 0.0)
+    odd_draw = float(item.get('odd_draw') or 0.0)
+    odd_away = float(item.get('odd_away') or 0.0)
+    palpite = str(item.get('palpite') or '').strip()
+    mercado = str(item.get('mercado') or '').strip().lower()
+    probabilidade = float(item.get('probabilidade_poisson') or 0.0)
+    home_team = item.get('home_team', 'Mandante')
+    away_team = item.get('away_team', 'Visitante')
+
+    # 1. Auditoria de Dados Zerados / Ausentes Vitais (Regra nº 9 de Ouro)
+    if odd_aposta <= 1.0:
+        alerta_critico = True
+        motivos_risco.append("Odd da aposta zerada ou inválida (<= 1.0).")
+
+    if odd_home <= 1.0 or odd_away <= 1.0:
+        alerta_critico = True
+        motivos_risco.append(f"Cotações 1X2 ausentes ou zeradas no banco ({odd_home:.2f} x {odd_away:.2f}).")
+
+    if probabilidade <= 0.0 or probabilidade > 100.0:
+        alerta_critico = True
+        motivos_risco.append(f"Probabilidade Poisson anômala ou zerada ({probabilidade:.1f}%).")
+
+    # 2. Auditoria do Payload U5J (Regra nº 16 de Ouro) e Coerência de Amostragem
+    u5j_match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*)', reasoning_text or '', re.DOTALL)
+    if not u5j_match:
+        alerta_critico = True
+        motivos_risco.append("Payload estruturado || U5J_DATA: ausente no registro da aposta (Regra 16).")
+    else:
+        try:
+            raw_u5j = u5j_match.group(1).split('||')[0].strip()
+            u5j_data = json.loads(raw_u5j)
+            home_u5j = u5j_data.get('home', {})
+            away_u5j = u5j_data.get('away', {})
+            h_matches = home_u5j.get('matches', [])
+            a_matches = away_u5j.get('matches', [])
+
+            if len(h_matches) == 0 or len(a_matches) == 0:
+                alerta_critico = True
+                motivos_risco.append("Amostragem U5J zerada em uma ou ambas as equipes.")
+            
+            # Coerência de Vitórias, Empates e Derrotas
+            h_v, h_e, h_d = int(home_u5j.get('v', 0)), int(home_u5j.get('e', 0)), int(home_u5j.get('d', 0))
+            a_v, a_e, a_d = int(away_u5j.get('v', 0)), int(away_u5j.get('e', 0)), int(away_u5j.get('d', 0))
+            if (h_v + h_e + h_d) != len(h_matches) and len(h_matches) > 0:
+                alerta_critico = True
+                motivos_risco.append(f"Incoerência no U5J do mandante: V+E+D ({h_v}+{h_e}+{h_d}) diverge do total de partidas listadas ({len(h_matches)}).")
+            if (a_v + a_e + a_d) != len(a_matches) and len(a_matches) > 0:
+                alerta_critico = True
+                motivos_risco.append(f"Incoerência no U5J do visitante: V+E+D ({a_v}+{a_e}+{a_d}) diverge do total de partidas listadas ({len(a_matches)}).")
+
+            # Detecção de Outliers em Placares de Jogos Recentes
+            for m in (h_matches + a_matches):
+                sc = str(m.get('score', '')).strip()
+                if 'x' in sc:
+                    parts = sc.split('x')
+                    try:
+                        g1, g2 = int(parts[0]), int(parts[1])
+                        if g1 < 0 or g2 < 0 or (g1 + g2) > 12:
+                            alerta_critico = True
+                            motivos_risco.append(f"Outlier de placar anômalo detectado no histórico U5J: {sc}.")
+                    except (ValueError, TypeError):
+                        pass
+        except Exception as e_json:
+            alerta_critico = True
+            motivos_risco.append(f"Falha de desserialização do payload U5J: {e_json}")
+
+    # 3. Auditoria de Outliers de Cotação
+    if 'handicap' in mercado or 'ah' in palpite.lower():
+        if 1.0 < odd_aposta < 1.45:
+            alerta_critico = True
+            motivos_risco.append(f"Odd da aposta ({odd_aposta:.2f}) abaixo do piso mínimo seguro de valor esperado (+EV) do Gatekeeper (1.45).")
+        elif odd_aposta > 3.50:
+            alerta_critico = True
+            motivos_risco.append(f"Odd da aposta ({odd_aposta:.2f}) em patamar de extremidade excessiva (> 3.50) para Handicap Asiático.")
+    elif 'cart' in mercado:
+        if 1.0 < odd_aposta < 1.50:
+            alerta_critico = True
+            motivos_risco.append(f"Odd de Cartões ({odd_aposta:.2f}) abaixo do piso viável (1.50).")
+
+    # 4. Auditoria de Volatilidade de Mercado e Confronto Equilibrado
+    # Alinhamento 100% com a regra do Card Web: odd_home >= 2.10 e odd_away >= 2.10, ou odd_aposta >= 2.15
+    if (odd_home >= 2.10 and odd_away >= 2.10) or (odd_aposta >= 2.15 and ('handicap' in mercado or 'ah' in palpite.lower())):
+        confronto_equilibrado = True
+        motivos_risco.append(
+            f"Confronto Equilibrado / Odds Abertas no mercado 1X2 ({home_team} @ {odd_home:.2f} vs {away_team} @ {odd_away:.2f}). "
+            f"Alta volatilidade de cotações e sensibilidade da linha {palpite} a oscilações no pré-jogo."
+        )
+
+    # Classificação do Risco-Base dos Dados
+    if alerta_critico:
+        risco_base = "ALTO"
+    elif confronto_equilibrado:
+        risco_base = "MEDIO"
+    else:
+        risco_base = "BAIXO"
+
+    resumo_auditoria = (
+        f"Risco-Base dos Dados: {risco_base}. " +
+        ("; ".join(motivos_risco) if motivos_risco else "Dados fundamentais íntegros e auditados com sucesso no MySQL.")
+    )
+
+    return {
+        "risco_base": risco_base,
+        "alerta_critico": alerta_critico,
+        "confronto_equilibrado": confronto_equilibrado,
+        "motivos_risco": motivos_risco,
+        "resumo_auditoria_dados": resumo_auditoria
+    }
 
 
 def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA"):
@@ -582,19 +712,31 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     alerta_estrutural = bool(sumula_info.get("alerta_estrutural_elenco"))
     motivos_elenco = sumula_info.get("motivos_alerta_elenco") or []
     noticias_web = dossie.get("noticias_web") or "Nenhum desfalque grave reportado nas notícias recentes."
+    
+    aud_dados = dossie.get("auditoria_dados") or {}
+    resumo_aud_dados = aud_dados.get("resumo_auditoria_dados", "Auditoria de dados não realizada.")
+    risco_base_dados = aud_dados.get("risco_base", "BAIXO")
+    confronto_eq = aud_dados.get("confronto_equilibrado", False)
+    alerta_critico_dados = aud_dados.get("alerta_critico", False)
 
     prompt_text = f"""
 Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕES E DESFALQUES extraída da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
+Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADOS DO MYSQL (Data-First), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
 • Competição: {dossie.get('league_name')} ({dossie.get('country')}) | Início: {dossie.get('match_time')}
 • Árbitro: {dossie.get('referee_name', 'Não informado')}
+• Cotações 1X2 Oficiais: Mandante @ {float(dossie.get('odd_home') or 0.0):.2f} | Empate @ {float(dossie.get('odd_draw') or 0.0):.2f} | Visitante @ {float(dossie.get('odd_away') or 0.0):.2f}
 • U5J / Desempenho Recente: {dossie.get('u5j_summary')}
 • Projeção do Modelo: Placar/Gols esperados {dossie.get('xg_summary')}
 • Aposta Sugerida pelo Gatekeeper: {dossie.get('palpite')} (@ {dossie.get('odd')})
 • Motivo Técnico Original: {dossie.get('motivo_gatekeeper')}
+
+--- AUDITORIA DE SANIDADE E COERÊNCIA DOS DADOS (DATA-FIRST FOUNDATION) ---
+• Diagnóstico Matemático e de Integridade: {resumo_aud_dados}
+• Perfil de Mercado: {'Confronto Equilibrado / Odds Abertas no 1X2 (Alta Volatilidade de Cotações)' if confronto_eq else 'Mercado com Favoritismo Consistente'}
+• Alerta Crítico nos Dados / Outliers: {'SIM (Dados Zerados, Outliers ou Incoerência)' if alerta_critico_dados else 'NÃO (Dados Íntegros e Validados)'}
 
 --- SÚMULA OFICIAL DAS ESCALAÇÕES E DESFALQUES (API-SPORTS) ---
 {texto_sumula}
@@ -604,14 +746,15 @@ Analise o dossiê completo abaixo — incluindo a SÚMULA OFICIAL DE ESCALAÇÕE
 {noticias_web}
 
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Avalie rigorosamente as informações da súmula oficial (se já publicada) E as notícias e prévias recentes da web.
-2. Defina com precisão o GRAU DE RISCO da partida para a aposta sugerida:
-   - "ALTO": Presença CONFIRMADA de desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
-   - "MEDIO": Se houver 1 ou 2 desfalques pontuais de linha (ex: volante ou lateral) ou dúvida sobre um titular relevante, mantendo a espinha dorsal.
-   - "BAIXO": Força máxima mantida ou ausência de desfalques relevantes reportados nas notícias ou na API.
-   * REGRA MANDATÓRIA ANTI-FALSO ALARME: Se a súmula oficial de 11 titulares ainda estiver em processamento pela federação (comum antes do jogo), mas NÃO há notícias nem desfalques reportados na API ou nos portais esportivos, NÃO classifique a partida como 'ALTO' nem recomende 'aguardar súmula oficial'. Classifique como 'BAIXO' (Sinal Verde), pois a base das equipes está estável e confirmada pelas prévias.
+1. Avalie com prioridade máxima os dados fundamentais da partida (MySQL) E agregue a súmula oficial e notícias recentes da web.
+2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Data-First):
+   * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Dados_MySQL, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou falha de dados.
+   - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
+   - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
+   - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
+   * REGRA MANDATÓRIA ANTI-FALSO ALARME: Se a súmula oficial de 11 titulares ainda estiver em processamento pela federação, mas os dados do MySQL forem sólidos e NÃO há notícias de desfalques na imprensa, classifique como 'BAIXO' (Sinal Verde).
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
-4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, notícias e jogadores que fundamentam a conclusão, NUNCA gerando respostas genéricas protocolares do tipo 'aguardar súmula oficial'.
+4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, NUNCA gerando respostas genéricas protocolares do tipo 'aguardar súmula oficial'.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
@@ -712,7 +855,7 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
             data = json.loads(clean_text)
 
         raw_grau = str(data.get("grau_risco") or "").strip().upper()
-        if alerta_estrutural:
+        if alerta_estrutural or alerta_critico_dados:
             grau_risco = "ALTO"
         elif raw_grau in ("ALTO", "HIGH"):
             grau_risco = "ALTO"
@@ -723,13 +866,29 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         else:
             grau_risco = "ALTO" if (data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO") else "BAIXO"
 
+        # REGRA SOBERANA DE PRECEDÊNCIA MÁXIMA (Data-First):
+        # Risco Final = MAX(Risco_Base_Dados_MySQL, Risco_Externo)
+        ordem_map = {"BAIXO": 1, "MEDIO": 2, "ALTO": 3}
+        if ordem_map.get(risco_base_dados, 1) > ordem_map.get(grau_risco, 1):
+            grau_risco = risco_base_dados
+
         badge_risco = "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo")
 
-        tem_alerta_final = bool(grau_risco in ("ALTO", "MEDIO") or data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural)
-        status_final = "ALERTA_RISCO" if tem_alerta_final else "CONFIRMADO"
+        tem_alerta_final = bool(grau_risco in ("ALTO", "MEDIO") or data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural or alerta_critico_dados)
+        status_final = "ALERTA_RISCO" if (grau_risco == "ALTO" or alerta_estrutural or alerta_critico_dados) else "CONFIRMADO"
         parecer_final = str(data.get("parecer_explicativo", "Auditoria de campo concluída.")).strip()
+
+        # Injeta contextualização dos dados fundamentais no início do parecer
+        prefixos_auditoria = []
+        if alerta_critico_dados and aud_dados.get("motivos_risco"):
+            prefixos_auditoria.append(f"[Alerta de Integridade de Dados: {'; '.join(aud_dados['motivos_risco'])}]")
+        elif confronto_eq:
+            prefixos_auditoria.append("[Mercado Volátil / Confronto Equilibrado: Odds Abertas no 1X2]")
         if alerta_estrutural and motivos_elenco and not data.get("tem_alerta"):
-            parecer_final = f"[Alerta de Súmula: {'; '.join(motivos_elenco)}] {parecer_final}"
+            prefixos_auditoria.append(f"[Alerta de Súmula: {'; '.join(motivos_elenco)}]")
+            
+        if prefixos_auditoria:
+            parecer_final = f"{' '.join(prefixos_auditoria)} {parecer_final}"
 
         # Assegura que a explicação inicie com o confronto e a badge de risco (Time A x Time B [🔴 Risco Alto]: ...)
         h_t = dossie.get("home_team")
@@ -902,7 +1061,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
         )
 
         if status_gk == 'APROVADO' and best_cand:
-            novo_palpite = best_cand['palpite']
+            novo_palpite = best_cand.get('palpite_str') or best_cand.get('palpite') or palpite_sug
             nova_odd = float(best_cand['odd'])
 
             # Atualiza no banco sincronizando card e aposta
@@ -985,10 +1144,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         if specific_fixture_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.fixture_id = %s
@@ -999,10 +1159,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # FASE 1: Antecipação Matinal (Janela de 24h) - Seleciona partidas do dia sem parecer prévio
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
@@ -1017,10 +1178,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # FASE 2: Repescagem Pré-Jogo (T-50m a T-15m) e Vigilância de Drift de Mercado
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
-                       a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
@@ -1066,6 +1228,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
             u5j_summary = extrair_resumo_u5j(reasoning)
+
+            # 1. Auditoria Soberana de Coerência e Sanidade dos Dados do MySQL (Data-First Foundation)
+            auditoria_dados = auditar_coerencia_e_sanidade_dados_mysql(item, reasoning)
+            print(f"📊 [Auditoria Dados MySQL] {home_team} vs {away_team}: {auditoria_dados['resumo_auditoria_dados']}")
 
             status_anterior = item.get('auditoria_ia_status')
             era_observacao = (status_anterior == 'EM_OBSERVACAO')
@@ -1123,8 +1289,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     "referee_name": item.get('referee_name', 'Não informado'),
                     "palpite": item.get('palpite', ''),
                     "odd": float(item.get('odd') or 1.0),
+                    "odd_home": float(item.get('odd_home') or 0.0),
+                    "odd_draw": float(item.get('odd_draw') or 0.0),
+                    "odd_away": float(item.get('odd_away') or 0.0),
+                    "auditoria_dados": auditoria_dados,
                     "u5j_summary": u5j_summary,
-                    "xg_summary": f"Casa {item.get('goals_home') or 0} x {item.get('goals_away') or 0} Fora",
+                    "xg_summary": f"Casa {item.get('xg_home') or item.get('goals_home') or 0} x {item.get('xg_away') or item.get('goals_away') or 0} Fora",
                     "motivo_gatekeeper": motivo_gk,
                     "sumula_oficial": sumula_oficial,
                     "noticias_web": noticias_web
@@ -1228,43 +1398,45 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 else:
                     total_confirmados += 1
                     print(f"✅ [FORÇA MÁXIMA CONFIRMADA]: {resumo}")
-                    # Notificações contextuais por estágio
-                    if phase == 1:
-                        tit_verde = f"🟢 Sinal Verde Antecipado [Risco Baixo]: {home_team} vs {away_team} - Hora de Cravar a Cotação Máxima!"
-                        msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo Antecipado]: Auditoria matinal concluída com elenco estável e sem desfalques reportados na imprensa! O jogo é {match_time}. Hora de garantir a entrada com odd no topo antes do mercado derreter!"
-                        tipo_notif = "SINAL_VERDE_ANTECIPADO"
-                    elif era_observacao:
-                        tit_verde = f"🟢 Repescagem Concluída [Risco Baixo]: Força Máxima Confirmada na Súmula! {home_team} vs {away_team}"
-                        msg_verde = f"{home_team} x {away_team} [🟢 Sinal Verde na Repescagem]: A súmula oficial acaba de ser publicada e confirmou os 11 titulares com força máxima! O jogo é {match_time}. Hora de garantir a entrada com segurança factual!"
-                        tipo_notif = "SINAL_VERDE_REPESCAGEM"
-                    elif not is_confirmada:
-                        if linha_recalibrada:
-                            tit_verde = f"🟢 Sinal Verde [Risco Baixo]: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
-                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo é {match_time}. Hora de garantir a entrada na sua bookmaker!"
-                        else:
-                            tit_verde = f"🟢 Sinal Verde [Risco Baixo]: {home_team} vs {away_team} - Hora de Apostar!"
-                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo é {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
-                        tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
+
+                    # Se a aposta já estiver confirmada (confirmada = 1 ou com débito ativo na banca),
+                    # NUNCA emite notificação de Risco Baixo / Sinal Verde (silêncio operacional para evitar confusão)
+                    if is_confirmada:
+                        print(f"ℹ️ [Sentinela IA] Aposta #{aposta_id} ({home_team} vs {away_team}) já confirmada. Notificação de Risco Baixo suprimida (silêncio operacional).")
                     else:
-                        tit_verde = f"🟢 Força Máxima Confirmada [Risco Baixo]: {home_team} vs {away_team}"
-                        msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria de escalação concluída: {resumo}. Titulares confirmados para apoiar sua aposta já registrada. Início: {match_time}."
-                        tipo_notif = "SINAL_VERDE_CONFIRMADA"
+                        # Notificações contextuais por estágio APENAS para apostas pendentes
+                        if phase == 1:
+                            tit_verde = f"🟢 Sinal Verde Antecipado [Risco Baixo]: {home_team} vs {away_team} - Hora de Cravar a Cotação Máxima!"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo Antecipado]: Auditoria matinal concluída com elenco estável e sem desfalques reportados na imprensa! O jogo é {match_time}. Hora de garantir a entrada com odd no topo antes do mercado derreter!"
+                            tipo_notif = "SINAL_VERDE_ANTECIPADO"
+                        elif era_observacao:
+                            tit_verde = f"🟢 Repescagem Concluída [Risco Baixo]: Força Máxima Confirmada na Súmula! {home_team} vs {away_team}"
+                            msg_verde = f"{home_team} x {away_team} [🟢 Sinal Verde na Repescagem]: A súmula oficial acaba de ser publicada e confirmou os 11 titulares com força máxima! O jogo é {match_time}. Hora de garantir a entrada com segurança factual!"
+                            tipo_notif = "SINAL_VERDE_REPESCAGEM"
+                        else:
+                            if linha_recalibrada:
+                                tit_verde = f"🟢 Sinal Verde [Risco Baixo]: Linha Ajustada para {item['palpite']} (@ {item['odd']:.2f}) - Hora de Apostar!"
+                                msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Linha recalibrada com sucesso pelo Gatekeeper no pré-jogo! Auditoria de escalações confirmada com força máxima: {resumo}. O jogo é {match_time}. Hora de garantir a entrada na sua bookmaker!"
+                            else:
+                                tit_verde = f"🟢 Sinal Verde [Risco Baixo]: {home_team} vs {away_team} - Hora de Apostar!"
+                                msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo]: Auditoria pré-jogo concluída com força máxima! {resumo}. O jogo é {match_time}. Sua aposta ainda não foi confirmada na casa de apostas — hora de garantir a entrada!"
+                            tipo_notif = "SINAL_VERDE_HORA_APOSTAR"
 
-                    verde_enviado = False
-                    for uid in user_ids:
-                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, tit_verde, msg_verde, tipo=tipo_notif):
-                            verde_enviado = True
-                    conn.commit()
+                        verde_enviado = False
+                        for uid in user_ids:
+                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, tit_verde, msg_verde, tipo=tipo_notif):
+                                verde_enviado = True
+                        conn.commit()
 
-                    # Dispara push notification para o smartphone via ntfy (prioridade alta)
-                    if verde_enviado:
-                        enviar_push_mobile(
-                            titulo=tit_verde,
-                            mensagem=msg_verde,
-                            fixture_id=fixture_id,
-                            prioridade=4,
-                            tags=["white_check_mark", "green_circle", "soccer"]
-                        )
+                        # Dispara push notification para o smartphone via ntfy (prioridade alta)
+                        if verde_enviado:
+                            enviar_push_mobile(
+                                titulo=tit_verde,
+                                mensagem=msg_verde,
+                                fixture_id=fixture_id,
+                                prioridade=4,
+                                tags=["white_check_mark", "green_circle", "soccer"]
+                            )
 
             except Exception as e_sql:
                 total_erros += 1

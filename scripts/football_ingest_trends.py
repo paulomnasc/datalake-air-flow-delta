@@ -352,6 +352,12 @@ _futbol24_failed_teams_cache = set()
 _api_sports_rate_limited = False
 _api_sports_odds_rate_limited = False
 _api_sports_quota_exceeded = False
+
+_api_sports_last5_calls_count = 0
+MAX_LAST5_CALLS_PER_RUN = 20
+
+_api_sports_single_odds_calls_count = 0
+MAX_SINGLE_ODDS_CALLS_PER_RUN = 10
 def _format_match_date(fdate):
     if not fdate:
         return ""
@@ -370,10 +376,13 @@ def _format_match_date(fdate):
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
     Busca os últimos N jogos de um time via API-Sports (https://v3.football.api-sports.io/fixtures?team={team_id}&last=5).
-    Possui cache em memória e mecanismo de retry/backoff contra rate limiting.
+    Possui cache em memória, trava orçamentária de cota e mecanismo de retry/backoff contra rate limiting.
     """
-    global _api_sports_rate_limited
-    if not team_id or _api_sports_rate_limited:
+    global _api_sports_rate_limited, _api_sports_quota_exceeded, _api_sports_last5_calls_count
+    if not team_id or _api_sports_rate_limited or _api_sports_quota_exceeded:
+        return None
+    
+    if _api_sports_last5_calls_count >= MAX_LAST5_CALLS_PER_RUN:
         return None
     
     try:
@@ -396,6 +405,7 @@ def fetch_api_sports_team_last5(team_id, limit=5):
         if _api_sports_rate_limited:
             return None
         try:
+            _api_sports_last5_calls_count += 1
             resp = requests.get(url, headers=headers, timeout=5).json()
             errs = resp.get('errors')
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
@@ -517,13 +527,13 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             matches.append(am)
                         if len(matches) >= 5:
                             break
-                    if len(matches) >= 5:
+                    if len(matches) > 0:
                         has_cached_entry = True
         except Exception as e_c:
             pass
 
-    # 2. Se NÃO encontrou no cache de 72h e team_id estiver disponível, consulta a API-Sports oficial (multi-competições) e persiste no MySQL
-    if not has_cached_entry and team_id and str(team_id).strip():
+    # 2. Se NÃO encontrou no cache de 72h e team_id estiver disponível sob teto de cota (<= 20 reqs), consulta API-Sports oficial
+    if not has_cached_entry and len(matches) == 0 and team_id and str(team_id).strip() and _api_sports_last5_calls_count < MAX_LAST5_CALLS_PER_RUN:
         try:
             api_m = fetch_api_sports_team_last5(team_id, limit=5)
             if api_m is not None and len(api_m) > 0:
@@ -4307,9 +4317,13 @@ _api_sports_quota_exceeded = False
 def fetch_single_api_sports_odds(fix_id):
     """
     Busca odds de uma partida específica via API-Sports (Pro Plan por fixture_id).
+    Possui circuit-breaker e teto orçamentário para não exaurir a cota da API.
     """
-    global _api_sports_rate_limited
-    if not fix_id or _api_sports_rate_limited:
+    global _api_sports_rate_limited, _api_sports_odds_rate_limited, _api_sports_quota_exceeded, _api_sports_single_odds_calls_count
+    if not fix_id or _api_sports_rate_limited or _api_sports_odds_rate_limited or _api_sports_quota_exceeded:
+        return {}
+
+    if _api_sports_single_odds_calls_count >= MAX_SINGLE_ODDS_CALLS_PER_RUN:
         return {}
 
     if fix_id in _api_sports_single_odds_cache:
@@ -4324,6 +4338,7 @@ def fetch_single_api_sports_odds(fix_id):
     url = f"https://v3.football.api-sports.io/odds?fixture={fix_id}"
     bms_dict = {}
     try:
+        _api_sports_single_odds_calls_count += 1
         resp = requests.get(url, headers=headers, timeout=10).json()
         errs = resp.get('errors')
         if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
@@ -4579,7 +4594,7 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status, odd_casa, odd_empate, odd_visitante FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
 
         # Ingestão de prévias e palpites editoriais do Futbol24
@@ -4740,7 +4755,8 @@ def update_oddspedia_odds(conn):
             
             # Coleta cotações de cada uma das fontes independentes
             api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
-            if not api_bms and not _api_sports_rate_limited and not _api_sports_odds_rate_limited and not _api_sports_quota_exceeded:
+            has_db_odds = float(fix.get('odd_casa') or 0.0) > 1.0 and float(fix.get('odd_visitante') or 0.0) > 1.0
+            if not api_bms and not has_db_odds and not _api_sports_rate_limited and not _api_sports_odds_rate_limited and not _api_sports_quota_exceeded:
                 api_bms = fetch_single_api_sports_odds(fix_id)
             toapi_bms = find_source_match_odds(api_odds_matches, fix['home_team'], fix['away_team'])
             op_bms = find_source_match_odds(scraped_matches_op, fix['home_team'], fix['away_team'])
@@ -4885,9 +4901,7 @@ def fetch_api_sports_standings(league_id, season):
         'User-Agent': 'Mozilla/5.0'
     }
 
-    seasons_to_try = [int(season)]
-    if int(season) != 2024:
-        seasons_to_try.extend([int(season)-1, 2024])
+    seasons_to_try = [int(season), int(season)-1]
 
     standings_map = {}
     for s_val in seasons_to_try:
@@ -4981,8 +4995,8 @@ def enrich_fixtures_standings(conn):
         home_data = standings.get(int(h_id)) if (h_id and int(h_id) in standings) else standings.get(h_name)
         away_data = standings.get(int(a_id)) if (a_id and int(a_id) in standings) else standings.get(a_name)
 
-        if not home_data or not away_data:
-            # Fallback para ligas nacionais populares (ex: Brasileirão 71)
+        if (not home_data or not away_data) and league_id in (71, 72, 73, 75, 76, 529):
+            # Fallback para liga nacional popular brasileira (Brasileirão 71) apenas para clubes nacionais
             nat_standings = fetch_api_sports_standings(71, season)
             if nat_standings:
                 if not home_data:

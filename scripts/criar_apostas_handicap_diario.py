@@ -463,10 +463,39 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
                 is_settled_blindado = has_pending_bet.get('status') in ('Ganha', 'Perdida', 'Meio Ganha', 'Meio Perdida', 'ANULADA')
-                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing or has_pending_bet.get('status') == 'Pendente':
-                    status_lbl = "blindada" if is_settled_blindado else "ativa"
-                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
+                if is_settled_blindado:
+                    print(f"🔒 [Aposta Liquidada] Partida #{fixture_id} já liquidada ({has_pending_bet.get('status')}). Mantida intacta.")
                     continue
+
+                if is_api_missing:
+                    print(f"🔒 [Card AH Preservado / Falha Temporária de API] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). Mantendo registro existente.")
+                    continue
+
+                from asian_handicap_engine import determine_gatekeeper_category
+                cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo)
+
+                # Atualiza aposta pendente para refletir a reclassificação do Gatekeeper (NO_BET)
+                cursor.execute("""
+                    UPDATE apostas SET
+                        status_gatekeeper = 'NO_BET',
+                        gatekeeper_category = %s,
+                        auditoria_ia_status = 'ALERTA_RISCO',
+                        updated_at = NOW()
+                    WHERE fixture_id = %s AND status = 'Pendente'
+                """, (cat_desc, fixture_id))
+
+                # Dispara notificação no Sininho (notificacoes_usuario) para os usuários
+                for uid in user_ids:
+                    registrar_notificacao_usuario(
+                        cursor, uid, has_pending_bet['id'], fixture_id,
+                        tipo="ALERTA_GATEKEEPER_NO_BET",
+                        titulo=f"🚨 Alerta Gatekeeper: NO_BET em {home_team} vs {away_team}",
+                        mensagem=f"O Gatekeeper reclassificou a partida como NO_BET ({cat_desc}). Recomenda-se saída preventiva ou cancelamento.",
+                        link=f"/apostas?fixture_id={fixture_id}"
+                    )
+                conn.commit()
+                print(f"🚨 [Alerta NO_BET Notificado] Partida #{fixture_id} ({home_team} vs {away_team}): aposta pendente atualizada para NO_BET e usuário notificado.")
+                continue
 
             cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
             cur_f = cursor.fetchone()

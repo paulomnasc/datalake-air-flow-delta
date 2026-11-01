@@ -141,16 +141,25 @@ def coletar_sumula_e_desfalques_apisports(
     away_team_id: int,
     home_team: str,
     away_team: str,
-    palpite: str
+    palpite: str,
+    league_id: int = None
 ) -> dict:
     """
     Consulta a súmula oficial de escalações (/fixtures/lineups) e a lista de desfalques (/injuries)
     na API-Sports na janela pré-jogo, cruzando os 11 titulares escalados hoje com a última partida
-    oficial de cada equipe para detectar objetivamente:
+    oficial de cada equipe da MESMA LIGA/COMPETIÇÃO para detectar objetivamente:
     - Escalação de goleiro reserva;
     - Rodízio pesado / time misto ou reserva (>= 5 alterações nos titulares);
     - Acúmulo de desfalques por lesão ou suspensão.
     """
+    # Mapeamento oficial de siglas de posição da API-Sports para português extenso
+    POSICOES_MAP = {
+        "G": "Goleiro",
+        "D": "Defensor",
+        "M": "Meio-campo",
+        "F": "Atacante"
+    }
+
     # Inicialização explícita de variáveis numéricas locais (Regra 8)
     rotacao_home_cnt = 0
     rotacao_away_cnt = 0
@@ -247,38 +256,72 @@ def coletar_sumula_e_desfalques_apisports(
             pid = p_obj.get("id")
             pname = p_obj.get("name", "")
             ppos = p_obj.get("pos", "")
+            pos_label = POSICOES_MAP.get(ppos, ppos or "Jogador")
             if pid:
                 titulares_ids.add(pid)
-            titulares_nomes.append(f"{pname} ({ppos})")
+            titulares_nomes.append(f"{pname} [{pos_label}]")
             if ppos == "G" and gk_atual_id is None:
                 gk_atual_id = pid
                 gk_atual_nome = pname
 
         reservas_nomes = [
-            f"{(s.get('player') or {}).get('name', '')} ({(s.get('player') or {}).get('pos', '')})"
+            f"{(s.get('player') or {}).get('name', '')} [{POSICOES_MAP.get((s.get('player') or {}).get('pos', ''), (s.get('player') or {}).get('pos', ''))}]"
             for s in subs[:12]
         ]
 
-        # Compara com a escalação titular do último jogo encerrado da mesma equipe no banco
+        # Compara estritamente com a escalação titular da MESMA LIGA/COMPETIÇÃO
         mudancas_titulares = 0
         gk_anterior_nome = None
         gk_mudou = False
         titulares_ausentes_hoje = []
 
-        if t_id and cursor:
-            try:
-                cursor.execute("""
-                    SELECT fixture_id FROM fixtures_trends
-                    WHERE (home_team_id = %s OR away_team_id = %s)
-                      AND status IN ('FT', 'AET', 'PEN')
-                      AND fixture_id != %s
-                    ORDER BY fixture_date DESC
-                    LIMIT 1
-                """, (t_id, t_id, fixture_id))
-                prev_row = cursor.fetchone()
-                prev_fid = (prev_row["fixture_id"] if isinstance(prev_row, dict) else prev_row[0]) if prev_row else None
+        if t_id:
+            prev_fid = None
+            # 1. Tenta buscar no banco partida anterior estritamente DA MESMA LIGA (evita comparar Liga com Copas secundárias)
+            if cursor and league_id:
+                try:
+                    cursor.execute("""
+                        SELECT fixture_id FROM fixtures_trends
+                        WHERE (home_team_id = %s OR away_team_id = %s)
+                          AND league_id = %s
+                          AND status IN ('FT', 'AET', 'PEN')
+                          AND fixture_id != %s
+                        ORDER BY fixture_date DESC
+                        LIMIT 1
+                    """, (t_id, t_id, league_id, fixture_id))
+                    prev_row = cursor.fetchone()
+                    if prev_row:
+                        prev_fid = prev_row["fixture_id"] if isinstance(prev_row, dict) else prev_row[0]
+                except Exception as e_sql:
+                    print(f"⚠️ [Sentinela Súmula] Erro ao buscar último jogo da liga no banco para {t_name}: {e_sql}")
 
-                if prev_fid:
+            # 2. Se não encontrou no MySQL para a mesma liga, busca EXTERNAMENTE na API-Sports
+            if not prev_fid and league_id:
+                try:
+                    r_api_prev = requests.get(
+                        f"{base_url}/fixtures",
+                        params={
+                            "team": t_id,
+                            "league": league_id,
+                            "status": "FT",
+                            "last": 1
+                        },
+                        headers=headers,
+                        timeout=10
+                    )
+                    if r_api_prev.status_code == 200:
+                        prev_items = r_api_prev.json().get("response", [])
+                        if prev_items:
+                            f_item = prev_items[0].get("fixture") or {}
+                            cand_fid = f_item.get("id")
+                            if cand_fid and cand_fid != fixture_id:
+                                prev_fid = cand_fid
+                except Exception as e_api_prev:
+                    print(f"⚠️ [Sentinela Súmula] Erro na busca externa de partida anterior para {t_name}: {e_api_prev}")
+
+            # 3. Com a fixture da mesma competição identificada, obtém externamente a escalação anterior via API-Sports
+            if prev_fid:
+                try:
                     r_prev = requests.get(
                         f"{base_url}/fixtures/lineups",
                         params={"fixture": prev_fid, "team": t_id},
@@ -295,10 +338,11 @@ def coletar_sumula_e_desfalques_apisports(
                                 ppid = pobj.get("id")
                                 ppname = pobj.get("name", "")
                                 pppos = pobj.get("pos", "")
+                                pos_prev = POSICOES_MAP.get(pppos, pppos or "Jogador")
                                 if ppid:
                                     prev_ids.add(ppid)
                                     if ppid not in titulares_ids:
-                                        titulares_ausentes_hoje.append(f"{ppname} ({pppos})")
+                                        titulares_ausentes_hoje.append(f"{ppname} [{pos_prev}]")
                                 if pppos == "G":
                                     gk_anterior_nome = ppname
                                     if gk_atual_id and ppid and gk_atual_id != ppid:
@@ -306,8 +350,8 @@ def coletar_sumula_e_desfalques_apisports(
                             if prev_ids and titulares_ids:
                                 mantidos = len(titulares_ids.intersection(prev_ids))
                                 mudancas_titulares = max(0, 11 - mantidos)
-            except Exception as e_prev:
-                print(f"⚠️ [Sentinela Comparativo Lineup] Erro ao comparar escalação anterior do time {t_name}: {e_prev}")
+                except Exception as e_prev:
+                    print(f"⚠️ [Sentinela Comparativo Lineup] Erro ao comparar escalação anterior do time {t_name}: {e_prev}")
 
         is_home_entry = (home_team_id and t_id == home_team_id) or (home_team.lower() in t_name.lower())
         if is_home_entry:
@@ -452,6 +496,30 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
     home_team = item.get('home_team', 'Mandante')
     away_team = item.get('away_team', 'Visitante')
 
+    # 0. Verificação SOBERANA de NO_BET (Abstenção / Bloqueio pelo Gatekeeper)
+    # Se o Gatekeeper emitiu NO_BET na esteira (por qualquer motivo: Armadilha da Odd Inflada,
+    # Falta de Valor Esperado, Sobrevivência do Mandante, etc.), qualquer aposta aberta
+    # perde seus critérios matemáticos de aprovação. DISPARA ALERTA CRÍTICO IMEDIATO!
+    ah_sug = str(item.get('ah_suggestion') or '').strip().lower()
+    ah_r = str(item.get('ah_reasoning') or '').lower()
+    pred_txt = str(item.get('prediction_text') or '').lower()
+    gk_cat = str(item.get('gatekeeper_category') or '').strip()
+
+    is_no_bet = False
+    if any(k in ah_sug for k in ['no_bet', 'sem entrada', 'abstenção', 'abstencao', 'bloquead']):
+        is_no_bet = True
+    elif 'status gk: no_bet' in ah_r or '[gatekeeper ah no_bet' in ah_r:
+        is_no_bet = True
+    elif 'cart' in mercado and ('status gk: no_bet' in pred_txt or '[gatekeeper cartões no_bet' in pred_txt or 'bloquead' in pred_txt):
+        is_no_bet = True
+
+    if is_no_bet:
+        alerta_critico = True
+        desc_cat = gk_cat if gk_cat else "Abstenção / Bloqueio do Gatekeeper"
+        motivos_risco.append(
+            f"🚨 Gatekeeper decretou NO_BET ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
+        )
+
     # 1. Auditoria de Dados Zerados / Ausentes Vitais (Regra nº 9 de Ouro)
     if odd_aposta <= 1.0:
         alerta_critico = True
@@ -467,6 +535,11 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
 
     # 2. Auditoria do Payload U5J (Regra nº 16 de Ouro) e Coerência de Amostragem
     u5j_match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*)', reasoning_text or '', re.DOTALL)
+    if not u5j_match and item.get('ah_reasoning'):
+        u5j_match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*)', item.get('ah_reasoning') or '', re.DOTALL)
+    if not u5j_match and item.get('cards_reasoning'):
+        u5j_match = re.search(r'\|\|\s*U5J_DATA:\s*(\{.*)', item.get('cards_reasoning') or '', re.DOTALL)
+
     if not u5j_match:
         alerta_critico = True
         motivos_risco.append("Payload estruturado || U5J_DATA: ausente no registro da aposta (Regra 16).")
@@ -749,6 +822,8 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
 1. Avalie com prioridade máxima os dados fundamentais da partida (MySQL) E agregue a súmula oficial e notícias recentes da web.
 2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Data-First):
    * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Dados_MySQL, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou falha de dados.
+   * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
+   * REGRA DE FORÇA MÁXIMA E COPAS: O comparativo de titulares é realizado estritamente com a liga principal. Se a equipe escalou seus titulares habituais de liga (mesmo tendo poupado atletas em copas anteriores), reconheça como Força Máxima de Liga preservada.
    - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
    - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
    - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
@@ -1146,9 +1221,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
-                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.fixture_id = %s
@@ -1161,9 +1237,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
-                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
@@ -1180,9 +1257,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
-                       ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
@@ -1228,6 +1306,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
             reasoning = item.get('resultado_detalhado') or item.get('ah_reasoning') or item.get('cards_reasoning') or ""
             u5j_summary = extrair_resumo_u5j(reasoning)
+            if not u5j_summary and item.get('ah_reasoning'):
+                u5j_summary = extrair_resumo_u5j(item.get('ah_reasoning'))
+            if not u5j_summary and item.get('cards_reasoning'):
+                u5j_summary = extrair_resumo_u5j(item.get('cards_reasoning'))
 
             # 1. Auditoria Soberana de Coerência e Sanidade dos Dados do MySQL (Data-First Foundation)
             auditoria_dados = auditar_coerencia_e_sanidade_dados_mysql(item, reasoning)
@@ -1268,7 +1350,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     away_team_id=item.get('away_team_id'),
                     home_team=home_team,
                     away_team=away_team,
-                    palpite=item.get('palpite', '')
+                    palpite=item.get('palpite', ''),
+                    league_id=item.get('league_id')
                 )
 
                 # Busca notícias recentes e matérias pré-jogo na web (custo zero de API)
@@ -1337,7 +1420,13 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
                         parecer = recalib['parecer_alerta']
                     elif era_observacao:
-                        if not tem_alerta:
+                        if not sumula_oficial.get('tem_sumula') and not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
+                            # Súmula oficial ainda não disponível na API (escalações não publicadas ou execução fora da janela de súmula)
+                            st = 'EM_OBSERVACAO'
+                            badge_risco = '🟡 Em Observação'
+                            resumo = f"🟡 Em Observação: Súmula oficial ainda não divulgada na API ({resumo}) | Aguardando liberação das escalações oficiais"
+                            titulo_alerta = f"🟡 Em Observação [Aguardar Súmula]: {home_team} vs {away_team}"
+                        elif not tem_alerta:
                             st = 'CONFIRMADO'
                             resumo = f"🟢 Promovida na Repescagem: Súmula oficial confirmou titulares com força máxima ({resumo})"
                         else:

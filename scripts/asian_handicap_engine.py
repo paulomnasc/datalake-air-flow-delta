@@ -643,10 +643,13 @@ def evaluate_and_select_best_ah_candidate(
     away_ppg: float = None,
     home_zone: str = None,
     away_zone: str = None,
-    standings_motivation_score: float = None
+    standings_motivation_score: float = None,
+    odd_draw: float = None
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
+    - Piso Mínimo Global Inviolável de Odd: c_odd >= 1.60 para todas as linhas de Handicap.
+    - Trava Soberana de +EV contra o Mercado 1X2 (1X2 Benchmark): Rejeita qualquer linha cuja cotação seja inferior à Odd Justa implícita do mercado 1X2 des-margem (EV_mkt < 0).
     - Janela estrita de linhas permitidas: {0.0, 0.5, 1.0, 1.25, 1.5} (anti-empate / colchão defensivo; +0.75 AH excluído para evitar meio-reds)
     - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0} EXCLUSIVAMENTE para Mandantes (Home).
     - Trava de Mando de Campo (Opção B): Para Visitantes (Away), o teto de agressividade é -0.25 AH (com proteção de empate). Linhas < -0.25 AH (-0.5, -0.75, -1.0) são estritamente proibidas fora de casa.
@@ -654,7 +657,7 @@ def evaluate_and_select_best_ah_candidate(
     - Teto de cotação para -0.25 AH: máximo @ 1.85 (odds > 1.85 indicam favoritismo frágil da banca).
     - Trava de Sobrevivência do Mandante (Anti-Caldeirão da Degola): Bloqueia apoio a visitante em linha curta (0.0 AH ou -0.25 AH) quando mandante está na zona de degola ou sob pressão crítica de tabela com abismo de posições em jogo parelho.
     - Trava de Divergência de Mando (Anti-Fake Dog): Bloqueia apoio a visitante em linha curta se o mercado precifica o mandante como favorito no 1X2 (odd_home < odd_away).
-    - Faixa de odd segura: 1.50 a 2.10 (1.40 a 1.95 para super-favoritos negativos).
+    - Faixa de odd segura: 1.60 a 2.10 (1.60 a 1.95 para super-favoritos negativos).
     - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0.
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
     - Score de Valor = EV% * (Prob / 100.0)
@@ -664,6 +667,7 @@ def evaluate_and_select_best_ah_candidate(
     approved = []
     raw_h_odd = float(odd_home or 0.0)
     raw_a_odd = float(odd_away or 0.0)
+    raw_d_odd = float(odd_draw or 0.0)
     if raw_h_odd <= 1.0 or raw_a_odd <= 1.0:
         return None, []
 
@@ -696,6 +700,7 @@ def evaluate_and_select_best_ah_candidate(
     xg_diff = 0.0
     cand_xg_diff = 0.0
     is_home_poisson_dominant_minus_half = False
+    mkt_fair_odd = 0.0
 
     h_rank_val = 0
     a_rank_val = 0
@@ -1121,8 +1126,8 @@ def evaluate_and_select_best_ah_candidate(
             if c_line == -0.5:
                 if not (is_eligible_negative or is_home_poisson_dominant_minus_half):
                     continue
-                # Faixa de odd segura para -0.5 AH (piso elevado para 1.45 para evitar prêmios esmagados)
-                if c_odd < 1.45 or c_odd > 1.95:
+                # Faixa de odd segura para -0.5 AH: piso mínimo global de 1.60
+                if c_odd < 1.60 or c_odd > 1.95:
                     continue
                 required_prob = 58.0 if is_super_fav_crushed else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
                 required_ev = 8.0 if is_super_fav_crushed else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
@@ -1130,7 +1135,7 @@ def evaluate_and_select_best_ah_candidate(
                 # Linhas -0.75 AH e -1.0 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
                 if not is_eligible_negative:
                     continue
-                if c_odd < 1.50 or c_odd > 1.95:
+                if c_odd < 1.60 or c_odd > 1.95:
                     continue
                 required_prob = 58.0 if is_super_fav_crushed else 65.0
                 required_ev = 8.0 if is_super_fav_crushed else 15.0
@@ -1156,8 +1161,8 @@ def evaluate_and_select_best_ah_candidate(
             if not (is_fav_in_form or is_eligible_negative or (cand_pts_eff >= opp_pts_eff + 2.0)):
                 continue
 
-            # 5. Faixa de odd segura da linha de handicap: 1.50 a 1.95
-            if c_odd < 1.50 or c_odd > 1.95:
+            # 5. Faixa de odd segura da linha de handicap: piso mínimo global de 1.60
+            if c_odd < 1.60 or c_odd > 1.95:
                 continue
 
             # 6. Proibir terminantemente se a equipe estiver em curva descendente
@@ -1172,14 +1177,13 @@ def evaluate_and_select_best_ah_candidate(
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
                 continue
             if is_tier1_massacre_close_u5j and c_line == 0.0:
-                # Exige faixa de odd rentável (>= 1.50) e Valor Esperado Positivo canônico (+EV >= 5.0%)
-                if c_odd < 1.50 or c_odd > 2.35:
+                # Exige faixa de odd rentável (piso global >= 1.60) e Valor Esperado Positivo canônico (+EV >= 5.0%)
+                if c_odd < 1.60 or c_odd > 2.35:
                     continue
                 required_prob = 55.0
                 required_ev = 5.0
             else:
-                if c_odd < 1.50 or c_odd > 2.10:
-                    continue
+                # Linha 0.0 AH padrão:
                 # Trava de Proteção de Mando de Campo em Odds Altas para Visitante (0.0 AH @ >= 1.60):
                 # Se o candidato for visitante e a odd for >= 1.60, o risco de mando desfavorável é crítico.
                 # Só autoriza se o visitante tiver superioridade dominante no U5J (vantagem >= 5.0 pts) e mandante fragilizado (<= 4 pts).
@@ -1200,8 +1204,52 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # Avaliação com a Matriz de Poisson
-        res = evaluate_ah_line_poisson(poisson_matrix, c_is_away, c_line, c_odd)
+        # =========================================================================
+        # TRAVA SOBERANA DE +EV CONTRA O MERCADO 1X2 E REDIRECIONAMENTO VAVE
+        # Calcula a Odd Justa de Mercado des-margem a partir do consenso 1X2 oficial.
+        # Se a odd da Betano for deprimida (c_odd < mkt_fair_odd ou c_odd < 1.60),
+        # projeta a cotação mínima aprovada na Vave (max(1.60, mkt_fair_odd * 1.03))
+        # para NÃO decretar NO_BET caso haja valor real na Vave.
+        # =========================================================================
+        eval_odd = c_odd
+        is_vave_line = False
+        original_betano_odd = c_odd
+
+        if cand_odd > 1.0 and opp_odd > 1.0:
+            draw_odd_val = raw_d_odd if raw_d_odd > 1.0 else 3.15
+            inv_c = 1.0 / cand_odd
+            inv_o = 1.0 / opp_odd
+            inv_d = 1.0 / draw_odd_val
+            inv_sum = inv_c + inv_o + inv_d
+
+            p_justa_c = inv_c / inv_sum
+            p_justa_o = inv_o / inv_sum
+            p_justa_d = inv_d / inv_sum
+
+            if c_line == 0.0:
+                p_no_draw = p_justa_c + p_justa_o
+                p_dnb = p_justa_c / p_no_draw if p_no_draw > 0 else 0.5
+                mkt_fair_odd = (1.0 / p_dnb) if p_dnb > 0 else 99.0
+            elif c_line == -0.25:
+                mkt_fair_odd = 1.0 + (0.50 * p_justa_d + p_justa_o) / p_justa_c if p_justa_c > 0 else 99.0
+            elif c_line == -0.5:
+                mkt_fair_odd = (1.0 / p_justa_c) if p_justa_c > 0 else 99.0
+            else:
+                mkt_fair_odd = 0.0
+
+            if mkt_fair_odd > 0.0 and (c_odd < mkt_fair_odd or c_odd < 1.60):
+                # Betano com odd deprimida / sem margem de valor:
+                # Projeta cotação mínima aprovada para operar na Vave
+                vave_target_odd = max(1.60, round(mkt_fair_odd * 1.03, 2))
+                eval_odd = vave_target_odd
+                is_vave_line = True
+
+        # Faixa de odd segura operacional: piso mínimo global de 1.60
+        if eval_odd < 1.60 or eval_odd > 2.35:
+            continue
+
+        # Avaliação com a Matriz de Poisson usando eval_odd
+        res = evaluate_ah_line_poisson(poisson_matrix, c_is_away, c_line, eval_odd)
         ev = res['ev_percent']
         prob_eff = res['prob_eff']
 
@@ -1231,6 +1279,14 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy = dict(cand)
             cand_copy['eval'] = res
             cand_copy['score'] = score
+            cand_copy['odd'] = eval_odd
+            cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
+            if is_vave_line:
+                cand_copy['is_vave'] = True
+                cand_copy['odd'] = eval_odd
+                cand_copy['betano_odd'] = original_betano_odd
+                cand_copy['bookmaker'] = 'Vave'
+                cand_copy['source'] = 'VAVE_APPROVED'
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge
             approved.append(cand_copy)
@@ -1701,7 +1757,8 @@ def calculate_unified_handicap_recommendation(
         away_ppg=a_ppg_val,
         home_zone=fixture_dict.get('home_zone'),
         away_zone=fixture_dict.get('away_zone'),
-        standings_motivation_score=standings_mot_val
+        standings_motivation_score=standings_mot_val,
+        odd_draw=odd_d
     )
 
     if not best_cand:
@@ -1890,6 +1947,21 @@ def calculate_unified_handicap_recommendation(
     best_cand['destaque'] = is_destaque
     app_cat = determine_gatekeeper_category('APROVADO', selected_palpite, raw_calc, best_cand)
     best_cand['gatekeeper_category'] = app_cat
+
+    if best_cand.get('is_vave'):
+        v_odd = best_cand['odd']
+        b_odd = best_cand.get('betano_odd', 0.0)
+        f_odd = best_cand.get('mkt_fair_odd', 0.0)
+        vave_note = (
+            f"\n\n💡 Cotação Betano (@ {b_odd:.2f}) deprimida sem margem. "
+            f"Linha APROVADA na Vave: {selected_palpite} com odd a partir de @ {v_odd:.2f} "
+            f"(Ponto de equilíbrio justo: @ {f_odd:.2f}) com valor esperado positivo real (+EV)."
+        )
+        if '||' in compound_r:
+            parts = compound_r.split('||', 1)
+            compound_r = parts[0] + vave_note + ' ||' + parts[1]
+        else:
+            compound_r += vave_note
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
 
@@ -3210,7 +3282,12 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 prob_poisson = ev_data.get('prob_eff')
                 ev_perc = ev_data.get('ev_percent')
                 destaque = 1 if (best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1) else 0
-                msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
+                if best_cand.get('is_vave'):
+                    v_odd = best_cand['odd']
+                    b_odd = best_cand.get('betano_odd', c_odd)
+                    msg = f"Gatekeeper AH Aprovado na Vave (+EV): Cotação Betano (@ {b_odd:.2f}) deprimida. Linha aprovada na Vave com odd a partir de @ {v_odd:.2f} (Odd Justa de Mercado: @ {odd_justa:.2f}) | EV: +{ev_perc:.1f}%."
+                else:
+                    msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."
 

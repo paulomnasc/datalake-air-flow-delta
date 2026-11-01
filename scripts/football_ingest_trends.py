@@ -2441,10 +2441,32 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
             usuario_id = aposta['usuario_id']
             valor = float(aposta['valor_aposta'] or 0.0)
 
-            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG,
+            # porém DEVE gerar ALERTA DE RISCO IMEDIATO (Sininho) e sinalização visual para permitir saída preventiva/cashout!
             is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
             if is_confirmada:
-                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Disparando Alerta de Saída Preventiva.")
+                cursor.execute("""
+                    UPDATE apostas 
+                    SET auditoria_ia_status = 'ALERTA_RISCO',
+                        updated_at = NOW() 
+                    WHERE id = %s
+                """, (aposta_id,))
+                try:
+                    cursor.execute("""
+                        INSERT INTO notificacoes_usuario (
+                            usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                        ) VALUES (
+                            %s, %s, %s, 'ALERTA_MERCADO_DRIFT', %s, %s, %s, 0, 1, NOW()
+                        )
+                    """, (
+                        usuario_id, aposta_id, fixture_id,
+                        f"🚨 Alerta de Mercado: NO_BET em {aposta['time_casa']} vs {aposta['time_fora']}",
+                        f"O Gatekeeper reclassificou a partida como NO_BET ({str(motivo)[:150]}). Avalie cashout ou cancelamento na sua casa de apostas.",
+                        f"/apostas?fixture_id={fixture_id}"
+                    ))
+                except Exception as e_notif:
+                    pass
                 continue
 
             # Se o motivo for exclusivamente falta de odds 1X2, mas a aposta já possui odd de mercado válida (ex: Betano AH),

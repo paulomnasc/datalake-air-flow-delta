@@ -786,22 +786,30 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
     <!-- Sidebar Retrátil e Pinável de Notificações Fixada à Direita -->
     <aside id="sidebar-notificacoes" class="sidebar-notificacoes-drawer" aria-label="Central de Alertas e Notificações">
-        <div class="sidebar-notif-header p-3 d-flex justify-content-between align-items-center border-bottom border-secondary" style="background: #0f172a;">
+        <!-- Topo da Sidebar: Título e Controles de Janela -->
+        <div class="sidebar-notif-header px-3 py-2 d-flex justify-content-between align-items-center" style="background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.1);">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-bell-fill text-warning fs-5"></i>
-                <span class="fw-bold text-light" style="font-size: 0.95rem;">Alertas</span>
-                <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0 ms-2" id="btn-marcar-todas-lidas" style="font-size: 0.75rem;" title="Marcar todos os alertas como lidos">
-                    Marcar lidos
-                </button>
+                <span class="fw-bold text-light" style="font-size: 0.95rem; letter-spacing: 0.3px;">Notificações</span>
             </div>
             <div class="d-flex align-items-center gap-1">
-                <button type="button" class="btn btn-sm btn-outline-secondary p-1" id="btn-pin-sidebar-notif" title="Fixar barra lateral aberta" style="border-radius: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
-                    <i class="bi bi-pin-angle fs-6" id="icon-pin-sidebar"></i>
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-pin-sidebar-notif" title="Fixar barra lateral aberta" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-pin-angle fs-6 text-light" id="icon-pin-sidebar"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary p-1" id="btn-close-sidebar-notif" title="Recolher barra lateral (Esc)" style="border-radius: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
-                    <i class="bi bi-chevron-double-right text-light fs-6"></i>
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-close-sidebar-notif" title="Recolher barra lateral" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-x-lg fs-6 text-light"></i>
                 </button>
             </div>
+        </div>
+
+        <!-- Barra de Ações Rápidas -->
+        <div class="sidebar-notif-toolbar px-3 py-2 d-flex justify-content-between align-items-center" style="background: #162032; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-marcar-todas-lidas" style="font-size: 0.76rem; font-weight: 500;" title="Marcar todos os alertas como lidos">
+                <i class="bi bi-check2-all"></i> Marcar lidos
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-limpar-historico-notif" style="font-size: 0.76rem; font-weight: 500;" title="Limpar todo o histórico de alertas">
+                <i class="bi bi-trash3"></i> Limpar histórico
+            </button>
         </div>
         <div id="lista-notificacoes-container" class="sidebar-notif-body flex-grow-1" style="overflow-y: auto;">
             <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
@@ -944,6 +952,22 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         color: #6ee7b7 !important;
         transform: scale(1.08);
     }
+    .btn-excluir-notif:hover {
+        background: rgba(239, 68, 68, 0.35) !important;
+        color: #fca5a5 !important;
+        transform: scale(1.08);
+    }
+
+    /* Blindagem Global contra Overflow Horizontal e Proteção da Navbar */
+    html, body {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    .navbar.sticky-top {
+        width: 100% !important;
+        max-width: 100vw !important;
+        box-sizing: border-box !important;
+    }
 
     /* Sidebar Retrátil e Pinável de Notificações Fixada à Direita */
     .sidebar-notificacoes-drawer {
@@ -984,18 +1008,27 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         pointer-events: auto;
     }
 
-    /* Estado Pinado no Desktop */
-    @media (min-width: 1200px) {
-        body.sidebar-notif-pinned {
-            padding-right: 380px !important;
-            transition: padding-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Botões do Topo e Toolbar da Sidebar */
+    .sidebar-notif-header button:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+    }
+    .sidebar-notif-toolbar button:hover {
+        filter: brightness(1.2);
+    }
+
+    /* Estado Pinado no Desktop: Ajuste suave no conteúdo sem quebrar a navbar nem o body */
+    @media (min-width: 1400px) {
+        body.sidebar-notif-pinned #main-content {
+            margin-right: 380px !important;
+            transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        body.sidebar-notif-pinned .sidebar-notificacoes-drawer {
-            box-shadow: -2px 0 12px rgba(0, 0, 0, 0.3);
-        }
-        body.sidebar-notif-pinned .sidebar-notif-backdrop {
-            display: none !important;
-        }
+    }
+    body.sidebar-notif-pinned .sidebar-notificacoes-drawer {
+        box-shadow: -2px 0 16px rgba(0, 0, 0, 0.4);
+    }
+    body.sidebar-notif-pinned .sidebar-notif-backdrop {
+        display: none !important;
     }
     </style>
 
@@ -1005,6 +1038,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const markReadUrl = '<?= base_url('notificacoes/marcar-lida') ?>';
         const markAllReadUrl = '<?= base_url('notificacoes/marcar-todas-lidas') ?>';
         const unpinUrl = '<?= base_url('notificacoes/despinar') ?>';
+        const deleteNotifUrl = '<?= base_url('notificacoes/excluir') ?>';
+        const clearHistoryUrl = '<?= base_url('notificacoes/limpar-historico') ?>';
 
         let popupsExibidos = new Set();
         try {
@@ -1163,6 +1198,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                             ` : `
                                                 <span class="notif-time">${timeStr}</span>
                                             `}
+                                            <button type="button" class="btn btn-xs btn-excluir-notif" data-notif-id="${n.id}" title="Excluir este alerta da lista" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; padding: 2px 6px; color: #f87171; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                     <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
@@ -1196,6 +1234,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                                     <i class="bi bi-check2-all text-info"></i>
                                                 </span>
                                             `}
+                                            <button type="button" class="btn btn-xs btn-excluir-notif" data-notif-id="${n.id}" title="Excluir este alerta da lista" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; padding: 2px 6px; color: #f87171; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                     <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
@@ -1255,6 +1296,57 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         });
                     });
 
+                    // Excluir alerta individual da lista
+                    container.querySelectorAll('.btn-excluir-notif').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nid = this.getAttribute('data-notif-id');
+                            if (!nid) return;
+
+                            const itemEl = this.closest('.notif-item');
+                            if (itemEl) {
+                                itemEl.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+                                itemEl.style.opacity = '0';
+                                itemEl.style.transform = 'translateX(20px)';
+                                setTimeout(() => {
+                                    const wasUnread = itemEl.classList.contains('nao-lida');
+                                    itemEl.remove();
+
+                                    // Se era não lido, decrementa badge
+                                    if (wasUnread) {
+                                        const badge = document.getElementById('badge-notificacoes');
+                                        if (badge) {
+                                            let count = parseInt(badge.textContent || '0');
+                                            if (count > 1) {
+                                                badge.textContent = (count - 1);
+                                            } else {
+                                                badge.style.display = 'none';
+                                                badge.textContent = '0';
+                                            }
+                                        }
+                                    }
+
+                                    // Se lista ficou vazia, exibe empty state
+                                    if (!container.querySelector('.notif-item')) {
+                                        container.innerHTML = `
+                                            <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                                                <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                                                Nenhuma notificação recente.
+                                            </div>
+                                        `;
+                                    }
+                                }, 250);
+                            }
+
+                            // Dispara exclusão no backend
+                            fetch(deleteNotifUrl + '/' + nid, {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                        });
+                    });
+
                     // Despinar no clique do botão despinar dentro do dropdown
                     container.querySelectorAll('.btn-despinar-item').forEach(btn => {
                         btn.addEventListener('click', function(e) {
@@ -1287,7 +1379,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // Evento de clique para marcar lida e direcionar para tela de apostas com scroll e highlight
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
-                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif') || e.target.closest('.btn-marcar-lida-item')) return;
+                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif') || e.target.closest('.btn-marcar-lida-item') || e.target.closest('.btn-excluir-notif')) return;
 
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
@@ -1706,6 +1798,37 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         document.querySelectorAll('.notif-item.nao-lida').forEach(el => {
                             el.classList.remove('nao-lida');
                         });
+                    });
+                });
+            }
+
+            const btnLimpar = document.getElementById('btn-limpar-historico-notif');
+            if (btnLimpar) {
+                btnLimpar.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!confirm('Deseja realmente limpar todo o histórico de alertas?')) return;
+
+                    fetch(clearHistoryUrl, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(res => res.json())
+                    .then(() => {
+                        const badge = document.getElementById('badge-notificacoes');
+                        if (badge) {
+                            badge.style.display = 'none';
+                            badge.textContent = '0';
+                        }
+                        const container = document.getElementById('lista-notificacoes-container');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                                    <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                                    Nenhuma notificação recente.
+                                </div>
+                            `;
+                        }
                     });
                 });
             }

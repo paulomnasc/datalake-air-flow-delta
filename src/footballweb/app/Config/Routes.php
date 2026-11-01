@@ -94,6 +94,8 @@ $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLid
 $routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
 $routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
 $routes->post('/notificacoes/despinar/(:num)', 'ApostaController::despinarNotificacao/$1', ['as' => 'notificacoes.despinar']);
+$routes->post('/notificacoes/excluir/(:num)', 'ApostaController::excluirNotificacao/$1', ['as' => 'notificacoes.excluir']);
+$routes->post('/notificacoes/limpar-historico', 'ApostaController::limparHistoricoNotificacoes', ['as' => 'notificacoes.limpar_historico']);
 
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira

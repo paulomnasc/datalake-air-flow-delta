@@ -3819,9 +3819,9 @@ class ApostaController extends BaseController
             ->where("n.tipo != 'APOSTA_CANCELADA'")
             ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
-            ->orderBy('n.lida', 'ASC')
-            ->orderBy('n.criado_em', 'DESC')
-            ->limit(15)
+            ->orderBy('COALESCE(ft.fixture_date, n.criado_em)', 'DESC', false)
+            ->orderBy('n.id', 'DESC')
+            ->limit(35)
             ->get()
             ->getResultArray();
 
@@ -3906,6 +3906,47 @@ class ApostaController extends BaseController
             ]);
 
         return $this->response->setJSON(['success' => true, 'message' => 'Alerta despinado com sucesso']);
+    }
+
+    /**
+     * Exclui uma notificação individual do usuário.
+     */
+    public function excluirNotificacao($id = null)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $id = (int)$id;
+
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('id', $id)
+            ->where('usuario_id', $userId)
+            ->delete();
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Notificação excluída com sucesso']);
+    }
+
+    /**
+     * Limpa todo o histórico de notificações do usuário.
+     */
+    public function limparHistoricoNotificacoes()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->delete();
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Histórico de notificações limpo com sucesso']);
     }
 
 

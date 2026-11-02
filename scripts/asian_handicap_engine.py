@@ -82,6 +82,7 @@ def compute_team_u5j_efficiency(last5_dict: dict) -> float:
 
         pts_eff = 0.0
         tier1_count = 0
+        tier1_draws = 0
         pts_raw = []
         for m in sorted_matches[:5]:
             opp = m.get('opponent', '')
@@ -100,6 +101,8 @@ def compute_team_u5j_efficiency(last5_dict: dict) -> float:
             elif res == 'E':
                 pts_raw.append(1)
                 pts_eff += 2.5 if is_t1 else 1.0
+                if is_t1:
+                    tier1_draws += 1
             elif res == 'D':
                 pts_raw.append(0)
                 if is_t1:
@@ -153,6 +156,12 @@ def compute_team_u5j_efficiency(last5_dict: dict) -> float:
                 trend_label = "🛡️ Estável"
                 inv_desc = "Invencibilidade sólida (0 derrotas)" if num_d == 0 else "Rendimento seguro (apenas 1 derrota)"
                 trend_desc = f"Rendimento Sólido / Quase Invicto ({num_v}V-{num_e}E-{num_d}D) - {inv_desc}"
+            elif tier1_draws >= 1 and num_d <= 1:
+                # Empates contra Gigantes Tier 1 comprovam Resiliência Competitiva de Elite, JAMAIS estagnação!
+                trend = "CURVA_ESTAVEL"
+                trend_factor = 1.05  # Bônus de resiliência competitiva contra gigantes
+                trend_label = "🛡️ Estável / Resiliência de Elite"
+                trend_desc = f"Resiliência Competitiva de Elite ({num_v}V-{num_e}E-{num_d}D com {tier1_draws} empates contra Gigantes Tier 1)"
             elif (num_e >= 3) or (pts_raw[0] == 1 and pts_raw[1] == 1) or (num_v <= 1 and num_e >= 2):
                 trend = "CURVA_ESTAGNADA"
                 trend_factor = 0.90  # -10% por platô mediano / excesso de empates
@@ -892,8 +901,23 @@ def evaluate_and_select_best_ah_candidate(
         # (eficiência <= 1.0 ou 4+ derrotas) enfrentando visitante invicto/estável de alta performance.
         # =========================================================================
         is_home_in_true_collapse = (opp_pts_eff <= 1.0 or opp_d >= 4) and (cand_pts_eff >= 8.0 and cand_d <= 1)
+        # Exceção de Incoerência de Mercado com Superioridade de Tabela e Enfrentamento de Elite:
+        # Se a casa de aposta precifica o mandante como favorito no 1X2, mas o visitante comprova:
+        # 1) Superioridade ou equilíbrio na tabela (a_rank_val <= h_rank_val e a_ppg_val >= h_ppg_val ou a_ppg_val >= 1.30); E
+        # 2) Superioridade no U5J (cand_pts_eff > opp_pts_eff); E
+        # 3) Enfrentamento de elite comprovado (cand_l5.get('tier1_opponents', 0) >= 2 ou cand_pts_eff >= 14.0 or is_tier1); E
+        # 4) Estabilidade competitiva (cand_d <= 1 e cand_trend != "CURVA_DESCENDENTE"); E
+        # 5) Linha de proteção de capital segura: c_line == 0.0 (Empate Anula Aposta):
+        is_away_standing_and_u5j_dominant = (
+            c_is_away and c_line == 0.0 and
+            (a_rank_val > 0 and h_rank_val > 0 and a_rank_val <= h_rank_val) and
+            (a_ppg_val >= h_ppg_val or a_ppg_val >= 1.30) and
+            (cand_pts_eff >= opp_pts_eff + 2.0) and
+            (cand_l5.get('tier1_opponents', 0) >= 2 or cand_pts_eff >= 14.0 or is_tier1) and
+            cand_d <= 1 and cand_trend != "CURVA_DESCENDENTE"
+        )
         if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
-            if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15 and not is_home_in_true_collapse:
+            if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15 and not (is_home_in_true_collapse or is_away_standing_and_u5j_dominant):
                 continue
 
         # =========================================================================
@@ -1186,9 +1210,19 @@ def evaluate_and_select_best_ah_candidate(
                 # Linha 0.0 AH padrão:
                 # Trava de Proteção de Mando de Campo em Odds Altas para Visitante (0.0 AH @ >= 1.60):
                 # Se o candidato for visitante e a odd for >= 1.60, o risco de mando desfavorável é crítico.
-                # Só autoriza se o visitante tiver superioridade dominante no U5J (vantagem >= 5.0 pts) e mandante fragilizado (<= 4 pts).
+                # Autoriza se:
+                # 1) Superioridade dominante no U5J (vantagem >= 5.0 pts) e mandante fragilizado (<= 4 pts); OU
+                # 2) Superioridade Estrutural em Tabela (rank <= mandante, ppg >= mandante), U5J superior e enfrentamento Tier 1:
                 if c_is_away and c_line == 0.0 and c_odd >= 1.60:
-                    if not (cand_pts_eff >= opp_pts_eff + 5.0 and opp_pts <= 4):
+                    has_crushed_home = (cand_pts_eff >= opp_pts_eff + 5.0 and opp_pts <= 4)
+                    has_standing_dominance = (
+                        (a_rank_val > 0 and h_rank_val > 0 and a_rank_val <= h_rank_val) and
+                        (a_ppg_val >= h_ppg_val or a_ppg_val >= 1.30) and
+                        (cand_pts_eff >= opp_pts_eff + 2.0) and
+                        (cand_l5.get('tier1_opponents', 0) >= 2 or cand_pts_eff >= 14.0 or is_tier1) and
+                        cand_d <= 1 and cand_trend != "CURVA_DESCENDENTE"
+                    )
+                    if not (has_crushed_home or has_standing_dominance):
                         continue
                 required_prob = min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
@@ -1204,8 +1238,8 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # Faixa de odd segura operacional: piso mínimo global de 1.60 e teto de 2.35 (Regra 12 de Ouro - Apenas cotações reais)
-        if c_odd < 1.60 or c_odd > 2.35:
+        # Faixa de odd segura operacional: piso mínimo global de 1.60 e teto de 2.55 (Regra 12 de Ouro - Apenas cotações reais)
+        if c_odd < 1.60 or c_odd > 2.55:
             continue
 
         # Trava Soberana de +EV contra o Consenso 1X2 de Mercado (Des-margem)
@@ -1231,8 +1265,10 @@ def evaluate_and_select_best_ah_candidate(
                 mkt_fair_odd = (1.0 / p_justa_c) if p_justa_c > 0 else 99.0
 
             # Se a cotação real da casa for menor que a odd justa de mercado, a aposta não tem margem (+EV negativo)
-            if mkt_fair_odd > 0.0 and c_odd < mkt_fair_odd:
-                continue
+            # Exceção Estrutural: Visitante com Superioridade de Fundamentos comprovada (a distorção está no 1X2 invertido da casa)
+            if not is_away_standing_and_u5j_dominant:
+                if mkt_fair_odd > 0.0 and c_odd < mkt_fair_odd:
+                    continue
 
         eval_odd = c_odd
 
@@ -1251,7 +1287,7 @@ def evaluate_and_select_best_ah_candidate(
             inv_opp = 1.0 / opp_odd
             market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
             p_pure_win = sum(p for (x, y), p in poisson_matrix.items() if (y > x if c_is_away else x > y)) * 100.0
-            max_divergence = 25.0 if (cand_is_better_performance or is_away_momentum_surge) else 18.0
+            max_divergence = 30.0 if (cand_is_better_performance or is_away_momentum_surge or is_away_standing_and_u5j_dominant) else 18.0
             if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
 
@@ -1270,7 +1306,7 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['odd'] = eval_odd
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
-            cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge
+            cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge or is_away_standing_and_u5j_dominant
             approved.append(cand_copy)
 
     if not approved:
@@ -1752,6 +1788,72 @@ def calculate_unified_handicap_recommendation(
         odd_draw=odd_d
     )
 
+    # =========================================================================
+    # AUDITORIA COGNITIVA PRÉ-DECISÃO DA IA SENTINELA (INTEGRAÇÃO ESTRUTURAL)
+    # A IA participa ativamente de todas as etapas de predição e decisão:
+    # 1) Desbloqueia oportunidades +EV com proteção de capital (ex: 0.0 AH ou +0.25 AH)
+    #    vetadas por modelos quantitativos que sofrem viés de mando de campo;
+    # 2) Audita candidatas aprovadas para barrar desfalques críticos na espinha dorsal.
+    # =========================================================================
+    ia_audit_res = None
+    if betano_lines and fixture_dict:
+        try:
+            from gemini_sentinel import avaliar_oportunidade_handicap_com_ia
+            dossie_ia = {
+                'fixture_id': fixture_id,
+                'home_team': home_team,
+                'away_team': away_team,
+                'home_team_id': h_tid,
+                'away_team_id': a_tid,
+                'league_id': fixture_dict.get('league_id'),
+                'league_name': fixture_dict.get('league_name', ''),
+                'country': fixture_dict.get('country_name', ''),
+                'fixture_date': str(fixture_dict.get('fixture_date', '')),
+                'odd_home': odd_h,
+                'odd_draw': odd_d,
+                'odd_away': odd_a,
+                'home_rank': h_rk_val,
+                'away_rank': a_rk_val,
+                'home_ppg': h_ppg_val,
+                'away_ppg': a_ppg_val,
+                'u5j_home': h_l5,
+                'u5j_away': a_l5,
+                'xg_home': xg_h,
+                'xg_away': xg_a,
+                'betano_lines': betano_lines
+            }
+            ia_audit_res = avaliar_oportunidade_handicap_com_ia(dossie_ia)
+
+            if not best_cand and ia_audit_res.get('decisao') == 'APROVADO' and ia_audit_res.get('matched_cand'):
+                best_cand = ia_audit_res['matched_cand']
+                conf_ia = float(ia_audit_res.get('grau_confianca') or 70.0)
+                odd_ia = float(best_cand.get('odd') or 2.0)
+                odd_justa_ia = round(100.0 / conf_ia, 2) if conf_ia > 0 else 1.80
+                ev_ia = round(((odd_ia / odd_justa_ia) - 1.0) * 100.0, 1) if odd_justa_ia > 0 else 15.0
+                best_cand['eval'] = {
+                    'odd_justa': odd_justa_ia,
+                    'prob_eff': conf_ia,
+                    'ev_percent': ev_ia,
+                    'p_win': conf_ia,
+                    'p_half_win': 0.0,
+                    'p_push': round(max(0.0, 100.0 - conf_ia), 1),
+                    'p_half_loss': 0.0,
+                    'p_loss': 0.0
+                }
+                best_cand['destaque'] = 1
+                best_cand['gatekeeper_category'] = 'Oportunidade +EV Validada por IA'
+                best_cand['ia_audit'] = ia_audit_res
+                approved = [best_cand]
+                print(f"🤖 [IA Sentinela AH / Oportunidade Desbloqueada] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' @ {odd_ia:.2f} aprovada pela IA (Confiança {conf_ia:.1f}%).")
+            elif best_cand and ia_audit_res.get('alerta_sinistro'):
+                print(f"🚨 [IA Sentinela AH / Veto por Sinistro] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' vetada pela IA devido a desfalques críticos.")
+                best_cand = None
+                approved = []
+            elif best_cand and ia_audit_res:
+                best_cand['ia_audit'] = ia_audit_res
+        except Exception as e_ia_sent:
+            print(f"⚠️ [IA Sentinela AH] Aviso ao processar auditoria cognitiva: {e_ia_sent}")
+
     if not best_cand:
         sug = "Sem Entrada (Abstenção)"
         conf = 50.0
@@ -1878,14 +1980,24 @@ def calculate_unified_handicap_recommendation(
 
     h_eff = compute_team_u5j_efficiency(h_l5)
     a_eff = compute_team_u5j_efficiency(a_l5)
-    raw_calc = (
-        f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
-        f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
-        f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
-        f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team} | "
-        f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
-        f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
-    )
+    ia_audit_info = best_cand.get('ia_audit') or {}
+    ia_parecer_texto = ia_audit_info.get('parecer_explicativo') or ''
+    if ia_parecer_texto:
+        raw_calc = (
+            f"🎯 GATEKEEPER AH APROVADO POR AUDITORIA COGNITIVA DA IA (+EV {ev_perc:+.1f}%) | "
+            f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
+            f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
+            f"Parecer Tático da IA: {ia_parecer_texto}"
+        )
+    else:
+        raw_calc = (
+            f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
+            f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
+            f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
+            f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team} | "
+            f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
+            f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
+        )
     detalhe_calculo = format_gatekeeper_result('APROVADO', selected_palpite, raw_calc)
 
     compound_r = compose_compound_ah_reasoning(
@@ -2831,6 +2943,11 @@ def sync_fixture_and_bet_handicap(
     cotacao_brl_padrao = float(m_def['cotacao_brl']) if m_def else 1.0
     casas_dec_padrao = int(m_def['casas_decimais']) if m_def else 2
 
+    ia_audit_info = (best_cand or {}).get('ia_audit') or {}
+    ia_status = "CONFIRMADO" if ia_audit_info else None
+    ia_resumo = ia_audit_info.get("resumo_tatico")
+    ia_parecer = ia_audit_info.get("parecer_explicativo")
+
     for uid in user_ids:
         # Consulta stake ativa parametrizada do usuário em metas_diarias_config
         cursor.execute("""
@@ -2883,23 +3000,46 @@ def sync_fixture_and_bet_handicap(
             was_canceled = (ja_existe.get('status') == 'Cancelada')
 
             # Atualizar aposta pendente ou reativar aposta cancelada não confirmada com compound_reasoning uniforme e stake parametrizada
-            cursor.execute("""
-                UPDATE apostas SET
-                    palpite = %s,
-                    odd = %s,
-                    odd_justa = %s,
-                    probabilidade_poisson = %s,
-                    ev_percentual = %s,
-                    status_gatekeeper = 'APROVADO',
-                    gatekeeper_category = %s,
-                    valor_aposta = %s,
-                    ganhos_potenciais = %s,
-                    resultado_detalhado = %s,
-                    destaque = %s,
-                    status = 'Pendente',
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, valor_aposta, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
+            if ia_status:
+                cursor.execute("""
+                    UPDATE apostas SET
+                        palpite = %s,
+                        odd = %s,
+                        odd_justa = %s,
+                        probabilidade_poisson = %s,
+                        ev_percentual = %s,
+                        status_gatekeeper = 'APROVADO',
+                        gatekeeper_category = %s,
+                        valor_aposta = %s,
+                        ganhos_potenciais = %s,
+                        resultado_detalhado = %s,
+                        destaque = %s,
+                        status = 'Pendente',
+                        auditoria_ia_status = %s,
+                        auditoria_ia_resumo = %s,
+                        auditoria_ia_parecer = %s,
+                        auditoria_ia_checked_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, valor_aposta, ganhos_potenciais, compound_reasoning, destaque_val, ia_status, ia_resumo, ia_parecer, ja_existe['id']))
+            else:
+                cursor.execute("""
+                    UPDATE apostas SET
+                        palpite = %s,
+                        odd = %s,
+                        odd_justa = %s,
+                        probabilidade_poisson = %s,
+                        ev_percentual = %s,
+                        status_gatekeeper = 'APROVADO',
+                        gatekeeper_category = %s,
+                        valor_aposta = %s,
+                        ganhos_potenciais = %s,
+                        resultado_detalhado = %s,
+                        destaque = %s,
+                        status = 'Pendente',
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, app_cat, valor_aposta, ganhos_potenciais, compound_reasoning, destaque_val, ja_existe['id']))
             print(f"🔄 [Aposta AH Atualizada/Reativada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f} | Categoria: '{app_cat}'")
             updated_count += 1
 
@@ -2929,22 +3069,42 @@ def sync_fixture_and_bet_handicap(
                 continue
 
             # Inserir nova aposta
-            cursor.execute("""
-                INSERT INTO apostas (
-                    usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    odd_justa, probabilidade_poisson, ev_percentual,
-                    valor_aposta, ganhos_potenciais, status_gatekeeper, gatekeeper_category, status, confirmada, destaque, data_hora_jogo, resultado_detalhado, criado_em, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
-                    %s, %s, %s,
-                    %s, %s, 'APROVADO', %s, 'Pendente', %s, %s, %s, %s, NOW(), NOW()
-                )
-            """, (
-                uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, selected_palpite, odd_val,
-                odd_justa, prob_poisson, ev_perc,
-                valor_aposta, ganhos_potenciais, app_cat, confirmada_val, destaque_val, fixture_date,
-                compound_reasoning
-            ))
+            if ia_status:
+                cursor.execute("""
+                    INSERT INTO apostas (
+                        usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
+                        odd_justa, probabilidade_poisson, ev_percentual,
+                        valor_aposta, ganhos_potenciais, status_gatekeeper, gatekeeper_category, status, confirmada, destaque, data_hora_jogo, resultado_detalhado,
+                        auditoria_ia_status, auditoria_ia_resumo, auditoria_ia_parecer, auditoria_ia_checked_at, criado_em, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
+                        %s, %s, %s,
+                        %s, %s, 'APROVADO', %s, 'Pendente', %s, %s, %s, %s,
+                        %s, %s, %s, NOW(), NOW(), NOW()
+                    )
+                """, (
+                    uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, selected_palpite, odd_val,
+                    odd_justa, prob_poisson, ev_perc,
+                    valor_aposta, ganhos_potenciais, app_cat, confirmada_val, destaque_val, fixture_date,
+                    compound_reasoning, ia_status, ia_resumo, ia_parecer
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO apostas (
+                        usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
+                        odd_justa, probabilidade_poisson, ev_percentual,
+                        valor_aposta, ganhos_potenciais, status_gatekeeper, gatekeeper_category, status, confirmada, destaque, data_hora_jogo, resultado_detalhado, criado_em, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
+                        %s, %s, %s,
+                        %s, %s, 'APROVADO', %s, 'Pendente', %s, %s, %s, %s, NOW(), NOW()
+                    )
+                """, (
+                    uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, selected_palpite, odd_val,
+                    odd_justa, prob_poisson, ev_perc,
+                    valor_aposta, ganhos_potenciais, app_cat, confirmada_val, destaque_val, fixture_date,
+                    compound_reasoning
+                ))
             aposta_id = cursor.lastrowid
             created_count += 1
             print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f} | Categoria: '{app_cat}'")
@@ -3011,41 +3171,87 @@ def sync_fixture_and_bet_handicap(
     app_cat_f = (cur_f.get("gatekeeper_category") if cur_f else None) or app_cat
 
     b1x2 = _betano_ah_1x2_cache.get(fixture_id)
-    if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
-        bm_label = b1x2.get('bookmaker', 'Betano').capitalize()
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                ah_suggestion = %s,
-                ah_confidence = %s,
-                ah_reasoning = %s,
-                gatekeeper_category = %s,
-                odd_home = %s,
-                casa_odd_home = %s,
-                odd_draw = %s,
-                casa_odd_draw = %s,
-                odd_away = %s,
-                casa_odd_away = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (
-            selected_palpite, prob_poisson, compound_reasoning, app_cat_f,
-            b1x2['casa'], bm_label,
-            b1x2['empate'], bm_label,
-            b1x2['visitante'], bm_label,
-            fixture_id
-        ))
-        print(f"🔗 [Sincronismo Card AH & 1X2] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Odds 1X2 {bm_label} ({b1x2['casa']}/{b1x2['empate']}/{b1x2['visitante']}).")
+    if ia_status:
+        if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
+            bm_label = b1x2.get('bookmaker', 'Betano').capitalize()
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    ah_reasoning = %s,
+                    gatekeeper_category = %s,
+                    odd_home = %s,
+                    casa_odd_home = %s,
+                    odd_draw = %s,
+                    casa_odd_draw = %s,
+                    odd_away = %s,
+                    casa_odd_away = %s,
+                    auditoria_ia_status = %s,
+                    auditoria_ia_resumo = %s,
+                    auditoria_ia_parecer = %s,
+                    auditoria_ia_checked_at = NOW(),
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (
+                selected_palpite, prob_poisson, compound_reasoning, app_cat_f,
+                b1x2['casa'], bm_label,
+                b1x2['empate'], bm_label,
+                b1x2['visitante'], bm_label,
+                ia_status, ia_resumo, ia_parecer,
+                fixture_id
+            ))
+            print(f"🔗 [Sincronismo Card AH & 1X2 & IA] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}', Odds 1X2 {bm_label} e Auditoria IA.")
+        else:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    ah_reasoning = %s,
+                    gatekeeper_category = %s,
+                    auditoria_ia_status = %s,
+                    auditoria_ia_resumo = %s,
+                    auditoria_ia_parecer = %s,
+                    auditoria_ia_checked_at = NOW(),
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (selected_palpite, prob_poisson, compound_reasoning, app_cat_f, ia_status, ia_resumo, ia_parecer, fixture_id))
+            print(f"🔗 [Sincronismo Card AH & IA] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Auditoria IA.")
     else:
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                ah_suggestion = %s,
-                ah_confidence = %s,
-                ah_reasoning = %s,
-                gatekeeper_category = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (selected_palpite, prob_poisson, compound_reasoning, app_cat_f, fixture_id))
-        print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Categoria '{app_cat_f}'.")
+        if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
+            bm_label = b1x2.get('bookmaker', 'Betano').capitalize()
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    ah_reasoning = %s,
+                    gatekeeper_category = %s,
+                    odd_home = %s,
+                    casa_odd_home = %s,
+                    odd_draw = %s,
+                    casa_odd_draw = %s,
+                    odd_away = %s,
+                    casa_odd_away = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (
+                selected_palpite, prob_poisson, compound_reasoning, app_cat_f,
+                b1x2['casa'], bm_label,
+                b1x2['empate'], bm_label,
+                b1x2['visitante'], bm_label,
+                fixture_id
+            ))
+            print(f"🔗 [Sincronismo Card AH & 1X2] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Odds 1X2 {bm_label} ({b1x2['casa']}/{b1x2['empate']}/{b1x2['visitante']}).")
+        else:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    ah_suggestion = %s,
+                    ah_confidence = %s,
+                    ah_reasoning = %s,
+                    gatekeeper_category = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (selected_palpite, prob_poisson, compound_reasoning, app_cat_f, fixture_id))
+            print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Categoria '{app_cat_f}'.")
 
     return created_count, updated_count, skipped_count
 

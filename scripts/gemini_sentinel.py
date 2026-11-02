@@ -835,6 +835,10 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
    * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Dados_MySQL, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou falha de dados.
    * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
    * REGRA DE FORÇA MÁXIMA E COPAS: O comparativo de titulares é realizado estritamente com a liga principal. Se a equipe escalou seus titulares habituais de liga (mesmo tendo poupado atletas em copas anteriores), reconheça como Força Máxima de Liga preservada.
+   * REGRA DE HIERARQUIA E PESO TÁTICO DOS DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO DE ELENCO):
+     - Ao analisar os desfalques e ausências na súmula oficial e notícias:
+       1) JOGADORES DECISIVOS / ESPINHA DORSAL (Alto Impacto / Sinistro Real): Artilheiro principal da equipe, armador/camisa 10, goleiro titular absoluto, ou capitão/líder técnico indispensável (ex: atacantes top decisivos como Gabigol, ou craques suspensos como Neymar). A ausência confirmada desses atletas desfigura a competitividade do time e justifica classificação de risco ALTO (Alerta de Sinistro).
+       2) PEÇAS DE COMPOSIÇÃO DE ELENCO / NÍVEL SUBSTITUÍVEL (Baixo Impacto / Sem Sinistro): Defensores comuns ou reservas com reposição direta de nível equivalente (ex: defensores secundários como Lucas Veríssimo), laterais suplentes, volantes com substitutos de mesmo perfil, ou atletas que já estavam no departamento médico há meses fora da dinâmica do time. A ausência desses atletas de rotação NUNCA DEVE disparar falso alarme nem classificar a partida como risco ALTO se a espinha dorsal e o poder de fogo do time estiverem preservados em campo.
    - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
    - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
    - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
@@ -1547,6 +1551,230 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
     finally:
         conn.close()
+
+
+_AI_HANDICAP_OPPORTUNITY_CACHE = {}
+
+def avaliar_oportunidade_handicap_com_ia(dossie: dict) -> dict:
+    """
+    Auditoria Cognitiva Pré-Decisão de Handicap Asiático (Gemini Pro / Grounding + Groq Fallback).
+    Permite à IA analisar o dossiê da partida (Tabela, U5J, Confrontos de Elite, Escalação e Linhas Betano)
+    ANTES da decisão final do Gatekeeper, destravando oportunidades de alto valor com proteção no empate
+    ou vetando apostas por desfalques críticos na espinha dorsal.
+    Regra 8: inicialização prévia de variáveis numéricas locais.
+    Regra 17: parecer limpo em linguagem natural (sem vazamento de memória ou fórmulas).
+    """
+    total_linhas = 0
+    fixture_id = dossie.get("fixture_id") or 0
+    cache_key = f"{fixture_id}_{len(dossie.get('betano_lines') or [])}"
+    if cache_key in _AI_HANDICAP_OPPORTUNITY_CACHE:
+        return _AI_HANDICAP_OPPORTUNITY_CACHE[cache_key]
+
+    home_team = dossie.get("home_team", "Mandante")
+    away_team = dossie.get("away_team", "Visitante")
+    league_name = dossie.get("league_name", "")
+    country = dossie.get("country", "")
+    fixture_date = str(dossie.get("fixture_date", ""))
+    odd_h = float(dossie.get("odd_home") or 0.0)
+    odd_d = float(dossie.get("odd_draw") or 0.0)
+    odd_a = float(dossie.get("odd_away") or 0.0)
+    h_rank = dossie.get("home_rank") or "N/D"
+    a_rank = dossie.get("away_rank") or "N/D"
+    h_ppg = float(dossie.get("home_ppg") or 0.0)
+    a_ppg = float(dossie.get("away_ppg") or 0.0)
+    u5j_h = dossie.get("u5j_home") or {}
+    u5j_a = dossie.get("u5j_away") or {}
+    xg_h = float(dossie.get("xg_home") or 0.0)
+    xg_a = float(dossie.get("xg_away") or 0.0)
+    betano_lines = dossie.get("betano_lines") or []
+    noticias_web = dossie.get("noticias_web") or ""
+
+    if not noticias_web:
+        try:
+            noticias_web = buscar_noticias_prejogo_web(home_team, away_team, league_name)
+        except Exception as e_not:
+            noticias_web = f"Pesquisa de notícias: sem ocorrências críticas ({e_not})."
+
+    linhas_formatadas = []
+    for bl in betano_lines:
+        total_linhas += 1
+        alvo = bl.get("target_team") or (away_team if bl.get("is_away") else home_team)
+        linhas_formatadas.append(f"  • {bl.get('palpite_str')} @ {float(bl.get('odd') or 0.0):.2f} (Time Alvo: {alvo}, Linha: {float(bl.get('line') or 0.0):+g})")
+    linhas_str = "\n".join(linhas_formatadas) if linhas_formatadas else "Nenhuma linha ativa retornada."
+
+    h_eff = u5j_h.get("pts_eff") or u5j_h.get("eff", 0.0)
+    a_eff = u5j_a.get("pts_eff") or u5j_a.get("eff", 0.0)
+    h_v = u5j_h.get("v", 0)
+    h_e = u5j_h.get("e", 0)
+    h_d = u5j_h.get("d", 0)
+    a_v = u5j_a.get("v", 0)
+    a_e = u5j_a.get("e", 0)
+    a_d = u5j_a.get("d", 0)
+    h_t1 = u5j_h.get("tier1_opponents", 0)
+    a_t1 = u5j_a.get("tier1_opponents", 0)
+
+    prompt_text = f"""
+Você é o Diretor Técnico e Auditor Estratégico de Apostas Esportivas do FootballWeb.
+Sua missão é realizar a AUDITORIA COGNITIVA PRÉ-DECISÃO para o mercado de Handicap Asiático (AH),
+superando a 'cegueira estatística' de algoritmos quantitativos puros que superestimam mandantes apenas pelo mando de campo.
+
+--- DOSSIÊ COMPLETO DA PARTIDA ---
+• Confronto: {home_team} vs {away_team}
+• Competição: {league_name} ({country}) | Data/Hora: {fixture_date}
+• Cotações 1X2 Oficiais da Casa: Mandante @ {odd_h:.2f} | Empate @ {odd_d:.2f} | Visitante @ {odd_a:.2f}
+• Classificação na Tabela: {home_team} ({h_rank}º lugar, {h_ppg:.2f} PPG) vs {away_team} ({a_rank}º lugar, {a_ppg:.2f} PPG)
+• Forma Recente (Últimos 5 Jogos):
+  - {home_team}: {h_v}V-{h_e}E-{h_d}D (Eficiência: {h_eff:.1f} pts, {h_t1} jogos contra clubes Tier 1)
+  - {away_team}: {a_v}V-{a_e}E-{a_d}D (Eficiência: {a_eff:.1f} pts, {a_t1} jogos contra clubes Tier 1)
+• Matriz Estatística Bruta (Poisson Tradicional): xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}
+  (Atenção: O modelo quantitativo puro aplica bônus fixo de campo e pode enviesar o mandante de forma cega).
+
+--- LINHAS REAIS DE HANDICAP ASIÁTICO ATIVAS NA BETANO ---
+{linhas_str}
+
+--- NOTÍCIAS RECENTES, PROVÁVEIS ESCALAÇÕES E DESFALQUES ---
+{noticias_web}
+
+--- DIRETRIZES MANDATÓRIAS DE JULGAMENTO TÁTICO ---
+1. AVALIAÇÃO DE HIERARQUIA E DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO):
+   - Artilheiro principal, líder criativo/camisa 10 absoluto ou goleiro titular fora sem substituto à altura = ALERTA_SINISTRO (Alto Impacto).
+   - Peças comuns, defensores suplentes ou rotações com substitutos de mesmo nível = Sem impacto crítico se a espinha dorsal e poder de fogo estiverem mantidos.
+2. DETECÇÃO DE VIÉS / INEFICIÊNCIA DE MERCADO DA BANCA:
+   - Se o visitante estiver com elenco qualificado (ex: estrelas como Gabigol, Coutinho), momento competitivo superior no U5J (especialmente pontuando contra gigantes Tier 1) e tabela equilibrada ou favorável, mas a banca precificou o mandante como favorito no 1X2 apenas pelo mando de campo:
+     -> Isto representa uma FALHA/VIÉS DE PRECIFICAÇÃO DA CASA.
+   - Linhas defensivas do visitante com proteção no empate (como 0.0 AH / Empate Anula Aposta ou +0.25 AH) oferecem VALOR ESPERADO ALTÍSSIMO (+EV Real) porque eliminam o risco de empate e pagam cotações infladas.
+3. CRITÉRIO DE DECISÃO:
+   - Se houver sinistro grave comprovado na equipe que tem vantagem técnica: decida 'NO_BET' (alerta_sinistro: true).
+   - Se o visitante demonstrar superioridade técnica e competitiva respaldada pelo U5J/Tabela e contar com linha de valor na Betano (priorizando 0.0 AH ou +0.25 AH com proteção): decida 'APROVADO' e indique a linha exata.
+   - Se o confronto for de equilíbrio total sem valor evidente em nenhuma linha da Betano: decida 'NO_BET'.
+
+--- FORMATO DE RESPOSTA (JSON estrito) ---
+Retorne ESTRITAMENTE um objeto JSON válido no formato:
+{{
+  "decisao": "APROVADO" ou "NO_BET",
+  "linha_recomendada": "Nome Exato da Linha (ex: Santos 0.0 AH)",
+  "odd_recomendada": 2.47,
+  "grau_confianca": 75.0,
+  "alerta_sinistro": false,
+  "resumo_tatico": "Síntese executiva em 1 linha sobre escalação provável e vantagem técnica",
+  "titulo_card": "Título elegante do card (ex: 'Oportunidade +EV Validada por IA: Santos 0.0 AH')",
+  "parecer_explicativo": "Análise clara e fluida em linguagem natural justificando o valor da linha, a segurança do empate e a superioridade de elenco sobre a precificação da banca."
+}}
+"""
+
+    api_key = get_gemini_api_key()
+    raw_text = ""
+
+    if api_key and "_GEMINI_KEY_BLOCKED" not in globals():
+        model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+            "tools": [{"google_search": {}}],
+            "generationConfig": {"temperature": 0.2}
+        }
+        try:
+            resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=25)
+            if resp.status_code == 200:
+                data_resp = resp.json()
+                cands = data_resp.get("candidates", [])
+                if cands:
+                    parts = cands[0].get("content", {}).get("parts", [])
+                    raw_text = "".join(p.get("text", "") for p in parts if p.get("text"))
+            else:
+                print(f"⚠️ [IA Sentinela AH] Gemini HTTP {resp.status_code}. Acionando contingência Groq...")
+        except Exception as e_gem:
+            print(f"⚠️ [IA Sentinela AH] Falha ou timeout no Gemini ({e_gem}). Acionando contingência Groq...")
+
+    if not raw_text:
+        raw_text = _consultar_groq_fallback(prompt_text)
+
+    # Processa e sanitiza a resposta JSON
+    default_result = {
+        "decisao": "NO_BET",
+        "linha_recomendada": "",
+        "odd_recomendada": 0.0,
+        "grau_confianca": 50.0,
+        "alerta_sinistro": False,
+        "resumo_tatico": "Auditoria de IA não concluiu valor suficiente.",
+        "titulo_card": "Abstenção",
+        "parecer_explicativo": "Nenhuma oportunidade assimétrica confirmada pela IA.",
+        "matched_cand": None
+    }
+
+    if not raw_text:
+        _AI_HANDICAP_OPPORTUNITY_CACHE[cache_key] = default_result
+        return default_result
+
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except Exception:
+        m_json = re.search(r'\{.*\}', cleaned, re.DOTALL)
+        if m_json:
+            try:
+                parsed = json.loads(m_json.group(0))
+            except Exception:
+                parsed = {}
+        else:
+            parsed = {}
+
+    decisao = str(parsed.get("decisao") or "NO_BET").upper().strip()
+    linha_rec = str(parsed.get("linha_recomendada") or "").strip()
+    odd_rec = float(parsed.get("odd_recomendada") or 0.0)
+    conf = float(parsed.get("grau_confianca") or 70.0)
+    alerta_sinistro = bool(parsed.get("alerta_sinistro", False))
+    resumo_tatico = str(parsed.get("resumo_tatico") or "").strip()
+    titulo_card = str(parsed.get("titulo_card") or "").strip()
+    parecer = str(parsed.get("parecer_explicativo") or "").strip()
+
+    matched_cand = None
+    if decisao == "APROVADO" and betano_lines:
+        # Busca candidata correspondente em betano_lines
+        for bl in betano_lines:
+            bl_palpite = bl.get("palpite_str", "")
+            if linha_rec.lower() in bl_palpite.lower() or bl_palpite.lower() in linha_rec.lower():
+                matched_cand = bl
+                break
+        if not matched_cand and linha_rec:
+            # Tenta casar por time e linha numérica (ex: 0.0)
+            m_l = re.search(r'([+-]?\d+(?:\.\d+)?)', linha_rec)
+            target_val = float(m_l.group(1)) if m_l else None
+            is_aw = away_team.lower() in linha_rec.lower()
+            for bl in betano_lines:
+                if bl.get("is_away") == is_aw and target_val is not None and abs(bl.get("line", 99.0) - target_val) < 0.01:
+                    matched_cand = bl
+                    break
+
+        if not matched_cand:
+            # Se não casou exatamente mas a IA aprovou, seleciona a primeira linha defensiva do time indicado
+            is_aw = away_team.lower() in linha_rec.lower()
+            cand_def = [b for b in betano_lines if b.get("is_away") == is_aw and b.get("line") in (0.0, 0.25, 0.5)]
+            if cand_def:
+                matched_cand = cand_def[0]
+
+    final_result = {
+        "decisao": "APROVADO" if (decisao == "APROVADO" and matched_cand) else "NO_BET",
+        "linha_recomendada": matched_cand.get("palpite_str") if matched_cand else linha_rec,
+        "odd_recomendada": matched_cand.get("odd") if matched_cand else odd_rec,
+        "grau_confianca": conf,
+        "alerta_sinistro": alerta_sinistro,
+        "resumo_tatico": resumo_tatico,
+        "titulo_card": titulo_card,
+        "parecer_explicativo": parecer,
+        "matched_cand": matched_cand
+    }
+
+    _AI_HANDICAP_OPPORTUNITY_CACHE[cache_key] = final_result
+    return final_result
 
 
 if __name__ == '__main__':

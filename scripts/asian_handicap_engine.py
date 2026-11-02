@@ -1204,17 +1204,12 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # =========================================================================
-        # TRAVA SOBERANA DE +EV CONTRA O MERCADO 1X2 E REDIRECIONAMENTO VAVE
-        # Calcula a Odd Justa de Mercado des-margem a partir do consenso 1X2 oficial.
-        # Se a odd da Betano for deprimida (c_odd < mkt_fair_odd ou c_odd < 1.60),
-        # projeta a cotação mínima aprovada na Vave (max(1.60, mkt_fair_odd * 1.03))
-        # para NÃO decretar NO_BET caso haja valor real na Vave.
-        # =========================================================================
-        eval_odd = c_odd
-        is_vave_line = False
-        original_betano_odd = c_odd
+        # Faixa de odd segura operacional: piso mínimo global de 1.60 e teto de 2.35 (Regra 12 de Ouro - Apenas cotações reais)
+        if c_odd < 1.60 or c_odd > 2.35:
+            continue
 
+        # Trava Soberana de +EV contra o Consenso 1X2 de Mercado (Des-margem)
+        mkt_fair_odd = 0.0
         if cand_odd > 1.0 and opp_odd > 1.0:
             draw_odd_val = raw_d_odd if raw_d_odd > 1.0 else 3.15
             inv_c = 1.0 / cand_odd
@@ -1234,19 +1229,12 @@ def evaluate_and_select_best_ah_candidate(
                 mkt_fair_odd = 1.0 + (0.50 * p_justa_d + p_justa_o) / p_justa_c if p_justa_c > 0 else 99.0
             elif c_line == -0.5:
                 mkt_fair_odd = (1.0 / p_justa_c) if p_justa_c > 0 else 99.0
-            else:
-                mkt_fair_odd = 0.0
 
-            if mkt_fair_odd > 0.0 and (c_odd < mkt_fair_odd or c_odd < 1.60):
-                # Betano com odd deprimida / sem margem de valor:
-                # Projeta cotação mínima aprovada para operar na Vave
-                vave_target_odd = max(1.60, round(mkt_fair_odd * 1.03, 2))
-                eval_odd = vave_target_odd
-                is_vave_line = True
+            # Se a cotação real da casa for menor que a odd justa de mercado, a aposta não tem margem (+EV negativo)
+            if mkt_fair_odd > 0.0 and c_odd < mkt_fair_odd:
+                continue
 
-        # Faixa de odd segura operacional: piso mínimo global de 1.60
-        if eval_odd < 1.60 or eval_odd > 2.35:
-            continue
+        eval_odd = c_odd
 
         # Avaliação com a Matriz de Poisson usando eval_odd
         res = evaluate_ah_line_poisson(poisson_matrix, c_is_away, c_line, eval_odd)
@@ -1281,12 +1269,6 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['score'] = score
             cand_copy['odd'] = eval_odd
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
-            if is_vave_line:
-                cand_copy['is_vave'] = True
-                cand_copy['odd'] = eval_odd
-                cand_copy['betano_odd'] = original_betano_odd
-                cand_copy['bookmaker'] = 'Vave'
-                cand_copy['source'] = 'VAVE_APPROVED'
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge
             approved.append(cand_copy)
@@ -1956,21 +1938,6 @@ def calculate_unified_handicap_recommendation(
     best_cand['destaque'] = is_destaque
     app_cat = determine_gatekeeper_category('APROVADO', selected_palpite, raw_calc, best_cand)
     best_cand['gatekeeper_category'] = app_cat
-
-    if best_cand.get('is_vave'):
-        v_odd = best_cand['odd']
-        b_odd = best_cand.get('betano_odd', 0.0)
-        f_odd = best_cand.get('mkt_fair_odd', 0.0)
-        vave_note = (
-            f"\n\n💡 Cotação Betano (@ {b_odd:.2f}) deprimida sem margem. "
-            f"Linha APROVADA na Vave: {selected_palpite} com odd a partir de @ {v_odd:.2f} "
-            f"(Ponto de equilíbrio justo: @ {f_odd:.2f}) com valor esperado positivo real (+EV)."
-        )
-        if '||' in compound_r:
-            parts = compound_r.split('||', 1)
-            compound_r = parts[0] + vave_note + ' ||' + parts[1]
-        else:
-            compound_r += vave_note
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
 
@@ -3291,12 +3258,7 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 prob_poisson = ev_data.get('prob_eff')
                 ev_perc = ev_data.get('ev_percent')
                 destaque = 1 if (best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1) else 0
-                if best_cand.get('is_vave'):
-                    v_odd = best_cand['odd']
-                    b_odd = best_cand.get('betano_odd', c_odd)
-                    msg = f"Gatekeeper AH Aprovado na Vave (+EV): Cotação Betano (@ {b_odd:.2f}) deprimida. Linha aprovada na Vave com odd a partir de @ {v_odd:.2f} (Odd Justa de Mercado: @ {odd_justa:.2f}) | EV: +{ev_perc:.1f}%."
-                else:
-                    msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
+                msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."
 

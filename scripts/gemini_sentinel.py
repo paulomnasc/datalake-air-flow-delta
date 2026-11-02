@@ -497,28 +497,39 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
     away_team = item.get('away_team', 'Visitante')
 
     # 0. Verificação SOBERANA de NO_BET (Abstenção / Bloqueio pelo Gatekeeper)
-    # Se o Gatekeeper emitiu NO_BET na esteira (por qualquer motivo: Armadilha da Odd Inflada,
-    # Falta de Valor Esperado, Sobrevivência do Mandante, etc.), qualquer aposta aberta
-    # perde seus critérios matemáticos de aprovação. DISPARA ALERTA CRÍTICO IMEDIATO!
+    # Se o Gatekeeper emitiu NO_BET na esteira (por perda de valor matemático, falta de dados ou caldeirão da degola),
+    # qualquer aposta aberta perde seus critérios matemáticos de aprovação. DISPARA ALERTA CRÍTICO IMEDIATO!
+    # Nota de salvaguarda: Se o NO_BET for estritamente suspeita de 'Armadilha da Odd Inflada', trata-se de um alerta condicional
+    # que deve ser validado na súmula oficial na Fase 2 (não forçando alerta crítico fatal se a força máxima for confirmada).
     ah_sug = str(item.get('ah_suggestion') or '').strip().lower()
     ah_r = str(item.get('ah_reasoning') or '').lower()
     pred_txt = str(item.get('prediction_text') or '').lower()
     gk_cat = str(item.get('gatekeeper_category') or '').strip()
 
     is_no_bet = False
+    is_drift_no_bet = False
     if any(k in ah_sug for k in ['no_bet', 'sem entrada', 'abstenção', 'abstencao', 'bloquead']):
         is_no_bet = True
+        if 'odd inflada' in ah_sug or 'armadilha' in ah_sug:
+            is_drift_no_bet = True
     elif 'status gk: no_bet' in ah_r or '[gatekeeper ah no_bet' in ah_r:
         is_no_bet = True
+        if 'odd inflada' in ah_r or 'armadilha da odd inflada' in ah_r:
+            is_drift_no_bet = True
     elif 'cart' in mercado and ('status gk: no_bet' in pred_txt or '[gatekeeper cartões no_bet' in pred_txt or 'bloquead' in pred_txt):
         is_no_bet = True
 
     if is_no_bet:
-        alerta_critico = True
         desc_cat = gk_cat if gk_cat else "Abstenção / Bloqueio do Gatekeeper"
-        motivos_risco.append(
-            f"🚨 Gatekeeper decretou NO_BET ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
-        )
+        if is_drift_no_bet:
+            motivos_risco.append(
+                f"⚠️ Suspeita de Armadilha da Odd Inflada no pré-jogo: A cotação subiu no mercado. Requer validação mandatória da súmula oficial com titulares."
+            )
+        else:
+            alerta_critico = True
+            motivos_risco.append(
+                f"🚨 Gatekeeper decretou NO_BET ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
+            )
 
     # 1. Auditoria de Dados Zerados / Ausentes Vitais (Regra nº 9 de Ouro)
     if odd_aposta <= 1.0:
@@ -1082,10 +1093,10 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
     if abs(target_line) < 0.01 and opp_odd > 1.0 and opp_odd < curr_odd and curr_odd >= 1.90:
         houve_distorcao = True
         motivo_distorcao = f"Inversão de favoritismo na linha 0.0: odd de {supported_team} subiu para {curr_odd:.2f} enquanto {opp_team} virou favorito a {opp_odd:.2f}."
-    # Cenário B: Movimentação reversa expressiva de mercado (Steam Move contra o time apoiado)
-    elif curr_odd >= (odd_abertura + 0.15) and curr_odd > 1.0:
+    # Cenário B: Movimentação reversa expressiva de mercado (Steam Move / Drift anômalo contra o time apoiado: >= 12% e >= 0.20)
+    elif (curr_odd - odd_abertura) >= 0.20 and (((curr_odd - odd_abertura) / odd_abertura) * 100.0) >= 12.0 and curr_odd > 1.0:
         houve_distorcao = True
-        motivo_distorcao = f"Movimentação reversa de mercado: odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} (pressão vendedora contra a tese)."
+        motivo_distorcao = f"Movimentação reversa de mercado (Drift anômalo): odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} (+{((curr_odd - odd_abertura) / odd_abertura) * 100.0:.1f}%, pressão vendedora contra a tese)."
     # Cenário C: Derretimento abaixo do piso viável
     elif 1.0 < curr_odd < 1.45:
         houve_distorcao = True

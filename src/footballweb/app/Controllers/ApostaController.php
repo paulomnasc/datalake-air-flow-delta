@@ -4111,7 +4111,7 @@ class ApostaController extends BaseController
                                 $badgeColor = '#e11d48';
                             } elseif (stripos($tag, 'Odd Inflada') !== false || stripos($tag, 'Armadilha da Odd Inflada') !== false) {
                                 $cat = 'Armadilha da Odd Inflada';
-                                $regra = 'Drift de Risco: a odd inflou mais de 5% no pré-jogo, indicando fuga do mercado';
+                                $regra = 'Drift de Risco: odd inflou bruscamente (>= 12% e >= 0.20) acima do valor justo, indicando fuga de mercado';
                                 $badgeColor = '#f97316';
                             } else {
                                 $cat = 'AH: ' . $tag;
@@ -4126,7 +4126,7 @@ class ApostaController extends BaseController
                             $badgeColor = '#f59e0b';
                         } elseif (stripos($fullAh, 'Odd Inflada') !== false || stripos($fullAh, 'Armadilha da Odd Inflada') !== false) {
                             $cat = 'Armadilha da Odd Inflada';
-                            $regra = 'Drift de Risco: a odd inflou mais de 5% no pré-jogo, indicando fuga do mercado';
+                            $regra = 'Drift de Risco: odd inflou bruscamente (>= 12% e >= 0.20) acima do valor justo, indicando fuga de mercado';
                             $badgeColor = '#f97316';
                         } elseif (stripos($fullAh, 'Mando de Campo Soberano') !== false || stripos($fullAh, 'Divergência de Mercado') !== false) {
                             $cat = 'Mando de Campo Soberano';

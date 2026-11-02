@@ -224,7 +224,7 @@ GATEKEEPER_DIDACTIC_MAP = {
     'Valor Esperado Positivo (+EV)': 'Assimetria estatística identificada: a probabilidade de vitória/cobertura calculada pelo modelo Poisson supera a probabilidade precificada pela casa de apostas.',
     'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.',
     'Sobrevivência do Mandante': 'Caldeirão da Degola / Sobrevivência do Mandante: O mandante está afundado no Z-4 ou próximo da degola, mas joga a vida em seus domínios contra visitante do topo em jogo equilibrado; abstenção por risco de caldeirão.',
-    'Armadilha da Odd Inflada': 'Armadilha da Odd Inflada / Drift de Mercado: A cotação subiu mais de 5% em relação à odd original, sinalizando fuga do mercado profissional e perda de favoritismo por desfalques ou desconfiança técnica.',
+    'Armadilha da Odd Inflada': 'Armadilha da Odd Inflada / Drift de Mercado: A cotação subiu expressivamente (>= 12% e >= 0.20) acima do valor justo, sinalizando fuga do mercado profissional por desfalques ou desconfiança técnica.',
     'Mando de Campo Soberano': 'Mando de Campo Soberano / Divergência de Mercado: As casas de apostas alertam que o mandante é o favorito nas cotações, indicando que a força e adaptação do estádio local superam o momento do visitante.'
 }
 
@@ -1705,9 +1705,10 @@ def calculate_unified_handicap_recommendation(
     except Exception:
         standings_mot_val = 0.0
 
-    # Verificação Dinâmica de Drift Pré-Jogo (Armadilha da Odd Inflada > 5%)
+    # Verificação Dinâmica de Drift Pré-Jogo (Armadilha da Odd Inflada: subida >= 12% E >= 0.20 acima do valor justo)
     prior_odd_db = 0.0
     prior_palpite_db = ""
+    odd_justa_db = 0.0
     diff_drift = 0.0
     pct_drift = 0.0
     existing_bet = None
@@ -1725,6 +1726,7 @@ def calculate_unified_handicap_recommendation(
             if existing_bet:
                 prior_odd_db = float(existing_bet.get('odd') or 0.0)
                 prior_palpite_db = str(existing_bet.get('palpite') or '')
+                odd_justa_db = float(existing_bet.get('odd_justa') or 0.0)
         except Exception as e_bet_fetch:
             print(f"⚠️ [Asian Handicap Engine / DB SELECT] Falha ao consultar aposta prévia para fixture #{fixture_id}: {e_bet_fetch}")
 
@@ -1734,11 +1736,18 @@ def calculate_unified_handicap_recommendation(
             live_cand_odd = float(matched_cand.get('odd') or 0.0)
             diff_drift = live_cand_odd - prior_odd_db
             pct_drift = ((diff_drift / prior_odd_db) * 100.0) if prior_odd_db > 0 else 0.0
-            if pct_drift > 5.0 and diff_drift >= 0.02:
+
+            # Salvaguarda da Cotação Justa: Se a odd subiu convergindo para a faixa de valor justo (+EV)
+            # calculada pelo modelo (até 10% acima da odd justa), isso representa ganho de valor (+EV), NÃO armadilha.
+            fair_threshold = round(odd_justa_db * 1.10, 2) if odd_justa_db > 1.0 else 0.0
+            odd_esta_na_margem_justa = (fair_threshold > 1.0 and live_cand_odd <= fair_threshold)
+
+            # Critério rigoroso de Drift anômalo: subida percentual >= 12% E nominal >= 0.20 E rompendo a margem justa
+            if pct_drift >= 12.0 and diff_drift >= 0.20 and not odd_esta_na_margem_justa:
                 reason_drift = (
                     f"🚨 [Gatekeeper AH NO_BET / Armadilha da Odd Inflada] A seleção '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
-                    f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}) no mercado da Betano. "
-                    f"No mercado esportivo, uma elevação acima de 5% sinaliza desconfiança ou descarte da equipe pelo fluxo profissional "
+                    f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}, variação de +{diff_drift:.2f}) no mercado da Betano, rompendo a cotação justa. "
+                    f"No mercado esportivo, uma elevação expressiva acima de 12% (+0.20) sinaliza desconfiança ou descarte da equipe pelo fluxo profissional "
                     f"(risco de desfalques ou desvantagem tática). A entrada perdeu a margem de segurança e recomenda-se cancelamento/saída preventiva."
                 )
                 clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção - Odd Inflada)', reason_drift, category='Armadilha da Odd Inflada')

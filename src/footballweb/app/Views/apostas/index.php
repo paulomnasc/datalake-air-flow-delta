@@ -5339,7 +5339,6 @@ if (!function_exists('fmtTopValorWithBrl')) {
       setTimeout(() => toast.remove(), 350);
     }, 7000);
   }
-  }
 
   // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)
   function toggleApostaGk(apostaId) {

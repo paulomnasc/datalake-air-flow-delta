@@ -1296,6 +1296,13 @@ class ApostaController extends BaseController
         }
 
         $valorAposta = (float)$aposta->valor_aposta;
+        $rawValor = $this->request->getPost('valor_aposta');
+        if ($rawValor !== null && trim((string)$rawValor) !== '') {
+            $parsedValor = (float)str_replace(',', '.', trim((string)$rawValor));
+            if ($parsedValor > 0) {
+                $valorAposta = $parsedValor;
+            }
+        }
 
         $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
         $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
@@ -1309,9 +1316,10 @@ class ApostaController extends BaseController
 
         $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
         $updateData = [
-            'confirmada' => 1,
-            'status'     => $novoStatus,
-            'updated_at' => date('Y-m-d H:i:s')
+            'confirmada'   => 1,
+            'status'       => $novoStatus,
+            'valor_aposta' => $valorAposta,
+            'updated_at'   => date('Y-m-d H:i:s')
         ];
 
         $rawOdd = $this->request->getPost('odd');
@@ -3521,6 +3529,73 @@ class ApostaController extends BaseController
             ]);
         }
 
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para reauditar aposta e card sob demanda com IA Sentinela (súmula oficial, notícias e risco).
+     */
+    public function reauditarIa()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para reauditar aposta com IA.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida (fixture_id) não informado.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/root/datalake-air-flow-delta/scripts/gemini_sentinel.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/usr/local/bin/scripts/gemini_sentinel.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --phase=2 --window=1440 --json_output 2>&1";
+        $output = shell_exec($cmd);
+        $result = null;
+
+        if (!empty($output)) {
+            $marker = '--- JSON_RESULT ---';
+            $pos = strpos($output, $marker);
+            if ($pos !== false) {
+                $jsonStr = trim(substr($output, $pos + strlen($marker)));
+                $result = json_decode($jsonStr, true);
+            } else {
+                $jsonStart = strpos($output, '{');
+                $jsonEnd = strrpos($output, '}');
+                if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd > $jsonStart) {
+                    $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+                }
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar reauditoria da IA: ' . $output
+            ]);
+        }
+
+        $result['success'] = true;
         return $this->response->setJSON($result);
     }
 

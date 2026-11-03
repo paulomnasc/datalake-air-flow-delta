@@ -1348,7 +1348,8 @@ def calculate_unified_handicap_recommendation(
     fixture_dict: dict,
     betano_lines: list = None,
     allow_api_fetch: bool = True,
-    cursor = None
+    cursor = None,
+    desfalques_criticos: dict = None
 ):
     """
     Função Mestre Unificada para Ingestão, Criação de Apostas e Auditoria 'Checar Odds Agora'.
@@ -1592,6 +1593,20 @@ def calculate_unified_handicap_recommendation(
             ratio_recalc = True
         if ratio_recalc:
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+    # Injeção de Penalizador de Desfalques Críticos (Reset Tático Pós-Súmula)
+    if desfalques_criticos and isinstance(desfalques_criticos, dict):
+        team_penalizado = str(desfalques_criticos.get('time_desfalcado', '')).lower()
+        if team_penalizado and team_penalizado in home_team.lower():
+            xg_h = round(xg_h * 0.60, 2)
+            xg_a = round(xg_a * 1.35, 2)
+            poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+            print(f"⚠️ [Reset Tático Poisson] xG reajustado por desfalques em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}")
+        elif team_penalizado and team_penalizado in away_team.lower():
+            xg_a = round(xg_a * 0.60, 2)
+            xg_h = round(xg_h * 1.35, 2)
+            poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+            print(f"⚠️ [Reset Tático Poisson] xG reajustado por desfalques em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}")
 
     # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
     if betano_lines is None:
@@ -1840,16 +1855,41 @@ def calculate_unified_handicap_recommendation(
                     'p_half_loss': 0.0,
                     'p_loss': 0.0
                 }
-                best_cand['destaque'] = 1
-                best_cand['gatekeeper_category'] = 'Oportunidade +EV Validada por IA'
+                is_prem = bool(ia_audit_res.get('is_premium'))
+                best_cand['destaque'] = 2 if is_prem else 1
+                best_cand['is_premium'] = is_prem
+                best_cand['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)' if is_prem else 'Oportunidade +EV Validada por IA'
                 best_cand['ia_audit'] = ia_audit_res
                 approved = [best_cand]
-                print(f"🤖 [IA Sentinela AH / Oportunidade Desbloqueada] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' @ {odd_ia:.2f} aprovada pela IA (Confiança {conf_ia:.1f}%).")
+                print(f"🤖 [IA Sentinela AH / Oportunidade Desbloqueada] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' @ {odd_ia:.2f} aprovada pela IA (Confiança {conf_ia:.1f}%, Premium: {is_prem}).")
             elif best_cand and ia_audit_res.get('alerta_sinistro'):
                 print(f"🚨 [IA Sentinela AH / Veto por Sinistro] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' vetada pela IA devido a desfalques críticos.")
                 best_cand = None
                 approved = []
             elif best_cand and ia_audit_res:
+                if ia_audit_res.get('is_premium') and ia_audit_res.get('matched_cand'):
+                    matched = ia_audit_res['matched_cand']
+                    if float(matched.get('odd') or 0.0) >= 1.60:
+                        print(f"⭐ [Upgrade para Aposta PREMIUM] #{fixture_id} {home_team} vs {away_team}: Linha promovida de '{best_cand.get('palpite_str')}' para '{matched.get('palpite_str')}' @ {float(matched.get('odd') or 0.0):.2f}")
+                        best_cand = matched
+                        conf_ia = float(ia_audit_res.get('grau_confianca') or 80.0)
+                        odd_ia = float(best_cand.get('odd') or 2.0)
+                        odd_justa_ia = round(100.0 / conf_ia, 2) if conf_ia > 0 else 1.80
+                        ev_ia = round(((odd_ia / odd_justa_ia) - 1.0) * 100.0, 1) if odd_justa_ia > 0 else 15.0
+                        best_cand['eval'] = {
+                            'odd_justa': odd_justa_ia,
+                            'prob_eff': conf_ia,
+                            'ev_percent': ev_ia,
+                            'p_win': conf_ia,
+                            'p_half_win': 0.0,
+                            'p_push': 0.0,
+                            'p_half_loss': 0.0,
+                            'p_loss': 0.0
+                        }
+                        best_cand['destaque'] = 2
+                        best_cand['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
+                        best_cand['is_premium'] = True
+                        approved = [best_cand]
                 best_cand['ia_audit'] = ia_audit_res
         except Exception as e_ia_sent:
             print(f"⚠️ [IA Sentinela AH] Aviso ao processar auditoria cognitiva: {e_ia_sent}")
@@ -2945,7 +2985,8 @@ def sync_fixture_and_bet_handicap(
     casas_dec_padrao = int(m_def['casas_decimais']) if m_def else 2
 
     ia_audit_info = (best_cand or {}).get('ia_audit') or {}
-    ia_status = "CONFIRMADO" if ia_audit_info else None
+    # Não carimba 'CONFIRMADO' na criação: a governança de risco e súmula pertence exclusivamente à Sentinela
+    ia_status = None
     ia_resumo = ia_audit_info.get("resumo_tatico")
     ia_parecer = ia_audit_info.get("parecer_explicativo")
 
@@ -2962,7 +3003,15 @@ def sync_fixture_and_bet_handicap(
         user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
         if user_stake <= 0.0:
             user_stake = 10.00
-        valor_aposta = user_stake
+
+        # Se for Aposta PREMIUM (destaque == 2 ou is_premium == True), dimensiona automaticamente com 3x a stake padrão
+        is_premium_bet = (destaque_val == 2) or bool((best_cand or {}).get('is_premium')) or ('PREMIUM' in str(app_cat).upper())
+        if is_premium_bet:
+            valor_aposta = round(user_stake * 3.0, 2)
+            destaque_val = 2
+            app_cat = 'Oportunidade PREMIUM (+EV Alavancado)'
+        else:
+            valor_aposta = user_stake
         ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
         cursor.execute("""

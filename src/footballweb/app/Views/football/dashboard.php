@@ -3099,7 +3099,18 @@ if (!function_exists('getBetDecisionTree')) {
                                             <span class="proc-status-badge <?= $procClass ?>" title="<?= htmlspecialchars($procTooltip, ENT_QUOTES) ?>">
                                                 <?= htmlspecialchars($procText) ?>
                                             </span>
-                                            <?php if ($t1Info['is_dominant']): ?>
+                                            <?php 
+                                                $isCardPremium = (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
+                                                                 (stripos($fix->gatekeeper_category ?? '', 'PREMIUM') !== false) ||
+                                                                 (stripos($fix->ah_reasoning ?? '', 'PREMIUM') !== false);
+                                            ?>
+                                            <?php if ($isCardPremium): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                                                      style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.35) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.4) !important;" 
+                                                      title="Oportunidade PREMIUM: Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Alavancagem sugerida: 3x Stake.">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM
+                                                </span>
+                                            <?php elseif ($t1Info['is_dominant']): ?>
                                                 <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                                                       style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(250, 204, 21, 0.25) !important;" 
                                                       title="Destaque: Equipe <?= htmlspecialchars($t1Info['dominant_team']) ?> (Tier 1 de Elite) contra adversário com baixo desempenho recente no U5J">

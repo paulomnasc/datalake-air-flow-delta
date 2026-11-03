@@ -1061,7 +1061,7 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         }
 
 
-def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> dict:
+def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumula_oficial: dict = None) -> dict:
     """
     Audita e recalibra linhas de Handicap Asiático antes da auditoria do Gemini:
     1. Consulta cotações AH em tempo real na Betano (API direta).
@@ -1145,6 +1145,15 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
         houve_distorcao = True
         motivo_distorcao = f"Linha {palpite_atual} retirada ou sem liquidez na casa no pré-jogo."
 
+    # Cenário E: Sinistro Estrutural na Súmula Oficial (Reset Tático Pós-Súmula)
+    motivos_elenco = []
+    if sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco'):
+        motivos_elenco = sumula_oficial.get('motivos_alerta_elenco') or []
+        sinistro_no_time_apoiado = any(supported_team.lower() in m.lower() for m in motivos_elenco) or (supported_team.lower() in str(motivos_elenco).lower())
+        if sinistro_no_time_apoiado or 'goleiro titular ausente' in str(motivos_elenco).lower():
+            houve_distorcao = True
+            motivo_distorcao = f"Sinistro Crítico na Súmula Oficial ({'; '.join(motivos_elenco[:2])}): Descaracterização estrutural de {supported_team}. Disparando Reset Tático e reavaliação do novo favorito {opp_team}."
+
     if not houve_distorcao:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
@@ -1178,11 +1187,13 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
                 'ah_reasoning': item.get('resultado_detalhado') or item.get('ah_reasoning')
             }
 
+        desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco} if (sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco')) else None
         status_gk, palpite_sug, confianca, reasoning_gk, best_cand, approved_list = calculate_unified_handicap_recommendation(
             fixture_dict=fix_dict,
             betano_lines=lines,
             allow_api_fetch=False,
-            cursor=cursor
+            cursor=cursor,
+            desfalques_criticos=desf_info
         )
 
         if status_gk == 'APROVADO' and best_cand:
@@ -1368,8 +1379,27 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             status_anterior = item.get('auditoria_ia_status')
             era_observacao = (status_anterior == 'EM_OBSERVACAO')
 
-            # Recalibragem de Linhas AH e Salvaguarda contra Distorção de Mercado
-            recalib = auditar_e_recalibrar_linha_handicap(cursor, item, user_ids)
+            # Coleta a súmula oficial das escalações (/fixtures/lineups) e desfalques (/injuries) na API-Sports
+            sumula_oficial = coletar_sumula_e_desfalques_apisports(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                home_team_id=item.get('home_team_id'),
+                away_team_id=item.get('away_team_id'),
+                home_team=home_team,
+                away_team=away_team,
+                palpite=item.get('palpite', ''),
+                league_id=item.get('league_id')
+            )
+
+            # Busca notícias recentes e matérias pré-jogo na web (custo zero de API)
+            noticias_web = buscar_noticias_prejogo_web(
+                home_team=home_team,
+                away_team=away_team,
+                league_name=item.get('league_name', '')
+            )
+
+            # Recalibragem de Linhas AH e Salvaguarda contra Distorção de Mercado (com Reset Tático por Súmula)
+            recalib = auditar_e_recalibrar_linha_handicap(cursor, item, user_ids, sumula_oficial=sumula_oficial)
             linha_recalibrada = recalib.get('linha_recalibrada', False)
             bloquear_sinal_verde = recalib.get('bloquear_sinal_verde', False)
 
@@ -1391,25 +1421,6 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 motivo_gk = (reasoning[:300] if reasoning else "Aprovado no modelo matemático +EV.")
                 if linha_recalibrada:
                     motivo_gk += f" [Linha recalculada pelo Gatekeeper no pré-jogo devido a: {recalib.get('motivo_recalibragem')}]"
-
-                # Coleta a súmula oficial das escalações (/fixtures/lineups) e desfalques (/injuries) na API-Sports
-                sumula_oficial = coletar_sumula_e_desfalques_apisports(
-                    cursor=cursor,
-                    fixture_id=fixture_id,
-                    home_team_id=item.get('home_team_id'),
-                    away_team_id=item.get('away_team_id'),
-                    home_team=home_team,
-                    away_team=away_team,
-                    palpite=item.get('palpite', ''),
-                    league_id=item.get('league_id')
-                )
-
-                # Busca notícias recentes e matérias pré-jogo na web (custo zero de API)
-                noticias_web = buscar_noticias_prejogo_web(
-                    home_team=home_team,
-                    away_team=away_team,
-                    league_name=item.get('league_name', '')
-                )
 
                 # Monta o dossiê consolidado com a súmula oficial, notícias web e desfalques
                 dossie = {
@@ -1515,12 +1526,23 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 conn.commit()
 
                 if phase == 1 and st == 'EM_OBSERVACAO':
-                    # Em Fase 1, se ficar em observação, apenas registra aviso informativo no Sininho (sem push ruidoso)
+                    # Em Fase 1, registra no Sininho e notifica push mobile com o grau de risco (Estágio 1)
                     total_alertas += 1
                     print(f"🟡 [FASE 1 - RETIDA EM OBSERVAÇÃO]: {titulo_alerta}")
+                    alerta_enviado = False
                     for uid in user_ids:
-                        registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="OBSERVACAO_FASE1")
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo="OBSERVACAO_FASE1"):
+                            alerta_enviado = True
                     conn.commit()
+
+                    if alerta_enviado:
+                        enviar_push_mobile(
+                            titulo=titulo_alerta,
+                            mensagem=parecer,
+                            fixture_id=fixture_id,
+                            prioridade=3,
+                            tags=["yellow_circle", "hourglass", "soccer"]
+                        )
                 elif tem_alerta or st == 'ALERTA_RISCO':
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
@@ -1682,26 +1704,31 @@ superando a 'cegueira estatística' de algoritmos quantitativos puros que supere
 1. AVALIAÇÃO DE HIERARQUIA E DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO):
    - Artilheiro principal, líder criativo/camisa 10 absoluto ou goleiro titular fora sem substituto à altura = ALERTA_SINISTRO (Alto Impacto).
    - Peças comuns, defensores suplentes ou rotações com substitutos de mesmo nível = Sem impacto crítico se a espinha dorsal e poder de fogo estiverem mantidos.
-2. DETECÇÃO DE VIÉS / INEFICIÊNCIA DE MERCADO DA BANCA:
-   - Se o visitante estiver com elenco qualificado (ex: estrelas como Gabigol, Coutinho), momento competitivo superior no U5J (especialmente pontuando contra gigantes Tier 1) e tabela equilibrada ou favorável, mas a banca precificou o mandante como favorito no 1X2 apenas pelo mando de campo:
-     -> Isto representa uma FALHA/VIÉS DE PRECIFICAÇÃO DA CASA.
-   - Linhas defensivas do visitante com proteção no empate (como 0.0 AH / Empate Anula Aposta ou +0.25 AH) oferecem VALOR ESPERADO ALTÍSSIMO (+EV Real) porque eliminam o risco de empate e pagam cotações infladas.
+2. DISTINÇÃO MANDATÓRIA: CONFRONTO EQUILIBRADO VS SUPER-FAVORITO (APOSTA PREMIUM):
+   A) CONFRONTO EQUILIBRADO / VISITANTE TÁTICO COM VIÉS DE MANDO:
+      - Para confrontos parelhos ou com viés de campo onde o visitante tem vantagem pontual: priorize linhas de segurança com proteção no empate (0.0 AH ou +0.25 AH) com odds >= 1.60.
+   B) SUPER-FAVORITO / TOP EFICIÊNCIA (APOSTA PREMIUM):
+      - Se uma das equipes (mandante ou visitante) apresentar MOMENTO DE DOMINÂNCIA ABSOLUTA: Eficiência U5J >= 24.0 pts (com vitórias comprovadas sobre clubes Tier 1) contra adversário com eficiência <= 12.0 pts:
+        * É EXPRESSAMENTE PROIBIDO sugerir linhas defensivas covardes (como 0.0 AH pagando pouco);
+        * PRIORIZE OBRIGATORIAMENTE LINHAS OFENSIVAS DE ALTO RETORNO: -0.5 AH (vitória simples), -0.75 AH ou -1.0 AH com cotações >= 1.60 (faixa viável de 1.60 a 2.40);
+        * Classifique no JSON como "is_premium": true e com título elegante de Aposta PREMIUM.
 3. CRITÉRIO DE DECISÃO:
    - Se houver sinistro grave comprovado na equipe que tem vantagem técnica: decida 'NO_BET' (alerta_sinistro: true).
-   - Se o visitante demonstrar superioridade técnica e competitiva respaldada pelo U5J/Tabela e contar com linha de valor na Betano (priorizando 0.0 AH ou +0.25 AH com proteção): decida 'APROVADO' e indique a linha exata.
+   - Se houver oportunidade comprovada (seja em super-favorito com linha ofensiva ou visitante com linha de cobertura): decida 'APROVADO' e indique a linha exata.
    - Se o confronto for de equilíbrio total sem valor evidente em nenhuma linha da Betano: decida 'NO_BET'.
 
 --- FORMATO DE RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON válido no formato:
 {{
   "decisao": "APROVADO" ou "NO_BET",
-  "linha_recomendada": "Nome Exato da Linha (ex: Santos 0.0 AH)",
-  "odd_recomendada": 2.47,
+  "linha_recomendada": "Nome Exato da Linha (ex: Santos 0.0 AH ou Paris Saint Germain -0.5 AH)",
+  "odd_recomendada": 1.95,
+  "is_premium": false,
   "grau_confianca": 75.0,
   "alerta_sinistro": false,
   "resumo_tatico": "Síntese executiva em 1 linha sobre escalação provável e vantagem técnica",
-  "titulo_card": "Título elegante do card (ex: 'Oportunidade +EV Validada por IA: Santos 0.0 AH')",
-  "parecer_explicativo": "Análise clara e fluida em linguagem natural justificando o valor da linha, a segurança do empate e a superioridade de elenco sobre a precificação da banca."
+  "titulo_card": "Título elegante do card (ex: '⭐ Oportunidade PREMIUM: Paris Saint Germain -0.5 AH' ou 'Oportunidade +EV Validada: Santos 0.0 AH')",
+  "parecer_explicativo": "Análise clara e fluida em linguagem natural justificando o valor da linha, a solidez da equipe e o enquadramento na esteira."
 }}
 """
 
@@ -1809,6 +1836,7 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
         "linha_recomendada": matched_cand.get("palpite_str") if matched_cand else linha_rec,
         "odd_recomendada": matched_cand.get("odd") if matched_cand else odd_rec,
         "grau_confianca": conf,
+        "is_premium": bool(parsed.get("is_premium", False)),
         "alerta_sinistro": alerta_sinistro,
         "resumo_tatico": resumo_tatico,
         "titulo_card": titulo_card,
@@ -1826,6 +1854,7 @@ if __name__ == '__main__':
     parser.add_argument("--window", type=int, default=50, help="Janela de minutos pré-jogo para varredura (padrão: 50)")
     parser.add_argument("--phase", type=int, default=2, choices=[1, 2], help="Fase da esteira: 1 (Antecipação Matinal - 24h) ou 2 (Repescagem Pré-Jogo e Drift - 50m)")
     parser.add_argument("--test-ntfy", action="store_true", help="Disparar push fake de teste forçado para validação no app ntfy")
+    parser.add_argument("--json_output", action="store_true", help="Retornar resultado consolidado em JSON no stdout para integração web")
     args = parser.parse_args()
 
     if args.test_ntfy:
@@ -1833,4 +1862,40 @@ if __name__ == '__main__':
     else:
         win = args.window if (args.phase == 2 or args.window != 50) else 1440
         processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, phase=args.phase)
+
+        if args.json_output and args.fixture_id:
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
+                               a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
+                               f.home_team, f.away_team, f.ah_suggestion
+                        FROM apostas a
+                        JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
+                        WHERE a.fixture_id = %s
+                        ORDER BY a.confirmada DESC, a.id DESC LIMIT 1
+                    """, (args.fixture_id,))
+                    row = cur.fetchone()
+                    if row:
+                        out = {
+                            "success": True,
+                            "aposta_id": row['aposta_id'],
+                            "fixture_id": row['fixture_id'],
+                            "palpite": row['palpite'],
+                            "odd": float(row['odd'] or 0.0),
+                            "valor_aposta": float(row['valor_aposta'] or 10.0),
+                            "destaque": int(row['destaque'] or 0),
+                            "status_gatekeeper": row['status_gatekeeper'],
+                            "gatekeeper_category": row['gatekeeper_category'],
+                            "auditoria_ia_status": row['auditoria_ia_status'],
+                            "auditoria_ia_resumo": row['auditoria_ia_resumo'],
+                            "auditoria_ia_parecer": row['auditoria_ia_parecer'],
+                            "home_team": row['home_team'],
+                            "away_team": row['away_team']
+                        }
+                        print("\n--- JSON_RESULT ---")
+                        print(json.dumps(out, ensure_ascii=False))
+            finally:
+                conn.close()
 

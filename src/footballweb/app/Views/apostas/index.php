@@ -1438,8 +1438,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
           $displayGanho = ((float)($aposta->ganhos_potenciais ?? 0) > 0)
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
+
+          $isApostaPremium = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
+                             (stripos($aposta->resultado_detalhado ?? '', 'PREMIUM') !== false) ||
+                             (stripos($aposta->ah_reasoning ?? '', 'PREMIUM') !== false);
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
@@ -1460,7 +1464,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
             </div>
 
             <div class="match-badges-header d-flex align-items-center gap-1.5 flex-wrap w-100 mt-1">
-              <?php if (!empty($aposta->destaque)): ?>
+              <?php if ($isApostaPremium): ?>
+                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
+                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                      title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
+                  <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
+                </span>
+              <?php elseif (!empty($aposta->destaque)): ?>
                 <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                       style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
                       title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
@@ -1939,6 +1949,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
                 </button>
               <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id) && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-primary fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-reauditar-ia" 
+                        style="border-radius: 8px; font-size: 0.78rem; border-color: #818cf8; color: #a5b4fc;" 
+                        onclick="handleReauditarIa(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
+                        title="Reauditar com IA Gemini: Inspecionar Súmula Oficial, Notícias Recentes e Recalibrar Palpite">
+                  <i class="bi bi-robot"></i> 🤖 Reauditar com IA
+                </button>
+              <?php endif; ?>
               <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
                 <button type="button" 
                         class="btn btn-sm btn-outline-warning fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-custom-ah" 
@@ -2297,6 +2316,22 @@ if (!function_exists('fmtTopValorWithBrl')) {
           <div class="d-flex justify-content-between mb-0">
             <span class="text-muted small"><?= lang('App.bet_amount') ?> (Débito):</span>
             <strong id="confirmBetAmount" class="text-warning fs-6">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <!-- Alerta de Alavancagem e Gestão de Banca para Aposta PREMIUM -->
+        <div id="confirmBetPremiumNotice" class="p-2.5 mb-3 rounded-3" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; font-size: 0.78rem;">
+          <div class="d-flex align-items-center gap-1.5 fw-bold mb-1">
+            <span style="font-size: 1rem;">👑</span> ⭐ Aposta PREMIUM (+EV Alavancado)
+          </div>
+          <div style="color: #fde68a; line-height: 1.4;">
+            💡 <strong>Gestão de Banca:</strong> Superioridade técnica extrema do super-favorito detectada pelo Gatekeeper. A stake recomendada já foi pré-configurada em <strong>3x a stake padrão</strong>.
+          </div>
+          <div class="d-flex align-items-center gap-1.5 mt-2 pt-2 border-top border-warning border-opacity-25 flex-wrap">
+            <span class="text-white-50 small me-1">Ajustar Multiplicador:</span>
+            <button type="button" class="btn btn-xs btn-outline-secondary btn-confirm-stake-mult" id="btnStakeMult1" onclick="setConfirmBetStakeMultiplier(1)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">1x Padrão</button>
+            <button type="button" class="btn btn-xs btn-outline-warning btn-confirm-stake-mult" id="btnStakeMult2" onclick="setConfirmBetStakeMultiplier(2)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">2x</button>
+            <button type="button" class="btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active" id="btnStakeMult3" onclick="setConfirmBetStakeMultiplier(3)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">⭐ 3x (Recomendado)</button>
           </div>
         </div>
 
@@ -4122,6 +4157,27 @@ if (!function_exists('fmtTopValorWithBrl')) {
       valor: parseFloat(valorAposta) || 0,
       odd: parseFloat(oddAposta) || 0
     };
+
+    const isPremium = cardEl && cardEl.getAttribute('data-is-premium') === '1';
+    const premiumNoticeEl = document.getElementById('confirmBetPremiumNotice');
+    if (premiumNoticeEl) {
+      if (isPremium) {
+        premiumNoticeEl.style.display = 'block';
+        currentBetToConfirm.baseValor = (currentBetToConfirm.valor >= 30) ? (currentBetToConfirm.valor / 3.0) : (currentBetToConfirm.valor / 3.0 || 10.0);
+        currentBetToConfirm.multiplier = 3;
+        document.querySelectorAll('.btn-confirm-stake-mult').forEach(b => {
+          if (b.getAttribute('onclick').includes('(3)')) {
+            b.className = 'btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active';
+          } else {
+            b.className = 'btn btn-xs btn-outline-secondary btn-confirm-stake-mult';
+          }
+        });
+      } else {
+        premiumNoticeEl.style.display = 'none';
+        currentBetToConfirm.baseValor = currentBetToConfirm.valor;
+        currentBetToConfirm.multiplier = 1;
+      }
+    }
     
     const matchNameEl = document.getElementById('confirmBetMatchName');
     const pickInfoEl = document.getElementById('confirmBetPickInfo');
@@ -4214,6 +4270,54 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
   }
 
+  function setConfirmBetStakeMultiplier(mult) {
+    if (!currentBetToConfirm) return;
+    const base = currentBetToConfirm.baseValor || 10.0;
+    const novoValor = parseFloat((base * mult).toFixed(2));
+    currentBetToConfirm.valor = novoValor;
+    currentBetToConfirm.multiplier = mult;
+
+    const betAmountEl = document.getElementById('confirmBetAmount');
+    if (betAmountEl) {
+      betAmountEl.textContent = 'R$ ' + novoValor.toFixed(2).replace('.', ',');
+    }
+
+    document.querySelectorAll('.btn-confirm-stake-mult').forEach(b => {
+      if (b.getAttribute('onclick').includes('(' + mult + ')')) {
+        b.className = 'btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active';
+      } else {
+        b.className = 'btn btn-xs btn-outline-secondary btn-confirm-stake-mult';
+      }
+    });
+
+    const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
+    let saldoVal = 0;
+    if (saldoEl) {
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
+    }
+    const proj = saldoVal - novoValor;
+    const projBalEl = document.getElementById('confirmBetProjectedBalance');
+    if (projBalEl) {
+      projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      projBalEl.className = proj < 0 ? 'fw-bold text-danger' : 'fw-bold text-white';
+    }
+    const alertEl = document.getElementById('confirmBetAlert');
+    if (alertEl) {
+      if (proj < 0) {
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Aviso:</strong> O saldo da sua conta corrente ficará negativo (R$ ' + proj.toFixed(2).replace('.', ',') + ') após esta confirmação.';
+      } else {
+        alertEl.style.display = 'none';
+      }
+    }
+  }
+
   function executeConfirmBet() {
     if (!currentBetToConfirm || !currentBetToConfirm.id) return;
     
@@ -4229,6 +4333,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const oddInputEl = document.getElementById('confirmBetOddInput');
     if (oddInputEl && oddInputEl.value) {
       formData.append('odd', oddInputEl.value);
+    }
+    if (currentBetToConfirm.valor > 0) {
+      formData.append('valor_aposta', currentBetToConfirm.valor);
     }
     
     fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
@@ -5061,6 +5168,177 @@ if (!function_exists('fmtTopValorWithBrl')) {
       toast.style.transform = 'translateX(25px)';
       setTimeout(() => toast.remove(), 350);
     }, 7000);
+  }
+
+  // Função para Reauditar Palpite com IA Gemini (Súmula Oficial, Notícias e Recalibração de Odds/Palpite)
+  function handleReauditarIa(apostaId, fixtureId, btnEl) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui partida vinculada para reauditar.');
+      return;
+    }
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> 🤖 Auditando IA & Súmula...';
+    }
+
+    fetch('<?= base_url('apostas/reauditar-ia') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams({
+        fixture_id: fixtureId,
+        aposta_id: apostaId
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        alert(data.message || 'Não foi possível reauditar a partida com IA no momento.');
+        return;
+      }
+
+      // Atualizar dados no Card do DOM
+      const cardEl = document.getElementById('aposta-card-' + apostaId);
+      if (cardEl) {
+        // Atualizar palpite
+        if (data.palpite_novo) {
+          const palpiteEl = cardEl.querySelector('.palpite-name');
+          if (palpiteEl) {
+            palpiteEl.textContent = data.palpite_novo;
+            palpiteEl.classList.add('pulse-highlight');
+            setTimeout(() => palpiteEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-palpite', data.palpite_novo);
+        }
+
+        // Atualizar cotação / odd
+        if (data.odd_nova) {
+          const oddBadge = cardEl.querySelector('.odd-badge');
+          if (oddBadge) {
+            oddBadge.textContent = Number(data.odd_nova).toFixed(2);
+            oddBadge.classList.add('pulse-highlight');
+            setTimeout(() => oddBadge.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-odd', data.odd_nova);
+        }
+
+        // Atualizar valor / stake alavancada
+        if (data.valor_aposta) {
+          const valEl = cardEl.querySelector('.val-amount:not(.primary)');
+          if (valEl) {
+            valEl.textContent = 'R$ ' + Number(data.valor_aposta).toFixed(2).replace('.', ',');
+            valEl.classList.add('pulse-highlight');
+            setTimeout(() => valEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-valor', data.valor_aposta);
+        }
+
+        // Atualizar ganhos potenciais
+        if (data.ganhos_potenciais_novos) {
+          const ganhoEl = cardEl.querySelector('.val-amount.primary');
+          if (ganhoEl) {
+            const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+            if (cardMoeda !== 'BRL') {
+              ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+            } else {
+              ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+            }
+            ganhoEl.classList.add('pulse-highlight');
+            setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-ganho', data.ganhos_potenciais_novos);
+        }
+
+        // Se for Aposta PREMIUM (+EV Alavancado)
+        if (data.is_premium || data.destaque == 2) {
+          cardEl.setAttribute('data-is-premium', '1');
+          cardEl.setAttribute('data-destaque', '2');
+          cardEl.classList.add('bet-card-destaque');
+          
+          const badgesHeader = cardEl.querySelector('.match-badges-header');
+          if (badgesHeader && !badgesHeader.querySelector('.badge-destaque-premium')) {
+            const premiumBadgeHtml = `
+              <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
+                    style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                    title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
+                <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
+              </span>
+            `;
+            badgesHeader.insertAdjacentHTML('afterbegin', premiumBadgeHtml);
+          }
+        }
+
+        // Atualizar Parecer Tático / Detalhado
+        const detalhadoEl = cardEl.querySelector('.detalhado-text-content');
+        if (detalhadoEl && data.novo_detalhado) {
+          let cleanDetalhado = data.novo_detalhado.replace(/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/is, '').trim();
+          cleanDetalhado = cleanDetalhado.replace(/\|+$/, '').trim();
+          detalhadoEl.textContent = cleanDetalhado;
+        }
+
+        // Atualizar botão Confirmar Bet
+        unlockBetConfirmButton(apostaId, data.palpite_novo || cardEl.getAttribute('data-palpite'), data.odd_nova || cardEl.getAttribute('data-odd'), data.valor_aposta || cardEl.getAttribute('data-valor'));
+      }
+
+      showToastReauditarIa(data);
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      alert('Erro ao conectar com o servidor para reauditar.');
+    });
+  }
+
+  function showToastReauditarIa(data) {
+    let toastContainer = document.getElementById('toastOddsContainer');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'toastOddsContainer';
+      toastContainer.style.cssText = 'position: fixed; top: 25px; right: 25px; z-index: 999999; max-width: 460px;';
+      document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-odds-item shadow-lg';
+    const isPremium = data.is_premium || data.destaque == 2;
+    const borderCol = isPremium ? '#f59e0b' : '#818cf8';
+    toast.style.cssText = `background: #0f172a; border: 1px solid ${borderCol}; border-left: 4px solid ${borderCol}; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; color: #ffffff; font-size: 0.85rem; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: all 0.3s ease;`;
+
+    let icon = isPremium ? '⭐' : (data.palpite_invertido ? '🔄' : '🤖');
+    let title = isPremium ? 'Oportunidade PREMIUM Detectada!' : (data.palpite_invertido ? 'Inversão Tática de Palpite!' : 'Reauditoria da IA Concluída!');
+    
+    toast.innerHTML = `
+      <div class="d-flex align-items-start justify-content-between gap-2">
+        <div class="d-flex align-items-start gap-2">
+          <span style="font-size: 1.3rem;">${icon}</span>
+          <div>
+            <strong style="color: ${borderCol}; display: block; font-size: 0.92rem; margin-bottom: 3px;">${title}</strong>
+            <p style="margin: 0; color: #cbd5e1; line-height: 1.45;">${data.motivo || data.message || 'Auditoria de súmula e inteligência finalizada com sucesso.'}</p>
+          </div>
+        </div>
+        <button type="button" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 0 4px; line-height: 1;" onclick="this.closest('.toast-odds-item').remove()">&times;</button>
+      </div>
+    `;
+
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(25px)';
+      setTimeout(() => toast.remove(), 350);
+    }, 7000);
+  }
   }
 
   // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)

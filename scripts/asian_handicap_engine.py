@@ -1983,11 +1983,12 @@ def calculate_unified_handicap_recommendation(
     ia_audit_info = best_cand.get('ia_audit') or {}
     ia_parecer_texto = ia_audit_info.get('parecer_explicativo') or ''
     if ia_parecer_texto:
+        ts_agora = datetime.now().strftime('%d/%m/%Y %H:%M')
         raw_calc = (
             f"🎯 GATEKEEPER AH APROVADO POR AUDITORIA COGNITIVA DA IA (+EV {ev_perc:+.1f}%) | "
             f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
             f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
-            f"Parecer Tático da IA: {ia_parecer_texto}"
+            f"Parecer Tático da IA ({ts_agora}): {ia_parecer_texto}"
         )
     else:
         raw_calc = (

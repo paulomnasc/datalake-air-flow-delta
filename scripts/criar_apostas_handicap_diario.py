@@ -467,6 +467,10 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                     print(f"🔒 [Aposta Liquidada] Partida #{fixture_id} já liquidada ({has_pending_bet.get('status')}). Mantida intacta.")
                     continue
 
+                if has_pending_bet.get('confirmada') == 1:
+                    print(f"🔒 [Aposta Confirmada Blindada] Partida #{fixture_id} ({home_team} vs {away_team}) já confirmada pelo usuário (#{has_pending_bet.get('id')}). Mantida intacta (auditoria de drift delegada exclusivamente à Sentinela).")
+                    continue
+
                 if is_api_missing:
                     print(f"🔒 [Card AH Preservado / Falha Temporária de API] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). Mantendo registro existente.")
                     continue

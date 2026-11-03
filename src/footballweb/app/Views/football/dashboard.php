@@ -3904,6 +3904,15 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                     <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
                                                         <i class="bi bi-shield-shaded"></i> <?= lang('App.goals_market_handicap') ?>:
+                                                        <?php
+                                                            $tsParecerCard = !empty($fix->auditoria_ia_checked_at) ? $fix->auditoria_ia_checked_at : (!empty($fix->updated_at) ? $fix->updated_at : null);
+                                                            if (!empty($tsParecerCard)):
+                                                                $parecerIaFormatted = date('d/m/Y H:i', strtotime($tsParecerCard));
+                                                        ?>
+                                                            <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.69rem; padding: 2px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora da gravação do parecer da IA">
+                                                                <i class="bi bi-clock-history"></i> Parecer IA: <?= $parecerIaFormatted ?>
+                                                            </span>
+                                                        <?php endif; ?>
                                                     </span>
                                                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                                         <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.7rem; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; border-radius: 6px;" onclick="checarOddsDashboard(<?= $fix->fixture_id ?>, this)">

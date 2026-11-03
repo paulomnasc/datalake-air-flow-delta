@@ -170,6 +170,7 @@ def coletar_sumula_e_desfalques_apisports(
     if not api_key:
         return {
             "lineups_disponiveis": False,
+            "tem_sumula": False,
             "texto_sumula": "Chave API-Sports ausente para consulta de súmula.",
             "alerta_estrutural_elenco": False,
             "motivos_alerta_elenco": [],
@@ -222,6 +223,7 @@ def coletar_sumula_e_desfalques_apisports(
         )
         return {
             "lineups_disponiveis": False,
+            "tem_sumula": False,
             "texto_sumula": f"Súmula oficial de 11 titulares ainda em processamento pela federação (comum até T-30min).\n{texto_inj}",
             "alerta_estrutural_elenco": False,
             "motivos_alerta_elenco": [],
@@ -404,6 +406,7 @@ def coletar_sumula_e_desfalques_apisports(
 
     return {
         "lineups_disponiveis": True,
+        "tem_sumula": True,
         "texto_sumula": "\n".join(blocos_sumula),
         "alerta_estrutural_elenco": len(motivos_alerta) > 0,
         "motivos_alerta_elenco": motivos_alerta,
@@ -793,6 +796,7 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
 
     sumula_info = dossie.get("sumula_oficial") or {}
     texto_sumula = sumula_info.get("texto_sumula", "Súmula não informada.")
+    lineups_disponiveis = bool(sumula_info.get("lineups_disponiveis") or sumula_info.get("tem_sumula"))
     alerta_estrutural = bool(sumula_info.get("alerta_estrutural_elenco"))
     motivos_elenco = sumula_info.get("motivos_alerta_elenco") or []
     noticias_web = dossie.get("noticias_web") or "Nenhum desfalque grave reportado nas notícias recentes."
@@ -823,6 +827,7 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
 • Alerta Crítico nos Dados / Outliers: {'SIM (Dados Zerados, Outliers ou Incoerência)' if alerta_critico_dados else 'NÃO (Dados Íntegros e Validados)'}
 
 --- SÚMULA OFICIAL DAS ESCALAÇÕES E DESFALQUES (API-SPORTS) ---
+• Status da Súmula na API: {'LIBERADA (11 Titulares Oficiais Confirmados)' if lineups_disponiveis else 'EM PROCESSAMENTO / NÃO PUBLICADA AINDA (Janela Pré-Jogo)'}
 {texto_sumula}
 • Alertas Estruturais de Elenco Detectados: {', '.join(motivos_elenco) if motivos_elenco else 'Nenhum desvio crítico automático'}
 
@@ -838,13 +843,32 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
    * REGRA DE HIERARQUIA E PESO TÁTICO DOS DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO DE ELENCO):
      - Ao analisar os desfalques e ausências na súmula oficial e notícias:
        1) JOGADORES DECISIVOS / ESPINHA DORSAL (Alto Impacto / Sinistro Real): Artilheiro principal da equipe, armador/camisa 10, goleiro titular absoluto, ou capitão/líder técnico indispensável (ex: atacantes top decisivos como Gabigol, ou craques suspensos como Neymar). A ausência confirmada desses atletas desfigura a competitividade do time e justifica classificação de risco ALTO (Alerta de Sinistro).
-       2) PEÇAS DE COMPOSIÇÃO DE ELENCO / NÍVEL SUBSTITUÍVEL (Baixo Impacto / Sem Sinistro): Defensores comuns ou reservas com reposição direta de nível equivalente (ex: defensores secundários como Lucas Veríssimo), laterais suplentes, volantes com substitutos de mesmo perfil, ou atletas que já estavam no departamento médico há meses fora da dinâmica do time. A ausência desses atletas de rotação NUNCA DEVE disparar falso alarme nem classificar a partida como risco ALTO se a espinha dorsal e o poder de fogo do time estiverem preservados em campo.
+       2) PEÇAS DE COMPOSIÇÃO DE ELENCO / NÍVEL SUBSTITUÍVEL (Baixo Impacto / Sem Sinistro): Defensores comuns ou reservas com reposição direta de nível equivalente, laterais suplentes, volantes com substitutos de mesmo perfil, ou atletas que já estavam no departamento médico há meses fora da dinâmica do time. A ausência desses atletas de rotação NUNCA DEVE disparar falso alarme nem classificar a partida como risco ALTO se a espinha dorsal e o poder de fogo do time estiverem preservados em campo.
    - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
    - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
    - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
-   * REGRA MANDATÓRIA ANTI-FALSO ALARME: Se a súmula oficial de 11 titulares ainda estiver em processamento pela federação, mas os dados do MySQL forem sólidos e NÃO há notícias de desfalques na imprensa, classifique como 'BAIXO' (Sinal Verde).
+   * REGRA MANDATÓRIA DE PROTOCOLO DE SÚMULA E ESCALAÇÃO OFICIAL:
+     A) SE AS ESCALAÇÕES TITULARES NÃO FORAM DIVULGADAS NEM NA API NEM NA IMPRENSA/CLUBES NA WEB (escalacao_confirmada = false) E O RISCO FOR 'MEDIO' OU 'ALTO':
+        - Seu parecer explicativo DEVE OBRIGATORIAMENTE instruir:
+          '⏳ Aguardar Súmula Oficial da Escalação: A partida apresenta risco moderado/elevado (odds abertas no 1X2 ou volatilidade). As escalações oficiais de 11 titulares ainda não foram publicadas (previsão a ~45m do jogo). Recomendação: Aguarde a confirmação dos titulares oficiais antes de cravar a entrada. A Sentinela emitirá a análise de impacto assim que a súmula for liberada.'
+        - "escalacao_confirmada": false
+        - "fonte_escalacao": "NAO_DIVULGADA"
+        - "resumo_escalacao": "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
+        - "titulo_alerta": f"⏳ Aguardar Súmula Oficial [Risco Médio]: {dossie.get('home_team')} vs {dossie.get('away_team')}"
+     B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web via Google Search Grounding - escalacao_confirmada = true):
+        - Seu parecer explicativo DEVE OBRIGATORIAMENTE iniciar com:
+          '📋 Escalação Oficial Confirmada! Análise de Impacto das Escalações:'
+        - Em seguida, detalhe:
+          1) Titulares confirmados: quem vai a campo em cada equipe (ex: goleiro, zaga, meio e ataque), comparando se o time manteve a base habitual com força máxima ou se houve rodízio/mudanças.
+          2) Ausências de peso: confirme se os atletas decisivos (espinha dorsal) estão presentes ou se há desfalque real.
+          3) Impacto tático na linha recomendada: explique como essa formação oficial influencia a segurança e a assimetria do palpite de handicap.
+          4) Veredito final: conclua com '🟢 Força Máxima Confirmada - Sinal Verde para Apostar' ou '🔴 Desfalque Crítico Confirmado - Cautela/Abstenção'.
+        - "escalacao_confirmada": true
+        - "fonte_escalacao": "API_SPORTS" ou "IMPRENSA_WEB"
+        - "resumo_escalacao": "Escalação confirmada: [destacar titulares principais, presenças de peso e eventuais baixas]"
+        - "titulo_alerta": f"📋 Escalação Confirmada: [Força Máxima / Alerta Desfalque] em {dossie.get('home_team')} vs {dossie.get('away_team')}"
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
-4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, NUNCA gerando respostas genéricas protocolares do tipo 'aguardar súmula oficial'.
+4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, respeitando rigorosamente o protocolo da súmula acima.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
@@ -852,6 +876,8 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
   "status": "CONFIRMADO" ou "ALERTA_RISCO",
   "grau_risco": "ALTO", "MEDIO" ou "BAIXO",
   "tem_alerta": true ou false,
+  "escalacao_confirmada": true ou false,
+  "fonte_escalacao": "API_SPORTS", "IMPRENSA_WEB" ou "NAO_DIVULGADA",
   "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares escalados e eventuais baixas",
   "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: Al-Ahli com time reserva e goleiro suplente')",
   "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e o impacto real sobre a aposta recomendada."
@@ -965,7 +991,12 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         badge_risco = "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo")
 
         tem_alerta_final = bool(grau_risco in ("ALTO", "MEDIO") or data.get("tem_alerta") or data.get("status") == "ALERTA_RISCO" or alerta_estrutural or alerta_critico_dados)
-        status_final = "ALERTA_RISCO" if (grau_risco == "ALTO" or alerta_estrutural or alerta_critico_dados) else "CONFIRMADO"
+        if grau_risco == "ALTO" or alerta_estrutural or alerta_critico_dados:
+            status_final = "ALERTA_RISCO"
+        elif grau_risco == "MEDIO":
+            status_final = "EM_OBSERVACAO"
+        else:
+            status_final = "CONFIRMADO"
         parecer_final = str(data.get("parecer_explicativo", "Auditoria de campo concluída.")).strip()
 
         # Injeta contextualização dos dados fundamentais no início do parecer
@@ -1094,9 +1125,13 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list) -> d
     motivo_distorcao = ""
 
     # Cenário A: Inversão de favoritismo na linha DNB (0.0 AH)
-    if abs(target_line) < 0.01 and opp_odd > 1.0 and opp_odd < curr_odd and curr_odd >= 1.90:
+    # Somente ocorre se a seleção nasceu como favorita da casa (odd_abertura < 1.85) e o mercado inverteu,
+    # fazendo a odd apoiada subir para >= 1.90 e o adversário se tornar o novo favorito.
+    # Se a aposta já nasceu em linha de valor no visitante/underdog (+EV com odd_abertura >= 1.85),
+    # o fato do adversário ter odd menor é a condição natural de abertura da aposta, NUNCA uma inversão.
+    if abs(target_line) < 0.01 and odd_abertura < 1.85 and opp_odd > 1.0 and opp_odd < curr_odd and curr_odd >= 1.90:
         houve_distorcao = True
-        motivo_distorcao = f"Inversão de favoritismo na linha 0.0: odd de {supported_team} subiu para {curr_odd:.2f} enquanto {opp_team} virou favorito a {opp_odd:.2f}."
+        motivo_distorcao = f"Inversão de favoritismo na linha 0.0: odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} enquanto {opp_team} virou favorito a {opp_odd:.2f}."
     # Cenário B: Movimentação reversa expressiva de mercado (Steam Move / Drift anômalo contra o time apoiado: >= 12% e >= 0.20)
     elif (curr_odd - odd_abertura) >= 0.20 and (((curr_odd - odd_abertura) / odd_abertura) * 100.0) >= 12.0 and curr_odd > 1.0:
         houve_distorcao = True
@@ -1279,7 +1314,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status = 'Pendente'
-                  AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status = 'EM_OBSERVACAO' OR a.confirmada = 1)
+                  AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1435,19 +1470,27 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
                         parecer = recalib['parecer_alerta']
                     elif era_observacao:
-                        if not sumula_oficial.get('tem_sumula') and not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
-                            # Súmula oficial ainda não disponível na API (escalações não publicadas ou execução fora da janela de súmula)
+                        tem_escalacao = bool(
+                            sumula_oficial.get('tem_sumula') or 
+                            sumula_oficial.get('lineups_disponiveis') or
+                            resultado.get('escalacao_confirmada') or
+                            'escalação oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower() or
+                            'súmula oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower()
+                        )
+                        if not tem_escalacao and not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
+                            # Súmula oficial ainda não disponível na API nem confirmada na imprensa
                             st = 'EM_OBSERVACAO'
                             badge_risco = '🟡 Em Observação'
-                            resumo = f"🟡 Em Observação: Súmula oficial ainda não divulgada na API ({resumo}) | Aguardando liberação das escalações oficiais"
-                            titulo_alerta = f"🟡 Em Observação [Aguardar Súmula]: {home_team} vs {away_team}"
+                            resumo = f"⏳ Aguardar Súmula Oficial: Súmula ainda não divulgada ({resumo}) | Aguardando liberação das escalações oficiais"
+                            titulo_alerta = f"⏳ Aguardar Súmula Oficial [Risco Médio]: {home_team} vs {away_team}"
                         elif not tem_alerta:
                             st = 'CONFIRMADO'
-                            resumo = f"🟢 Promovida na Repescagem: Súmula oficial confirmou titulares com força máxima ({resumo})"
+                            resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
+                            titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
                         else:
                             st = 'ALERTA_RISCO'
-                            resumo = f"🔴 Reprovada na Repescagem: Súmula confirmou desfalques/rodízio ({resumo})"
-                            titulo_alerta = f"🔴 Repescagem Reprovada [Risco Alto]: Desfalque Confirmado em {home_team} vs {away_team}"
+                            resumo = f"📋 Escalação Confirmada [Alerta de Desfalques]: {resumo}"
+                            titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques]: {home_team} vs {away_team}"
 
             # Atualiza no banco (apostas e fixtures_trends)
             try:
@@ -1514,8 +1557,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             msg_verde = f"{home_team} x {away_team} [🟢 Risco Baixo Antecipado]: Auditoria matinal concluída com elenco estável e sem desfalques reportados na imprensa! O jogo é {match_time}. Hora de garantir a entrada com odd no topo antes do mercado derreter!"
                             tipo_notif = "SINAL_VERDE_ANTECIPADO"
                         elif era_observacao:
-                            tit_verde = f"🟢 Repescagem Concluída [Risco Baixo]: Força Máxima Confirmada na Súmula! {home_team} vs {away_team}"
-                            msg_verde = f"{home_team} x {away_team} [🟢 Sinal Verde na Repescagem]: A súmula oficial acaba de ser publicada e confirmou os 11 titulares com força máxima! O jogo é {match_time}. Hora de garantir a entrada com segurança factual!"
+                            tit_verde = f"📋 Escalação Confirmada [Força Máxima / Sinal Verde]: {home_team} vs {away_team}"
+                            msg_verde = f"{home_team} x {away_team} [📋 Escalação Confirmada]: Os 11 titulares foram confirmados com força máxima! Análise de Impacto: Elenco principal confirmado sem desfalques críticos na espinha dorsal. Decisão: 🟢 Sinal Verde liberado para apostar!"
                             tipo_notif = "SINAL_VERDE_REPESCAGEM"
                         else:
                             if linha_recalibrada:

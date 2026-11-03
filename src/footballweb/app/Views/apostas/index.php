@@ -1715,7 +1715,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ?>
 
               <!-- Botão Retrátil no padrão dos cards do Dashboard -->
-              <div class="bet-badge-toggle-bar">
+              <div class="bet-badge-toggle-bar d-flex justify-content-between align-items-center w-100 flex-wrap gap-2">
                 <button type="button" 
                         id="btn-gk-<?= $aposta->id ?>" 
                         class="bet-toggle-badge <?= $gkBadgeColor ?>" 
@@ -1723,6 +1723,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
                         title="Clique para expandir/retrair a auditoria detalhada do Gatekeeper">
                   <i class="bi <?= $gkBadgeIcon ?> me-1"></i> <?= $gkBadgeText ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                 </button>
+                <?php 
+                  $tsParecerAposta = !empty($aposta->criado_em) ? $aposta->criado_em : (!empty($aposta->auditoria_ia_checked_at) ? $aposta->auditoria_ia_checked_at : (!empty($aposta->updated_at) ? $aposta->updated_at : null));
+                  if (!empty($tsParecerAposta)):
+                    $parecerApostaFmt = date('d/m/Y H:i', strtotime($tsParecerAposta));
+                ?>
+                  <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
+                    <i class="bi bi-clock-history"></i> Parecer IA: <?= $parecerApostaFmt ?>
+                  </span>
+                <?php endif; ?>
               </div>
 
               <!-- Seção Retrátil do STATUS GK (carregada oculta com display: none por padrão) -->
@@ -1766,9 +1775,18 @@ if (!function_exists('fmtTopValorWithBrl')) {
                     </div>
                   </div>
                 <?php elseif (!empty($detalhadoExibir)): ?>
-                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; width: 100%;">
-                    <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
-                    <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 12px; font-size: 0.78rem; color: #e2e8f0; width: 100%;">
+                    <?php if (!empty($tsParecerAposta)): ?>
+                      <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
+                          <i class="bi bi-clock-history"></i> Parecer gravado em: <?= $parecerApostaFmt ?>
+                        </span>
+                      </div>
+                    <?php endif; ?>
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                      <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
+                      <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                    </div>
                   </div>
                 <?php endif; ?>
               </div>

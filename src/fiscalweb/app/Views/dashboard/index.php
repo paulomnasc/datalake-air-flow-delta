@@ -264,18 +264,23 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <h4 class="mb-0 text-primary" style="font-weight: 600;">
                                 <i class="bi bi-briefcase me-2"></i>Ordens de Serviço por Status
                             </h4>
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="filtro-sistema-dashboard" class="form-label mb-0 fw-bold text-secondary" style="white-space: nowrap;">
-                                    <i class="bi bi-filter me-1"></i> Sistema:
-                                </label>
-                                <select id="filtro-sistema-dashboard" class="form-select form-select-sm" style="min-width: 250px; border-radius: 6px; padding: 6px 12px; background-color: #fff;">
-                                    <option value="">-- Todos os Sistemas --</option>
-                                    <?php if (!empty($sistemas_list)): foreach ($sistemas_list as $sys): ?>
-                                        <option value="<?php echo esc($sys->descricao); ?>">
-                                            <?php echo !empty($sys->sigla) ? '[' . esc($sys->sigla) . '] ' : ''; ?><?php echo esc($sys->descricao); ?>
-                                        </option>
-                                    <?php endforeach; endif; ?>
-                                </select>
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <button type="button" class="btn btn-warning fw-bold d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa" id="btnAbrirModalReportIa" style="box-shadow: 0 4px 14px rgba(255, 193, 7, 0.4); border-radius: 50px; padding: 7px 20px; color: #1a1d29; border: none; white-space: nowrap; font-size: 0.95rem; cursor: pointer;">
+                                    <i class="bi bi-robot fs-5"></i> Status Report IA (Gemini)
+                                </button>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="filtro-sistema-dashboard" class="form-label mb-0 fw-bold text-secondary" style="white-space: nowrap;">
+                                        <i class="bi bi-filter me-1"></i> Sistema:
+                                    </label>
+                                    <select id="filtro-sistema-dashboard" class="form-select form-select-sm" style="min-width: 250px; border-radius: 6px; padding: 6px 12px; background-color: #fff;">
+                                        <option value="">-- Todos os Sistemas --</option>
+                                        <?php if (!empty($sistemas_list)): foreach ($sistemas_list as $sys): ?>
+                                            <option value="<?php echo esc($sys->descricao); ?>">
+                                                <?php echo !empty($sys->sigla) ? '[' . esc($sys->sigla) . '] ' : ''; ?><?php echo esc($sys->descricao); ?>
+                                            </option>
+                                        <?php endforeach; endif; ?>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -1840,4 +1845,5 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             checkboxes.forEach(cb => cb.checked = select);
         }
     </script>
+<?php require VIEWPATH . '/components/modal_status_report_ia.php'; ?>
 <?php require VIEWPATH . '/footer.php'; ?>

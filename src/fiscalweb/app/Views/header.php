@@ -585,7 +585,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 📊 Relatórios
                             </a>
                             <div class="dropdown-menu">
-                                <a class="dropdown-item" href="#">Em breve...</a>
+                                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa">🤖 Status Report IA (Gemini)</a>
                             </div>
                         </div>
                     </li>
@@ -906,7 +906,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">RELATÓRIOS</a>
                         <div class="dropdown-menu">
-                            <a href="#" class="dropdown-item">Em breve...</a>
+                            <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa">🤖 Status Report IA (Gemini)</a>
                         </div>
                     </div>
                 <?php endif; ?>

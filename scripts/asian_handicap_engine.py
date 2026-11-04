@@ -1839,30 +1839,7 @@ def calculate_unified_handicap_recommendation(
             }
             ia_audit_res = avaliar_oportunidade_handicap_com_ia(dossie_ia)
 
-            if not best_cand and ia_audit_res.get('decisao') == 'APROVADO' and ia_audit_res.get('matched_cand'):
-                best_cand = ia_audit_res['matched_cand']
-                conf_ia = float(ia_audit_res.get('grau_confianca') or 70.0)
-                odd_ia = float(best_cand.get('odd') or 2.0)
-                odd_justa_ia = round(100.0 / conf_ia, 2) if conf_ia > 0 else 1.80
-                ev_ia = round(((odd_ia / odd_justa_ia) - 1.0) * 100.0, 1) if odd_justa_ia > 0 else 15.0
-                best_cand['eval'] = {
-                    'odd_justa': odd_justa_ia,
-                    'prob_eff': conf_ia,
-                    'ev_percent': ev_ia,
-                    'p_win': conf_ia,
-                    'p_half_win': 0.0,
-                    'p_push': round(max(0.0, 100.0 - conf_ia), 1),
-                    'p_half_loss': 0.0,
-                    'p_loss': 0.0
-                }
-                is_prem = bool(ia_audit_res.get('is_premium'))
-                best_cand['destaque'] = 2 if is_prem else 1
-                best_cand['is_premium'] = is_prem
-                best_cand['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)' if is_prem else 'Oportunidade +EV Validada por IA'
-                best_cand['ia_audit'] = ia_audit_res
-                approved = [best_cand]
-                print(f"🤖 [IA Sentinela AH / Oportunidade Desbloqueada] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' @ {odd_ia:.2f} aprovada pela IA (Confiança {conf_ia:.1f}%, Premium: {is_prem}).")
-            elif best_cand and ia_audit_res.get('alerta_sinistro'):
+            if best_cand and ia_audit_res.get('alerta_sinistro'):
                 print(f"🚨 [IA Sentinela AH / Veto por Sinistro] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' vetada pela IA devido a desfalques críticos.")
                 best_cand = None
                 approved = []

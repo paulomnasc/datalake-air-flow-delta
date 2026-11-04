@@ -682,7 +682,7 @@ def evaluate_and_select_best_ah_candidate(
     - Score de Valor = EV% * (Prob / 100.0)
     """
     standard_allowed_lines = {0.0}
-    moderate_negative_lines = {-0.5, -0.75, -1.0}
+    moderate_negative_lines = {-0.5, -0.75}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
     raw_a_odd = float(odd_away or 0.0)
@@ -838,8 +838,8 @@ def evaluate_and_select_best_ah_candidate(
             cand_odd <= 1.35 and cand_xg_diff >= 2.0
         )
 
-        # Trava de Segurança Máxima Anti-Goleada (com exceção de até -1.5 AH em Super-Dominância Tier 1):
-        if c_line < -1.5 or (c_line < -1.0 and not is_super_dominant_tier1):
+        # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -0.75 AH
+        if c_line < -0.75:
             continue
 
         # =========================================================================
@@ -854,12 +854,12 @@ def evaluate_and_select_best_ah_candidate(
 
         # =========================================================================
         # REGRA MANDATÓRIA DE MANDO DE CAMPO (OPÇÃO B - PROTEÇÃO FORA DE CASA):
-        # Linhas esticadas que não toleram empate (c_line < -0.25, como -0.5, -0.75, -1.0)
+        # Linhas esticadas que não toleram empate (c_line < -0.25, como -0.5, -0.75)
         # são autorizadas EXCLUSIVAMENTE para Mandantes (Home).
         # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
-        # Exceção Soberana: Super-Dominância Tier 1 (onde o abismo técnico autoriza até -1.5 AH).
+        # Exceção Soberana: Super-Dominância Tier 1 (onde o abismo técnico autoriza até -0.75 AH).
         # =========================================================================
-        if c_is_away and c_line < -0.25 and not is_super_dominant_tier1:
+        if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75)):
             continue
 
         cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
@@ -1204,33 +1204,21 @@ def evaluate_and_select_best_ah_candidate(
 
         if c_line in moderate_negative_lines:
             # -0.5 AH pode ser liberado para mandantes com dominância de Poisson OU super-favoritos/assimetria
-            # Linhas mais profundas (-0.75 AH e -1.0 AH) permanecem terminantemente restritas a Super-Favoritos ou Tier 1 Dominante
+            # Linha -0.75 AH permanece restrita a Super-Favoritos ou Tier 1 Dominante (teto máximo global)
+            min_odd_neg = 1.50 if is_super_dominant_tier1 else 1.60
+            if c_odd < min_odd_neg or c_odd > 1.95:
+                continue
             if c_line == -0.5:
                 if not (is_eligible_negative or is_home_poisson_dominant_minus_half):
                     continue
-                # Faixa de odd segura para -0.5 AH: piso mínimo global de 1.60
-                if c_odd < 1.60 or c_odd > 1.95:
-                    continue
-                required_prob = 58.0 if is_super_fav_crushed else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
-                required_ev = 8.0 if is_super_fav_crushed else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
+                required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
+                required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
             else:
-                # Linhas -0.75 AH e -1.0 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
+                # Linha -0.75 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
                 if not is_eligible_negative:
                     continue
-                if c_odd < 1.60 or c_odd > 1.95:
-                    continue
-                required_prob = 58.0 if is_super_fav_crushed else 65.0
-                required_ev = 8.0 if is_super_fav_crushed else 15.0
-        elif c_line in (-1.25, -1.5):
-            # Linhas Estendidas (-1.25 AH e -1.5 AH): Restritas a Super-Dominância Tier 1
-            if not is_super_dominant_tier1:
-                continue
-            # Piso para aposta Premium: se for Super-Dominância Tier 1 (Premium), o piso é 1.50
-            min_odd_premium = 1.50 if is_super_dominant_tier1 else 1.60
-            if c_odd < min_odd_premium or c_odd > 1.95:
-                continue
-            required_prob = 58.0
-            required_ev = 8.0
+                required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 65.0
+                required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 15.0
         elif c_line == -0.25:
             # Linha de Cobertura de -0.25 AH (Carro-Chefe Histórico de Rentabilidade):
             # 1. Elegibilidade: Mandantes com superioridade técnica OU Visitantes em alta contra mandantes em crise
@@ -1376,7 +1364,7 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_super_dominant_tier1'] = is_super_dominant_tier1
-            if is_super_dominant_tier1 and c_line in (-1.25, -1.5):
+            if is_super_dominant_tier1 and c_line in (-0.5, -0.75):
                 cand_copy['destaque'] = 2
                 cand_copy['is_premium'] = True
                 cand_copy['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
@@ -2967,10 +2955,8 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         if status_ah == 'APROVADO' and p_str.strip().lower() == str(sug_ah).strip().lower():
             is_aprovada = True
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
-        elif c_line < -1.5:
-            motivo = "Reprovada: Linha ultra-agressiva (< -1.5 AH) é proibida pelo teto de segurança"
-        elif c_line < -1.0:
-            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é proibida pelo teto de segurança (exceção até -1.5 AH restrita a Super-Dominância Tier 1)"
+        elif c_line < -0.75:
+            motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
         elif c_line > 0.0:
             motivo = "Reprovada: Linhas positivas (+AH) são bloqueadas por expectativa matemática negativa histórica"
         elif is_away and c_line < -0.25:
@@ -2981,7 +2967,7 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Reprovada: Cotação deprimida abaixo do piso seguro de 1.50"
         elif 1.61 <= odd_val <= 1.85 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Equipe em curva descendente bloqueada na faixa crítica de risco (1.61 a 1.85)"
-        elif c_line in (-0.5, -0.75, -1.0):
+        elif c_line in (-0.5, -0.75):
             motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
         elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"

@@ -1451,8 +1451,18 @@ if (!function_exists('fmtTopValorWithBrl')) {
               stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
           );
           $isLockedByLineup = ($isApostaPremium || $isQuasePremium) && (($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+
+          $isHandicap = (stripos($aposta->mercado ?? '', 'handicap') !== false || stripos($aposta->palpite ?? '', 'ah') !== false);
+          $isExceedingCeiling = false;
+          if ($isHandicap && preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $aposta->palpite ?? '', $mLine)) {
+              $lVal = (float)str_replace(',', '.', $mLine[1]);
+              if ($lVal < -0.75) {
+                  $isExceedingCeiling = true;
+              }
+          }
+          $isLockedByRiskCeiling = $isExceedingCeiling && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
@@ -1936,28 +1946,29 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <?php 
                 $btnConfirmClass = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
                   ? 'btn-outline-success' 
-                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : ($isLockedByLineup ? 'btn-secondary disabled' : 'btn-success'));
+                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : ($isLockedByRiskCeiling ? 'btn-secondary disabled' : ($isLockedByLineup ? 'btn-secondary disabled' : 'btn-success')));
                 $btnConfirmIcon = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
                   ? 'bi-check2-circle' 
-                  : ($isLockedByLineup ? 'bi-hourglass-split' : 'bi-lightning-charge-fill');
+                  : ($isLockedByRiskCeiling ? 'bi-shield-slash-fill' : ($isLockedByLineup ? 'bi-hourglass-split' : 'bi-lightning-charge-fill'));
                 $btnConfirmTitle = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
                   ? 'Aposta já confirmada' 
-                  : ($isLockedByLineup ? 'Trava de Governança: Aguardando súmula oficial e validação da Sentinela Gemini' : 'Confirmar Aposta');
-                $btnConfirmText = $isLockedByLineup ? '⏳ Aguardar Súmula' : lang('App.confirm_bet');
+                  : ($isLockedByRiskCeiling ? 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.' : ($isLockedByLineup ? 'Trava de Governança: Aguardando súmula oficial e validação da Sentinela Gemini' : 'Confirmar Aposta'));
+                $btnConfirmText = $isLockedByRiskCeiling ? '🔒 Limite Excedido' : ($isLockedByLineup ? '⏳ Aguardar Súmula' : lang('App.confirm_bet'));
               ?>
               <button type="button" 
                       class="btn btn-sm <?= $btnConfirmClass ?> fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
                       id="btn-confirm-<?= $aposta->id ?>"
                       data-aposta-id="<?= $aposta->id ?>"
                       data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>"
+                      data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>"
                       data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
                       data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
                       data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
                       data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
                       data-valor="<?= (float)$aposta->valor_aposta ?>"
                       data-odd="<?= (float)($aposta->odd ?? 0) ?>"
-                      <?= $isLockedByLineup ? 'disabled style="border-radius: 8px; opacity: 0.65; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
-                      onclick="<?= $isLockedByLineup ? 'alert(\'⏳ Trava de Governança de Risco: Esta aposta é classificada como ' . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.\'); return false;' : 'openConfirmBetModal(' . $aposta->id . ', \\\'' . htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') . '\\\', ' . (float)$aposta->valor_aposta . ', ' . (float)($aposta->odd ?? 0) . ')' ?>"
+                      <?= ($isLockedByLineup || $isLockedByRiskCeiling) ? 'disabled style="border-radius: 8px; opacity: 0.65; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
+                      onclick="<?= $isLockedByRiskCeiling ? 'alert(\'🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.\'); return false;' : ($isLockedByLineup ? 'alert(\'⏳ Trava de Governança de Risco: Esta aposta é classificada como ' . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.\'); return false;' : 'openConfirmBetModal(' . $aposta->id . ', \\\'' . htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') . '\\\', ' . (float)$aposta->valor_aposta . ', ' . (float)($aposta->odd ?? 0) . ')') ?>"
                       title="<?= $btnConfirmTitle ?>">
                 <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= $btnConfirmText ?>
               </button>
@@ -3868,10 +3879,32 @@ if (!function_exists('fmtTopValorWithBrl')) {
     clearDateFilter();
   }
 
+  function isHandicapExceedingCeiling(mercado, palpite) {
+    const m = (mercado || '').toLowerCase();
+    const p = (palpite || '').toLowerCase();
+    const isAh = m.includes('handicap') || p.includes('ah');
+    if (!isAh) return false;
+    const match = p.match(/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i);
+    if (match && match[1]) {
+      const val = parseFloat(match[1].replace(',', '.'));
+      if (!isNaN(val) && val < -0.75) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   let isSubmittingNewBet = false;
   function submitNewBet(e, confirmRisco = false) {
     if (e && e.preventDefault) e.preventDefault();
     if (isSubmittingNewBet && !confirmRisco) return;
+
+    const mercadoVal = document.getElementById('mercadoInput')?.value || '';
+    const palpiteVal = document.getElementById('palpiteInput')?.value || '';
+    if (isHandicapExceedingCeiling(mercadoVal, palpiteVal)) {
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      return;
+    }
 
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
     if (oddVal <= 1.0) {
@@ -4077,6 +4110,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
     if (e && e.preventDefault) e.preventDefault();
     if (isSubmittingEditBet && !confirmRisco) return;
 
+    const editMercadoVal = document.getElementById('editMercadoInput')?.value || '';
+    const editPalpiteVal = document.getElementById('editPalpiteInput')?.value || '';
+    if (isHandicapExceedingCeiling(editMercadoVal, editPalpiteVal)) {
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      return;
+    }
+
     const rawOddStr = (document.getElementById('editOddInput').value || '').replace(',', '.');
     const oddVal = parseFloat(rawOddStr) || 0;
     if (oddVal <= 1.0) {
@@ -4186,6 +4226,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
       const isLockedLineup = cardEl.getAttribute('data-locked-lineup') === '1' || cardEl.querySelector('#btn-confirm-' + apostaId)?.getAttribute('data-locked-lineup') === '1';
       if (isLockedLineup) {
         alert('🔒 Trava de Governança de Risco:\nEsta aposta é classificada como PREMIUM ou Quase Premium.\n\nÉ terminantemente proibido confirmar e debitar da banca sem a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini.');
+        return;
+      }
+
+      // 4.2 Trava Mandatória de Segurança da Banca: Teto de -0.75 AH para Favoritos
+      const isLockedRisk = cardEl.getAttribute('data-locked-risk') === '1' || isHandicapExceedingCeiling(mercado, palpite);
+      if (isLockedRisk) {
+        alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nEsta aposta possui uma linha além do limite de risco permitido (-1.0, -1.25, -1.5) e está terminantemente bloqueada para confirmação e débito na banca.');
         return;
       }
 

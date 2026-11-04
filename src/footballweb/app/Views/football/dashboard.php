@@ -3269,6 +3269,63 @@ if (!function_exists('getBetDecisionTree')) {
                                             <?php endif; ?>
                                         </div>
 
+                                        <!-- Widget Eficiência U5J (Twin Progress Bars) -->
+                                        <?php 
+                                            $effHome = null;
+                                            $effAway = null;
+                                            if (!empty($u5j_data_pre['home'])) {
+                                                $effHome = (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency']))
+                                                    ? floatval($u5j_data_pre['home']['pts_efficiency']) 
+                                                    : floatval($u5j_data_pre['home']['pts'] ?? 0);
+                                            }
+                                            if (!empty($u5j_data_pre['away'])) {
+                                                $effAway = (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency']))
+                                                    ? floatval($u5j_data_pre['away']['pts_efficiency']) 
+                                                    : floatval($u5j_data_pre['away']['pts'] ?? 0);
+                                            }
+                                        ?>
+                                        <?php if ($effHome !== null || $effAway !== null): ?>
+                                            <?php
+                                                $valHome = max(0.0, floatval($effHome ?? 0.0));
+                                                $valAway = max(0.0, floatval($effAway ?? 0.0));
+                                                $maxRef = max(35.0, max($valHome, $valAway));
+                                                $barPctHome = min(100, max(6, round(($valHome / $maxRef) * 100)));
+                                                $barPctAway = min(100, max(6, round(($valAway / $maxRef) * 100)));
+                                            ?>
+                                            <div class="bet-u5j-twin-bars" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; padding: 5px 8px; margin: 4px 0 8px 0;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <span style="font-size: 0.67rem; font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 4px;">
+                                                        <i class="bi bi-speedometer2"></i> Eficiência U5J
+                                                    </span>
+                                                    <span style="font-size: 0.60rem; color: #94a3b8; font-weight: 500;">Força Recente</span>
+                                                </div>
+                                                <!-- Mandante -->
+                                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
+                                                    <span style="font-size: 0.65rem; color: #38bdf8; font-weight: 700; width: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($fix->home_team) ?>">
+                                                        🏠 <?= htmlspecialchars(mb_substr($fix->home_team, 0, 8)) ?>
+                                                    </span>
+                                                    <div style="flex: 1; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden;">
+                                                        <div style="width: <?= $barPctHome ?>%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); border-radius: 3px;"></div>
+                                                    </div>
+                                                    <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; min-width: 56px; text-align: right; font-family: monospace;">
+                                                        <?= number_format($valHome, 1) ?> <span style="font-size: 0.56rem; font-weight: 400; color: #94a3b8;">pts</span>
+                                                    </span>
+                                                </div>
+                                                <!-- Visitante -->
+                                                <div style="display: flex; align-items: center; gap: 6px;">
+                                                    <span style="font-size: 0.65rem; color: #a78bfa; font-weight: 700; width: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($fix->away_team) ?>">
+                                                        ✈️ <?= htmlspecialchars(mb_substr($fix->away_team, 0, 8)) ?>
+                                                    </span>
+                                                    <div style="flex: 1; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden;">
+                                                        <div style="width: <?= $barPctAway ?>%; height: 100%; background: linear-gradient(90deg, #7c3aed, #a78bfa); border-radius: 3px;"></div>
+                                                    </div>
+                                                    <span style="font-size: 0.72rem; font-weight: 800; color: #a78bfa; min-width: 56px; text-align: right; font-family: monospace;">
+                                                        <?= number_format($valAway, 1) ?> <span style="font-size: 0.56rem; font-weight: 400; color: #94a3b8;">pts</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
                                         <div class="bet-team-row-wrapper">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
                                                 <?php if (!empty($fix->away_team_id)): ?>

@@ -1502,13 +1502,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 </span>
               <?php endif; ?>
               <?php if (!empty($aposta->fixture_id)): ?>
-                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                   target="_blank" rel="noopener noreferrer"
-                   class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
-                   style="font-size: 0.75rem; transition: all 0.2s ease;" 
-                   title="<?= lang('App.origin_card') ?>">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                </a>
+                <button type="button" 
+                        class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1 btn-card-origem-modal" 
+                        style="font-size: 0.75rem; transition: all 0.2s ease; cursor: pointer; border-radius: 6px;" 
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
+                  <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
+                </button>
               <?php endif; ?>
             </div>
 
@@ -1977,12 +1977,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
             <div class="actions-secondary">
               <?php if (!empty($aposta->fixture_id)): ?>
-                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                   target="_blank" rel="noopener noreferrer"
-                   class="btn-icon-link text-warning fw-semibold text-decoration-none" 
-                   title="<?= lang('App.origin_card') ?>">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                </a>
+                <button type="button" 
+                        class="btn-icon-link text-warning fw-semibold text-decoration-none btn-card-origem-footer" 
+                        style="cursor: pointer;"
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
+                  <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
+                </button>
               <?php else: ?>
                 <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
                    target="_blank" rel="noopener noreferrer"
@@ -2420,6 +2421,32 @@ if (!function_exists('fmtTopValorWithBrl')) {
         <button type="button" class="btn btn-success fw-bold px-4 text-white d-inline-flex align-items-center gap-2 shadow" id="btnExecuteConfirmBatch" onclick="executeConfirmBatch()">
           <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.execute_batch_confirm_btn') ?>
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CARD ORIGEM (OVERLAY MODAL VIEW) -->
+<div class="modal fade modal-dark" id="modalCardOrigem" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(8px);">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style="max-width: 820px;">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.8); border-radius: 14px;">
+      <div class="modal-header border-bottom border-secondary d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95); padding: 12px 20px;">
+        <h6 class="modal-title fw-bold text-white d-flex align-items-center gap-2 m-0" id="modalCardOrigemTitle" style="font-size: 0.95rem;">
+          <i class="bi bi-shield-shaded text-info"></i> Card de Origem da Aposta
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <a href="#" id="modalCardOrigemExternalLink" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-info d-flex align-items-center gap-1 shadow-sm" style="font-size: 0.74rem; border-radius: 6px; padding: 4px 10px;" title="Abrir no Dashboard (Nova Aba)">
+            <i class="bi bi-box-arrow-up-right"></i> Abrir em nova aba
+          </a>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3" id="modalCardOrigemBody" style="min-height: 280px; max-height: 80vh; overflow-y: auto;">
+        <!-- Carregamento dinâmico via AJAX / Cache em Memória -->
+      </div>
+      <div class="modal-footer border-top border-secondary py-2 px-3 d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95);">
+        <span class="text-white-50 small" style="font-size: 0.75rem;"><i class="bi bi-info-circle text-info me-1"></i> Você pode fechar e reabrir este card a qualquer momento sem sair da tela.</span>
+        <button type="button" class="btn btn-secondary btn-sm px-3 fw-bold" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -5338,6 +5365,77 @@ if (!function_exists('fmtTopValorWithBrl')) {
       toast.style.transform = 'translateX(25px)';
       setTimeout(() => toast.remove(), 350);
     }, 7000);
+  }
+
+  // Cache em memória para aberturas instantâneas do Card Origem (0ms) sem reconsultar o servidor
+  const cachedOriginCards = {};
+
+  function handleAbrirCardOrigem(fixtureId, matchTitle) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui identificador de partida vinculado.');
+      return;
+    }
+
+    const modalEl = document.getElementById('modalCardOrigem');
+    const titleEl = document.getElementById('modalCardOrigemTitle');
+    const bodyEl = document.getElementById('modalCardOrigemBody');
+    const extLink = document.getElementById('modalCardOrigemExternalLink');
+
+    if (titleEl) {
+      titleEl.innerHTML = `<i class="bi bi-shield-shaded text-info me-1"></i> Origem: <strong>${matchTitle || 'Partida'}</strong>`;
+    }
+    if (extLink) {
+      extLink.href = `<?= base_url('football-trends?fixture_id=') ?>${fixtureId}#card-${fixtureId}`;
+    }
+
+    // Se já estiver em cache, exibe instantaneamente e abre o modal
+    if (cachedOriginCards[fixtureId]) {
+      if (bodyEl) bodyEl.innerHTML = cachedOriginCards[fixtureId];
+      if (modalEl) showModalSafely(modalEl);
+      return;
+    }
+
+    // Exibe spinner enquanto carrega
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-info mb-2" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
+          <p class="text-white-50 small mb-0">Carregando card de origem da partida...</p>
+        </div>
+      `;
+    }
+    if (modalEl) showModalSafely(modalEl);
+
+    fetch(`<?= base_url('apostas/card-origem/') ?>${fixtureId}`, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.html) {
+        cachedOriginCards[fixtureId] = data.html;
+        if (bodyEl) bodyEl.innerHTML = data.html;
+      } else {
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="alert alert-warning py-3 text-center my-4 rounded-3" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fef08a;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> ${data.message || 'Não foi possível carregar os dados de origem desta partida.'}
+            </div>
+          `;
+        }
+      }
+    })
+    .catch(err => {
+      console.error('Erro ao buscar card de origem:', err);
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div class="alert alert-danger py-3 text-center my-4 rounded-3" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            <i class="bi bi-x-circle-fill me-1"></i> Erro ao conectar com o servidor para buscar o card de origem.
+          </div>
+        `;
+      }
+    });
   }
 
   // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)

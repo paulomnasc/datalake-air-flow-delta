@@ -89,6 +89,7 @@ $routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', [
 $routes->get('/apostas/radar-linhas-ah/(:num)', 'ApostaController::radarLinhasAh/$1', ['as' => 'apostas.radar_linhas_ah']);
 $routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
+$routes->get('/apostas/card-origem/(:num)', 'ApostaController::cardOrigem/$1', ['as' => 'apostas.card_origem']);
 
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
 $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);

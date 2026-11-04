@@ -4505,6 +4505,56 @@ class ApostaController extends BaseController
              . view('apostas/relatorio_abstencoes', $data)
              . view('footer');
     }
+
+    /**
+     * Retorna o HTML do Card de Origem da Aposta para exibição em Modal Sobreposto (AJAX)
+     */
+    public function cardOrigem($fixtureId = null)
+    {
+        $fixtureId = (int)$fixtureId;
+        if ($fixtureId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $userTimezone = $_SESSION['user_timezone'] ?? $this->request->getCookie('user_timezone') ?? 'America/Sao_Paulo';
+        date_default_timezone_set($userTimezone);
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('fixtures_trends ft');
+        $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level,
+                          th.avg_goals_scored as home_avg_goals_scored, th.avg_goals_conceded as home_avg_goals_conceded, th.clean_sheets_pct as home_clean_sheets_pct, th.avg_corners as home_avg_corners, th.avg_cards as home_avg_cards,
+                          ta.avg_goals_scored as away_avg_goals_scored, ta.avg_goals_conceded as away_avg_goals_conceded, ta.clean_sheets_pct as away_clean_sheets_pct, ta.avg_corners as away_avg_corners, ta.avg_cards as away_avg_cards');
+        $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
+        $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
+        $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
+        $builder->where('ft.fixture_id', $fixtureId);
+        $fix = $builder->get()->getRow();
+
+        if (!$fix) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Card de origem não encontrado no banco de dados para esta partida.'
+            ])->setStatusCode(404);
+        }
+
+        $data = [
+            'fix'          => $fix,
+            'userTimezone' => $userTimezone,
+            'fixtureId'    => $fixtureId
+        ];
+
+        $html = view('football/partials/card_origem_modal', $data);
+
+        return $this->response->setJSON([
+            'success'   => true,
+            'html'      => $html,
+            'title'     => ($fix->home_team ?? 'Mandante') . ' x ' . ($fix->away_team ?? 'Visitante'),
+            'fixtureId' => $fixtureId
+        ]);
+    }
 }
 
 

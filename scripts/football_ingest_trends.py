@@ -4616,7 +4616,7 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status, odd_casa, odd_empate, odd_visitante FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status, odd_home, odd_draw, odd_away FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
 
         # Ingestão de prévias e palpites editoriais do Futbol24
@@ -4777,7 +4777,7 @@ def update_oddspedia_odds(conn):
             
             # Coleta cotações de cada uma das fontes independentes
             api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
-            has_db_odds = float(fix.get('odd_casa') or 0.0) > 1.0 and float(fix.get('odd_visitante') or 0.0) > 1.0
+            has_db_odds = float(fix.get('odd_home') or 0.0) > 1.0 and float(fix.get('odd_away') or 0.0) > 1.0
             if not api_bms and not has_db_odds and not _api_sports_rate_limited and not _api_sports_odds_rate_limited and not _api_sports_quota_exceeded:
                 api_bms = fetch_single_api_sports_odds(fix_id)
             toapi_bms = find_source_match_odds(api_odds_matches, fix['home_team'], fix['away_team'])

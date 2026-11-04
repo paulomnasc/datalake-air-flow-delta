@@ -139,9 +139,17 @@ if (!empty($fix->ah_reasoning) && preg_match('/MOTIVACAO:\s*([^\|]+)/u', $fix->a
     $motivation = trim($mMot[1]);
 }
 
-$isCardPremium = (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
-                 (stripos($fix->gatekeeper_category ?? '', 'PREMIUM') !== false) ||
-                 (stripos($fix->ah_reasoning ?? '', 'PREMIUM') !== false);
+$isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
+$isCardPremium = $isCardAhApproved && (
+    (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
+    (($fix->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+);
+
+$isQuasePremium = $isCardAhApproved && !$isCardPremium && (
+    (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+    (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
+    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion)
+);
 ?>
 
 <div class="card-origem-modal-wrapper" style="color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
@@ -200,6 +208,11 @@ $isCardPremium = (!empty($fix->destaque) && (int)$fix->destaque === 2) ||
           <span class="badge border px-2 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                 style="font-size: 0.74rem; background: rgba(234, 179, 8, 0.25) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.6) !important;">
             <span>⭐</span> Tier 1 Dominante
+          </span>
+        <?php elseif ($isQuasePremium): ?>
+          <span class="badge border px-2 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px;">
+            <span>🛡️</span> Quase Premium
           </span>
         <?php endif; ?>
       </div>

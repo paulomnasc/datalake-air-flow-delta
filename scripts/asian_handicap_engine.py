@@ -221,6 +221,8 @@ def get_cached_betano_1x2(fixture_id: int):
 
 
 GATEKEEPER_DIDACTIC_MAP = {
+    'Oportunidade PREMIUM (+EV Alavancado)': 'Super-Favorito de Elite (Tier 1) com convergência máxima da Tríade de Risco (V1: Elite contra gigantes, V2: Valor alinhado no 1X2, V3: 100% dos titulares confirmados). Autorizada alavancagem de 3x a stake padrão.',
+    'Aposta Quase Premium (+EV Selecionado)': 'Aposta Selecionada com chancela do Prisma Quase Premium (V1: Desempenho contextual comprovado, V2: Linha de proteção com cobertura de empate 0.0 ou +/-0.25 AH e odd saudável, V3: Eixo central de titulares confirmado). Stake padrão (1x).',
     'Falta de Valor Esperado (+EV)': 'A probabilidade real calculada pelo modelo não compensa o preço pago pela casa de apostas (o prêmio oferecido pela odd está abaixo do risco matemático do confronto).',
     'Equilíbrio Excessivo ou Inconsistência': 'Duelo onde o rendimento e pontuação recente de ambos os times são excessivamente parelhos e nenhuma linha de handicap ofereceu margem de segurança segura.',
     'Duelo de Crises': 'Ambos os times chegam em momento técnico muito ruim nos últimos 5 jogos (baixo aproveitamento e pontuação de eficiência precária), tornando o desfecho altamente imprevisível.',
@@ -234,7 +236,9 @@ GATEKEEPER_DIDACTIC_MAP = {
     'Cobertura de Azarão em Alta': 'Azarão em grande momento de eficiência recente contra favorito nominal vulnerável, com linha de proteção que confere alta cobertura.',
     'Sobrevivência do Mandante': 'Caldeirão da Degola / Sobrevivência do Mandante: O mandante está afundado no Z-4 ou próximo da degola, mas joga a vida em seus domínios contra visitante do topo em jogo equilibrado; abstenção por risco de caldeirão.',
     'Armadilha da Odd Inflada': 'Armadilha da Odd Inflada / Drift de Mercado: A cotação subiu expressivamente (>= 12% e >= 0.20) acima do valor justo, sinalizando fuga do mercado profissional por desfalques ou desconfiança técnica.',
-    'Mando de Campo Soberano': 'Mando de Campo Soberano / Divergência de Mercado: As casas de apostas alertam que o mandante é o favorito nas cotações, indicando que a força e adaptação do estádio local superam o momento do visitante.'
+    'Mando de Campo Soberano': 'Mando de Campo Soberano / Divergência de Mercado: As casas de apostas alertam que o mandante é o favorito nas cotações, indicando que a força e adaptação do estádio local superam o momento do visitante.',
+    'Desempenho Fora Inconsistente': 'O visitante construiu seus pontos de eficiência recente exclusivamente dentro de casa, sem vitórias consistentes fora de seus domínios (falha no Vértice 1 do Prisma Quase Premium).',
+    'Cotação Aberta / Risco de Azarão': 'A cotação 1X2 da equipe candidata supera 2.40 nas bookmakers, caracterizando-a como zebra no mercado internacional e inviabilizando linhas de favoritismo ou DNB (falha no Vértice 2 do Prisma Quase Premium).'
 }
 
 
@@ -249,10 +253,12 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
 
     if not is_abstencao:
         # Categorias de Aprovação (APROVADO / Bet OK)
-        if best_cand and (best_cand.get('destaque') == 1 or best_cand.get('is_destaque') == 1) or 'Tier 1 Dominante' in r_text or 'Super-Favorito' in r_text:
+        if best_cand and (best_cand.get('destaque') == 2 or best_cand.get('is_premium')):
+            return 'Oportunidade PREMIUM (+EV Alavancado)'
+        if (best_cand and (best_cand.get('destaque') == 1 or best_cand.get('is_destaque') == 1)) or 'Tier 1 Dominante' in r_text or 'Super-Favorito' in r_text:
             return 'Super-Favorito Dominante'
-        if ('0.0' in sug_clean or '+0.25' in sug_clean or 'empate anula' in sug_clean) and any(w in r_text.lower() for w in ['azarão', 'azarao', 'distorção', 'superioridade nos últimos 5 jogos']):
-            return 'Cobertura de Azarão em Alta'
+        if ('0.0' in sug_clean or '+0.25' in sug_clean or '-0.25' in sug_clean or 'empate anula' in sug_clean):
+            return 'Aposta Quase Premium (+EV Selecionado)'
         return 'Valor Esperado Positivo (+EV)'
 
     # Categorias de Abstenção (NO_BET)
@@ -267,6 +273,10 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
             return cand_cat
 
     # 2. Busca pelas tags formais no bloco principal do Gatekeeper
+    if any(k in main_text for k in ['Desempenho Fora Inconsistente', 'não pontua fora', 'ilusão de mandante']):
+        return 'Desempenho Fora Inconsistente'
+    if any(k in main_text for k in ['Cotação Aberta', 'Risco de Azarão', 'cand_odd > 2.40']):
+        return 'Cotação Aberta / Risco de Azarão'
     if any(k in main_text for k in ['Sobrevivência do Mandante', 'Caldeirão da Degola', 'pressão crítica na tabela']):
         return 'Sobrevivência do Mandante'
     if any(k in main_text for k in ['Odd Inflada', 'Armadilha da Odd Inflada', 'drift de mercado', 'cotação inflou']):
@@ -708,6 +718,11 @@ def evaluate_and_select_best_ah_candidate(
     xg_a_val = 0.0
     xg_diff = 0.0
     cand_xg_diff = 0.0
+    cand_away_wins = 0
+    cand_away_pts = 0
+    ratio_h = 0.0
+    ratio_a = 0.0
+    is_super_fav_crushed = False
     is_home_poisson_dominant_minus_half = False
     mkt_fair_odd = 0.0
 
@@ -794,29 +809,6 @@ def evaluate_and_select_best_ah_candidate(
         c_is_away = cand['is_away']
         cand_xg_diff = (xg_a_val - xg_h_val) if c_is_away else (xg_h_val - xg_a_val)
 
-        # Trava de Segurança Máxima Anti-Goleada:
-        if c_line < -1.0:
-            continue
-
-        # =========================================================================
-        # REGRA ESTRUTURAL ANTI-ZEBRA: BLOQUEIO DE LINHAS POSITIVAS (+AH > 0.0)
-        # O histórico empírico consolidado comprovou que apoiar azarões em linhas positivas
-        # (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5) com cotações espremidas (1.50 a 1.75)
-        # gera expectativa matemática negativa (-25.3% ROI).
-        # O Gatekeeper passa a operar com FOCO ESTRITO EM FAVORITOS (-AH) e DNB (0.0 AH).
-        # =========================================================================
-        if c_line > 0.0:
-            continue
-
-        # =========================================================================
-        # REGRA MANDATÓRIA DE MANDO DE CAMPO (OPÇÃO B - PROTEÇÃO FORA DE CASA):
-        # Linhas esticadas que não toleram empate (c_line < -0.25, como -0.5, -0.75, -1.0)
-        # são autorizadas EXCLUSIVAMENTE para Mandantes (Home).
-        # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
-        # =========================================================================
-        if c_is_away and c_line < -0.25:
-            continue
-
         cand_odd = raw_a_odd if c_is_away else raw_h_odd
         opp_odd = raw_h_odd if c_is_away else raw_a_odd
         cand_team = cand.get('target_team') or (away_team if c_is_away else home_team)
@@ -837,6 +829,39 @@ def evaluate_and_select_best_ah_candidate(
         cand_pts_eff = compute_team_u5j_efficiency(cand_l5)
         opp_pts_eff = compute_team_u5j_efficiency(opp_l5)
 
+        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
+        is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
+
+        # Condição Estrutural de Super-Dominância Tier 1 (Habilita Linhas Estendidas até -1.5 AH):
+        is_super_dominant_tier1 = (
+            is_tier1 and cand_pts_eff >= 24.0 and opp_pts_eff <= 5.0 and
+            cand_odd <= 1.35 and cand_xg_diff >= 2.0
+        )
+
+        # Trava de Segurança Máxima Anti-Goleada (com exceção de até -1.5 AH em Super-Dominância Tier 1):
+        if c_line < -1.5 or (c_line < -1.0 and not is_super_dominant_tier1):
+            continue
+
+        # =========================================================================
+        # REGRA ESTRUTURAL ANTI-ZEBRA: BLOQUEIO DE LINHAS POSITIVAS (+AH > 0.0)
+        # O histórico empírico consolidado comprovou que apoiar azarões em linhas positivas
+        # (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5) com cotações espremidas (1.50 a 1.75)
+        # gera expectativa matemática negativa (-25.3% ROI).
+        # O Gatekeeper passa a operar com FOCO ESTRITO EM FAVORITOS (-AH) e DNB (0.0 AH).
+        # =========================================================================
+        if c_line > 0.0:
+            continue
+
+        # =========================================================================
+        # REGRA MANDATÓRIA DE MANDO DE CAMPO (OPÇÃO B - PROTEÇÃO FORA DE CASA):
+        # Linhas esticadas que não toleram empate (c_line < -0.25, como -0.5, -0.75, -1.0)
+        # são autorizadas EXCLUSIVAMENTE para Mandantes (Home).
+        # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
+        # Exceção Soberana: Super-Dominância Tier 1 (onde o abismo técnico autoriza até -1.5 AH).
+        # =========================================================================
+        if c_is_away and c_line < -0.25 and not is_super_dominant_tier1:
+            continue
+
         cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
         opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
         cand_trend = (cand_l5 or {}).get('trend') or cand_trend_info.get("trend", "CURVA_ESTAVEL")
@@ -847,6 +872,15 @@ def evaluate_and_select_best_ah_candidate(
         u5j_diff = abs(cand_pts_eff - opp_pts_eff)
         opp_ratio = (cand_odd / opp_odd) if opp_odd > 0 else 1.0
         cand_ratio = (opp_odd / cand_odd) if cand_odd > 0 else 1.0
+
+        ratio_h = (raw_a_odd / raw_h_odd) if raw_h_odd > 0 else 0.0
+        ratio_a = (raw_h_odd / raw_a_odd) if raw_a_odd > 0 else 0.0
+        is_super_fav_crushed = (
+            is_tier1 and (
+                (not c_is_away and raw_h_odd <= 1.22 and ratio_h >= 8.0) or
+                (c_is_away and raw_a_odd <= 1.22 and ratio_a >= 8.0)
+            )
+        )
 
         is_tier1_massacre_close_u5j = (
             is_tier1 and not is_opp_tier1 and
@@ -919,6 +953,30 @@ def evaluate_and_select_best_ah_candidate(
         if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
             if raw_h_odd > 0 and raw_a_odd > 0 and (raw_a_odd - raw_h_odd) >= 0.15 and not (is_home_in_true_collapse or is_away_standing_and_u5j_dominant):
                 continue
+
+        # =========================================================================
+        # PRISMA QUASE PREMIUM - V1 (CONSISTÊNCIA CONTEXTUAL DE MANDO):
+        # Se a equipe candidata atua como Visitante e possui jogos recentes registrados fora de casa,
+        # ela precisa ter comprovado competitividade como visitante (pontos conquistados fora).
+        # Se nos jogos fora do U5J obteve 0 vitórias e <= 1 ponto (ou 0 pontos), os pontos
+        # de eficiência são uma ilusão construída exclusivamente em seu estádio.
+        # A menos que seja um Super-Favorito Tier 1 esmagador, a aposta fora é rejeitada.
+        # =========================================================================
+        cand_away_matches = [m for m in (cand_l5.get('matches') or []) if isinstance(m, dict) and m.get('is_home') is False]
+        cand_away_wins = sum(1 for m in cand_away_matches if m.get('result') == 'V')
+        cand_away_pts = sum(3 if m.get('result') == 'V' else (1 if m.get('result') == 'E' else 0) for m in cand_away_matches)
+        if c_is_away and cand_away_matches and not is_super_fav_crushed:
+            if cand_away_wins == 0 and cand_away_pts <= 1:
+                continue
+
+        # =========================================================================
+        # PRISMA QUASE PREMIUM - V2 (ALINHAMENTO DE MERCADO 1X2 E TETO DE COTAÇÃO):
+        # O mercado internacional de 1X2 precifica a liquidez profissional das equipes.
+        # Se a cotação 1X2 da equipe for de azarão evidente (cand_odd > 2.40),
+        # é expressamente PROIBIDO apoiar essa equipe em linhas de favoritismo ou DNB (c_line <= 0.0).
+        # =========================================================================
+        if cand_odd > 2.40 and c_line <= 0.0 and not is_super_fav_crushed:
+            continue
 
         # =========================================================================
         # CRITÉRIO PRIMÁRIO MANDATÓRIO: SOBERANIA DA PERFORMANCE REAL (U5J) SOBRE AS ODDS
@@ -1163,6 +1221,16 @@ def evaluate_and_select_best_ah_candidate(
                     continue
                 required_prob = 58.0 if is_super_fav_crushed else 65.0
                 required_ev = 8.0 if is_super_fav_crushed else 15.0
+        elif c_line in (-1.25, -1.5):
+            # Linhas Estendidas (-1.25 AH e -1.5 AH): Restritas a Super-Dominância Tier 1
+            if not is_super_dominant_tier1:
+                continue
+            # Piso para aposta Premium: se for Super-Dominância Tier 1 (Premium), o piso é 1.50
+            min_odd_premium = 1.50 if is_super_dominant_tier1 else 1.60
+            if c_odd < min_odd_premium or c_odd > 1.95:
+                continue
+            required_prob = 58.0
+            required_ev = 8.0
         elif c_line == -0.25:
             # Linha de Cobertura de -0.25 AH (Carro-Chefe Histórico de Rentabilidade):
             # 1. Elegibilidade: Mandantes com superioridade técnica OU Visitantes em alta contra mandantes em crise
@@ -1238,8 +1306,9 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # Faixa de odd segura operacional: piso mínimo global de 1.60 e teto de 2.55 (Regra 12 de Ouro - Apenas cotações reais)
-        if c_odd < 1.60 or c_odd > 2.55:
+        # Faixa de odd segura operacional: piso mínimo de 1.50 para Apostas Premium e 1.60 para as demais
+        min_op_odd = 1.50 if is_super_dominant_tier1 else 1.60
+        if c_odd < min_op_odd or c_odd > 2.55:
             continue
 
         # Trava Soberana de +EV contra o Consenso 1X2 de Mercado (Des-margem)
@@ -1306,6 +1375,11 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['odd'] = eval_odd
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
+            cand_copy['is_super_dominant_tier1'] = is_super_dominant_tier1
+            if is_super_dominant_tier1 and c_line in (-1.25, -1.5):
+                cand_copy['destaque'] = 2
+                cand_copy['is_premium'] = True
+                cand_copy['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
             cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge or is_away_standing_and_u5j_dominant
             approved.append(cand_copy)
 
@@ -1707,6 +1781,8 @@ def calculate_unified_handicap_recommendation(
     h_ppg_val = 0.0
     a_ppg_val = 0.0
     standings_mot_val = 0.0
+    cand_eff_premium = 0.0
+    opp_eff_premium = 0.0
 
     try:
         if fixture_dict.get('home_rank') is not None and str(fixture_dict.get('home_rank')).strip():
@@ -1844,9 +1920,20 @@ def calculate_unified_handicap_recommendation(
                 best_cand = None
                 approved = []
             elif best_cand and ia_audit_res:
-                if ia_audit_res.get('is_premium') and ia_audit_res.get('matched_cand'):
+                try:
+                    cand_eff_premium = float(compute_team_u5j_efficiency(a_l5 if best_cand.get('is_away') else h_l5))
+                except Exception:
+                    cand_eff_premium = 0.0
+                try:
+                    opp_eff_premium = float(compute_team_u5j_efficiency(h_l5 if best_cand.get('is_away') else a_l5))
+                except Exception:
+                    opp_eff_premium = 0.0
+
+                is_strictly_premium = (cand_eff_premium >= 24.0 and opp_eff_premium <= 10.0)
+
+                if ia_audit_res.get('is_premium') and ia_audit_res.get('matched_cand') and is_strictly_premium:
                     matched = ia_audit_res['matched_cand']
-                    if float(matched.get('odd') or 0.0) >= 1.60:
+                    if float(matched.get('odd') or 0.0) >= 1.50:
                         print(f"⭐ [Upgrade para Aposta PREMIUM] #{fixture_id} {home_team} vs {away_team}: Linha promovida de '{best_cand.get('palpite_str')}' para '{matched.get('palpite_str')}' @ {float(matched.get('odd') or 0.0):.2f}")
                         best_cand = matched
                         conf_ia = float(ia_audit_res.get('grau_confianca') or 80.0)
@@ -1867,6 +1954,12 @@ def calculate_unified_handicap_recommendation(
                         best_cand['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
                         best_cand['is_premium'] = True
                         approved = [best_cand]
+                elif ia_audit_res.get('is_premium') and not is_strictly_premium:
+                    print(f"🛡️ [Veto de Selo PREMIUM pelo Gatekeeper] #{fixture_id} {home_team} ({cand_eff_premium:.1f} pts) vs {away_team} ({opp_eff_premium:.1f} pts): Adversário não atende ao critério de fragilidade (U5J <= 10.0 pts). Mantida aposta padrão.")
+                    best_cand['destaque'] = 0
+                    best_cand['is_premium'] = False
+                    if 'PREMIUM' in str(best_cand.get('gatekeeper_category', '')):
+                        best_cand['gatekeeper_category'] = 'Aposta Quase Premium (+EV Selecionado)'
                 best_cand['ia_audit'] = ia_audit_res
         except Exception as e_ia_sent:
             print(f"⚠️ [IA Sentinela AH] Aviso ao processar auditoria cognitiva: {e_ia_sent}")
@@ -1919,6 +2012,11 @@ def calculate_unified_handicap_recommendation(
         is_tier1_heavily_favored = is_t1 and (odd_a > 0 and odd_a < 1.65)
         away_is_competitive = (odd_a >= 2.00)
 
+        a_away_matches = [m for m in ((a_l5 or {}).get('matches') or []) if isinstance(m, dict) and m.get('is_home') is False]
+        a_away_wins = sum(1 for m in a_away_matches if m.get('result') == 'V')
+        a_away_pts = sum(3 if m.get('result') == 'V' else (1 if m.get('result') == 'E' else 0) for m in a_away_matches)
+        is_away_home_dependent = (bool(a_away_matches) and a_away_wins == 0 and a_away_pts <= 1 and not is_tier1_heavily_favored)
+
         if away_is_competitive and not is_tier1_heavily_favored and is_h_under_threat:
             reason = (
                 f"🚨 [Gatekeeper AH NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
@@ -1926,6 +2024,13 @@ def calculate_unified_handicap_recommendation(
                 f"mas joga a vida em seus domínios contra um visitante da parte de cima da tabela ({away_team}, {a_rk_val}º colocado) "
                 f"em jogo com odds de equilíbrio (Visitante @ {odd_a:.2f}). O fator campo, a pressão das arquibancadas e a urgência extrema por pontos "
                 f"neutralizam a superioridade teórica do visitante. Abstenção mandatória por risco de caldeirão."
+            )
+        elif is_away_home_dependent and (has_away_cand or away_has_better_metrics or odd_a >= 2.00):
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Desempenho Fora Inconsistente] Partida {home_team} vs {away_team} -> "
+                f"O visitante ({away_team}) construiu seus pontos de eficiência recente exclusivamente em seu estádio "
+                f"({a_away_wins} vitórias e {a_away_pts} pontos fora no U5J). Falha no Vértice 1 do Prisma Quase Premium (Consistência Contextual de Mando). "
+                f"Abstenção mandatória por ilusão de mandante."
             )
         elif fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
             reason = (
@@ -2064,6 +2169,9 @@ def calculate_unified_handicap_recommendation(
             is_destaque = 1
         elif is_opp_tier1 and is_crisis_opp and (cand_pts >= 8 or odd_cand <= 1.60 or cand_pts >= opp_pts + 4):
             is_destaque = 1
+
+    if best_cand.get('is_premium') or best_cand.get('destaque') == 2 or best_cand.get('is_super_dominant_tier1'):
+        is_destaque = 2
 
     best_cand['destaque'] = is_destaque
     app_cat = determine_gatekeeper_category('APROVADO', selected_palpite, raw_calc, best_cand)
@@ -2859,8 +2967,10 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         if status_ah == 'APROVADO' and p_str.strip().lower() == str(sug_ah).strip().lower():
             is_aprovada = True
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
+        elif c_line < -1.5:
+            motivo = "Reprovada: Linha ultra-agressiva (< -1.5 AH) é proibida pelo teto de segurança"
         elif c_line < -1.0:
-            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é proibida pelo teto de segurança"
+            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é proibida pelo teto de segurança (exceção até -1.5 AH restrita a Super-Dominância Tier 1)"
         elif c_line > 0.0:
             motivo = "Reprovada: Linhas positivas (+AH) são bloqueadas por expectativa matemática negativa histórica"
         elif is_away and c_line < -0.25:
@@ -2936,7 +3046,7 @@ def sync_fixture_and_bet_handicap(
     existing_r = cur_f.get("ah_reasoning") if cur_f else None
     h_tid = cur_f.get("home_team_id") if cur_f else None
     a_tid = cur_f.get("away_team_id") if cur_f else None
-    app_cat = (best_cand or {}).get("gatekeeper_category") or (cur_f.get("gatekeeper_category") if cur_f else None) or determine_gatekeeper_category('APROVADO', selected_palpite, detalhe_calculo, best_cand)
+    app_cat = (best_cand or {}).get("gatekeeper_category") or determine_gatekeeper_category('APROVADO', selected_palpite, detalhe_calculo, best_cand)
 
     compound_reasoning = compose_compound_ah_reasoning(
         cursor=cursor,
@@ -3195,7 +3305,7 @@ def sync_fixture_and_bet_handicap(
         existing_reasoning=existing_r
     )
 
-    app_cat_f = (cur_f.get("gatekeeper_category") if cur_f else None) or app_cat
+    app_cat_f = app_cat
 
     b1x2 = _betano_ah_1x2_cache.get(fixture_id)
     if ia_status:
@@ -3490,7 +3600,12 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 odd_justa = ev_data.get('odd_justa')
                 prob_poisson = ev_data.get('prob_eff')
                 ev_perc = ev_data.get('ev_percent')
-                destaque = 1 if (best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1) else 0
+                if best_cand.get('destaque') == 2 or best_cand.get('is_premium'):
+                    destaque = 2
+                elif best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1:
+                    destaque = 1
+                else:
+                    destaque = 0
                 msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."

@@ -1274,6 +1274,35 @@ class ApostaController extends BaseController
             ])->setStatusCode(403);
         }
 
+        // =========================================================================
+        // TRAVA MANDATÓRIA DE GOVERNANÇA: SÚMULA OFICIAL E SENTINELA GEMINI
+        // Apostas PREMIUM (destaque 2) e Quase Premium (destaque 1 / Quase Premium)
+        // NÃO podem ser confirmadas sem o aval (Sinal Verde) da Sentinela com os 11 titulares.
+        // =========================================================================
+        $isPremium = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
+                     (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)');
+        $isQuasePremium = !$isPremium && (
+            (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
+            (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+            stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
+        );
+
+        if ($isPremium || $isQuasePremium) {
+            $sentinelaStatus = $aposta->auditoria_ia_status ?? null;
+            if ($sentinelaStatus !== 'CONFIRMADO') {
+                $tipoNome = $isPremium ? '👑 PREMIUM' : '🛡️ Quase Premium';
+                $motivoSentinela = ($sentinelaStatus === 'ALERTA_RISCO')
+                    ? "A IA Sentinela Gemini identificou desfalques críticos ou alto risco na escalação oficial."
+                    : "A súmula oficial com os 11 titulares ainda não foi confirmada pela IA Sentinela Gemini (previsão a ~45 min do apito inicial).";
+
+                return $this->response->setJSON([
+                    'success' => false,
+                    'is_locked_by_lineup' => true,
+                    'message' => "🔒 Confirmação Bloqueada por Governança de Risco ({$tipoNome}): {$motivoSentinela} A aposta só pode ser confirmada e debitada após o Sinal Verde formal da Sentinela com a escalação oficial."
+                ])->setStatusCode(422);
+            }
+        }
+
         $db = \Config\Database::connect();
         $qExists = $db->table('conta_corrente')
             ->where('usuario_id', $userId)
@@ -1481,6 +1510,7 @@ class ApostaController extends BaseController
 
         $db = \Config\Database::connect();
         $confirmedCount = 0;
+        $skippedLineupCount = 0;
         $totalDebitado = 0.00;
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
@@ -1498,6 +1528,20 @@ class ApostaController extends BaseController
             // Apenas status elegíveis: 'Pendente' ou 'Não Confirmada'
             if ($aposta->status !== 'Pendente' && $aposta->status !== 'Não Confirmada') {
                 continue;
+            }
+
+            // Trava de Governança para Confirmação em Lote (Apostas Premium / Quase Premium):
+            $isPremLote = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
+                          (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)');
+            $isQuasePremLote = !$isPremLote && (
+                (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
+                (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+                stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
+            );
+
+            if (($isPremLote || $isQuasePremLote) && ($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') {
+                $skippedLineupCount++;
+                continue; // Pula sem debitar
             }
 
             $apostaId = (int)$aposta->id;
@@ -1539,21 +1583,29 @@ class ApostaController extends BaseController
         $novoSaldo = $this->contaCorrenteModel->getSaldo($userId);
 
         if ($confirmedCount === 0) {
+            $msg = 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.';
+            if ($skippedLineupCount > 0) {
+                $msg = "Nenhuma aposta foi confirmada. {$skippedLineupCount} aposta(s) [PREMIUM / Quase Premium] foram retidas aguardando a publicação da súmula oficial e o aval da IA Sentinela Gemini.";
+            }
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.'
+                'message' => $msg
             ]);
         }
 
         $strDebitado = number_format($totalDebitado, 2, ',', '.');
         $pluralApostas = ($confirmedCount === 1) ? 'aposta confirmada' : 'apostas confirmadas';
+        $msgSucesso = "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente.";
+        if ($skippedLineupCount > 0) {
+            $msgSucesso .= " (Obs: {$skippedLineupCount} aposta(s) Premium/Quase Premium foram preservadas aguardando a súmula oficial da Sentinela Gemini).";
+        }
 
         return $this->response->setJSON([
             'success'         => true,
             'confirmed_count' => $confirmedCount,
             'total_debitado'  => $totalDebitado,
             'novo_saldo'      => $novoSaldo,
-            'message'         => "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente."
+            'message'         => $msgSucesso
         ]);
     }
 

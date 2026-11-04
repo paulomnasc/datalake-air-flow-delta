@@ -478,14 +478,15 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 from asian_handicap_engine import determine_gatekeeper_category
                 cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo)
 
-                # Atualiza aposta pendente para refletir a reclassificação do Gatekeeper (NO_BET)
+                # Atualiza aposta pendente não-confirmada para Cancelada e status_gatekeeper = NO_BET
                 cursor.execute("""
                     UPDATE apostas SET
+                        status = 'Cancelada',
                         status_gatekeeper = 'NO_BET',
                         gatekeeper_category = %s,
                         auditoria_ia_status = 'ALERTA_RISCO',
                         updated_at = NOW()
-                    WHERE fixture_id = %s AND status = 'Pendente'
+                    WHERE fixture_id = %s AND status = 'Pendente' AND confirmada = 0
                 """, (cat_desc, fixture_id))
 
                 # Dispara notificação no Sininho (notificacoes_usuario) para os usuários

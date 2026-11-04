@@ -45,11 +45,19 @@ Para proteger o patrimônio da banca contra ilusões estatísticas, distorções
   - $Odd_{Real} \ge Odd_{Justa}$ com margem $+EV \ge 5.0\%$ (idealmente entre $+15\%$ e $+35\%$);
   - Faixa saudável de cotação: odds de entrada situadas entre **1.60 e 2.10**;
   - **Alinhamento Soberano do 1X2**: O mercado não pode tratar a equipe como azarão (odds abertas $> 2.40$ ou status de zebra fora de casa desqualificam a aposta imediatamente).
+  - **Exceção de Super-Dominância Tier 1 para Linhas Estendidas (até -1.5 AH)**:
+    - Em confrontos de disparidade abissal (ex: fase de grupos da Champions League), onde as linhas curtas são esmagadas pelas casas de apostas (ex: 0.0 AH a @ 1.08), o sistema autoriza linhas estendidas até **-1.5 AH** (mesmo como visitante) se e somente se:
+      1. Equipe apoiada for Gigante Tier 1 com $U5J \ge 24.0\text{ pts}$;
+      2. Adversário em fragilidade comprovada ($U5J \le 5.0\text{ pts}$);
+      3. Saldo de gols esperados $(xG_{favorito} - xG_{adversario}) \ge 2.0\text{ gols}$;
+      4. Cotação 1X2 confirmando super-favoritismo ($Odd_{1X2} \le 1.35$);
+      5. Odd da linha de -1.5 AH na faixa de valor (**1.60 a 1.95**). Linhas além de -1.5 AH (-2.0, -2.5) permanecem proibidas.
 
 ### Vértice 3 (V3): Elenco Principal de Titulares Completo *(Auditoria Cognitiva da Sentinela)*
 - **Conceito**: Confirmação fática do que efetivamente entrará em campo nos 90 minutos de jogo, auditada pela IA Sentinela em tempo real.
 - **Critério Objetivo**:
   - Espinha dorsal preservada: goleiro titular absoluto, zagueiro líder, camisa 10/articulador e artilheiro principal confirmados;
+  - **Rigor Redobrado para Linhas Estendidas (-1.0 e -1.5 AH)**: Em apostas que exigem vitória por 2+ gols, o ataque titular habitual (artilheiro principal e meias criadores) deve estar 100% confirmado na súmula oficial. Qualquer poupança no ataque rebaixa a partida para ALTO RISCO e decreta abstenção preventiva;
   - Ausência de alertas de sinistro (`alerta_sinistro: false`): sem poupança de titulares por foco em outras competições (copas continentais) e sem crise interna de vestiário;
   - Noticiário pré-jogo auditado a menos de 6 horas do apito inicial.
 

@@ -1439,11 +1439,20 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
 
-          $isApostaPremium = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
-                             (stripos($aposta->resultado_detalhado ?? '', 'PREMIUM') !== false) ||
-                             (stripos($aposta->ah_reasoning ?? '', 'PREMIUM') !== false);
+          $isApostaApproved = ($aposta->status !== 'Cancelada' && ($aposta->status_gatekeeper ?? '') !== 'NO_BET');
+          $isApostaPremium = $isApostaApproved && (
+              (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
+              (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+          );
+
+          $isQuasePremium = $isApostaApproved && !$isApostaPremium && (
+              (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+              (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
+              stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
+          );
+          $isLockedByLineup = ($isApostaPremium || $isQuasePremium) && (($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
@@ -1475,6 +1484,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
                       style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
                       title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
                   <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
+                </span>
+              <?php elseif ($isQuasePremium): ?>
+                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.2) !important;" 
+                      title="Aposta Quase Premium (1x Stake): Crivo rigoroso do Gatekeeper com consistência contextual comprovada e cobertura de empate (+EV).">
+                  <span style="font-size: 0.95rem; line-height: 1;">🛡️</span> Aposta Quase Premium (1x Stake)
                 </span>
               <?php endif; ?>
 
@@ -1653,9 +1668,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
 
               // Status de Processamento da Aposta
-              $betProcText = 'Processamento: ⏳ Pendente';
+              $betProcText = 'Processamento: ⏳ Aguardando Súmula Oficial';
               $betProcClass = 'proc-pending';
-              $betProcTooltip = 'Aposta em andamento ou aguardando fechamento da partida.';
+              $betProcTooltip = 'Aposta aprovada em andamento ou pré-jogo, aguardando apuração da súmula oficial.';
 
               if ($aposta->status !== 'Pendente') {
                 $betProcText = 'Processamento: ✅ Completo';
@@ -1921,24 +1936,30 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <?php 
                 $btnConfirmClass = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
                   ? 'btn-outline-success' 
-                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : 'btn-success');
-                $btnConfirmIcon = ($isConfirmada && $aposta->status !== 'Não Confirmada') ? 'bi-check2-circle' : 'bi-lightning-charge-fill';
-                $btnConfirmTitle = ($isConfirmada && $aposta->status !== 'Não Confirmada') ? 'Aposta já confirmada' : 'Confirmar Aposta';
+                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : ($isLockedByLineup ? 'btn-secondary disabled' : 'btn-success'));
+                $btnConfirmIcon = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
+                  ? 'bi-check2-circle' 
+                  : ($isLockedByLineup ? 'bi-hourglass-split' : 'bi-lightning-charge-fill');
+                $btnConfirmTitle = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
+                  ? 'Aposta já confirmada' 
+                  : ($isLockedByLineup ? 'Trava de Governança: Aguardando súmula oficial e validação da Sentinela Gemini' : 'Confirmar Aposta');
+                $btnConfirmText = $isLockedByLineup ? '⏳ Aguardar Súmula' : lang('App.confirm_bet');
               ?>
               <button type="button" 
                       class="btn btn-sm <?= $btnConfirmClass ?> fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
                       id="btn-confirm-<?= $aposta->id ?>"
                       data-aposta-id="<?= $aposta->id ?>"
+                      data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>"
                       data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
                       data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
                       data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
                       data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
                       data-valor="<?= (float)$aposta->valor_aposta ?>"
                       data-odd="<?= (float)($aposta->odd ?? 0) ?>"
-                      style="border-radius: 8px; cursor: pointer;" 
-                      onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)"
+                      <?= $isLockedByLineup ? 'disabled style="border-radius: 8px; opacity: 0.65; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
+                      onclick="<?= $isLockedByLineup ? 'alert(\'⏳ Trava de Governança de Risco: Esta aposta é classificada como ' . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.\'); return false;' : 'openConfirmBetModal(' . $aposta->id . ', \\\'' . htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') . '\\\', ' . (float)$aposta->valor_aposta . ', ' . (float)($aposta->odd ?? 0) . ')' ?>"
                       title="<?= $btnConfirmTitle ?>">
-                <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= lang('App.confirm_bet') ?>
+                <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= $btnConfirmText ?>
               </button>
               <?php if ((!$isConfirmada || $aposta->status === 'Não Confirmada') && !empty($aposta->fixture_id)): ?>
                 <button type="button" 
@@ -4158,6 +4179,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
       // 4. Encerrada com resultado
       if (['ganha', 'perdida', 'meio ganha', 'meio perdida', 'cashout'].includes(status)) {
         alert('ℹ️ Esta aposta já foi encerrada com o resultado: ' + statusRaw + '.');
+        return;
+      }
+
+      // 4.1 Trava Mandatória de Governança: Súmula Oficial para Apostas Premium e Quase Premium
+      const isLockedLineup = cardEl.getAttribute('data-locked-lineup') === '1' || cardEl.querySelector('#btn-confirm-' + apostaId)?.getAttribute('data-locked-lineup') === '1';
+      if (isLockedLineup) {
+        alert('🔒 Trava de Governança de Risco:\nEsta aposta é classificada como PREMIUM ou Quase Premium.\n\nÉ terminantemente proibido confirmar e debitar da banca sem a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini.');
         return;
       }
 

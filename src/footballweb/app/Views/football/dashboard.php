@@ -3100,15 +3100,28 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?= htmlspecialchars($procText) ?>
                                             </span>
                                             <?php 
-                                                $isCardPremium = (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
-                                                                 (stripos($fix->gatekeeper_category ?? '', 'PREMIUM') !== false) ||
-                                                                 (stripos($fix->ah_reasoning ?? '', 'PREMIUM') !== false);
+                                                $isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
+                                                $isCardPremium = $isCardAhApproved && (
+                                                    (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
+                                                    (($fix->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+                                                );
+                                                $isCardQuasePremium = $isCardAhApproved && !$isCardPremium && (
+                                                    (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+                                                    (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
+                                                    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion)
+                                                );
                                             ?>
                                             <?php if ($isCardPremium): ?>
                                                 <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                                                       style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.35) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.4) !important;" 
                                                       title="Oportunidade PREMIUM: Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Alavancagem sugerida: 3x Stake.">
                                                     <span style="font-size: 0.85rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM
+                                                </span>
+                                            <?php elseif ($isCardQuasePremium): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                                                      style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(56, 189, 248, 0.25) !important;" 
+                                                      title="Aposta Quase Premium: Crivo do Gatekeeper com consistência de mando e cobertura de empate (+EV). Stake padrão (1x).">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">🛡️</span> Quase Premium
                                                 </span>
                                             <?php elseif ($t1Info['is_dominant']): ?>
                                                 <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 

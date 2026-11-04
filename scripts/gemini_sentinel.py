@@ -844,6 +844,9 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
      - Ao analisar os desfalques e ausências na súmula oficial e notícias:
        1) JOGADORES DECISIVOS / ESPINHA DORSAL (Alto Impacto / Sinistro Real): Artilheiro principal da equipe, armador/camisa 10, goleiro titular absoluto, ou capitão/líder técnico indispensável (ex: atacantes top decisivos como Gabigol, ou craques suspensos como Neymar). A ausência confirmada desses atletas desfigura a competitividade do time e justifica classificação de risco ALTO (Alerta de Sinistro).
        2) PEÇAS DE COMPOSIÇÃO DE ELENCO / NÍVEL SUBSTITUÍVEL (Baixo Impacto / Sem Sinistro): Defensores comuns ou reservas com reposição direta de nível equivalente, laterais suplentes, volantes com substitutos de mesmo perfil, ou atletas que já estavam no departamento médico há meses fora da dinâmica do time. A ausência desses atletas de rotação NUNCA DEVE disparar falso alarme nem classificar a partida como risco ALTO se a espinha dorsal e o poder de fogo do time estiverem preservados em campo.
+   * REGRA OBRIGATÓRIA PARA LINHAS AGRESSIVAS (-1.0 AH e -1.5 AH):
+     - Se a aposta envolver handicap negativo profundo (-1.0 AH ou -1.5 AH), o palpite exige obrigatoriamente a confirmação da FORÇA MÁXIMA OFENSIVA da equipe apoiada (artilheiro principal e meias criadores titulares confirmados).
+     - Se a equipe poupar seus atacantes principais ou for com time misto, o veredito DEVE ser obrigatoriamente classificado como ALTO RISCO (tem_alerta: true) recomendando abstenção/cautela. O "Sinal Verde" para linhas <= -1.0 só é permitido com o ataque titular completo.
    - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
    - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
    - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
@@ -1215,7 +1218,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                 detalhe_calculo=reasoning_gk,
                 user_ids=user_ids,
                 confirmada_val=0,
-                destaque_val=1,
+                destaque_val=2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1,
                 best_cand=best_cand
             )
             cursor.connection.commit()
@@ -1708,7 +1711,7 @@ superando a 'cegueira estatística' de algoritmos quantitativos puros que supere
    A) CONFRONTO EQUILIBRADO / VISITANTE TÁTICO COM VIÉS DE MANDO:
       - Para confrontos parelhos ou com viés de campo onde o visitante tem vantagem pontual: priorize linhas de segurança com proteção no empate (0.0 AH ou +0.25 AH) com odds >= 1.60.
    B) SUPER-FAVORITO / TOP EFICIÊNCIA (APOSTA PREMIUM):
-      - Se uma das equipes (mandante ou visitante) apresentar MOMENTO DE DOMINÂNCIA ABSOLUTA: Eficiência U5J >= 24.0 pts (com vitórias comprovadas sobre clubes Tier 1) contra adversário com eficiência <= 12.0 pts:
+      - Se uma das equipes (mandante ou visitante) apresentar MOMENTO DE DOMINÂNCIA ABSOLUTA: Eficiência U5J >= 24.0 pts (com vitórias comprovadas sobre clubes Tier 1) contra adversário frágil com Eficiência U5J <= 10.0 pts (se o adversário tiver > 10.0 pts, é EXPRESSAMENTE PROIBIDO classificar como Premium):
         * É EXPRESSAMENTE PROIBIDO sugerir linhas defensivas covardes (como 0.0 AH pagando pouco);
         * PRIORIZE OBRIGATORIAMENTE LINHAS OFENSIVAS DE ALTO RETORNO: -0.5 AH (vitória simples), -0.75 AH ou -1.0 AH com cotações >= 1.60 (faixa viável de 1.60 a 2.40);
         * Classifique no JSON como "is_premium": true e com título elegante de Aposta PREMIUM.

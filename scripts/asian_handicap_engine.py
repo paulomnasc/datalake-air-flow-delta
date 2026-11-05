@@ -3440,8 +3440,29 @@ def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tip
                 usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criado_em
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, NOW())
         """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
-        print(f"🔔 [Notificação Registrada User #{usuario_id}] {titulo}")
-        return True
+        notif_id = cursor.lastrowid
+        print(f"🔔 [Notificação Registrada User #{usuario_id}] ID #{notif_id} -> {titulo}")
+
+        # Logging transversal automático com vínculo de ID e Data/Hora
+        try:
+            from lifecycle_logger import log_lifecycle_event
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                aposta_id=aposta_id,
+                notificacao_id=notif_id,
+                notificacao_criada_em=datetime.now(),
+                componente='NOTIFICADOR',
+                tipo_evento=tipo,
+                estado_anterior=None,
+                estado_novo=tipo,
+                delta={'titulo': titulo, 'link': link},
+                motivo=mensagem[:500]
+            )
+        except Exception as e_log:
+            pass
+
+        return notif_id
     except Exception as e:
         print(f"⚠️ [Notificação] Falha ao registrar notificação para user #{usuario_id}: {e}")
         return False

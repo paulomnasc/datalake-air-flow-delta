@@ -665,7 +665,28 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, 
                 %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
             )
         """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, link))
-        print(f"🔔 [Sininho Alerta Notificado User #{usuario_id}] {titulo}")
+        notif_id = cursor.lastrowid
+        print(f"🔔 [Sininho Alerta Notificado User #{usuario_id}] ID #{notif_id} -> {titulo}")
+
+        # Logging transversal automático com vínculo de ID e Data/Hora
+        try:
+            from lifecycle_logger import log_lifecycle_event
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                aposta_id=aposta_id,
+                notificacao_id=notif_id,
+                notificacao_criada_em=datetime.now(),
+                componente='IA_SENTINELA',
+                tipo_evento=tipo,
+                estado_anterior=None,
+                estado_novo=tipo,
+                delta={'titulo': titulo, 'link': link},
+                motivo=msg[:500]
+            )
+        except Exception as e_log:
+            pass
+
         return True
     except Exception as e:
         print(f"⚠️ [Sininho] Falha ao registrar alerta em notificacoes_usuario: {e}")
@@ -1292,7 +1313,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.fixture_id = %s
-                  AND a.status = 'Pendente'
+                  AND a.status IN ('Pendente', 'Não Confirmada')
+                ORDER BY a.id DESC LIMIT 1
             """
             cursor.execute(query, (specific_fixture_id,))
         elif phase == 1:
@@ -1307,7 +1329,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
-                WHERE a.status = 'Pendente'
+                WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND a.auditoria_ia_status IS NULL
                   AND DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR)) = DATE(DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 HOUR))
                   AND ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
@@ -1327,7 +1349,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
-                WHERE a.status = 'Pendente'
+                WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)

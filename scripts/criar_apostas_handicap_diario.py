@@ -453,7 +453,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             # Preserva apostas existentes sem cancelamento automático via DAG
             # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
             cursor.execute("""
-                SELECT id, palpite, confirmada, status FROM apostas 
+                SELECT id, palpite, odd, confirmada, status FROM apostas 
                 WHERE fixture_id = %s 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
                   AND status NOT IN ('Não Confirmada', 'Cancelada')
@@ -478,26 +478,70 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 from asian_handicap_engine import determine_gatekeeper_category
                 cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo)
 
-                # Atualiza aposta pendente não-confirmada para Cancelada e status_gatekeeper = NO_BET
+                # Preserva a aposta como 'Pendente' / 'Não Confirmada' conforme diretriz operacional do Diário de Bordo (22/10/2026),
+                # atualizando apenas a sinalização de risco do Gatekeeper e disparando o alerta consultivo no Sininho.
                 cursor.execute("""
                     UPDATE apostas SET
-                        status = 'Cancelada',
                         status_gatekeeper = 'NO_BET',
                         gatekeeper_category = %s,
                         auditoria_ia_status = 'ALERTA_RISCO',
                         updated_at = NOW()
-                    WHERE fixture_id = %s AND status = 'Pendente' AND confirmada = 0
+                    WHERE fixture_id = %s AND status IN ('Pendente', 'Não Confirmada') AND confirmada = 0
                 """, (cat_desc, fixture_id))
+
+                palpite_antigo = has_pending_bet.get('palpite') or ''
+                odd_antiga = float(has_pending_bet.get('odd') or 0.0)
+                motivo_especifico = ""
+                try:
+                    dyn_diag = analisar_mudanca_odd_cancelamento(
+                        palpite_anterior=palpite_antigo,
+                        odd_anterior=odd_antiga,
+                        motivo_calculo=detalhe_calculo,
+                        odd_home=float(fix.get('odd_home') or 0.0),
+                        odd_draw=float(fix.get('odd_draw') or 0.0),
+                        odd_away=float(fix.get('odd_away') or 0.0),
+                        home_team=home_team,
+                        away_team=away_team
+                    )
+                    motivo_especifico = dyn_diag.get('diagnostico_curto') or dyn_diag.get('nova_odd_curta') or ""
+                except Exception:
+                    pass
+
+                if not motivo_especifico:
+                    motivo_especifico = f"A linha {palpite_antigo} (@ {odd_antiga:.2f}) não atingiu valor esperado positivo (+EV) na Betano"
+
+                msg_notif = (
+                    f"A aposta {palpite_antigo} (@ {odd_antiga:.2f}) foi reclassificada para NO_BET ({cat_desc}). "
+                    f"Motivo: {motivo_especifico}. Recomenda-se saída preventiva ou cancelamento."
+                )
 
                 # Dispara notificação no Sininho (notificacoes_usuario) para os usuários
                 for uid in user_ids:
-                    registrar_notificacao_usuario(
+                    notif_id = registrar_notificacao_usuario(
                         cursor, uid, has_pending_bet['id'], fixture_id,
                         tipo="ALERTA_GATEKEEPER_NO_BET",
                         titulo=f"🚨 Alerta Gatekeeper: NO_BET em {home_team} vs {away_team}",
-                        mensagem=f"O Gatekeeper reclassificou a partida como NO_BET ({cat_desc}). Recomenda-se saída preventiva ou cancelamento.",
+                        mensagem=msg_notif,
                         link=f"/apostas?fixture_id={fixture_id}"
                     )
+                    if notif_id:
+                        try:
+                            from lifecycle_logger import log_lifecycle_event
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=fixture_id,
+                                aposta_id=has_pending_bet['id'],
+                                notificacao_id=notif_id,
+                                notificacao_criada_em=datetime.now(),
+                                componente='CRIADOR_APOSTAS_AH',
+                                tipo_evento='RECLASSIFICACAO_NO_BET',
+                                estado_anterior=f"{palpite_antigo} @ {odd_antiga:.2f}",
+                                estado_novo='NO_BET',
+                                delta={'palpite': palpite_antigo, 'odd': odd_antiga, 'categoria': cat_desc, 'motivo': motivo_especifico},
+                                motivo=msg_notif
+                            )
+                        except Exception as e_log:
+                            pass
                 conn.commit()
                 print(f"🚨 [Alerta NO_BET Notificado] Partida #{fixture_id} ({home_team} vs {away_team}): aposta pendente atualizada para NO_BET e usuário notificado.")
                 continue
@@ -640,6 +684,31 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                                             cat_name, fix.get('fixture_date'), round(10.0 * sug_odd_minima, 2),
                                             destaque_val, sug_msg
                                         ))
+                                        new_aposta_id = cursor.lastrowid
+                                        # Log transversal de ciclo de vida com rastreamento completo
+                                        try:
+                                            from lifecycle_logger import log_lifecycle_event
+                                            log_lifecycle_event(
+                                                cursor=cursor,
+                                                fixture_id=fixture_id,
+                                                aposta_id=new_aposta_id,
+                                                notificacao_id=None,
+                                                notificacao_criada_em=None,
+                                                componente='CRIADOR_APOSTAS_AH',
+                                                tipo_evento='SUGESTAO_RADAR_CRIADA',
+                                                estado_anterior='NO_BET (Betano)',
+                                                estado_novo=f"{sug_palpite} (Não Confirmada)",
+                                                delta={
+                                                    'linha': sug_palpite,
+                                                    'odd_minima': sug_odd_minima,
+                                                    'odd_justa': sug_odd_justa,
+                                                    'cobertura': sug_prob,
+                                                    'prisma': 'PREMIUM' if is_prisma_premium else 'QUASE_PREMIUM'
+                                                },
+                                                motivo=sug_msg
+                                            )
+                                        except Exception:
+                                            pass
                                     conn.commit()
                                     print(f"📡 [{badge_str} Gerada] #{fixture_id} {home_team} vs {away_team} -> {sug_palpite} (Odd Justa: {sug_odd_justa:.2f} | Odd Mínima: @ {sug_odd_minima:.2f}) [Status: Não Confirmada]")
                     except Exception as e_sug:

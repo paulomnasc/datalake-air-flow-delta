@@ -87,6 +87,7 @@ $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as'
 $routes->post('/apostas/reauditar-ia', 'ApostaController::reauditarIa', ['as' => 'apostas.reauditar_ia']);
 $routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', ['as' => 'apostas.validar_linha_ah']);
 $routes->get('/apostas/radar-linhas-ah/(:num)', 'ApostaController::radarLinhasAh/$1', ['as' => 'apostas.radar_linhas_ah']);
+$routes->get('/apostas/timeline/(:num)', 'ApostaController::timeline/$1', ['as' => 'apostas.timeline']);
 $routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
 $routes->get('/apostas/card-origem/(:num)', 'ApostaController::cardOrigem/$1', ['as' => 'apostas.card_origem']);

@@ -2476,55 +2476,32 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
                 print(f"🔒 [Ingest Trends - Aposta com Odds Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} já possui cotação de mercado (@ {aposta['odd']}). Cancelamento por falta de odds 1X2 ignorado.")
                 continue
 
+            # Preserva a aposta como 'Pendente' conforme diretriz operacional (Diário de Bordo 22/10/2026),
+            # atualizando apenas a sinalização de risco do Gatekeeper e disparando o alerta no Sininho
             cursor.execute("""
                 UPDATE apostas 
-                SET status = 'Cancelada', 
-                    status_gatekeeper = 'NO_BET',
-                    resultado_detalhado = %s, 
+                SET status_gatekeeper = 'NO_BET',
+                    auditoria_ia_status = 'ALERTA_RISCO',
                     updated_at = NOW() 
                 WHERE id = %s
-            """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+            """, (aposta_id,))
 
-            # Verificar se houve débito em conta corrente
-            cursor.execute("""
-                SELECT id, valor FROM conta_corrente 
-                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
-                LIMIT 1
-            """, (usuario_id, aposta_id))
-            debito = cursor.fetchone()
-
-            if debito:
+            try:
                 cursor.execute("""
-                    SELECT id FROM conta_corrente 
-                    WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
-                    LIMIT 1
-                """, (usuario_id, aposta_id))
-                estorno_existente = cursor.fetchone()
-
-                if not estorno_existente:
-                    cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
-                    user_row = cursor.fetchone()
-                    saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
-                    saldo_posterior = round(saldo_anterior + valor, 2)
-
-                    desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
-
-                    cursor.execute("""
-                        INSERT INTO conta_corrente (
-                            usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
-                        ) VALUES (
-                            %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
-                        )
-                    """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
-
-                    cursor.execute("""
-                        UPDATE usuario 
-                        SET saldo_conta_corrente = %s 
-                        WHERE id = %s
-                    """, (saldo_posterior, usuario_id))
-
-                    print(f"💰 [Ingest Trends - Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
-            print(f"🛡️ [Ingest Trends - Aposta AH Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
+                    INSERT INTO notificacoes_usuario (
+                        usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                    ) VALUES (
+                        %s, %s, %s, 'ALERTA_MERCADO_DRIFT', %s, %s, %s, 0, 1, NOW()
+                    )
+                """, (
+                    usuario_id, aposta_id, fixture_id,
+                    f"🚨 Alerta de Mercado: NO_BET em {aposta['time_casa']} vs {aposta['time_fora']}",
+                    f"O Gatekeeper reclassificou a partida como NO_BET ({str(motivo)[:150]}). Avalie cashout ou cancelamento na sua casa de apostas.",
+                    f"/apostas?fixture_id={fixture_id}"
+                ))
+            except Exception as e_notif:
+                pass
+            print(f"🛡️ [Ingest Trends - Alerta NO_BET Registrado / Aposta Preservada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
     except Exception as e_canc:
         print(f"Aviso ao cancelar/estornar aposta em abstenção para fixture {fixture_id}: {e_canc}")
 

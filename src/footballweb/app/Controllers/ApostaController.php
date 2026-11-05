@@ -3832,6 +3832,85 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Endpoint AJAX para consultar a Linha do Tempo e Histórico de Decisões de uma partida.
+     */
+    public function timeline($fixtureId)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para consultar a linha do tempo.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        try {
+            $db = \Config\Database::connect();
+            $logs = $db->table('pipeline_lifecycle_logs l')
+                ->select('l.*, n.titulo as notif_titulo, n.mensagem as notif_mensagem')
+                ->join('notificacoes_usuario n', 'l.notificacao_id = n.id', 'left')
+                ->where('l.fixture_id', $fixtureId)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            // Fallback resiliente: se não houver registros em lifecycle_logs, busca direto em notificacoes_usuario
+            if (empty($logs)) {
+                $notifs = $db->table('notificacoes_usuario')
+                    ->where('fixture_id', $fixtureId)
+                    ->orderBy('id', 'ASC')
+                    ->get()
+                    ->getResultArray();
+                foreach ($notifs as $n) {
+                    $logs[] = [
+                        'id' => null,
+                        'fixture_id' => $fixtureId,
+                        'aposta_id' => $n['aposta_id'],
+                        'notificacao_id' => $n['id'],
+                        'notificacao_criada_em' => $n['criado_em'],
+                        'componente' => 'NOTIFICACAO_SISTEMA',
+                        'tipo_evento' => $n['tipo'] ?? 'ALERTA',
+                        'delta_json' => null,
+                        'motivo_detalhado' => $n['mensagem'],
+                        'criado_em' => $n['criado_em'],
+                        'notif_titulo' => $n['titulo'],
+                        'notif_mensagem' => $n['mensagem'],
+                    ];
+                }
+            }
+
+            $aposta = $db->table('apostas')
+                ->select('id, fixture_id, time_casa, time_fora, mercado, palpite, odd, odd_justa, valor_aposta, moeda_codigo, confirmada, casa_de_aposta, status, status_gatekeeper, resultado_detalhado, criado_em')
+                ->where('fixture_id', $fixtureId)
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getFirstRow('array');
+
+            return $this->response->setJSON([
+                'success' => true,
+                'fixture_id' => $fixtureId,
+                'total' => count($logs),
+                'timeline' => $logs,
+                'aposta' => $aposta
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[ApostaController::timeline] Erro ao consultar linha do tempo fixture ' . $fixtureId . ': ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao carregar auditoria: ' . $e->getMessage()
+            ])->setStatusCode(500);
+        }
+    }
+
+    /**
      * Endpoint AJAX para salvar linha customizada de Handicap Asiático validada e aprovada pelo Gatekeeper.
      */
     public function salvarLinhaAh()

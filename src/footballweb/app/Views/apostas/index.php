@@ -1534,6 +1534,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
                         title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
                   <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
                 </button>
+                <button type="button" 
+                        class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50 text-decoration-none px-2 py-1 btn-auditoria-simula-aposta" 
+                        style="font-size: 0.75rem; transition: all 0.2s ease; cursor: pointer; border-radius: 6px;" 
+                        onclick="handleAbrirAuditoriaSimulaAposta(<?= (int)$aposta->id ?>, <?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="Auditoria simula aposta (Histórico e Log do Ciclo de Vida)">
+                  <i class="bi bi-clipboard-pulse me-1"></i> Auditoria simula aposta
+                </button>
               <?php endif; ?>
             </div>
 
@@ -2016,6 +2023,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
                         title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
                   <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
                 </button>
+                <button type="button" 
+                        class="btn-icon-link text-info fw-semibold text-decoration-none ms-2 btn-auditoria-simula-aposta-footer" 
+                        style="cursor: pointer;"
+                        onclick="handleAbrirAuditoriaSimulaAposta(<?= (int)$aposta->id ?>, <?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="Auditoria simula aposta (Histórico e Log do Ciclo de Vida)">
+                  <i class="bi bi-clipboard-pulse me-1"></i> Auditoria simula aposta
+                </button>
               <?php else: ?>
                 <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
                    target="_blank" rel="noopener noreferrer"
@@ -2478,6 +2492,34 @@ if (!function_exists('fmtTopValorWithBrl')) {
       </div>
       <div class="modal-footer border-top border-secondary py-2 px-3 d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95);">
         <span class="text-white-50 small" style="font-size: 0.75rem;"><i class="bi bi-info-circle text-info me-1"></i> Você pode fechar e reabrir este card a qualquer momento sem sair da tela.</span>
+        <button type="button" class="btn btn-secondary btn-sm px-3 fw-bold" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AUDITORIA SIMULA APOSTA (TIMELINE & LOGS DE CICLO DE VIDA) -->
+<div class="modal fade modal-dark" id="modalAuditoriaSimulaAposta" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(8px);">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style="max-width: 860px;">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.8); border-radius: 14px;">
+      <div class="modal-header border-bottom border-secondary d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95); padding: 12px 20px;">
+        <h6 class="modal-title fw-bold text-white d-flex align-items-center gap-2 m-0" id="modalAuditoriaSimulaApostaTitle" style="font-size: 0.95rem;">
+          <i class="bi bi-clipboard-pulse text-info"></i> Auditoria simula aposta
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 shadow-sm" id="btnCopiarLogAuditoria" onclick="copiarLogAuditoriaParaClipboard()" style="font-size: 0.78rem; border-radius: 6px; padding: 4px 12px; font-weight: 600;">
+            <i class="bi bi-clipboard me-1" id="btnCopiarIcone"></i> <span id="btnCopiarTexto">Copiar para Área de Transferência</span>
+          </button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3" id="modalAuditoriaSimulaApostaBody" style="background: #0b1120; min-height: 280px; max-height: 80vh; overflow-y: auto;">
+        <!-- Preenchido dinamicamente via JS -->
+      </div>
+      <div class="modal-footer border-top border-secondary py-2 px-3 d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95);">
+        <span class="text-white-50 small" style="font-size: 0.75rem;">
+          <i class="bi bi-shield-check text-success me-1"></i> Rastreamento e auditoria transversal (Pipeline Lifecycle Logs & Sininho)
+        </span>
         <button type="button" class="btn btn-secondary btn-sm px-3 fw-bold" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
@@ -5511,6 +5553,247 @@ if (!function_exists('fmtTopValorWithBrl')) {
         `;
       }
     });
+  }
+
+  // --- Auditoria simula aposta: Timeline e Lifecycle Logger ---
+  let currentAuditoriaLogPlainText = '';
+
+  function handleAbrirAuditoriaSimulaAposta(apostaId, fixtureId, matchTitle) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui identificador de partida vinculado.');
+      return;
+    }
+
+    const modalEl = document.getElementById('modalAuditoriaSimulaAposta');
+    const titleEl = document.getElementById('modalAuditoriaSimulaApostaTitle');
+    const bodyEl = document.getElementById('modalAuditoriaSimulaApostaBody');
+    const btnCopiarTexto = document.getElementById('btnCopiarTexto');
+    const btnCopiarIcone = document.getElementById('btnCopiarIcone');
+
+    if (btnCopiarTexto) btnCopiarTexto.innerText = 'Copiar para Área de Transferência';
+    if (btnCopiarIcone) btnCopiarIcone.className = 'bi bi-clipboard me-1';
+    currentAuditoriaLogPlainText = '';
+
+    if (titleEl) {
+      titleEl.innerHTML = `<i class="bi bi-clipboard-pulse text-info me-1"></i> Auditoria simula aposta: <strong>${matchTitle || 'Partida'}</strong> <span class="badge bg-secondary ms-1" style="font-size: 0.72rem;">#${fixtureId}</span>`;
+    }
+
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-info mb-2" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
+          <p class="text-white-50 small mb-0">Carregando log de ciclo de vida e histórico de alertas...</p>
+        </div>
+      `;
+    }
+    if (modalEl) showModalSafely(modalEl);
+
+    fetch(`<?= base_url('apostas/timeline/') ?>${fixtureId}`, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => {
+      return r.json().catch(() => {
+        throw new Error(`Resposta inválida do servidor (HTTP ${r.status})`);
+      });
+    })
+    .then(data => {
+      if (!data || !data.success) {
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="alert alert-warning py-3 text-center my-4 rounded-3" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fef08a;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> ${(data && data.message) ? data.message : 'Não foi possível carregar a auditoria desta partida.'}
+            </div>
+          `;
+        }
+        return;
+      }
+
+      const timeline = data.timeline || [];
+      const aposta = data.aposta || null;
+
+      let plainText = `======================================================================\n`;
+      plainText += `AUDITORIA E LOG DO CICLO DE VIDA DA APOSTA\n`;
+      plainText += `Partida: ${matchTitle || ''} (Fixture #${fixtureId})\n`;
+      if (aposta) {
+        plainText += `Aposta ID: #${aposta.id} | Status: ${aposta.status} | Palpite: ${aposta.palpite || aposta.mercado || 'AH'}\n`;
+        plainText += `Odd: ${aposta.odd || ''} | Odd Justa: ${aposta.odd_justa || 'N/D'} | Casa: ${aposta.casa_de_aposta || 'Betano'}\n`;
+        if (aposta.status_gatekeeper) {
+          plainText += `Status Gatekeeper: ${aposta.status_gatekeeper}\n`;
+        }
+      }
+      plainText += `Data da Consulta: ${new Date().toLocaleString('pt-BR')}\n`;
+      plainText += `Total de Eventos: ${timeline.length}\n`;
+      plainText += `======================================================================\n\n`;
+
+      if (timeline.length === 0) {
+        plainText += `Nenhum evento registrado no log de ciclo de vida para esta partida.\n`;
+        currentAuditoriaLogPlainText = plainText;
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="p-4 text-center text-white-50">
+              <i class="bi bi-info-circle fs-3 text-info d-block mb-2"></i>
+              <p class="mb-1 fw-semibold text-white">Nenhum evento de ciclo de vida registrado ainda.</p>
+              <small>Esta aposta foi criada antes da ativação do rastreador de ciclo de vida ou não gerou alertas específicos.</small>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      let html = '';
+      if (aposta) {
+        html += `
+          <div class="mb-3 p-3 rounded-3" style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(71, 85, 105, 0.5);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50">Aposta #${aposta.id}</span>
+                <span class="badge ${aposta.status === 'Cancelada' ? 'bg-danger' : (aposta.status === 'Não Confirmada' ? 'bg-warning text-dark' : 'bg-success')}">${aposta.status}</span>
+                <span class="fw-bold text-white small">${aposta.palpite || aposta.mercado || 'Handicap'}</span>
+              </div>
+              <div class="text-white-50 small">
+                Casa: <strong class="text-info">${aposta.casa_de_aposta || 'Betano'}</strong> |
+                Odd: <strong class="text-warning">${aposta.odd || ''}</strong> 
+                ${aposta.odd_justa ? `(Justa: <strong class="text-info">${aposta.odd_justa}</strong>)` : ''}
+              </div>
+            </div>
+            ${aposta.status_gatekeeper ? `
+              <div class="mt-2 text-info small" style="font-size: 0.8rem;">
+                <i class="bi bi-shield-check me-1"></i> <strong>Gatekeeper:</strong> ${aposta.status_gatekeeper}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      html += `<div class="timeline-container d-flex flex-column gap-3">`;
+
+      timeline.forEach((item, idx) => {
+        const notifBadge = item.notificacao_id 
+          ? `<span class="badge bg-warning text-dark fw-bold" style="font-size: 0.72rem;"><i class="bi bi-bell-fill me-1"></i> Alerta #${item.notificacao_id}</span>` 
+          : `<span class="badge bg-secondary bg-opacity-50 text-white-50" style="font-size: 0.72rem;">Sem Notificação</span>`;
+        
+        const dataHora = item.notificacao_criada_em || item.criado_em || 'Data n/d';
+        const componente = item.componente || 'SISTEMA';
+        const tipoEvento = item.tipo_evento || 'EVENTO';
+
+        plainText += `[${idx + 1}] ${dataHora} | ${componente} | ${tipoEvento}\n`;
+        if (item.notificacao_id) {
+          plainText += `    ID do Alerta: #${item.notificacao_id}\n`;
+        }
+        if (item.notif_titulo) {
+          plainText += `    Título: ${item.notif_titulo}\n`;
+        }
+        if (item.notif_mensagem) {
+          plainText += `    Mensagem: ${item.notif_mensagem}\n`;
+        }
+        if (item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem) {
+          plainText += `    Motivo Detalhado: ${item.motivo_detalhado}\n`;
+        }
+        if (item.delta_json) {
+          plainText += `    Parâmetros: ${item.delta_json}\n`;
+        }
+        plainText += `----------------------------------------------------------------------\n`;
+
+        html += `
+          <div class="p-3 rounded-3 shadow-sm" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50" style="font-size: 0.72rem;">${componente}</span>
+                <span class="badge bg-dark border border-secondary text-light" style="font-size: 0.72rem;">${tipoEvento}</span>
+                ${notifBadge}
+              </div>
+              <small class="text-white-50" style="font-size: 0.78rem;">
+                <i class="bi bi-clock me-1"></i> ${dataHora}
+              </small>
+            </div>
+            ${item.notif_titulo ? `
+              <div class="fw-bold text-white mb-1" style="font-size: 0.88rem;">
+                ${item.notif_titulo}
+              </div>
+            ` : ''}
+            ${item.notif_mensagem ? `
+              <div class="text-white-50 small mb-2 p-2 rounded" style="background: rgba(30, 41, 59, 0.6); font-size: 0.82rem; line-height: 1.45;">
+                ${item.notif_mensagem}
+              </div>
+            ` : ''}
+            ${item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem ? `
+              <div class="text-light small mt-2" style="font-size: 0.82rem; line-height: 1.45;">
+                <strong class="text-info"><i class="bi bi-file-text me-1"></i> Diagnóstico:</strong> ${item.motivo_detalhado}
+              </div>
+            ` : ''}
+            ${item.delta_json ? `
+              <div class="mt-2 text-white-50 small" style="font-size: 0.75rem; font-family: monospace;">
+                <code>${item.delta_json}</code>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      currentAuditoriaLogPlainText = plainText;
+      if (bodyEl) bodyEl.innerHTML = html;
+    })
+    .catch(err => {
+      console.error('Erro ao buscar auditoria da aposta:', err);
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div class="alert alert-danger py-3 text-center my-4 rounded-3" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            <i class="bi bi-x-circle-fill me-1"></i> Erro ao conectar com o servidor para buscar o log de auditoria.
+          </div>
+        `;
+      }
+    });
+  }
+
+  function copiarLogAuditoriaParaClipboard() {
+    if (!currentAuditoriaLogPlainText) {
+      alert('Nenhum log disponível para cópia.');
+      return;
+    }
+
+    const btnTexto = document.getElementById('btnCopiarTexto');
+    const btnIcone = document.getElementById('btnCopiarIcone');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentAuditoriaLogPlainText).then(() => {
+        if (btnTexto) btnTexto.innerText = 'Copiado!';
+        if (btnIcone) btnIcone.className = 'bi bi-check-lg me-1 text-success';
+        setTimeout(() => {
+          if (btnTexto) btnTexto.innerText = 'Copiar para Área de Transferência';
+          if (btnIcone) btnIcone.className = 'bi bi-clipboard me-1';
+        }, 2500);
+      }).catch(err => {
+        fallbackCopyTextToClipboard(currentAuditoriaLogPlainText, btnTexto, btnIcone);
+      });
+    } else {
+      fallbackCopyTextToClipboard(currentAuditoriaLogPlainText, btnTexto, btnIcone);
+    }
+  }
+
+  function fallbackCopyTextToClipboard(text, btnTexto, btnIcone) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      if (btnTexto) btnTexto.innerText = 'Copiado!';
+      if (btnIcone) btnIcone.className = 'bi bi-check-lg me-1 text-success';
+      setTimeout(() => {
+        if (btnTexto) btnTexto.innerText = 'Copiar para Área de Transferência';
+        if (btnIcone) btnIcone.className = 'bi bi-clipboard me-1';
+      }, 2500);
+    } catch (err) {
+      alert('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
+    }
+    document.body.removeChild(textArea);
   }
 
   // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)

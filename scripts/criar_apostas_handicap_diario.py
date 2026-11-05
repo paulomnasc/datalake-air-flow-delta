@@ -523,6 +523,128 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             from asian_handicap_engine import determine_gatekeeper_category
             cat_desc = determine_gatekeeper_category('NO_BET', 'Sem Entrada (Abstenção)', detalhe_calculo or compound_reasoning)
 
+            # =========================================================================
+            # SUGESTÃO DE RADAR PARA OUTRAS CASAS (STAKE / PINNACLE / BET365)
+            # REGRA ESTRITA: Apenas partidas que cumpram INTEGRALMENTE os requisitos do
+            # Prisma PREMIUM ou do Prisma QUASE PREMIUM podem gerar sugestão de aposta.
+            # =========================================================================
+            if cat_desc == 'Falta de Valor Esperado (+EV)':
+                cursor.execute("""
+                    SELECT id, status FROM apostas 
+                    WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                    LIMIT 1
+                """, (fixture_id,))
+                ja_existe_aposta = cursor.fetchone()
+
+                if not ja_existe_aposta:
+                    try:
+                        from checar_odds_ah_fixture import build_ah_reference_fair_lines
+                        from asian_handicap_engine import get_team_u5j_from_db
+
+                        o_h = float(fix.get('odd_home') or 0.0)
+                        o_a = float(fix.get('odd_away') or 0.0)
+                        fav_is_away = (o_a > 0 and o_h > 0 and o_a < o_h)
+                        fav_team = away_team if fav_is_away else home_team
+                        fav_odd = o_a if fav_is_away else o_h
+
+                        h_l5 = get_team_u5j_from_db(cursor, fix.get('home_team_id'), home_team)
+                        a_l5 = get_team_u5j_from_db(cursor, fix.get('away_team_id'), away_team)
+                        cand_l5 = a_l5 if fav_is_away else h_l5
+                        opp_l5 = h_l5 if fav_is_away else a_l5
+
+                        cand_eff = float((cand_l5 or {}).get('pts_efficiency') or 0.0)
+                        opp_eff = float((opp_l5 or {}).get('pts_efficiency') or 0.0)
+
+                        # Validação contextual de visitante
+                        is_away_dependent = False
+                        if fav_is_away:
+                            a_away_matches = [m for m in ((a_l5 or {}).get('matches') or []) if isinstance(m, dict) and m.get('is_home') is False]
+                            a_away_wins = sum(1 for m in a_away_matches if m.get('result') == 'V')
+                            a_away_pts = sum(3 if m.get('result') == 'V' else (1 if m.get('result') == 'E' else 0) for m in a_away_matches)
+                            is_away_dependent = (bool(a_away_matches) and a_away_wins == 0 and a_away_pts <= 1)
+
+                        # 1. PRISMA PREMIUM: Eficiência >= 24.0 pts E adversário frágil <= 10.0 pts E odd 1X2 <= 1.60
+                        is_prisma_premium = (
+                            cand_eff >= 24.0 and
+                            opp_eff <= 10.0 and
+                            fav_odd <= 1.60 and
+                            not is_away_dependent
+                        )
+
+                        # 2. PRISMA QUASE PREMIUM: Eficiência >= 12.0 pts E superior ao adversário E odd 1X2 <= 2.20
+                        is_prisma_quase_premium = (
+                            not is_prisma_premium and
+                            cand_eff >= 12.0 and
+                            cand_eff > opp_eff and
+                            fav_odd <= 2.20 and
+                            not is_away_dependent
+                        )
+
+                        if is_prisma_premium or is_prisma_quase_premium:
+                            m_xg = re.search(r'xG\s+[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*x\s*([0-9]+(?:\.[0-9]+)?)', detalhe_calculo or '')
+                            xg_h = float(m_xg.group(1)) if m_xg else 1.20
+                            xg_a = float(m_xg.group(2)) if m_xg else 1.20
+                            p_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+                            ref_lines = build_ah_reference_fair_lines(fix, p_matrix, home_team, away_team, o_h, o_a)
+
+                            # Filtra as linhas conforme a regra específica de cada Prisma:
+                            if is_prisma_premium:
+                                # Premium autoriza linhas de dominância (-0.5, -0.75 AH)
+                                cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.75, -0.5)]
+                                destaque_val = 2
+                                badge_str = "👑 Oportunidade PREMIUM"
+                                cat_name = "Oportunidade PREMIUM (Sugestão Radar)"
+                            else:
+                                # Quase Premium exige estritamente cobertura de empate (0.0 AH ou +/-0.25 AH)
+                                cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0, 0.25)]
+                                destaque_val = 1
+                                badge_str = "🛡️ Aposta Quase Premium"
+                                cat_name = "Aposta Quase Premium (Sugestão Radar)"
+
+                            if cand_ref:
+                                # Prioriza linhas com odd mínima na faixa viável da banca (>= 1.50)
+                                valid_ref = [r for r in cand_ref if r['odd_minima'] >= 1.50]
+                                if valid_ref:
+                                    best_ref = valid_ref[0]
+                                    sug_palpite = best_ref['linha']
+                                    sug_odd_justa = float(best_ref['odd_justa'])
+                                    sug_odd_minima = float(best_ref['odd_minima'])
+                                    sug_prob = float(best_ref['prob_cobertura'])
+
+                                    sug_msg = (
+                                        f"💡 [{badge_str} / Radar de Oportunidade] A Betano não abriu cotações viáveis com +EV. "
+                                        f"Linha teórica de valor recomendada: {sug_palpite}. "
+                                        f"Odd Justa: {sug_odd_justa:.2f} | Odd Mínima Aceitável: @ {sug_odd_minima:.2f} "
+                                        f"(Cobertura de {sug_prob:.1f}%). Busque esta cotação na Stake, Pinnacle ou Bet365."
+                                    )
+
+                                    for uid in user_ids:
+                                        cursor.execute("""
+                                            INSERT INTO apostas (
+                                                usuario_id, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite,
+                                                odd, odd_justa, probabilidade_poisson, ev_percentual,
+                                                status_gatekeeper, gatekeeper_category, data_hora_jogo,
+                                                valor_aposta, ganhos_potenciais, tipo, status, confirmada, destaque,
+                                                resultado_detalhado, criado_em, updated_at
+                                            ) VALUES (
+                                                %s, %s, %s, %s, 'Handicap Asiático', 'Sugestão Radar (Stake / Outras)', %s,
+                                                %s, %s, %s, 5.0,
+                                                'SUGESTAO_RADAR', %s, %s,
+                                                10.00, %s, 'Sugestão', 'Não Confirmada', 0, %s,
+                                                %s, NOW(), NOW()
+                                            )
+                                        """, (
+                                            uid, fixture_id, home_team, away_team, sug_palpite,
+                                            sug_odd_minima, sug_odd_justa, sug_prob,
+                                            cat_name, fix.get('fixture_date'), round(10.0 * sug_odd_minima, 2),
+                                            destaque_val, sug_msg
+                                        ))
+                                    conn.commit()
+                                    print(f"📡 [{badge_str} Gerada] #{fixture_id} {home_team} vs {away_team} -> {sug_palpite} (Odd Justa: {sug_odd_justa:.2f} | Odd Mínima: @ {sug_odd_minima:.2f}) [Status: Não Confirmada]")
+                    except Exception as e_sug:
+                        print(f"Aviso ao gerar sugestão de radar para #{fixture_id}: {e_sug}")
+
             from asian_handicap_engine import get_cached_betano_1x2
             b1x2 = get_cached_betano_1x2(fixture_id)
             if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):

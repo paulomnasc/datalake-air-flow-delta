@@ -1981,12 +1981,17 @@ def calculate_unified_handicap_recommendation(
         fav_in_form = (fav_pts >= 12 or fav_eff >= 9.0) and ((fav_eff - dog_eff) >= 3.0 or (fav_pts - dog_pts) >= 4)
 
         h_zone_str = str(fixture_dict.get('home_zone') or '').lower()
+        # 1. Identificação de Rebaixamento Direto via metadados da liga/tabela (ex: 'relegation', 'play-out', 'rebaixamento')
         is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
+
+        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante:
+        #    - Deve estar categorizado na zona de descenso oficial (is_h_rel), OU
+        #    - Ocupar o 16º lugar ou pior (típica zona de perigo/Z-4 em ligas de 18 a 20 clubes)
+        #      com média de pontos por jogo (PPG) de rebaixado (<= 1.15).
+        #    (Elimina o falso positivo onde times de meio de tabela como o 12º colocado eram chamados de rebaixados).
         is_h_under_threat = (
             is_h_rel or
-            (h_rk_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
-            (h_rk_val >= 12 and standings_mot_val >= 3.0) or
-            (h_rk_val >= 12 and a_rk_val > 0 and (h_rk_val - a_rk_val >= 6 or a_rk_val <= 6))
+            (h_rk_val >= 16 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
         )
 
         is_crisis_clash = (
@@ -1998,14 +2003,34 @@ def calculate_unified_handicap_recommendation(
         away_has_better_metrics = (dog_eff > fav_eff) or (a_rk_val > 0 and h_rk_val > 0 and h_rk_val > a_rk_val)
 
         is_tier1_heavily_favored = is_t1 and (odd_a > 0 and odd_a < 1.65)
-        away_is_competitive = (odd_a >= 2.00)
+
+        # 3. Faixa de Competitividade Real do Visitante:
+        #    - A odd do visitante deve estar entre 1.01 e 2.60 (probabilidade implícita relevante de ~38% a 99%).
+        #    - Zebras extremas com odds acima de 2.60 (ex: 5.00 ou 9.00) nunca devem ser rotuladas como "odds de equilíbrio".
+        away_is_competitive = (odd_a > 0 and odd_a <= 2.60)
 
         a_away_matches = [m for m in ((a_l5 or {}).get('matches') or []) if isinstance(m, dict) and m.get('is_home') is False]
         a_away_wins = sum(1 for m in a_away_matches if m.get('result') == 'V')
         a_away_pts = sum(3 if m.get('result') == 'V' else (1 if m.get('result') == 'E' else 0) for m in a_away_matches)
         is_away_home_dependent = (bool(a_away_matches) and a_away_wins == 0 and a_away_pts <= 1 and not is_tier1_heavily_favored)
 
-        if away_is_competitive and not is_tier1_heavily_favored and is_h_under_threat:
+        # 4. Caldeirão da Degola / Sobrevivência do Mandante:
+        #    Aplica-se EXCLUSIVAMENTE quando todas as condições abaixo forem atendidas:
+        #    a) not fav_is_home: O mandante NÃO é o favorito do mercado (o favorito ou candidato a aposta é o visitante).
+        #    b) away_is_competitive: O visitante tem cotação competitiva/favorita (odd <= 2.60), não sendo zebra.
+        #    c) not is_tier1_heavily_favored: Superclubes globais (Tier 1) com odd esmagadora (< 1.65) superam o caldeirão.
+        #    d) is_h_under_threat: O mandante está genuinamente no Z-4 ou ameaçado de rebaixamento imediato.
+        #    e) (a_rk_val <= 8 e a_rk_val < h_rk_val): O visitante é da parte de cima da tabela (G-8) e está
+        #       melhor classificado que o mandante desesperado.
+        is_caldeirao_degola = (
+            not fav_is_home and
+            away_is_competitive and
+            not is_tier1_heavily_favored and
+            is_h_under_threat and
+            (a_rk_val > 0 and a_rk_val <= 8 and (h_rk_val == 0 or a_rk_val < h_rk_val))
+        )
+
+        if is_caldeirao_degola:
             reason = (
                 f"🚨 [Gatekeeper AH NO_BET / Caldeirão da Degola - Sobrevivência do Mandante] Partida {home_team} vs {away_team} -> "
                 f"O mandante ({home_team}) está afundado na zona de rebaixamento ou perigosamente próximo da degola ({h_rk_val}º colocado), "
@@ -2013,14 +2038,25 @@ def calculate_unified_handicap_recommendation(
                 f"em jogo com odds de equilíbrio (Visitante @ {odd_a:.2f}). O fator campo, a pressão das arquibancadas e a urgência extrema por pontos "
                 f"neutralizam a superioridade teórica do visitante. Abstenção mandatória por risco de caldeirão."
             )
-        elif is_away_home_dependent and (has_away_cand or away_has_better_metrics or odd_a >= 2.00):
+        # 5. Desempenho Fora Inconsistente (Ilusão de Mandante do Visitante):
+        #    - not fav_is_home: O foco de avaliação é o visitante.
+        #    - is_away_home_dependent: O visitante não venceu fora nos últimos 5 jogos (0 vitórias e <= 1 ponto fora).
+        #    - (away_has_better_metrics ou odd_a <= 2.40): O visitante tem números gerais bons ou favoritismo,
+        #      mas é dependente do seu estádio e vulnerável fora de casa.
+        elif not fav_is_home and is_away_home_dependent and (away_has_better_metrics or (odd_a > 0 and odd_a <= 2.40)):
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Desempenho Fora Inconsistente] Partida {home_team} vs {away_team} -> "
                 f"O visitante ({away_team}) construiu seus pontos de eficiência recente exclusivamente em seu estádio "
                 f"({a_away_wins} vitórias e {a_away_pts} pontos fora no U5J). Falha no Vértice 1 do Prisma Quase Premium (Consistência Contextual de Mando). "
                 f"Abstenção mandatória por ilusão de mandante."
             )
-        elif fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and (has_away_cand or away_has_better_metrics):
+        # 6. Mando de Campo Soberano - Divergência de Mercado:
+        #    - fav_is_home: O mandante é o favorito nas cotações (odd_h < odd_a com margem >= 0.15).
+        #    - not is_tier1_heavily_favored: O visitante não é um Tier 1 com odd esmagadora.
+        #    - away_has_better_metrics: O visitante tem métricas recentes superiores (melhor tabela ou U5J),
+        #      mas as casas de apostas mantêm o mandante como favorito.
+        #    (Removido 'has_away_cand', que causava falso positivo apenas pela existência de linhas da Betano).
+        elif fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and away_has_better_metrics:
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano - Divergência de Mercado] Partida {home_team} vs {away_team} -> "
                 f"O visitante ({away_team}) está melhor ranqueado na tabela ou possui melhor sequência recente, mas as casas de apostas alertam "

@@ -1439,15 +1439,16 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
 
-          $isApostaApproved = ($aposta->status !== 'Cancelada' && ($aposta->status_gatekeeper ?? '') !== 'NO_BET');
-          $isApostaPremium = $isApostaApproved && (
+          $isApostaPremium = (
               (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
-              (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+              (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)') ||
+              stripos($aposta->resultado_detalhado ?? '', 'Oportunidade PREMIUM') !== false ||
+              stripos($aposta->resultado_detalhado ?? '', '👑 Oportunidade PREMIUM') !== false
           );
 
-          $isQuasePremium = $isApostaApproved && !$isApostaPremium && (
-              (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+          $isQuasePremium = !$isApostaPremium && (
               (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
+              (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
               stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
           );
           $isLockedByLineup = ($isApostaPremium || $isQuasePremium) && (($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
@@ -1465,6 +1466,30 @@ if (!function_exists('fmtTopValorWithBrl')) {
         <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
+            <?php if ($isApostaPremium || $isQuasePremium || !empty($aposta->destaque)): ?>
+              <div class="bet-card-tier-top d-flex align-items-center justify-content-start w-100 mb-2">
+                <?php if ($isApostaPremium): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
+                        style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                        title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
+                    <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
+                  </span>
+                <?php elseif ($isQuasePremium): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                        style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.2) !important;" 
+                        title="Aposta Quase Premium (1x Stake): Crivo rigoroso do Gatekeeper com consistência contextual comprovada e cobertura de empate (+EV).">
+                    <span style="font-size: 0.95rem; line-height: 1;">🛡️</span> Aposta Quase Premium (1x Stake)
+                  </span>
+                <?php elseif (!empty($aposta->destaque)): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
+                        title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
+                    <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
+                  </span>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
+
             <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
               <div class="match-teams">
                 <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
@@ -1483,25 +1508,6 @@ if (!function_exists('fmtTopValorWithBrl')) {
             </div>
 
             <div class="match-badges-header d-flex align-items-center gap-1.5 flex-wrap w-100 mt-1">
-              <?php if ($isApostaPremium): ?>
-                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
-                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
-                      title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
-                  <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
-                </span>
-              <?php elseif (!empty($aposta->destaque)): ?>
-                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
-                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
-                      title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
-                  <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
-                </span>
-              <?php elseif ($isQuasePremium): ?>
-                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
-                      style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.2) !important;" 
-                      title="Aposta Quase Premium (1x Stake): Crivo rigoroso do Gatekeeper com consistência contextual comprovada e cobertura de empate (+EV).">
-                  <span style="font-size: 0.95rem; line-height: 1;">🛡️</span> Aposta Quase Premium (1x Stake)
-                </span>
-              <?php endif; ?>
 
               <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
                 <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
@@ -5408,16 +5414,23 @@ if (!function_exists('fmtTopValorWithBrl')) {
           cardEl.setAttribute('data-destaque', '2');
           cardEl.classList.add('bet-card-destaque');
           
-          const badgesHeader = cardEl.querySelector('.match-badges-header');
-          if (badgesHeader && !badgesHeader.querySelector('.badge-destaque-premium')) {
-            const premiumBadgeHtml = `
+          let tierTop = cardEl.querySelector('.bet-card-tier-top');
+          if (!tierTop) {
+            const cardHeader = cardEl.querySelector('.bet-card-header');
+            if (cardHeader) {
+              tierTop = document.createElement('div');
+              tierTop.className = 'bet-card-tier-top d-flex align-items-center justify-content-start w-100 mb-2';
+              cardHeader.insertBefore(tierTop, cardHeader.firstChild);
+            }
+          }
+          if (tierTop && !tierTop.querySelector('.badge-destaque-premium')) {
+            tierTop.innerHTML = `
               <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
-                    style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                    style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
                     title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
                 <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
               </span>
             `;
-            badgesHeader.insertAdjacentHTML('afterbegin', premiumBadgeHtml);
           }
         }
 

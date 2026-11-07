@@ -1291,23 +1291,19 @@ class ApostaController extends BaseController
         // =========================================================================
         // TRAVA MANDATÓRIA DE GOVERNANÇA: SÚMULA OFICIAL E SENTINELA GEMINI
         // Apostas PREMIUM (destaque 2) e Quase Premium (destaque 1 / Quase Premium)
-        // NÃO podem ser confirmadas sem o aval (Sinal Verde) da Sentinela com os 11 titulares.
+        // NÃO podem ser confirmadas sem a publicação da súmula oficial.
+        // Se a súmula oficial já foi notificada com ALERTA_RISCO, o apostador pode prosseguir
+        // assumindo o risco individual conscientemente no card.
         // =========================================================================
-        $isPremium = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
-                     (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)');
-        $isQuasePremium = !$isPremium && (
-            (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
-            (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
-            stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
-        );
+        $betTier = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+        $isPremium = $betTier->isPremium();
+        $isQuasePremium = $betTier->isQuasePremium();
 
         if ($isPremium || $isQuasePremium) {
             $sentinelaStatus = $aposta->auditoria_ia_status ?? null;
-            if ($sentinelaStatus !== 'CONFIRMADO') {
+            if ($sentinelaStatus !== 'CONFIRMADO' && $sentinelaStatus !== 'ALERTA_RISCO') {
                 $tipoNome = $isPremium ? '👑 PREMIUM' : '🛡️ Quase Premium';
-                $motivoSentinela = ($sentinelaStatus === 'ALERTA_RISCO')
-                    ? "A IA Sentinela Gemini identificou desfalques críticos ou alto risco na escalação oficial."
-                    : "A súmula oficial com os 11 titulares ainda não foi confirmada pela IA Sentinela Gemini (previsão a ~45 min do apito inicial).";
+                $motivoSentinela = "A súmula oficial com os 11 titulares ainda não foi confirmada pela IA Sentinela Gemini (previsão a ~45 min do apito inicial).";
 
                 return $this->response->setJSON([
                     'success' => false,
@@ -1557,13 +1553,9 @@ class ApostaController extends BaseController
             }
 
             // Trava de Governança para Confirmação em Lote (Apostas Premium / Quase Premium):
-            $isPremLote = (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
-                          (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)');
-            $isQuasePremLote = !$isPremLote && (
-                (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
-                (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
-                stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
-            );
+            $tierLote = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+            $isPremLote = $tierLote->isPremium();
+            $isQuasePremLote = $tierLote->isQuasePremium();
 
             if (($isPremLote || $isQuasePremLote) && ($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') {
                 $skippedLineupCount++;
@@ -4737,8 +4729,22 @@ class ApostaController extends BaseController
             ])->setStatusCode(404);
         }
 
+        $apostaId = (int)$this->request->getGet('aposta_id');
+        $aposta = null;
+        if ($apostaId > 0) {
+            $aposta = $db->table('apostas')->where('id', $apostaId)->get()->getRow();
+        }
+        if (!$aposta && $fixtureId > 0) {
+            $aposta = $db->table('apostas')
+                         ->where('fixture_id', $fixtureId)
+                         ->orderBy('id', 'DESC')
+                         ->get()
+                         ->getRow();
+        }
+
         $data = [
             'fix'          => $fix,
+            'aposta'       => $aposta,
             'userTimezone' => $userTimezone,
             'fixtureId'    => $fixtureId
         ];

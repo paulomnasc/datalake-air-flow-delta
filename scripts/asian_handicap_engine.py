@@ -21,6 +21,28 @@ import requests
 from datetime import datetime, timedelta
 
 try:
+    from bet_tier import BetTier
+except Exception:
+    try:
+        from scripts.bet_tier import BetTier
+    except Exception:
+        from enum import IntEnum
+        class BetTier(IntEnum):
+            REGULAR = 0
+            QUASE_PREMIUM = 1
+            PREMIUM = 2
+            @property
+            def label(self): return "👑 Oportunidade PREMIUM" if self == 2 else ("🛡️ Aposta Quase Premium" if self == 1 else "Regular (+EV)")
+            @property
+            def stake_multiplier(self): return 3.0 if self == 2 else 1.0
+            @property
+            def gatekeeper_category(self): return "Oportunidade PREMIUM (+EV Alavancado)" if self == 2 else ("Aposta Quase Premium (+EV Selecionado)" if self == 1 else "Valor Esperado Positivo (+EV)")
+            @classmethod
+            def from_destaque(cls, val):
+                try: return cls(int(val or 0))
+                except: return cls.REGULAR
+
+try:
     from leagues_config import is_tier_1_elite_club, get_team_pedigree_bonus
 except Exception:
     try:
@@ -252,14 +274,15 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
     is_abstencao = (status_gk == 'NO_BET') or any(w in sug_clean for w in ['abstenção', 'abstencao', 'sem entrada', 'bloquead', 'no_bet'])
 
     if not is_abstencao:
-        # Categorias de Aprovação (APROVADO / Bet OK)
-        if best_cand and (best_cand.get('destaque') == 2 or best_cand.get('is_premium')):
-            return 'Oportunidade PREMIUM (+EV Alavancado)'
-        if (best_cand and (best_cand.get('destaque') == 1 or best_cand.get('is_destaque') == 1)) or 'Tier 1 Dominante' in r_text or 'Super-Favorito' in r_text:
-            return 'Super-Favorito Dominante'
+        # Categorias de Aprovação (APROVADO / Bet OK) governadas estritamente por BetTier
+        cand_tier = best_cand.get('tier') if (best_cand and 'tier' in best_cand) else None
+        if cand_tier == BetTier.PREMIUM or (best_cand and (best_cand.get('destaque') == BetTier.PREMIUM or best_cand.get('is_premium'))):
+            return BetTier.PREMIUM.gatekeeper_category
+        if cand_tier == BetTier.QUASE_PREMIUM or (best_cand and best_cand.get('destaque') == BetTier.QUASE_PREMIUM):
+            return BetTier.QUASE_PREMIUM.gatekeeper_category
         if ('0.0' in sug_clean or '+0.25' in sug_clean or '-0.25' in sug_clean or 'empate anula' in sug_clean):
-            return 'Aposta Quase Premium (+EV Selecionado)'
-        return 'Valor Esperado Positivo (+EV)'
+            return BetTier.QUASE_PREMIUM.gatekeeper_category
+        return BetTier.REGULAR.gatekeeper_category
 
     # Categorias de Abstenção (NO_BET)
     # Isola o bloco principal do Gatekeeper para evitar vazamento de termos de '|| MOTIVACAO:' ou '|| EXPLICACAO:'
@@ -1365,9 +1388,29 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_super_dominant_tier1'] = is_super_dominant_tier1
             if is_super_dominant_tier1 and c_line in (-0.5, -0.75):
-                cand_copy['destaque'] = 2
+                cand_copy['destaque'] = BetTier.PREMIUM.value
                 cand_copy['is_premium'] = True
-                cand_copy['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
+                cand_copy['tier'] = BetTier.PREMIUM
+                cand_copy['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
+            elif c_line in (-0.25, 0.0, 0.25):
+                # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
+                is_quase_premium_qualified = (
+                    cand_pts_eff >= 12.0 and
+                    cand_odd <= 2.40 and
+                    (not c_is_away or (cand_away_matches and cand_away_pts >= 2))
+                )
+                if is_quase_premium_qualified:
+                    cand_copy['tier'] = BetTier.QUASE_PREMIUM
+                    cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
+                    cand_copy['gatekeeper_category'] = BetTier.QUASE_PREMIUM.gatekeeper_category
+                else:
+                    cand_copy['tier'] = BetTier.REGULAR
+                    cand_copy['destaque'] = BetTier.REGULAR.value
+                    cand_copy['gatekeeper_category'] = BetTier.REGULAR.gatekeeper_category
+            else:
+                cand_copy['tier'] = BetTier.REGULAR
+                cand_copy['destaque'] = BetTier.REGULAR.value
+                cand_copy['gatekeeper_category'] = BetTier.REGULAR.gatekeeper_category
             cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge or is_away_standing_and_u5j_dominant
             approved.append(cand_copy)
 
@@ -1938,16 +1981,19 @@ def calculate_unified_handicap_recommendation(
                             'p_half_loss': 0.0,
                             'p_loss': 0.0
                         }
-                        best_cand['destaque'] = 2
-                        best_cand['gatekeeper_category'] = 'Oportunidade PREMIUM (+EV Alavancado)'
+                        best_cand['destaque'] = BetTier.PREMIUM.value
+                        best_cand['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
                         best_cand['is_premium'] = True
+                        best_cand['tier'] = BetTier.PREMIUM
                         approved = [best_cand]
                 elif ia_audit_res.get('is_premium') and not is_strictly_premium:
                     print(f"🛡️ [Veto de Selo PREMIUM pelo Gatekeeper] #{fixture_id} {home_team} ({cand_eff_premium:.1f} pts) vs {away_team} ({opp_eff_premium:.1f} pts): Adversário não atende ao critério de fragilidade (U5J <= 10.0 pts). Mantida aposta padrão.")
-                    best_cand['destaque'] = 0
+                    p_str = str(best_cand.get('palpite_str') or '')
+                    is_qp = ('0.0' in p_str or '-0.25' in p_str or '+0.25' in p_str)
+                    best_cand['tier'] = BetTier.QUASE_PREMIUM if is_qp else BetTier.REGULAR
+                    best_cand['destaque'] = best_cand['tier'].value
                     best_cand['is_premium'] = False
-                    if 'PREMIUM' in str(best_cand.get('gatekeeper_category', '')):
-                        best_cand['gatekeeper_category'] = 'Aposta Quase Premium (+EV Selecionado)'
+                    best_cand['gatekeeper_category'] = best_cand['tier'].gatekeeper_category
                 best_cand['ia_audit'] = ia_audit_res
         except Exception as e_ia_sent:
             print(f"⚠️ [IA Sentinela AH] Aviso ao processar auditoria cognitiva: {e_ia_sent}")
@@ -2194,11 +2240,18 @@ def calculate_unified_handicap_recommendation(
         elif is_opp_tier1 and is_crisis_opp and (cand_pts >= 8 or odd_cand <= 1.60 or cand_pts >= opp_pts + 4):
             is_destaque = 1
 
-    if best_cand.get('is_premium') or best_cand.get('destaque') == 2 or best_cand.get('is_super_dominant_tier1'):
-        is_destaque = 2
+    tier = best_cand.get('tier')
+    if tier is None:
+        if best_cand.get('is_premium') or best_cand.get('destaque') == BetTier.PREMIUM.value or best_cand.get('is_super_dominant_tier1'):
+            tier = BetTier.PREMIUM
+        elif is_destaque == 1 or ('0.0' in str(selected_palpite) or '+0.25' in str(selected_palpite) or '-0.25' in str(selected_palpite)):
+            tier = BetTier.QUASE_PREMIUM
+        else:
+            tier = BetTier.REGULAR
 
-    best_cand['destaque'] = is_destaque
-    app_cat = determine_gatekeeper_category('APROVADO', selected_palpite, raw_calc, best_cand)
+    best_cand['tier'] = tier
+    best_cand['destaque'] = tier.value
+    app_cat = tier.gatekeeper_category
     best_cand['gatekeeper_category'] = app_cat
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
@@ -3113,14 +3166,22 @@ def sync_fixture_and_bet_handicap(
         if user_stake <= 0.0:
             user_stake = 10.00
 
-        # Se for Aposta PREMIUM (destaque == 2 ou is_premium == True), dimensiona automaticamente com 3x a stake padrão
-        is_premium_bet = (destaque_val == 2) or bool((best_cand or {}).get('is_premium')) or ('PREMIUM' in str(app_cat).upper())
-        if is_premium_bet:
-            valor_aposta = round(user_stake * 3.0, 2)
-            destaque_val = 2
-            app_cat = 'Oportunidade PREMIUM (+EV Alavancado)'
+        # Determinação estrita de Tier via Enum BetTier (Regra 21: Proibição de busca textual por substrings)
+        cand_tier = (best_cand or {}).get('tier')
+        if cand_tier is not None and isinstance(cand_tier, BetTier):
+            tier = cand_tier
+        elif destaque_val == BetTier.PREMIUM.value or bool((best_cand or {}).get('is_premium')):
+            tier = BetTier.PREMIUM
+        elif destaque_val == BetTier.QUASE_PREMIUM.value or app_cat == BetTier.QUASE_PREMIUM.gatekeeper_category:
+            tier = BetTier.QUASE_PREMIUM
+        elif ('0.0' in str(selected_palpite) or '+0.25' in str(selected_palpite) or '-0.25' in str(selected_palpite)):
+            tier = BetTier.QUASE_PREMIUM
         else:
-            valor_aposta = user_stake
+            tier = BetTier.REGULAR
+
+        valor_aposta = round(user_stake * tier.stake_multiplier, 2)
+        destaque_val = tier.value
+        app_cat = tier.gatekeeper_category
         ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
         cursor.execute("""
@@ -3643,12 +3704,13 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 odd_justa = ev_data.get('odd_justa')
                 prob_poisson = ev_data.get('prob_eff')
                 ev_perc = ev_data.get('ev_percent')
-                if best_cand.get('destaque') == 2 or best_cand.get('is_premium'):
-                    destaque = 2
-                elif best_cand.get('is_tier1_massacre') or best_cand.get('destaque') == 1:
-                    destaque = 1
-                else:
-                    destaque = 0
+                tier = best_cand.get('tier') or BetTier.from_destaque(best_cand.get('destaque'))
+                if tier == BetTier.REGULAR:
+                    if best_cand.get('is_premium'):
+                        tier = BetTier.PREMIUM
+                    elif best_cand.get('is_tier1_massacre'):
+                        tier = BetTier.QUASE_PREMIUM
+                destaque = tier.value
                 msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."

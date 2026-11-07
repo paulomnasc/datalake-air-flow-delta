@@ -61,7 +61,8 @@ from asian_handicap_engine import (
     determine_bet_side,
     analisar_mudanca_odd_cancelamento,
     determine_gatekeeper_category,
-    GATEKEEPER_DIDACTIC_MAP
+    GATEKEEPER_DIDACTIC_MAP,
+    BetTier
 )
 
 def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
@@ -636,15 +637,15 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                             if is_prisma_premium:
                                 # Premium autoriza linhas de dominância (-0.5, -0.75 AH)
                                 cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.75, -0.5)]
-                                destaque_val = 2
-                                badge_str = "👑 Oportunidade PREMIUM"
-                                cat_name = "Oportunidade PREMIUM (Sugestão Radar)"
+                                tier = BetTier.PREMIUM
                             else:
                                 # Quase Premium exige estritamente cobertura de empate (0.0 AH ou +/-0.25 AH)
                                 cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0, 0.25)]
-                                destaque_val = 1
-                                badge_str = "🛡️ Aposta Quase Premium"
-                                cat_name = "Aposta Quase Premium (Sugestão Radar)"
+                                tier = BetTier.QUASE_PREMIUM
+
+                            destaque_val = tier.value
+                            badge_str = tier.label
+                            cat_name = f"{'Oportunidade PREMIUM' if tier == BetTier.PREMIUM else 'Aposta Quase Premium'} (Sugestão Radar)"
 
                             if cand_ref:
                                 # Prioriza linhas com odd mínima na faixa viável da banca (>= 1.50)

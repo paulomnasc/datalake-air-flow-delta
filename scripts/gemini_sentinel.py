@@ -32,6 +32,11 @@ if CURRENT_DIR not in sys.path:
 
 from db_config import get_db_connection, get_live_env_vars
 
+try:
+    from lineup_notification_status import LineupNotificationStatus
+except ImportError:
+    from scripts.lineup_notification_status import LineupNotificationStatus
+
 
 def get_gemini_api_key() -> str:
     """
@@ -609,14 +614,51 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
             alerta_critico = True
             motivos_risco.append(f"Odd de Cartões ({odd_aposta:.2f}) abaixo do piso viável (1.50).")
 
-    # 4. Auditoria de Volatilidade de Mercado e Confronto Equilibrado
-    # Alinhamento 100% com a regra do Card Web: odd_home >= 2.10 e odd_away >= 2.10, ou odd_aposta >= 2.15
-    if (odd_home >= 2.10 and odd_away >= 2.10) or (odd_aposta >= 2.15 and ('handicap' in mercado or 'ah' in palpite.lower())):
+    # 4. Auditoria de Volatilidade de Mercado e Confronto Equilibrado (Abordagem Percentual de Mercado / Delta de Probabilidade)
+    delta_p_vantagem = 0.0
+    p_target = 0.0
+    p_opp = 0.0
+    inv_sum = 0.0
+    target_odd_1x2 = 0.0
+    opp_odd_1x2 = 0.0
+    raw_odd_draw = 0.0
+
+    is_away_target = bool(away_team.lower() in palpite.lower() or 'fora' in palpite.lower() or 'away' in palpite.lower())
+    target_odd_1x2 = float(odd_away if is_away_target else odd_home)
+    opp_odd_1x2 = float(odd_home if is_away_target else odd_away)
+    raw_odd_draw = float(item.get('odd_draw') or 3.20)
+
+    # Cálculo da probabilidade implícita normalizada (sem margem da casa)
+    if odd_home > 1.0 and odd_away > 1.0 and raw_odd_draw > 1.0:
+        inv_sum = (1.0 / odd_home) + (1.0 / raw_odd_draw) + (1.0 / odd_away)
+        p_target = ((1.0 / target_odd_1x2) / inv_sum) * 100.0
+        p_opp = ((1.0 / opp_odd_1x2) / inv_sum) * 100.0
+        delta_p_vantagem = round(p_target - p_opp, 1)
+
+    # Critérios de Indefinição / Confronto Equilibrado:
+    # 1. Empate Técnico: Ambas as odds abertas (>= 2.00) E vantagem do time apoiado < 8.0% de probabilidade implícita
+    is_technical_tie = (odd_home >= 2.00 and odd_away >= 2.00 and delta_p_vantagem < 8.0)
+    # 2. Desalinhamento do 1X2 com o Prisma Quase Premium: Odd do time apoiado ultrapassa 2.40 (mercado trata como azarão)
+    is_over_prismatic_ceiling = (target_odd_1x2 > 2.40)
+    # 3. Linha de aposta esticada (odd da linha >= 2.15)
+    is_line_stretched = (odd_aposta >= 2.15 and ('handicap' in mercado or 'ah' in palpite.lower()))
+
+    if is_technical_tie or is_over_prismatic_ceiling or is_line_stretched:
         confronto_equilibrado = True
-        motivos_risco.append(
-            f"Confronto Equilibrado / Odds Abertas no mercado 1X2 ({home_team} @ {odd_home:.2f} vs {away_team} @ {odd_away:.2f}). "
-            f"Alta volatilidade de cotações e sensibilidade da linha {palpite} a oscilações no pré-jogo."
-        )
+        if is_technical_tie:
+            motivos_risco.append(
+                f"Confronto Equilibrado / Indefinição Simétrica de Mercado no 1X2: "
+                f"{home_team} @ {odd_home:.2f} vs {away_team} @ {odd_away:.2f} (Vantagem de apenas {delta_p_vantagem:+.1f}% de probabilidade implícita). "
+                f"Empate técnico com alta imprevisibilidade pré-jogo."
+            )
+        elif is_over_prismatic_ceiling:
+            motivos_risco.append(
+                f"Desalinhamento do 1X2: Cotação da equipe apoiada ({target_odd_1x2:.2f}) acima do teto de 2.40 do Prisma Quase Premium."
+            )
+        elif is_line_stretched:
+            motivos_risco.append(
+                f"Linha de aposta esticada: Odd ({odd_aposta:.2f}) em patamar elevado (>= 2.15), sensível a volatilidade."
+            )
 
     # Classificação do Risco-Base dos Dados
     if alerta_critico:
@@ -640,22 +682,23 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
     }
 
 
-def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA"):
+def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA", force=False):
     """
     Registra alerta no Sininho da interface web (tabela notificacoes_usuario).
-    Prevenção de duplicidade: não insere se já foi notificado nos últimos 45 minutos.
+    Prevenção de duplicidade: se force=False, não insere se já foi notificado nos últimos 45 minutos.
     """
     try:
-        cursor.execute("""
-            SELECT id FROM notificacoes_usuario 
-            WHERE usuario_id = %s 
-              AND fixture_id = %s 
-              AND tipo = %s
-              AND criado_em >= DATE_SUB(NOW(), INTERVAL 45 MINUTE)
-            LIMIT 1
-        """, (usuario_id, fixture_id, tipo))
-        if cursor.fetchone():
-            return False
+        if not force:
+            cursor.execute("""
+                SELECT id FROM notificacoes_usuario 
+                WHERE usuario_id = %s 
+                  AND fixture_id = %s 
+                  AND tipo = %s
+                  AND criado_em >= DATE_SUB(NOW(), INTERVAL 45 MINUTE)
+                LIMIT 1
+            """, (usuario_id, fixture_id, tipo))
+            if cursor.fetchone():
+                return False
 
         link = f"/apostas?fixture_id={fixture_id}"
         cursor.execute("""
@@ -869,8 +912,8 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
      - Para linhas de handicap ofensivo (-0.5 AH ou -0.75 AH, sendo -0.75 o teto máximo permitido pelo sistema), o palpite exige obrigatoriamente a confirmação da FORÇA MÁXIMA OFENSIVA da equipe apoiada (artilheiro principal e meias criadores titulares confirmados).
      - Se a equipe poupar seus atacantes principais ou for com time misto, o veredito DEVE ser obrigatoriamente classificado como ALTO RISCO (tem_alerta: true) recomendando abstenção/cautela. O "Sinal Verde" só é permitido com o ataque titular completo.
    - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
-   - "MEDIO": Confronto Equilibrado / Odds Abertas no 1X2 (ambas as odds >= 2.10, com linha de volatilidade no mercado) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos equilibrados de odds abertas, o risco JAMAIS poderá ser classificado como BAIXO.
-   - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (NÃO equilibrado) E força máxima de elenco confirmada sem desfalques relevantes reportados.
+   - "MEDIO": Confronto Equilibrado / Indefinição Simétrica no 1X2 (vantagem de probabilidade implícita do favorito < 8.0% sobre o adversário, ou cotação da equipe apoiada acima do teto de 2.40 do Prisma Quase Premium) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos com indefinição simétrica de mercado, o risco JAMAIS poderá ser classificado como BAIXO.
+   - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (vantagem de probabilidade implícita >= 8.0% e cotação <= 2.40) E força máxima de elenco confirmada sem desfalques relevantes reportados.
    * REGRA MANDATÓRIA DE PROTOCOLO DE SÚMULA E ESCALAÇÃO OFICIAL:
      A) SE AS ESCALAÇÕES TITULARES NÃO FORAM DIVULGADAS NEM NA API NEM NA IMPRENSA/CLUBES NA WEB (escalacao_confirmada = false) E O RISCO FOR 'MEDIO' OU 'ALTO':
         - Seu parecer explicativo DEVE OBRIGATORIAMENTE instruir:
@@ -1305,6 +1348,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
@@ -1322,6 +1366,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
@@ -1342,6 +1387,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
@@ -1486,6 +1532,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde
                 titulo_alerta = resultado.get("titulo_alerta") or f"{'🔴' if grau_risco == 'ALTO' else '🟡'} Alerta [{badge_risco}]: {home_team} vs {away_team}"
 
+                # Governança de Notificação de Escalação Oficial via Enum LineupNotificationStatus (Regra de Ouro 21)
+                notif_escalacao_status = LineupNotificationStatus.from_value(item.get('notificacao_escalacao_enviada'))
+                novo_notif_escalacao = notif_escalacao_status.value
+                tem_escalacao = False
+                deve_notificar_escalacao = False
+
                 # LÓGICA DE TRANSIÇÃO POR FASE DA ESTEIRA:
                 if phase == 1:
                     # FASE 1: Antecipação Matinal (Janela 24h)
@@ -1500,33 +1552,38 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         resumo = f"🟢 Sinal Verde Antecipado: {resumo}"
                 else:
                     # FASE 2: Repescagem Pré-Jogo e Vigilância de Mercado
+                    tem_escalacao = bool(
+                        sumula_oficial.get('tem_sumula') or 
+                        sumula_oficial.get('lineups_disponiveis') or
+                        resultado.get('escalacao_confirmada') or
+                        'escalação oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower() or
+                        'súmula oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower()
+                    )
+
+                    if tem_escalacao and notif_escalacao_status == LineupNotificationStatus.NAO_NOTIFICADO:
+                        deve_notificar_escalacao = True
+
                     if is_confirmada and recalib.get('alerta_risco'):
                         st = 'ALERTA_RISCO'
                         badge_risco = '🔴 Risco Crítico de Mercado'
                         titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
                         parecer = recalib['parecer_alerta']
-                    elif era_observacao:
-                        tem_escalacao = bool(
-                            sumula_oficial.get('tem_sumula') or 
-                            sumula_oficial.get('lineups_disponiveis') or
-                            resultado.get('escalacao_confirmada') or
-                            'escalação oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower() or
-                            'súmula oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower()
-                        )
-                        if not tem_escalacao and not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
-                            # Súmula oficial ainda não disponível na API nem confirmada na imprensa
-                            st = 'EM_OBSERVACAO'
-                            badge_risco = '🟡 Em Observação'
-                            resumo = f"⏳ Aguardar Súmula Oficial: Súmula ainda não divulgada ({resumo}) | Aguardando liberação das escalações oficiais"
-                            titulo_alerta = f"⏳ Aguardar Súmula Oficial [Risco Médio]: {home_team} vs {away_team}"
-                        elif not tem_alerta:
+                    elif tem_escalacao:
+                        if not tem_alerta:
                             st = 'CONFIRMADO'
                             resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
                             titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
                         else:
                             st = 'ALERTA_RISCO'
-                            resumo = f"📋 Escalação Confirmada [Alerta de Desfalques]: {resumo}"
-                            titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques]: {home_team} vs {away_team}"
+                            resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
+                            titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
+                    elif era_observacao:
+                        if not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
+                            # Súmula oficial ainda não disponível na API nem confirmada na imprensa
+                            st = 'EM_OBSERVACAO'
+                            badge_risco = '🟡 Em Observação'
+                            resumo = f"⏳ Aguardar Súmula Oficial: Súmula ainda não divulgada ({resumo}) | Aguardando liberação das escalações oficiais"
+                            titulo_alerta = f"⏳ Aguardar Súmula Oficial [Risco Médio]: {home_team} vs {away_team}"
 
             # Atualiza no banco (apostas e fixtures_trends)
             try:
@@ -1535,9 +1592,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     SET auditoria_ia_status = %s,
                         auditoria_ia_resumo = %s,
                         auditoria_ia_parecer = %s,
-                        auditoria_ia_checked_at = NOW()
+                        auditoria_ia_checked_at = NOW(),
+                        notificacao_escalacao_enviada = %s
                     WHERE id = %s
-                """, (st, resumo, parecer, aposta_id))
+                """, (st, resumo, parecer, novo_notif_escalacao, aposta_id))
 
                 cursor.execute("""
                     UPDATE fixtures_trends
@@ -1568,6 +1626,38 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             prioridade=3,
                             tags=["yellow_circle", "hourglass", "soccer"]
                         )
+                elif tem_escalacao:
+                    # GESTÃO DETERMINÍSTICA DE ESCALAÇÃO OFICIAL VIA ENUM LineupNotificationStatus
+                    if deve_notificar_escalacao:
+                        total_alertas += 1
+                        tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA" if (tem_alerta or st == 'ALERTA_RISCO') else "ESCALACAO_CONFIRMADA_FORCA_MAXIMA"
+                        print(f"📋 [ESCALAÇÃO OFICIAL NOTIFICADA VIA ENUM]: {titulo_alerta} (Tipo: {tipo_notif})")
+                        alerta_enviado = False
+                        for uid in user_ids:
+                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_notif, force=True):
+                                alerta_enviado = True
+                        conn.commit()
+
+                        # Atualiza flag na tabela apostas para NOTIFICADO (1)
+                        cursor.execute("""
+                            UPDATE apostas 
+                            SET notificacao_escalacao_enviada = %s 
+                            WHERE id = %s
+                        """, (LineupNotificationStatus.NOTIFICADO.value, aposta_id))
+                        conn.commit()
+                        novo_notif_escalacao = LineupNotificationStatus.NOTIFICADO.value
+
+                        tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else "green_circle"
+                        if alerta_enviado:
+                            enviar_push_mobile(
+                                titulo=titulo_alerta,
+                                mensagem=parecer,
+                                fixture_id=fixture_id,
+                                prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
+                                tags=[tag_color, "clipboard", "soccer"]
+                            )
+                    else:
+                        print(f"ℹ️ [Sentinela IA] Escalação de #{aposta_id} ({home_team} vs {away_team}) já notificada anteriormente (notificacao_escalacao_enviada=1). Silêncio operacional.")
                 elif tem_alerta or st == 'ALERTA_RISCO':
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")

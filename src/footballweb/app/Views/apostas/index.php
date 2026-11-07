@@ -279,6 +279,20 @@ if (!function_exists('fmtTopValorWithBrl')) {
     gap: 24px;
   }
 
+  /* Estado de Carregamento Suave: Oculta cards brutos até que os filtros sejam aplicados */
+  .bets-grid.bets-container-loading .bet-card-item {
+    display: none !important;
+  }
+  .bets-loading-skeleton {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--bet-text-muted);
+  }
+
   .bet-card-item {
     background: var(--bet-card-bg);
     border: 1px solid var(--bet-card-border);
@@ -806,6 +820,11 @@ if (!function_exists('fmtTopValorWithBrl')) {
     color: #10b981;
     border: 1px solid rgba(16, 185, 129, 0.35);
   }
+  .proc-status-badge.proc-canceled {
+    background: rgba(148, 163, 184, 0.14);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
 
   .bet-card-footer {
     padding: 16px 20px;
@@ -1331,7 +1350,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
   </div>
 
   <!-- Bet Cards / List Container -->
-  <div class="bets-grid list-view" id="betsContainer">
+  <div class="bets-grid list-view bets-container-loading" id="betsContainer">
+    <?php if (!empty($apostas)): ?>
+      <div id="betsLoadingSkeleton" class="bets-loading-skeleton">
+        <div class="spinner-border text-info mb-2" role="status" style="width: 2rem; height: 2rem;">
+          <span class="visually-hidden">Carregando...</span>
+        </div>
+        <div class="small fw-semibold text-muted">Carregando simulações de apostas...</div>
+      </div>
+    <?php endif; ?>
     <?php if (empty($apostas)): ?>
       <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
         <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
@@ -1393,7 +1420,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
           }
 
           $detalhadoExibir = $aposta->resultado_detalhado ?? '';
-          if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+          $isSettledStatus = in_array($aposta->status, ['Ganha', 'Meio Ganha', 'Perdida', 'Meio Perdida', 'ANULADA', 'Cashout'], true);
+          if (empty($detalhadoExibir) && !empty($placarExibir) && $isSettledStatus) {
             $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
           }
 
@@ -1439,19 +1467,22 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
 
-          $isApostaPremium = (
-              (!empty($aposta->destaque) && (int)$aposta->destaque === 2) ||
-              (($aposta->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)') ||
-              stripos($aposta->resultado_detalhado ?? '', 'Oportunidade PREMIUM') !== false ||
-              stripos($aposta->resultado_detalhado ?? '', '👑 Oportunidade PREMIUM') !== false
-          );
+          $betTier = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+          $isApostaPremium = $betTier->isPremium();
+          $isQuasePremium = $betTier->isQuasePremium();
 
-          $isQuasePremium = !$isApostaPremium && (
-              (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
-              (($aposta->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
-              stripos($aposta->resultado_detalhado ?? '', 'Quase Premium') !== false
-          );
-          $isLockedByLineup = ($isApostaPremium || $isQuasePremium) && (($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $lineupNotifStatus = \App\Enums\LineupNotificationStatus::fromValue(isset($aposta->notificacao_escalacao_enviada) ? (int)$aposta->notificacao_escalacao_enviada : null);
+          $isLineupNotified = $lineupNotifStatus->isNotificado();
+          $sentinelaStatus = $aposta->auditoria_ia_status ?? '';
+
+          // Estado 1: Súmula Realmente Pendente (Aposta Premium/Quase Premium aguardando súmula oficial e notificação)
+          $isLineupPending = ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+
+          // Estado 3: Súmula Notificada com Alerta de Risco
+          $isLineupRiskAlert = ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+
+          // Bloqueio rígido de confirmação de governança: apenas enquanto a súmula estiver pendente
+          $isLockedByLineup = $isLineupPending;
 
           $isHandicap = (stripos($aposta->mercado ?? '', 'handicap') !== false || stripos($aposta->palpite ?? '', 'ah') !== false);
           $isExceedingCeiling = false;
@@ -1536,7 +1567,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <button type="button" 
                         class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1 btn-card-origem-modal" 
                         style="font-size: 0.75rem; transition: all 0.2s ease; cursor: pointer; border-radius: 6px;" 
-                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', <?= (int)$aposta->id ?>)"
                         title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
                   <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
                 </button>
@@ -1621,6 +1652,63 @@ if (!function_exists('fmtTopValorWithBrl')) {
               }
             ?>
 
+            <?php
+              // Cálculo da Faixa Viável de Odd (Mínima e Máxima) para auxílio na pesquisa em outras casas (Stake, Pinnacle, Bet365)
+              $oddMinViavel = null;
+              $oddMaxViavel = null;
+              $oddJusta = !empty($aposta->odd_justa) ? (float)$aposta->odd_justa : null;
+              $oddReal = !empty($aposta->odd) ? (float)$aposta->odd : null;
+
+              if ($isHandicap) {
+                  $lineVal = 0.0;
+                  if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $aposta->palpite ?? '', $mL)) {
+                      $lineVal = (float)str_replace(',', '.', $mL[1]);
+                  }
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $pisoBase = $isApostaPremium ? 1.50 : 1.45;
+                      $oddMinViavel = max($pisoBase, round($oddJusta * 1.05, 2));
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.45, round($oddReal * 0.88, 2));
+                  }
+
+                  // Teto dinâmico de segurança contra anomalias/distorções de mercado
+                  if ($lineVal <= -0.5) {
+                      $oddMaxViavel = 1.95;
+                  } elseif ($lineVal == -0.25) {
+                      $oddMaxViavel = 1.95;
+                  } elseif ($lineVal == 0.0) {
+                      $oddMaxViavel = 2.15;
+                  } else {
+                      // Linhas positivas (+0.25, +0.5, +0.75, +1.0)
+                      $oddMaxViavel = 2.35;
+                  }
+                  if ($oddReal !== null && $oddReal > $oddMaxViavel) {
+                      $oddMaxViavel = round($oddReal * 1.15, 2);
+                  }
+                  if ($oddMinViavel !== null && $oddMaxViavel <= $oddMinViavel) {
+                      $oddMaxViavel = round($oddMinViavel + 0.35, 2);
+                  }
+              } elseif ($isCardMarket) {
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $oddMinViavel = max(1.50, round($oddJusta * 1.05, 2));
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.50, round($oddReal * 0.88, 2));
+                  }
+                  $oddMaxViavel = 2.10;
+                  if ($oddReal !== null && $oddReal > $oddMaxViavel) {
+                      $oddMaxViavel = round($oddReal * 1.15, 2);
+                  }
+              } else {
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $oddMinViavel = max(1.45, round($oddJusta * 1.05, 2));
+                      $oddMaxViavel = round($oddJusta * 1.60, 2);
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.45, round($oddReal * 0.88, 2));
+                      $oddMaxViavel = round($oddReal * 1.25, 2);
+                  }
+              }
+            ?>
+
             <div class="market-info">
               <div>
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
@@ -1633,13 +1721,39 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   <?php endif; ?>
                 </div>
               </div>
-              <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
-                <?php if ($isAbstencaoBloqueada): ?>
-                  <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
-                    <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+              <div class="d-flex flex-column align-items-end justify-content-center flex-shrink-0 text-end">
+                <div class="d-flex align-items-center gap-1.5 flex-nowrap">
+                  <?php 
+                    $casaNome = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
+                    $isRadarCasa = (stripos($casaNome, 'Radar') !== false || stripos($casaNome, 'Stake') !== false);
+                  ?>
+                  <?php if (!$isAbstencaoBloqueada): ?>
+                    <span class="badge border fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                          style="font-size: 0.86rem; padding: 5px 10px; border-radius: 7px; <?= $isRadarCasa ? 'background: rgba(14, 165, 233, 0.18) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important;' : 'background: rgba(255, 102, 0, 0.18) !important; color: #ff8c38 !important; border-color: rgba(255, 102, 0, 0.45) !important;' ?>" 
+                          title="Casa de apostas aprovada: <?= htmlspecialchars($casaNome) ?>">
+                      <i class="bi <?= $isRadarCasa ? 'bi-radar' : 'bi-check-circle-fill' ?>" style="font-size: 0.85rem;"></i>
+                      <span><?= $isRadarCasa ? 'Sugestão Radar' : 'Betano' ?></span>
+                    </span>
+                    <div class="odd-badge" title="Odd Aprovada na <?= htmlspecialchars($casaNome) ?>: <?= number_format($aposta->odd, 2) ?>">
+                      <?= number_format($aposta->odd, 2) ?>
+                    </div>
+                  <?php else: ?>
+                    <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
+                      <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+                    </div>
+                  <?php endif; ?>
+                </div>
+
+                <?php if (!$isAbstencaoBloqueada && !empty($oddMinViavel) && !empty($oddMaxViavel)): ?>
+                  <div class="mt-1.5 d-inline-flex align-items-center gap-1 px-2.5 py-1" 
+                       style="font-size: 0.84rem; font-weight: 600; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.45); color: #94a3b8; border-radius: 7px;"
+                       title="Faixa de Odd Viável (+EV) para pesquisar em outras casas (Stake, Pinnacle, Bet365): Piso mínimo aceitável de @ <?= number_format($oddMinViavel, 2) ?> (+EV seguro) até o teto dinâmico de @ <?= number_format($oddMaxViavel, 2) ?>.">
+                    <i class="bi bi-arrows-expand text-info" style="font-size: 0.80rem;"></i>
+                    <span style="color: #64748b;">Faixa:</span>
+                    <strong style="color: #38bdf8; font-size: 0.88rem;">@ <?= number_format($oddMinViavel, 2) ?></strong>
+                    <span style="color: #475569;">~</span>
+                    <strong style="color: #38bdf8; font-size: 0.88rem;">@ <?= number_format($oddMaxViavel, 2) ?></strong>
                   </div>
-                <?php else: ?>
-                  <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
                 <?php endif; ?>
               </div>
             </div>
@@ -1690,19 +1804,26 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ];
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
 
-              // Status de Processamento da Aposta
-              $betProcText = 'Processamento: ⏳ Aguardando Súmula Oficial';
-              $betProcClass = 'proc-pending';
-              $betProcTooltip = 'Aposta aprovada em andamento ou pré-jogo, aguardando apuração da súmula oficial.';
+              // Status de Processamento da Aposta (Regra de Ouro 4 - Esteira de 3 Estados)
+              $isSettledBet = in_array($aposta->status, ['Ganha', 'Meio Ganha', 'Perdida', 'Meio Perdida', 'ANULADA', 'Cashout'], true);
+              $isCanceledBet = ($aposta->status === 'Cancelada');
 
-              if ($aposta->status !== 'Pendente') {
+              if ($isSettledBet) {
                 $betProcText = 'Processamento: ✅ Completo';
                 $betProcClass = 'proc-complete';
                 $betProcTooltip = 'Aposta devidamente liquidada com resultado oficial gravado.';
+              } elseif ($isCanceledBet) {
+                $betProcText = 'Processamento: ⚪ Cancelada';
+                $betProcClass = 'proc-canceled';
+                $betProcTooltip = 'Aposta cancelada no pré-jogo por ausência de valor (+EV) ou decisão do usuário.';
               } elseif (!empty($placarExibir)) {
                 $betProcText = 'Processamento: 🌗 Parcial';
                 $betProcClass = 'proc-partial';
                 $betProcTooltip = 'Partida encerrada com placar registrado, aguardando apuração da DAG de liquidação.';
+              } else {
+                $betProcText = 'Processamento: ⏳ Aguardando Súmula Oficial';
+                $betProcClass = 'proc-pending';
+                $betProcTooltip = 'Aposta aprovada em andamento ou pré-jogo (NS/LIVE), aguardando apuração oficial.';
               }
             ?>
 
@@ -1957,16 +2078,47 @@ if (!function_exists('fmtTopValorWithBrl')) {
           <div class="bet-card-footer">
             <div class="actions-primary">
               <?php 
-                $btnConfirmClass = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
-                  ? 'btn-outline-success' 
-                  : ((!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') ? 'btn-secondary' : ($isLockedByRiskCeiling ? 'btn-secondary disabled' : ($isLockedByLineup ? 'btn-secondary disabled' : 'btn-success')));
-                $btnConfirmIcon = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
-                  ? 'bi-check2-circle' 
-                  : ($isLockedByRiskCeiling ? 'bi-shield-slash-fill' : ($isLockedByLineup ? 'bi-hourglass-split' : 'bi-lightning-charge-fill'));
-                $btnConfirmTitle = ($isConfirmada && $aposta->status !== 'Não Confirmada') 
-                  ? 'Aposta já confirmada' 
-                  : ($isLockedByRiskCeiling ? 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.' : ($isLockedByLineup ? 'Trava de Governança: Aguardando súmula oficial e validação da Sentinela Gemini' : 'Confirmar Aposta'));
-                $btnConfirmText = $isLockedByRiskCeiling ? '🔒 Limite Excedido' : ($isLockedByLineup ? '⏳ Aguardar Súmula' : lang('App.confirm_bet'));
+                if ($isConfirmada && $aposta->status !== 'Não Confirmada') {
+                    $btnConfirmClass = 'btn-outline-success';
+                    $btnConfirmIcon = 'bi-check2-circle';
+                    $btnConfirmTitle = 'Aposta já confirmada';
+                    $btnConfirmText = lang('App.confirm_bet');
+                } elseif (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+                    $btnConfirmClass = 'btn-secondary';
+                    $btnConfirmIcon = 'bi-x-circle';
+                    $btnConfirmTitle = 'Aposta cancelada';
+                    $btnConfirmText = lang('App.confirm_bet');
+                } elseif ($isLockedByRiskCeiling) {
+                    $btnConfirmClass = 'btn-secondary disabled';
+                    $btnConfirmIcon = 'bi-shield-slash-fill';
+                    $btnConfirmTitle = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+                    $btnConfirmText = '🔒 Limite Excedido';
+                } elseif ($isLineupPending) {
+                    // Estado 1: Súmula Realmente Pendente
+                    $btnConfirmClass = 'btn-secondary disabled';
+                    $btnConfirmIcon = 'bi-hourglass-split';
+                    $btnConfirmTitle = 'Trava de Governança: Aguardando publicação da súmula oficial e validação da Sentinela Gemini';
+                    $btnConfirmText = '⏳ Aguardar Súmula';
+                } elseif ($isLineupRiskAlert) {
+                    // Estado 3: Súmula Notificada com Alerta de Risco (Habilitado para decisão e assunção de risco do apostador)
+                    $btnConfirmClass = 'btn-warning text-dark';
+                    $btnConfirmIcon = 'bi-exclamation-triangle-fill';
+                    $btnConfirmTitle = 'Alerta de Risco da Sentinela: A súmula oficial foi confirmada, mas a IA Sentinela identificou desfalques ou alto risco. Clique para prosseguir assumindo o risco.';
+                    $btnConfirmText = '⚠️ Alerta de Risco';
+                } else {
+                    // Estado 2 (CONFIRMADO) ou Regular (+EV): Liberado para confirmar
+                    $btnConfirmClass = 'btn-success';
+                    $btnConfirmIcon = 'bi-lightning-charge-fill';
+                    $btnConfirmTitle = 'Confirmar Aposta';
+                    $btnConfirmText = lang('App.confirm_bet');
+                }
+
+                $onclickAction = $isLockedByRiskCeiling 
+                  ? "alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.'); return false;" 
+                  : ($isLineupPending 
+                    ? "alert('⏳ Trava de Governança de Risco: Esta aposta é classificada como " . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . ". É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.'); return false;" 
+                    : 'openConfirmBetModalFromButton(this)'
+                    );
               ?>
               <button type="button" 
                       class="btn btn-sm <?= $btnConfirmClass ?> fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
@@ -1980,8 +2132,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
                       data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
                       data-valor="<?= (float)$aposta->valor_aposta ?>"
                       data-odd="<?= (float)($aposta->odd ?? 0) ?>"
-                      <?= ($isLockedByLineup || $isLockedByRiskCeiling) ? 'disabled style="border-radius: 8px; opacity: 0.65; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
-                      onclick="<?= $isLockedByRiskCeiling ? 'alert(\'🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.\'); return false;' : ($isLockedByLineup ? 'alert(\'⏳ Trava de Governança de Risco: Esta aposta é classificada como ' . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.\'); return false;' : 'openConfirmBetModal(' . $aposta->id . ', \\\'' . htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') . '\\\', \\\'' . htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') . '\\\', ' . (float)$aposta->valor_aposta . ', ' . (float)($aposta->odd ?? 0) . ')') ?>"
+                      <?= ($isLockedByLineup || $isLockedByRiskCeiling) ? 'disabled style="border-radius: 8px; opacity: 0.85; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
+                      onclick="<?= $onclickAction ?>"
                       title="<?= $btnConfirmTitle ?>">
                 <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= $btnConfirmText ?>
               </button>
@@ -2025,7 +2177,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <button type="button" 
                         class="btn-icon-link text-warning fw-semibold text-decoration-none btn-card-origem-footer" 
                         style="cursor: pointer;"
-                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', <?= (int)$aposta->id ?>)"
                         title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
                   <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
                 </button>
@@ -2606,6 +2758,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
   }
 
+  function revealBetsContainer() {
+    const skeleton = document.getElementById('betsLoadingSkeleton');
+    if (skeleton) skeleton.remove();
+    const container = document.getElementById('betsContainer');
+    if (container) {
+      container.classList.remove('bets-container-loading');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
@@ -2622,6 +2783,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
     } else {
       applyBetFilters();
     }
+    
+    // Libera os cards filtrados e remove o skeleton de carregamento
+    revealBetsContainer();
     
     const newBetModalEl = document.getElementById('newBetModal');
     if (newBetModalEl) {
@@ -3699,7 +3863,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           totalApostadoBrl += stakeBrl;
         }
 
-        if (status !== 'Pendente' && !isCanceled) {
+        if (status !== 'Pendente' && status !== 'Não Confirmada' && !isCanceled) {
           totalApostadoLiquidado += stakeActive;
           totalApostadoLiquidadoBrl += stakeBrl;
         }
@@ -4236,6 +4400,20 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
   let currentBetToConfirm = null;
 
+  function openConfirmBetModalFromButton(btn) {
+    if (!btn) return;
+    const cardEl = btn.closest('.bet-card-item') || document.getElementById('aposta-card-' + btn.getAttribute('data-aposta-id'));
+    const apostaId = btn.getAttribute('data-aposta-id');
+    const timeCasa = btn.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
+    const timeFora = btn.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
+    const mercado = btn.getAttribute('data-mercado') || 'Handicap Asiático';
+    const palpite = btn.getAttribute('data-palpite') || '';
+    const valor = parseFloat(btn.getAttribute('data-valor')) || 10;
+    const odd = parseFloat(btn.getAttribute('data-odd')) || 1.80;
+
+    openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valor, odd);
+  }
+
   function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta, oddAposta) {
     const cardEl = document.getElementById('aposta-card-' + apostaId);
     if (cardEl) {
@@ -4284,8 +4462,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
         return;
       }
 
-      // 5. NO_BET / Abstenção da IA: avisa com diálogo sem impedir
-      if (isNobet) {
+      // 4.3 Alerta de Risco da Sentinela (Estado 3): Diálogo de assunção de risco
+      const sentinelaStatus = (cardEl.getAttribute('data-sentinela-status') || '').trim();
+      if (sentinelaStatus === 'ALERTA_RISCO') {
+        const prosseguir = confirm('⚠️ Alerta de Risco da Sentinela:\nA IA Sentinela identificou desfalques ou alto risco nesta partida.\n\nDeseja prosseguir assumindo o risco e abrir a tela de confirmação?');
+        if (!prosseguir) {
+          return;
+        }
+      } else if (isNobet) {
+        // 5. NO_BET / Abstenção da IA: avisa com diálogo sem impedir
         const prosseguir = confirm('⚠️ Aviso da IA / Gestão de Risco:\nEsta aposta possui recomendação de NO_BET (Abstenção).\n\nDeseja abrir a tela de confirmação mesmo assim?');
         if (!prosseguir) {
           return;
@@ -5500,12 +5685,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
   // Cache em memória para aberturas instantâneas do Card Origem (0ms) sem reconsultar o servidor
   const cachedOriginCards = {};
 
-  function handleAbrirCardOrigem(fixtureId, matchTitle) {
+  function handleAbrirCardOrigem(fixtureId, matchTitle, apostaId) {
     if (!fixtureId) {
       alert('Esta aposta não possui identificador de partida vinculado.');
       return;
     }
 
+    const cacheKey = fixtureId + '_' + (apostaId || 0);
     const modalEl = document.getElementById('modalCardOrigem');
     const titleEl = document.getElementById('modalCardOrigemTitle');
     const bodyEl = document.getElementById('modalCardOrigemBody');
@@ -5519,8 +5705,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
 
     // Se já estiver em cache, exibe instantaneamente e abre o modal
-    if (cachedOriginCards[fixtureId]) {
-      if (bodyEl) bodyEl.innerHTML = cachedOriginCards[fixtureId];
+    if (cachedOriginCards[cacheKey]) {
+      if (bodyEl) bodyEl.innerHTML = cachedOriginCards[cacheKey];
       if (modalEl) showModalSafely(modalEl);
       return;
     }
@@ -5536,7 +5722,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
     if (modalEl) showModalSafely(modalEl);
 
-    fetch(`<?= base_url('apostas/card-origem/') ?>${fixtureId}`, {
+    const url = `<?= base_url('apostas/card-origem/') ?>${fixtureId}${apostaId ? '?aposta_id=' + apostaId : ''}`;
+    fetch(url, {
       headers: {
         'X-Requested-With': 'XMLHttpRequest'
       }
@@ -5544,7 +5731,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     .then(r => r.json())
     .then(data => {
       if (data.success && data.html) {
-        cachedOriginCards[fixtureId] = data.html;
+        cachedOriginCards[cacheKey] = data.html;
         if (bodyEl) bodyEl.innerHTML = data.html;
       } else {
         if (bodyEl) {

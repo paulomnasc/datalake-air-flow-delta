@@ -639,8 +639,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                                 cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.75, -0.5)]
                                 tier = BetTier.PREMIUM
                             else:
-                                # Quase Premium exige estritamente cobertura de empate (0.0 AH ou +/-0.25 AH)
-                                cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0, 0.25)]
+                                # Quase Premium exige cobertura de empate para o favorito: DNB (0.0 AH) ou -0.25 AH
+                                cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0)]
                                 tier = BetTier.QUASE_PREMIUM
 
                             destaque_val = tier.value

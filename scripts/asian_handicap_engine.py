@@ -1392,7 +1392,7 @@ def evaluate_and_select_best_ah_candidate(
                 cand_copy['is_premium'] = True
                 cand_copy['tier'] = BetTier.PREMIUM
                 cand_copy['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
-            elif c_line in (-0.25, 0.0, 0.25):
+            elif c_line in (-0.25, 0.0):
                 # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
                 is_quase_premium_qualified = (
                     cand_pts_eff >= 12.0 and

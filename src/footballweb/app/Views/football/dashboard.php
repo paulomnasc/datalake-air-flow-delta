@@ -306,6 +306,21 @@ if (!function_exists('getTier1DominanceInfo')) {
     }
 }
 
+if (!function_exists('simplifyRejectionReasonDashboard')) {
+    function simplifyRejectionReasonDashboard($motivo) {
+        $m = trim($motivo);
+        if (empty($m)) return 'Reprovada';
+        if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
+        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
+        if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
+        if (stripos($m, 'divergência de mando') !== false || stripos($m, 'caldeirão') !== false || stripos($m, 'restritas exclusivamente a mandantes') !== false) return 'Trava de mando';
+        if (stripos($m, 'cobertura de empate') !== false) return 'Exige 1X2 <= 1.55';
+        if (stripos($m, 'curva descendente') !== false) return 'U5J em declínio';
+        if (stripos($m, 'margem de valor') !== false) return 'EV insuficiente';
+        return mb_substr(preg_replace('/^Reprovada:\s*/iu', '', $m), 0, 22) . '...';
+    }
+}
+
 if (!function_exists('renderStructuredMotivation')) {
     function renderStructuredMotivation($rawMotivation, $rawReasoning = '', $fix = null) {
         if (empty($rawMotivation) && empty($rawReasoning) && !$fix) return '';
@@ -314,6 +329,7 @@ if (!function_exists('renderStructuredMotivation')) {
         $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
 
         $topics = [];
+        $rawAuditText = '';
 
         // 1. Tenta quebrar por marcadores de tópicos explícitos (ex: "• ")
         if (strpos($cleanText, '•') !== false) {
@@ -322,6 +338,10 @@ if (!function_exists('renderStructuredMotivation')) {
                 $t = trim($part);
                 if (empty($t)) {
                     continue;
+                }
+                if (preg_match('/📋\s*Linhas de Handicap Asiático Auditadas/u', $t)) {
+                    $rawAuditText = $t;
+                    continue; // Remove do loop de itens numerados (evita duplicação)
                 }
                 // Se for o texto antes da primeira vieta (cabeçalho), limpa a frase introdutória "A indicação a favor..."
                 if ($index === 0) {
@@ -451,6 +471,58 @@ if (!function_exists('renderStructuredMotivation')) {
             $probTableHtml .= '</div>';
         }
 
+        // Renderização Tabular de Linhas Disponíveis (Padrão 1win Bet)
+        $auditTableHtml = '';
+        if (empty($rawAuditText) && preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
+            $rawAuditText = $mAud[1];
+        }
+        if (!empty($rawAuditText)) {
+            $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
+            preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
+            if (!empty($matches)) {
+                $pairs = array_chunk($matches, 2);
+                $homeTeam = $fix->home_team ?? 'Mandante';
+                $awayTeam = $fix->away_team ?? 'Visitante';
+                
+                $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
+                $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
+                $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)</span>';
+                $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
+                $auditTableHtml .= '</div>';
+                $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;"><div style="text-align: left;">🏠 ' . htmlspecialchars($homeTeam) . '</div><div style="text-align: right;">✈️ ' . htmlspecialchars($awayTeam) . '</div></div>';
+                $auditTableHtml .= '<div style="display: flex; flex-direction: column; gap: 6px;">';
+                foreach ($pairs as $pair) {
+                    $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+                    foreach ([$pair[0] ?? null, $pair[1] ?? null] as $item) {
+                        if ($item) {
+                            $isAprov = (stripos($item[1], 'APROVADA') !== false);
+                            $tName = trim($item[2]);
+                            $lVal = $item[3];
+                            $oVal = is_numeric($item[4]) ? number_format((float)$item[4], 2) : $item[4];
+                            $fReason = trim($item[5] ?? ($isAprov ? 'Aprovada com valor esperado positivo' : 'Reprovada'));
+                            $sReason = $isAprov ? 'Aprovada (+EV)' : simplifyRejectionReasonDashboard($fReason);
+                            $bg = $isAprov ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(30, 41, 59, 0.6)';
+                            $border = $isAprov ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)';
+                            $color = $isAprov ? '#34d399' : '#ffffff';
+                            $badgeColor = $isAprov ? '#34d399' : '#f87171';
+                            $badgeBg = $isAprov ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.12)';
+                            $badgeBorder = $isAprov ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.25)';
+                            $icon = $isAprov ? '🟢' : '❌';
+                            
+                            $auditTableHtml .= '<div style="background: ' . $bg . '; border: ' . $border . '; border-radius: 8px; padding: 6px 10px; min-height: 44px;" title="' . htmlspecialchars($fReason) . '">';
+                            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.74rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' . htmlspecialchars($tName . ' ' . $lVal) . '</span><span style="font-size: 0.86rem; font-weight: 800; font-family: monospace; color: ' . $color . ';">' . $oVal . '</span></div>';
+                            $auditTableHtml .= '<div style="margin-top: 2px;"><span style="font-size: 0.60rem; font-weight: 600; color: ' . $badgeColor . '; background: ' . $badgeBg . '; border: 1px solid ' . $badgeBorder . '; padding: 0 4px; border-radius: 4px;">' . $icon . ' ' . htmlspecialchars($sReason) . '</span></div>';
+                            $auditTableHtml .= '</div>';
+                        } else {
+                            $auditTableHtml .= '<div></div>';
+                        }
+                    }
+                    $auditTableHtml .= '</div>';
+                }
+                $auditTableHtml .= '</div></div>';
+            }
+        }
+
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
         $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> ' . lang('App.detailed_motivation_title');
@@ -466,6 +538,7 @@ if (!function_exists('renderStructuredMotivation')) {
         }
 
         $html .= '</ol>';
+        $html .= $auditTableHtml;
         $html .= $probTableHtml;
         $html .= '</div>';
 

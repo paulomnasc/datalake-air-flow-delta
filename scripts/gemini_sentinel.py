@@ -171,6 +171,36 @@ def coletar_sumula_e_desfalques_apisports(
     desfalques_home_cnt = 0
     desfalques_away_cnt = 0
 
+    # 0. PROTOCOLO CACHE-FIRST MANDATÓRIO NO MYSQL (Regra de Ouro 1)
+    if cursor:
+        try:
+            cursor.execute("""
+                SELECT fixture_id, home_team, away_team, titulares_home, titulares_away, lineups_json, fonte, status
+                FROM match_lineups_cache
+                WHERE fixture_id = %s AND status = 'CONFIRMADA'
+            """, (fixture_id,))
+            cached_sumula = cursor.fetchone()
+            if cached_sumula and cached_sumula.get("titulares_home") and cached_sumula.get("titulares_away"):
+                print(f"⚡ [Cache-First MySQL] Súmula oficial de #{fixture_id} ({home_team} vs {away_team}) recuperada do cache local (Fonte: {cached_sumula.get('fonte')}). Consumo API = R$ 0,00.")
+                bloco_h = f"• {home_team} | 11 Titulares: {cached_sumula['titulares_home']}"
+                bloco_a = f"• {away_team} | 11 Titulares: {cached_sumula['titulares_away']}"
+                return {
+                    "lineups_disponiveis": True,
+                    "tem_sumula": True,
+                    "texto_sumula": f"{bloco_h}\n{bloco_a}",
+                    "alerta_estrutural_elenco": False,
+                    "motivos_alerta_elenco": [],
+                    "rotacao_home_cnt": 0,
+                    "rotacao_away_cnt": 0,
+                    "desfalques_home_cnt": 0,
+                    "desfalques_away_cnt": 0,
+                    "resumo_curto": f"{home_team} e {away_team} com titulares confirmados no cache",
+                    "fonte": cached_sumula.get("fonte", "CACHE_MYSQL"),
+                    "from_cache": True
+                }
+        except Exception as e_cache:
+            print(f"⚠️ [Cache Súmula] Erro na leitura de match_lineups_cache: {e_cache}")
+
     api_key = get_apisports_key()
     if not api_key:
         return {
@@ -191,7 +221,10 @@ def coletar_sumula_e_desfalques_apisports(
     try:
         r_lin = requests.get(f"{base_url}/fixtures/lineups", params={"fixture": fixture_id}, headers=headers, timeout=12)
         if r_lin.status_code == 200:
-            lineups_data = r_lin.json().get("response", [])
+            lin_json = r_lin.json()
+            if lin_json.get("errors") and "requests" in lin_json.get("errors"):
+                print(f"🛑 [API-Sports Cota Esgotada] {lin_json['errors']['requests']}. Ativando contingência de Grounding Web.")
+            lineups_data = lin_json.get("response", [])
     except Exception as e_lin:
         print(f"⚠️ [Sentinela Súmula] Falha ao consultar /fixtures/lineups para #{fixture_id}: {e_lin}")
 
@@ -243,6 +276,8 @@ def coletar_sumula_e_desfalques_apisports(
     blocos_sumula = []
     motivos_alerta = []
     resumos_equipes = []
+    titulares_cache_home = []
+    titulares_cache_away = []
 
     for team_entry in lineups_data:
         t_info = team_entry.get("team") or {}
@@ -363,8 +398,10 @@ def coletar_sumula_e_desfalques_apisports(
         is_home_entry = (home_team_id and t_id == home_team_id) or (home_team.lower() in t_name.lower())
         if is_home_entry:
             rotacao_home_cnt = mudancas_titulares
+            titulares_cache_home = list(titulares_nomes)
         else:
             rotacao_away_cnt = mudancas_titulares
+            titulares_cache_away = list(titulares_nomes)
 
         is_time_apoiado = (
             (apoiado_is_away is False and is_home_entry)
@@ -408,6 +445,32 @@ def coletar_sumula_e_desfalques_apisports(
         f"• Baixas e Suspensões Oficiais ({home_team}): {', '.join(inj_home_list) if inj_home_list else 'Nenhuma reportada'}\n"
         f"• Baixas e Suspensões Oficiais ({away_team}): {', '.join(inj_away_list) if inj_away_list else 'Nenhuma reportada'}"
     )
+
+    # Persiste imediatamente os 11 titulares no Cache do MySQL (Regra 1: Cache-First)
+    if cursor and (titulares_cache_home or titulares_cache_away):
+        try:
+            cursor.execute("""
+                INSERT INTO match_lineups_cache (
+                    fixture_id, home_team_id, away_team_id, home_team, away_team,
+                    titulares_home, titulares_away, lineups_json, fonte, status
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'API_SPORTS', 'CONFIRMADA')
+                ON DUPLICATE KEY UPDATE
+                    titulares_home = VALUES(titulares_home),
+                    titulares_away = VALUES(titulares_away),
+                    lineups_json = VALUES(lineups_json),
+                    fonte = 'API_SPORTS',
+                    status = 'CONFIRMADA',
+                    updated_at = NOW()
+            """, (
+                fixture_id, home_team_id, away_team_id, home_team, away_team,
+                ", ".join(titulares_cache_home), ", ".join(titulares_cache_away),
+                json.dumps(lineups_data, ensure_ascii=False)
+            ))
+            if hasattr(cursor, 'connection') and cursor.connection:
+                cursor.connection.commit()
+            print(f"💾 [Cache Súmula MySQL] Súmula oficial de #{fixture_id} ({home_team} vs {away_team}) persistida com sucesso em match_lineups_cache.")
+        except Exception as e_save_cache:
+            print(f"⚠️ [Cache Súmula] Falha ao persistir em match_lineups_cache: {e_save_cache}")
 
     return {
         "lineups_disponiveis": True,
@@ -1412,6 +1475,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
+                  AND (a.notificacao_escalacao_enviada = 0 OR a.notificacao_escalacao_enviada IS NULL)
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1578,15 +1642,40 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     (resultado.get('escalacao_confirmada') is True and resultado.get('fonte_escalacao') != 'NAO_DIVULGADA' and not tem_negacao_escalacao)
                 ) and not (tem_negacao_escalacao and not (sumula_oficial.get('lineups_disponiveis') or sumula_oficial.get('tem_sumula')))
 
+                # Salvaguarda Soberana contra Regressão (Imutabilidade da Escalação Confirmada)
+                if notif_escalacao_status == LineupNotificationStatus.NOTIFICADO and not tem_escalacao:
+                    print(f"🛡️ [Salvaguarda Anti-Regressão] #{fixture_id} ({home_team} vs {away_team}) já possui escalação oficial confirmada no MySQL. Rejeitando regressão para 'Aguardar Súmula'.")
+                    tem_escalacao = True
+                    st = status_anterior or 'CONFIRMADO'
+                    resumo = item.get('auditoria_ia_resumo') or resumo
+                    parecer = item.get('auditoria_ia_parecer') or parecer
+
                 if tem_escalacao and notif_escalacao_status == LineupNotificationStatus.NAO_NOTIFICADO:
                     deve_notificar_escalacao = True
 
-                if is_confirmada and tem_alerta_mercado:
-                    st = 'ALERTA_RISCO'
-                    badge_risco = '🔴 Risco Crítico de Mercado'
-                    titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
-                    parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
-                elif tem_escalacao:
+                # Persistência de contingência em match_lineups_cache caso obtida via Web/Gemini
+                if tem_escalacao and cursor:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO match_lineups_cache (
+                                fixture_id, home_team_id, away_team_id, home_team, away_team,
+                                titulares_home, titulares_away, lineups_json, fonte, status
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'CONFIRMADA')
+                            ON DUPLICATE KEY UPDATE
+                                status = 'CONFIRMADA',
+                                updated_at = NOW()
+                        """, (
+                            fixture_id, item.get('home_team_id'), item.get('away_team_id'), home_team, away_team,
+                            resumo[:200], resumo[:200], json.dumps(resultado, ensure_ascii=False),
+                            resultado.get('fonte_escalacao', 'IMPRENSA_WEB')
+                        ))
+                        if hasattr(cursor, 'connection') and cursor.connection:
+                            cursor.connection.commit()
+                    except Exception as e_cache_ia:
+                        pass
+
+                # Precedência Soberana de Escalação Confirmada sobre Alertas Secundários de Mercado
+                if tem_escalacao:
                     if not tem_alerta:
                         st = 'CONFIRMADO'
                         resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
@@ -1595,8 +1684,13 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         st = 'ALERTA_RISCO'
                         resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
                         titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
-                        if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
-                            parecer = f"{recalib['parecer_alerta']}\n\n{parecer}"
+                    if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
+                        parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
+                elif is_confirmada and tem_alerta_mercado:
+                    st = 'ALERTA_RISCO'
+                    badge_risco = '🔴 Risco Crítico de Mercado'
+                    titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    parecer = f"{recalib['parecer_alerta']}\n\n{parecer}"
                 elif era_observacao:
                     if not tem_alerta_mercado and not auditoria_dados.get('alerta_critico'):
                         # Súmula oficial ainda não disponível na API nem confirmada na imprensa

@@ -535,9 +535,15 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
             )
         else:
             alerta_critico = True
-            motivos_risco.append(
-                f"🚨 Gatekeeper decretou NO_BET ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
-            )
+            desc_cat_lower = desc_cat.lower()
+            if "falta de valor esperado" in desc_cat_lower or "ev" in desc_cat_lower or "sem entrada" in desc_cat_lower or "liquidez" in desc_cat_lower:
+                motivos_risco.append(
+                    "🚨 As linhas AH viáveis do palpite foram excluídas pelas casas de apostas (Gatekeeper decretou abstenção por falta de valor esperado +EV): Saída preventiva / cancelamento recomendado."
+                )
+            else:
+                motivos_risco.append(
+                    f"🚨 Gatekeeper decretou Abstenção ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
+                )
 
     # 1. Auditoria de Dados Zerados / Ausentes Vitais (Regra nº 9 de Ouro)
     if odd_aposta <= 1.0:
@@ -669,8 +675,8 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
         risco_base = "BAIXO"
 
     resumo_auditoria = (
-        f"Risco-Base dos Dados: {risco_base}. " +
-        ("; ".join(motivos_risco) if motivos_risco else "Dados fundamentais íntegros e auditados com sucesso no MySQL.")
+        f"Risco de Mercado: {risco_base}. " +
+        ("; ".join(motivos_risco) if motivos_risco else "Cotações e parâmetros de mercado estáveis e validados.")
     )
 
     return {
@@ -873,7 +879,7 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
 
     prompt_text = f"""
 Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADOS DO MYSQL (Data-First), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta.
+Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (Gatekeeper), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta, falando SEMPRE na linguagem prática e direta de um apostador experiente.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
@@ -885,10 +891,10 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
 • Aposta Sugerida pelo Gatekeeper: {dossie.get('palpite')} (@ {dossie.get('odd')})
 • Motivo Técnico Original: {dossie.get('motivo_gatekeeper')}
 
---- AUDITORIA DE SANIDADE E COERÊNCIA DOS DADOS (DATA-FIRST FOUNDATION) ---
-• Diagnóstico Matemático e de Integridade: {resumo_aud_dados}
+--- AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (GATEKEEPER) ---
+• Diagnóstico de Cotações e Risco: {resumo_aud_dados}
 • Perfil de Mercado: {'Confronto Equilibrado / Odds Abertas no 1X2 (Alta Volatilidade de Cotações)' if confronto_eq else 'Mercado com Favoritismo Consistente'}
-• Alerta Crítico nos Dados / Outliers: {'SIM (Dados Zerados, Outliers ou Incoerência)' if alerta_critico_dados else 'NÃO (Dados Íntegros e Validados)'}
+• Alerta de Risco no Mercado: {'SIM (Distorção de Cotações, Derretimento ou Exclusão de Linhas)' if alerta_critico_dados else 'NÃO (Cotações e Linhas Estáveis)'}
 
 --- SÚMULA OFICIAL DAS ESCALAÇÕES E DESFALQUES (API-SPORTS) ---
 • Status da Súmula na API: {'LIBERADA (11 Titulares Oficiais Confirmados)' if lineups_disponiveis else 'EM PROCESSAMENTO / NÃO PUBLICADA AINDA (Janela Pré-Jogo)'}
@@ -899,9 +905,9 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
 {noticias_web}
 
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Avalie com prioridade máxima os dados fundamentais da partida (MySQL) E agregue a súmula oficial e notícias recentes da web.
-2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Data-First):
-   * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Dados_MySQL, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou falha de dados.
+1. Avalie com prioridade máxima a viabilidade de mercado e cotações da partida E agregue a súmula oficial e notícias recentes da web.
+2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Market-First):
+   * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Mercado, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou ausência de cotações viáveis.
    * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
    * REGRA DE FORÇA MÁXIMA E COPAS: O comparativo de titulares é realizado estritamente com a liga principal. Se a equipe escalou seus titulares habituais de liga (mesmo tendo poupado atletas em copas anteriores), reconheça como Força Máxima de Liga preservada.
    * REGRA DE HIERARQUIA E PESO TÁTICO DOS DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO DE ELENCO):
@@ -911,13 +917,13 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
    * REGRA OBRIGATÓRIA PARA LINHAS OFENSIVAS AGRESSIVAS (-0.5 AH e -0.75 AH):
      - Para linhas de handicap ofensivo (-0.5 AH ou -0.75 AH, sendo -0.75 o teto máximo permitido pelo sistema), o palpite exige obrigatoriamente a confirmação da FORÇA MÁXIMA OFENSIVA da equipe apoiada (artilheiro principal e meias criadores titulares confirmados).
      - Se a equipe poupar seus atacantes principais ou for com time misto, o veredito DEVE ser obrigatoriamente classificado como ALTO RISCO (tem_alerta: true) recomendando abstenção/cautela. O "Sinal Verde" só é permitido com o ataque titular completo.
-   - "ALTO": Presença de falha crítica nos dados (dados zerados, outliers de extremidade, U5J corrompido) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
+   - "ALTO": Exclusão de linhas viáveis de handicap pelas casas de apostas, derretimento de odds, falta de valor esperado (+EV) OU desfalques graves na equipe apoiada (goleiro titular ausente, artilheiro fora, 4 ou mais titulares poupados, crise/time misto anunciado).
    - "MEDIO": Confronto Equilibrado / Indefinição Simétrica no 1X2 (vantagem de probabilidade implícita do favorito < 8.0% sobre o adversário, ou cotação da equipe apoiada acima do teto de 2.40 do Prisma Quase Premium) OU 1 ou 2 desfalques pontuais mantendo a espinha dorsal. Em confrontos com indefinição simétrica de mercado, o risco JAMAIS poderá ser classificado como BAIXO.
-   - "BAIXO": Exclusivamente para partidas com dados matemáticos íntegros, favoritismo consistente de mercado (vantagem de probabilidade implícita >= 8.0% e cotação <= 2.40) E força máxima de elenco confirmada sem desfalques relevantes reportados.
+   - "BAIXO": Exclusivamente para partidas com cotações e linhas estáveis com valor (+EV), favoritismo consistente de mercado (vantagem de probabilidade implícita >= 8.0% e cotação <= 2.40) E força máxima de elenco confirmada sem desfalques relevantes reportados.
    * REGRA MANDATÓRIA DE PROTOCOLO DE SÚMULA E ESCALAÇÃO OFICIAL:
      A) SE AS ESCALAÇÕES TITULARES NÃO FORAM DIVULGADAS NEM NA API NEM NA IMPRENSA/CLUBES NA WEB (escalacao_confirmada = false) E O RISCO FOR 'MEDIO' OU 'ALTO':
         - Seu parecer explicativo DEVE OBRIGATORIAMENTE instruir:
-          '⏳ Aguardar Súmula Oficial da Escalação: A partida apresenta risco moderado/elevado (odds abertas no 1X2 ou volatilidade). As escalações oficiais de 11 titulares ainda não foram publicadas (previsão a ~45m do jogo). Recomendação: Aguarde a confirmação dos titulares oficiais antes de cravar a entrada. A Sentinela emitirá a análise de impacto assim que a súmula for liberada.'
+          '⏳ Aguardar Súmula Oficial da Escalação: A partida apresenta risco moderado/elevado (odds abertas no 1X2, volatilidade ou exclusão de linhas viáveis pelas casas). As escalações oficiais de 11 titulares ainda não foram publicadas (previsão a ~45m do jogo). Recomendação: Aguarde a confirmação dos titulares oficiais antes de cravar a entrada. A Sentinela emitirá a análise de impacto assim que a súmula for liberada.'
         - "escalacao_confirmada": false
         - "fonte_escalacao": "NAO_DIVULGADA"
         - "resumo_escalacao": "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
@@ -936,6 +942,13 @@ Analise o dossiê completo abaixo — incluindo a AUDITORIA DE SANIDADE DOS DADO
         - "titulo_alerta": f"📋 Escalação Confirmada: [Força Máxima / Alerta Desfalque] em {dossie.get('home_team')} vs {dossie.get('away_team')}"
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
 4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, respeitando rigorosamente o protocolo da súmula acima.
+• REGRA MANDATÓRIA DE LINGUAGEM DO APOSTADOR (PROIBIÇÃO TOTAL DE JARGÃO DE TI E BANCO DE DADOS):
+  - Seu texto será lido diretamente pelo apostador na central de notificações e no aplicativo mobile.
+  - É TERMINANTEMENTE PROIBIDO citar "MySQL", "banco de dados", "outliers", "sanidade de dados", "integridade de dados", "payload" ou qualquer termo de TI/programação.
+  - Traduza SEMPRE qualquer risco para a realidade prática de apostas esportivas e futebol:
+    * Se houve distorção ou NO_BET: use "exclusão de linhas viáveis pelas casas de apostas", "derretimento de odds", "cotação sem valor esperado (+EV)" ou "pressão vendedora do mercado contra a equipe".
+    * Se houve empate técnico: use "indefinição no 1X2", "equilíbrio simétrico" ou "alta volatilidade de mercado".
+    * Se houve desfalque: cite os nomes dos atletas e o impacto na formação tática.
 
 --- FORMATO DA RESPOSTA (JSON estrito) ---
 Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
@@ -1069,7 +1082,9 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         # Injeta contextualização dos dados fundamentais no início do parecer
         prefixos_auditoria = []
         if alerta_critico_dados and aud_dados.get("motivos_risco"):
-            prefixos_auditoria.append(f"[Alerta de Integridade de Dados: {'; '.join(aud_dados['motivos_risco'])}]")
+            tem_falha_estrutural = any(k in str(aud_dados['motivos_risco']).lower() for k in ['u5j_data', 'zerad', 'inválid', 'ausente'])
+            label_prefixo = "Alerta de Integridade de Dados" if tem_falha_estrutural else "Alerta de Mercado"
+            prefixos_auditoria.append(f"[{label_prefixo}: {'; '.join(aud_dados['motivos_risco'])}]")
         elif confronto_eq:
             prefixos_auditoria.append("[Mercado Volátil / Confronto Equilibrado: Odds Abertas no 1X2]")
         if alerta_estrutural and motivos_elenco and not data.get("tem_alerta"):
@@ -1443,6 +1458,19 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             if not u5j_summary and item.get('cards_reasoning'):
                 u5j_summary = extrair_resumo_u5j(item.get('cards_reasoning'))
 
+            # Inicialização soberana de variáveis locais de auditoria e governança (Regra de Ouro 8)
+            notif_escalacao_status = LineupNotificationStatus.from_value(item.get('notificacao_escalacao_enviada'))
+            novo_notif_escalacao = notif_escalacao_status.value
+            tem_escalacao = False
+            deve_notificar_escalacao = False
+            st = 'EM_OBSERVACAO'
+            grau_risco = 'MEDIO'
+            badge_risco = '🟡 Risco Médio'
+            resumo = ''
+            parecer = ''
+            titulo_alerta = ''
+            tem_alerta = False
+
             # 1. Auditoria Soberana de Coerência e Sanidade dos Dados do MySQL (Data-First Foundation)
             auditoria_dados = auditar_coerencia_e_sanidade_dados_mysql(item, reasoning)
             print(f"📊 [Auditoria Dados MySQL] {home_team} vs {away_team}: {auditoria_dados['resumo_auditoria_dados']}")
@@ -1473,117 +1501,109 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             recalib = auditar_e_recalibrar_linha_handicap(cursor, item, user_ids, sumula_oficial=sumula_oficial)
             linha_recalibrada = recalib.get('linha_recalibrada', False)
             bloquear_sinal_verde = recalib.get('bloquear_sinal_verde', False)
+            tem_alerta_mercado = bool(recalib.get('alerta_risco', False))
 
-            if recalib.get('alerta_risco'):
-                # Gatekeeper reprovou novas linhas ou aposta confirmada com linha desfavorável
-                st = 'ALERTA_RISCO'
-                resumo = "Distorção de mercado: Gatekeeper reprovou novas linhas"
-                parecer = recalib['parecer_alerta']
-                tem_alerta = True
-                titulo_alerta = recalib['titulo_alerta']
+            if linha_recalibrada:
+                item['palpite'] = recalib['novo_palpite']
+                item['odd'] = recalib['nova_odd']
+                if recalib.get('novo_reasoning'):
+                    reasoning = recalib['novo_reasoning']
+                    u5j_summary = extrair_resumo_u5j(reasoning)
+
+            motivo_gk = (reasoning[:300] if reasoning else "Aprovado no modelo matemático +EV.")
+            if linha_recalibrada:
+                motivo_gk += f" [Linha recalculada pelo Gatekeeper no pré-jogo devido a: {recalib.get('motivo_recalibragem')}]"
+            if tem_alerta_mercado:
+                motivo_gk += f" [Alerta de Mercado no Pré-Jogo: {recalib.get('parecer_alerta')}]"
+
+            # Monta o dossiê consolidado com a súmula oficial, notícias web e desfalques
+            dossie = {
+                "fixture_id": fixture_id,
+                "home_team": home_team,
+                "away_team": away_team,
+                "league_name": item.get('league_name', 'Liga'),
+                "country": item.get('country', ''),
+                "match_time": match_time,
+                "referee_name": item.get('referee_name', 'Não informado'),
+                "palpite": item.get('palpite', ''),
+                "odd": float(item.get('odd') or 1.0),
+                "odd_home": float(item.get('odd_home') or 0.0),
+                "odd_draw": float(item.get('odd_draw') or 0.0),
+                "odd_away": float(item.get('odd_away') or 0.0),
+                "auditoria_dados": auditoria_dados,
+                "u5j_summary": u5j_summary,
+                "xg_summary": f"Casa {item.get('xg_home') or item.get('goals_home') or 0} x {item.get('xg_away') or item.get('goals_away') or 0} Fora",
+                "motivo_gatekeeper": motivo_gk,
+                "sumula_oficial": sumula_oficial,
+                "noticias_web": noticias_web
+            }
+
+            print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")
+
+            # Consulta o Gemini com Google Search Grounding (com fallback para Groq + Súmula API-Sports)
+            resultado = consultar_gemini_com_grounding(dossie, api_key)
+
+            st = resultado["status"]
+            if st is None:
+                print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
+                continue
+            resumo = resultado["resumo_escalacao"]
+            parecer = resultado["parecer_explicativo"]
+            grau_risco = resultado.get("grau_risco", "ALTO" if st == "ALERTA_RISCO" else "BAIXO")
+            badge_risco = resultado.get("badge_risco", "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo"))
+
+            tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde or tem_alerta_mercado
+            titulo_alerta = resultado.get("titulo_alerta") or f"{'🔴' if grau_risco == 'ALTO' else '🟡'} Alerta [{badge_risco}]: {home_team} vs {away_team}"
+
+            # LÓGICA DE TRANSIÇÃO POR FASE DA ESTEIRA:
+            if phase == 1:
+                # FASE 1: Antecipação Matinal (Janela 24h)
+                if tem_alerta or grau_risco in ('MEDIO', 'ALTO'):
+                    st = 'EM_OBSERVACAO'
+                    badge_risco = '🟡 Em Observação'
+                    resumo = f"🟡 Em Observação (Fase 1): {resumo} | Retida para repescagem na Fase 2 (T-50 min)"
+                    titulo_alerta = f"🟡 Em Observação [Aguardar Fase 2]: {home_team} vs {away_team}"
+                    parecer = f"[Fase 1 - Em Observação] {parecer}"
+                else:
+                    st = 'CONFIRMADO'
+                    resumo = f"🟢 Sinal Verde Antecipado: {resumo}"
             else:
-                if linha_recalibrada:
-                    item['palpite'] = recalib['novo_palpite']
-                    item['odd'] = recalib['nova_odd']
-                    if recalib.get('novo_reasoning'):
-                        reasoning = recalib['novo_reasoning']
-                        u5j_summary = extrair_resumo_u5j(reasoning)
+                # FASE 2: Repescagem Pré-Jogo e Vigilância de Mercado
+                texto_comb = (resultado.get('resumo_escalacao', '') + ' ' + resultado.get('parecer_explicativo', '')).lower()
+                tem_negacao_escalacao = any(k in texto_comb for k in ['ainda não', 'aguardar súmula', 'não foram publicadas', 'não foram divulgadas', 'aguardando escalações'])
 
-                motivo_gk = (reasoning[:300] if reasoning else "Aprovado no modelo matemático +EV.")
-                if linha_recalibrada:
-                    motivo_gk += f" [Linha recalculada pelo Gatekeeper no pré-jogo devido a: {recalib.get('motivo_recalibragem')}]"
+                tem_escalacao = bool(
+                    sumula_oficial.get('lineups_disponiveis') or
+                    sumula_oficial.get('tem_sumula') or
+                    (resultado.get('escalacao_confirmada') is True and resultado.get('fonte_escalacao') != 'NAO_DIVULGADA' and not tem_negacao_escalacao)
+                ) and not (tem_negacao_escalacao and not (sumula_oficial.get('lineups_disponiveis') or sumula_oficial.get('tem_sumula')))
 
-                # Monta o dossiê consolidado com a súmula oficial, notícias web e desfalques
-                dossie = {
-                    "fixture_id": fixture_id,
-                    "home_team": home_team,
-                    "away_team": away_team,
-                    "league_name": item.get('league_name', 'Liga'),
-                    "country": item.get('country', ''),
-                    "match_time": match_time,
-                    "referee_name": item.get('referee_name', 'Não informado'),
-                    "palpite": item.get('palpite', ''),
-                    "odd": float(item.get('odd') or 1.0),
-                    "odd_home": float(item.get('odd_home') or 0.0),
-                    "odd_draw": float(item.get('odd_draw') or 0.0),
-                    "odd_away": float(item.get('odd_away') or 0.0),
-                    "auditoria_dados": auditoria_dados,
-                    "u5j_summary": u5j_summary,
-                    "xg_summary": f"Casa {item.get('xg_home') or item.get('goals_home') or 0} x {item.get('xg_away') or item.get('goals_away') or 0} Fora",
-                    "motivo_gatekeeper": motivo_gk,
-                    "sumula_oficial": sumula_oficial,
-                    "noticias_web": noticias_web
-                }
+                if tem_escalacao and notif_escalacao_status == LineupNotificationStatus.NAO_NOTIFICADO:
+                    deve_notificar_escalacao = True
 
-                print(f"\n🔍 Auditando: {home_team} vs {away_team} | Palpite: {dossie['palpite']} (@ {dossie['odd']})")
-
-                # Consulta o Gemini com Google Search Grounding (com fallback para Groq + Súmula API-Sports)
-                resultado = consultar_gemini_com_grounding(dossie, api_key)
-
-                st = resultado["status"]
-                if st is None:
-                    print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
-                    continue
-                resumo = resultado["resumo_escalacao"]
-                parecer = resultado["parecer_explicativo"]
-                grau_risco = resultado.get("grau_risco", "ALTO" if st == "ALERTA_RISCO" else "BAIXO")
-                badge_risco = resultado.get("badge_risco", "🔴 Risco Alto" if grau_risco == "ALTO" else ("🟡 Risco Médio" if grau_risco == "MEDIO" else "🟢 Risco Baixo"))
-
-                tem_alerta = resultado["tem_alerta"] or bloquear_sinal_verde
-                titulo_alerta = resultado.get("titulo_alerta") or f"{'🔴' if grau_risco == 'ALTO' else '🟡'} Alerta [{badge_risco}]: {home_team} vs {away_team}"
-
-                # Governança de Notificação de Escalação Oficial via Enum LineupNotificationStatus (Regra de Ouro 21)
-                notif_escalacao_status = LineupNotificationStatus.from_value(item.get('notificacao_escalacao_enviada'))
-                novo_notif_escalacao = notif_escalacao_status.value
-                tem_escalacao = False
-                deve_notificar_escalacao = False
-
-                # LÓGICA DE TRANSIÇÃO POR FASE DA ESTEIRA:
-                if phase == 1:
-                    # FASE 1: Antecipação Matinal (Janela 24h)
-                    if tem_alerta or grau_risco in ('MEDIO', 'ALTO'):
+                if is_confirmada and tem_alerta_mercado:
+                    st = 'ALERTA_RISCO'
+                    badge_risco = '🔴 Risco Crítico de Mercado'
+                    titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
+                elif tem_escalacao:
+                    if not tem_alerta:
+                        st = 'CONFIRMADO'
+                        resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
+                        titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
+                    else:
+                        st = 'ALERTA_RISCO'
+                        resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
+                        titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
+                        if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
+                            parecer = f"{recalib['parecer_alerta']}\n\n{parecer}"
+                elif era_observacao:
+                    if not tem_alerta_mercado and not auditoria_dados.get('alerta_critico'):
+                        # Súmula oficial ainda não disponível na API nem confirmada na imprensa
                         st = 'EM_OBSERVACAO'
                         badge_risco = '🟡 Em Observação'
-                        resumo = f"🟡 Em Observação (Fase 1): {resumo} | Retida para repescagem na Fase 2 (T-50 min)"
-                        titulo_alerta = f"🟡 Em Observação [Aguardar Fase 2]: {home_team} vs {away_team}"
-                        parecer = f"[Fase 1 - Em Observação] {parecer}"
-                    else:
-                        st = 'CONFIRMADO'
-                        resumo = f"🟢 Sinal Verde Antecipado: {resumo}"
-                else:
-                    # FASE 2: Repescagem Pré-Jogo e Vigilância de Mercado
-                    tem_escalacao = bool(
-                        sumula_oficial.get('tem_sumula') or 
-                        sumula_oficial.get('lineups_disponiveis') or
-                        resultado.get('escalacao_confirmada') or
-                        'escalação oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower() or
-                        'súmula oficial' in (resultado.get('resumo_escalacao', '') + resultado.get('parecer_explicativo', '')).lower()
-                    )
-
-                    if tem_escalacao and notif_escalacao_status == LineupNotificationStatus.NAO_NOTIFICADO:
-                        deve_notificar_escalacao = True
-
-                    if is_confirmada and recalib.get('alerta_risco'):
-                        st = 'ALERTA_RISCO'
-                        badge_risco = '🔴 Risco Crítico de Mercado'
-                        titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
-                        parecer = recalib['parecer_alerta']
-                    elif tem_escalacao:
-                        if not tem_alerta:
-                            st = 'CONFIRMADO'
-                            resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
-                            titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
-                        else:
-                            st = 'ALERTA_RISCO'
-                            resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
-                            titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
-                    elif era_observacao:
-                        if not recalib.get('alerta_risco') and not auditoria_dados.get('alerta_critico'):
-                            # Súmula oficial ainda não disponível na API nem confirmada na imprensa
-                            st = 'EM_OBSERVACAO'
-                            badge_risco = '🟡 Em Observação'
-                            resumo = f"⏳ Aguardar Súmula Oficial: Súmula ainda não divulgada ({resumo}) | Aguardando liberação das escalações oficiais"
-                            titulo_alerta = f"⏳ Aguardar Súmula Oficial [Risco Médio]: {home_team} vs {away_team}"
+                        resumo = f"⏳ Aguardar Súmula Oficial: Súmula ainda não divulgada ({resumo}) | Aguardando liberação das escalações oficiais"
+                        titulo_alerta = f"⏳ Aguardar Súmula Oficial [Risco Médio]: {home_team} vs {away_team}"
 
             # Atualiza no banco (apostas e fixtures_trends)
             try:

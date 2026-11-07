@@ -811,6 +811,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <i class="bi bi-trash3"></i> Limpar histórico
             </button>
         </div>
+
+        <!-- Caixa de Pesquisa de Notificações em Tempo Real -->
+        <div class="sidebar-notif-search px-3 py-2" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div class="position-relative">
+                <i class="bi bi-search position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; pointer-events: none;"></i>
+                <input type="text" id="input-busca-notificacoes" class="form-control form-control-sm text-light ps-4 pe-4" placeholder="Buscar por time, título ou texto..." style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; font-size: 0.8rem;" autocomplete="off">
+                <button type="button" id="btn-limpar-busca-notif" class="btn btn-link position-absolute text-secondary p-0" style="right: 8px; top: 50%; transform: translateY(-50%); display: none; text-decoration: none;" title="Limpar busca">
+                    <i class="bi bi-x-circle-fill" style="font-size: 0.85rem;"></i>
+                </button>
+            </div>
+            <div id="busca-notif-feedback" class="mt-1 d-flex justify-content-between align-items-center text-muted" style="font-size: 0.70rem; display: none !important;">
+                <span id="busca-notif-contador"></span>
+                <span class="text-secondary opacity-75">ESC limpa</span>
+            </div>
+        </div>
         <div id="lista-notificacoes-container" class="sidebar-notif-body flex-grow-1" style="overflow-y: auto;">
             <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
                 <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
@@ -1120,6 +1135,78 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }
         }
 
+        function escapeHtmlNotif(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function aplicarFiltroBuscaNotificacoes() {
+            const input = document.getElementById('input-busca-notificacoes');
+            const clearBtn = document.getElementById('btn-limpar-busca-notif');
+            const feedbackEl = document.getElementById('busca-notif-feedback');
+            const contadorEl = document.getElementById('busca-notif-contador');
+            const container = document.getElementById('lista-notificacoes-container');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.notif-item');
+            const emptyInitial = container.querySelector('#notif-empty-state');
+
+            // Remove empty state de busca anterior
+            const prevSearchEmpty = container.querySelector('.notif-search-empty-state');
+            if (prevSearchEmpty) prevSearchEmpty.remove();
+
+            if (!items.length) {
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (clearBtn) clearBtn.style.display = 'none';
+                return;
+            }
+
+            const rawQuery = input ? input.value.trim() : '';
+            const queryNorm = rawQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+            if (clearBtn) {
+                clearBtn.style.display = rawQuery ? 'inline-block' : 'none';
+            }
+
+            if (!queryNorm) {
+                items.forEach(el => el.style.display = '');
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (emptyInitial) emptyInitial.style.display = 'none';
+                return;
+            }
+
+            let matchesCount = 0;
+            items.forEach(el => {
+                const textNorm = (el.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                if (textNorm.includes(queryNorm)) {
+                    el.style.display = '';
+                    matchesCount++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (feedbackEl && contadorEl) {
+                feedbackEl.style.setProperty('display', 'flex', 'important');
+                contadorEl.textContent = matchesCount === 1 
+                    ? '1 alerta encontrado' 
+                    : `${matchesCount} de ${items.length} alertas encontrados`;
+            }
+
+            if (matchesCount === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'text-center text-muted p-4 notif-search-empty-state';
+                emptyDiv.style.fontSize = '0.84rem';
+                emptyDiv.innerHTML = `
+                    <i class="bi bi-search fs-4 d-block mb-2 text-secondary opacity-50"></i>
+                    Nenhum alerta encontrado para "<strong>${escapeHtmlNotif(rawQuery)}</strong>".
+                `;
+                container.appendChild(emptyDiv);
+            }
+        }
+
         function checkNotificacoes() {
             fetch(notifApiUrl, {
                 method: 'GET',
@@ -1414,6 +1501,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             window.location.href = href;
                         });
                     });
+
+                    // Reaplica filtro ativo de busca (se houver termo digitado no input)
+                    aplicarFiltroBuscaNotificacoes();
                 }
 
                 // Disparo dos Pop-ups Toast Flutuantes na tela:
@@ -1830,6 +1920,35 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             `;
                         }
                     });
+                });
+            }
+
+            // Eventos da Caixa de Pesquisa de Notificações em Tempo Real
+            const searchInput = document.getElementById('input-busca-notificacoes');
+            const clearSearchBtn = document.getElementById('btn-limpar-busca-notif');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    aplicarFiltroBuscaNotificacoes();
+                });
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && this.value.trim() !== '') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.value = '';
+                        aplicarFiltroBuscaNotificacoes();
+                    }
+                });
+            }
+
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.focus();
+                    }
+                    aplicarFiltroBuscaNotificacoes();
                 });
             }
 

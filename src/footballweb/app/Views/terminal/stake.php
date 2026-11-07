@@ -365,6 +365,9 @@ require VIEWPATH . '/header.php';
 
             <div class="terminal-bookmarks">
                 <span class="bookmarks-label"><i class="bi bi-bookmark-star-fill text-warning"></i> Atalhos:</span>
+                <button type="button" class="bookmark-chip" style="border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-weight: 600;" onclick="quickNavigate('https://stake.com/?tab=withdraw&currency=ltc&modal=wallet')" title="Painel direto de Saque em Litecoin (LTC) na Stake">
+                    <i class="bi bi-wallet-fill text-warning"></i> Saque Stake
+                </button>
                 <button type="button" class="bookmark-chip" onclick="quickNavigate('https://sportsbet.io/pt/sports')" title="Navegar para Sportsbet.io (Cripto & Props)">
                     <i class="bi bi-lightning-charge-fill text-success"></i> Sportsbet.io
                 </button>

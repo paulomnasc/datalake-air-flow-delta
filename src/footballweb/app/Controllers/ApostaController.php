@@ -1646,7 +1646,10 @@ class ApostaController extends BaseController
             ])->setStatusCode(403);
         }
 
-        $scriptPath = '/root/datalake-air-flow-delta/scripts/processar_apostas_encerradas.py';
+        $scriptPath = '/datalake-root/scripts/processar_apostas_encerradas.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/processar_apostas_encerradas.py';
+        }
         if (file_exists($scriptPath)) {
             $cmd = "python3 " . escapeshellarg($scriptPath) . " 2>&1";
             $output = shell_exec($cmd);
@@ -3659,9 +3662,12 @@ class ApostaController extends BaseController
         }
 
         $fixtureId = (int)$fixtureId;
-        $scriptPath = '/root/datalake-air-flow-delta/scripts/gemini_sentinel.py';
+        $scriptPath = '/datalake-root/scripts/gemini_sentinel.py';
         if (!file_exists($scriptPath)) {
-            $scriptPath = '/usr/local/bin/scripts/gemini_sentinel.py';
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/gemini_sentinel.py';
+            if (!file_exists($scriptPath)) {
+                $scriptPath = '/usr/local/bin/scripts/gemini_sentinel.py';
+            }
         }
 
         $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --phase=2 --window=1440 --json_output 2>&1";

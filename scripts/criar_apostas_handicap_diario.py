@@ -633,14 +633,35 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
                             ref_lines = build_ah_reference_fair_lines(fix, p_matrix, home_team, away_team, o_h, o_a)
 
+                            # Inicialização prévia de variáveis de controle de equilíbrio (Regra de Ouro 8)
+                            is_confronto_equilibrado = False
+                            diff_eff_pct = 0.0
+                            dnb_cand = None
+
                             # Filtra as linhas conforme a regra específica de cada Prisma:
                             if is_prisma_premium:
                                 # Premium autoriza linhas de dominância (-0.5, -0.75 AH)
                                 cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.75, -0.5)]
                                 tier = BetTier.PREMIUM
                             else:
-                                # Quase Premium exige cobertura de empate para o favorito: DNB (0.0 AH) ou -0.25 AH
-                                cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0)]
+                                # Quase Premium:
+                                # Em confrontos equilibrados (odd do favorito no 1X2 >= 1.90 OU vantagem de U5J <= 20% com oponente forte >= 9.0 pts),
+                                # a linha recomendada pelo Radar DEVE SER ESTRITAMENTE a linha segura: DNB (0.0 AH)
+                                diff_eff_pct = ((cand_eff - opp_eff) / max(cand_eff, 1.0)) if cand_eff > 0 else 0.0
+                                is_confronto_equilibrado = (
+                                    fav_odd >= 1.90 or
+                                    (diff_eff_pct <= 0.20 and opp_eff >= 9.0)
+                                )
+
+                                if is_confronto_equilibrado:
+                                    # Restringe estritamente à linha segura 0.0 AH (DNB) para evitar exposição a meio-red em clássicos
+                                    cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] == 0.0]
+                                    if not cand_ref:
+                                        cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0)]
+                                else:
+                                    # Confronto com dominância clara: autoriza -0.25 AH ou 0.0 AH
+                                    cand_ref = [r for r in ref_lines if r['is_away'] == fav_is_away and r['line'] in (-0.25, 0.0)]
+
                                 tier = BetTier.QUASE_PREMIUM
 
                             destaque_val = tier.value
@@ -650,6 +671,15 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                             if cand_ref:
                                 # Prioriza linhas com odd mínima na faixa viável da banca (>= 1.50)
                                 valid_ref = [r for r in cand_ref if r['odd_minima'] >= 1.50]
+                                if not valid_ref and is_confronto_equilibrado:
+                                    # Em clássicos/jogos equilibrados, ajusta a odd mínima de entrada para o piso da banca (1.50)
+                                    # preservando a linha segura 0.0 AH com a sugestão de odd justa pelo radar
+                                    dnb_cand = next((r for r in cand_ref if r['line'] == 0.0), cand_ref[0])
+                                    dnb_cand['odd_minima'] = max(1.50, dnb_cand['odd_minima'])
+                                    valid_ref = [dnb_cand]
+                                elif not valid_ref:
+                                    valid_ref = [cand_ref[0]]
+
                                 if valid_ref:
                                     best_ref = valid_ref[0]
                                     sug_palpite = best_ref['linha']

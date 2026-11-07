@@ -3973,20 +3973,6 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
                                                         <?= htmlspecialchars($ah_block_desc ?: $nl_explanation) ?>
                                                     </div>
-                                                    <?php 
-                                                        $auditLinesText = '';
-                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
-                                                            $auditLinesText = trim($mAud[1]);
-                                                        }
-                                                    ?>
-                                                    <div class="ah-lines-audit-widget-<?= $fix->fixture_id ?>" style="<?= empty($auditLinesText) ? 'display: none;' : '' ?> margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 3px solid #f87171; border-radius: 6px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; white-space: pre-line;">
-                                                        <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
-                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas:
-                                                        </div>
-                                                        <div class="ah-lines-audit-content-<?= $fix->fixture_id ?>">
-                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*/u', '', $auditLinesText)) ?>
-                                                        </div>
-                                                    </div>
                                                     <?php if (!empty($ah_block_detail)): ?>
                                                         <div style="margin-top: 6px; padding: 4px 8px; background: rgba(15, 23, 42, 0.9); border-radius: 4px; border: 1px solid rgba(248, 113, 113, 0.25); font-size: 0.71rem; color: #cbd5e1;">
                                                             ℹ️ <strong><?= lang('App.metric_indicators') ?? 'Indicadores' ?>:</strong> <?= htmlspecialchars($ah_block_detail) ?>

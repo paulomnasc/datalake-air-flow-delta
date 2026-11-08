@@ -1040,14 +1040,13 @@ def evaluate_and_select_best_ah_candidate(
         # Clubes de elite (Tier 1) só são isentos se forem super-favoritos absolutos (odd 1X2 < 1.65).
         # Em jogos competitivos (odd 1X2 do visitante >= 2.00 ou cand_odd >= 2.00), ABSTENÇÃO MANDATÓRIA!
         # =========================================================================
-        away_is_competitive = (raw_a_odd >= 2.00) or (cand_odd >= 2.00)
         is_tier1_heavily_favored = is_tier1 and (raw_a_odd > 0 and raw_a_odd < 1.65)
 
-        if c_is_away and c_line <= 0.0 and away_is_competitive and not is_tier1_heavily_favored:
+        if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
             if not is_cand_benefited_by_lineup:
                 if is_home_in_relegation:
                     continue
-                if h_rank_val >= 15 and h_ppg_val > 0.0 and h_ppg_val <= 1.15:
+                if (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or (h_rank_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15):
                     continue
 
         # =========================================================================
@@ -1506,10 +1505,12 @@ def evaluate_and_select_best_ah_candidate(
                 cand_copy['tier'] = BetTier.PREMIUM
                 cand_copy['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
             elif c_line in (-0.25, 0.0):
-                # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
+                # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0 e dominância mínima de +30% sobre o adversário) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
+                has_30pct_dominance = (cand_pts_eff >= opp_pts_eff * 1.30)
                 is_quase_premium_qualified = (
                     cand_pts_eff >= 12.0 and
                     cand_odd <= 2.40 and
+                    has_30pct_dominance and
                     (not c_is_away or (cand_away_matches and cand_away_pts >= 2))
                 )
                 if is_quase_premium_qualified:
@@ -2119,9 +2120,7 @@ def calculate_unified_handicap_recommendation(
                         approved = [best_cand]
                 elif ia_audit_res.get('is_premium') and not is_strictly_premium:
                     print(f"🛡️ [Veto de Selo PREMIUM pelo Gatekeeper] #{fixture_id} {home_team} ({cand_eff_premium:.1f} pts) vs {away_team} ({opp_eff_premium:.1f} pts): Adversário não atende ao critério de fragilidade (U5J <= 10.0 pts). Mantida aposta padrão.")
-                    p_str = str(best_cand.get('palpite_str') or '')
-                    is_qp = ('0.0' in p_str or '-0.25' in p_str or '+0.25' in p_str)
-                    best_cand['tier'] = BetTier.QUASE_PREMIUM if is_qp else BetTier.REGULAR
+                    best_cand['tier'] = best_cand.get('tier') or BetTier.REGULAR
                     best_cand['destaque'] = best_cand['tier'].value
                     best_cand['is_premium'] = False
                     best_cand['gatekeeper_category'] = best_cand['tier'].gatekeeper_category
@@ -2161,14 +2160,14 @@ def calculate_unified_handicap_recommendation(
         # 1. Identificação de Rebaixamento Direto via metadados da liga/tabela (ex: 'relegation', 'play-out', 'rebaixamento')
         is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
 
-        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante:
-        #    - Deve estar categorizado na zona de descenso oficial (is_h_rel), OU
-        #    - Ocupar o 16º lugar ou pior (típica zona de perigo/Z-4 em ligas de 18 a 20 clubes)
-        #      com média de pontos por jogo (PPG) de rebaixado (<= 1.15).
-        #    (Elimina o falso positivo onde times de meio de tabela como o 12º colocado eram chamados de rebaixados).
+        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante (Vetor Dinâmico da Tabela):
+        #    - Categorizado na zona de descenso oficial (is_h_rel), OU
+        #    - Aproveitamento crítico direto de rebaixado: PPG <= 1.05 (menos de 38 pontos em 38 rodadas), OU
+        #    - Ocupar o 14º lugar ou pior com PPG <= 1.15 (típica zona de perigo/Z-4 em ligas de 16 a 20 clubes).
         is_h_under_threat = (
             is_h_rel or
-            (h_rk_val >= 16 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
+            (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or
+            (h_rk_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
         )
 
         is_crisis_clash = (
@@ -2293,9 +2292,9 @@ def calculate_unified_handicap_recommendation(
                 compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
         return 'NO_BET', sug, conf, compound_r, None, []
 
-    eval_res = best_cand['eval']
-    selected_palpite = best_cand['palpite_str']
-    odd_val = best_cand['odd']
+    eval_res = best_cand.get('eval') or {}
+    selected_palpite = best_cand.get('palpite_str') or best_cand.get('palpite') or f"{best_cand.get('team', '')} {best_cand.get('line', '')} AH"
+    odd_val = float(best_cand.get('odd') or 1.50)
     odd_justa = eval_res['odd_justa']
     prob_poisson = eval_res['prob_eff']
     ev_perc = eval_res['ev_percent']

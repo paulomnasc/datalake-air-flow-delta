@@ -682,6 +682,8 @@ class ApostaController extends BaseController
                 $isHRel = (strpos($ftHZone, 'relegat') !== false || strpos($ftHZone, 'play out') !== false || strpos($ftHZone, 'rebaixamento') !== false);
                 $isHUnderThreat = (
                     $isHRel ||
+                    ($ftHPpg > 0.0 && $ftHPpg <= 1.05) ||
+                    ($ftHRank >= 14 && $ftHPpg > 0.0 && $ftHPpg <= 1.15) ||
                     ($ftHRank >= 12 && $ftHPpg > 0.0 && $ftHPpg <= 1.25) ||
                     ($ftHRank >= 12 && $ftStandMot >= 3.0) ||
                     ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))

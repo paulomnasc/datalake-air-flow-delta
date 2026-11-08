@@ -337,10 +337,7 @@ $isCardPremium = $isCardAhApproved && (
 $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
     (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
     (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
-    (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
-    (($aposta->status_gatekeeper ?? '') === 'SUGESTAO_RADAR') ||
-    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion ?? '') ||
-    (!empty($aposta->palpite) && preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $aposta->palpite))
+    (!empty($aposta->destaque) && (int)$aposta->destaque === 1)
 );
 ?>
 

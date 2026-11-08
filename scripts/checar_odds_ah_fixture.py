@@ -1042,6 +1042,9 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
     cursor.close()
     conn.close()
 
+    betano_cand = find_matching_ah_candidate(betano_lines, linha_alvo, home_team, away_team)
+    odd_betano_val = float(betano_cand['odd']) if (betano_cand and betano_cand.get('odd')) else None
+
     motivo_rejeicao = ""
     if odd_float and linha_alvo:
         if odd_float < 1.45:
@@ -1052,6 +1055,19 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
             motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por probabilidade de cobertura ({p_eff_cust:.1f}%) abaixo do mínimo de segurança exigido de 55.0%."
         elif ev_perc_cust < 3.0:
             motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por cotação insuficiente para gerar valor positivo (+EV). Cotação mínima necessária na casa: @ {odd_min_nec:.2f}."
+        elif odd_float < 1.60:
+            sufixo_betano = f" A cotação oficial na Betano é @ {odd_betano_val:.2f}." if odd_betano_val else ""
+            if is_away_c and line_c == 0.0:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Cotação abaixo do piso mínimo operacional exigido para DNB fora de casa (@ 1.60).{sufixo_betano}"
+            else:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Cotação abaixo do piso mínimo operacional do Gatekeeper (@ 1.60).{sufixo_betano}"
+        else:
+            for it in audit_items:
+                if palpite_fmt_c in it:
+                    motivo_rejeicao = it
+                    break
+            if not motivo_rejeicao:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada pelo Gatekeeper por gestão de risco de campo ou restrição de confronto."
     elif cand_testado:
         palpite_b = cand_testado["palpite_str"]
         odd_b = float(cand_testado["odd"])

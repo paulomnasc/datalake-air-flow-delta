@@ -38,7 +38,8 @@ Qualquer partida que não atenda integralmente a esta tríade é compulsoriament
 ### Vértice 1 (V1): Consistência Contextual *(Mando de Campo Validado)*
 - **Conceito**: Diferente do nível Premium, o time não precisa ter derrotado gigantes continentais (Tier 1), mas sua força estatística recente deve ser legítima no cenário em que atuará hoje.
 - **Critérios Objetivos**:
-  - Eficiência ponderada recente satisfatória ($U5J \ge 12.0\text{ pts}$) e superior à do adversário;
+  - Eficiência ponderada recente satisfatória ($U5J \ge 12.0\text{ pts}$);
+  - **Dominância Relativa Mínima de 30% no U5J**: A equipe candidata deve obrigatoriamente possuir no mínimo **+30% de eficiência ponderada em relação ao adversário** ($Ef_{candidato} \ge 1.30 \times Ef_{adversario}$). Confrontos com distância percentual inferior a 30% (como 11.2 pts vs 9.0 pts, onde a diferença é de apenas 24% e 2.2 pts brutos) caracterizam equilíbrio esportivo e são desqualificados do selo Quase Premium;
   - **Validação Específica de Mando/Fora**: Se a equipe atua como **visitante**, é mandatório que tenha somado pontos e marcado gols fora de seus domínios nos jogos recentes. Pontuações infladas 100% em casa não qualificam um time para apostas como visitante;
   - **Ausência de Desespero Assimétrico**: O mandante não pode estar na zona de rebaixamento jogando a sobrevivência da temporada (*Trava de Sobrevivência do Mandante*).
 

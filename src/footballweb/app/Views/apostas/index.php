@@ -3641,7 +3641,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
       if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         counts.all++;
-        if (counts.hasOwnProperty(cardStatus)) {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        if (cardStatusUpper === 'PENDENTE' || cardStatusUpper.includes('CONFIRMADA')) {
+          counts['Pendente']++;
+        } else if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
         }
       }
@@ -3651,9 +3654,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
         statusMatch = true;
       } else if (status === 'concluidas') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        const isPendente = (cardStatus === 'Pendente');
-        const isCanceled = cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD');
-        statusMatch = (!isPendente && !isCanceled);
+        statusMatch = (cardStatusUpper === 'GANHA' || cardStatusUpper === 'MEIO GANHA' || cardStatusUpper === 'PERDIDA' || cardStatusUpper === 'MEIO PERDIDA' || cardStatusUpper === 'CASHOUT');
+      } else if (status === 'Pendente') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        statusMatch = (cardStatusUpper === 'PENDENTE' || cardStatusUpper.includes('CONFIRMADA'));
       } else if (status === 'Ganha') {
         statusMatch = (cardStatus === 'Ganha' || cardStatus === 'Meio Ganha');
       } else if (status === 'Perdida') {

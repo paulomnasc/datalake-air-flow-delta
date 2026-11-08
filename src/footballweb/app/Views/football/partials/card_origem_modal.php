@@ -299,6 +299,9 @@ try {
     $dateStr = $dt->format('d/m/Y');
 } catch (\Exception $e) {}
 
+$leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($fix->league_id ?? null, $fix->league_name ?? null);
+$leagueCountry = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : ($leagueInfo['country'] ?? '');
+$leagueFlag = $leagueInfo['flag'] ?? '';
 $displayLeague = $fix->league_name ?? 'Liga';
 $prob = !empty($fix->win_probability) ? (float)$fix->win_probability : 50.0;
 $class = ($prob >= 70) ? 'high' : (($prob >= 55) ? 'safe' : 'risky');
@@ -384,10 +387,22 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
   <!-- Cabeçalho da Partida -->
   <div class="p-3 mb-3 rounded-3" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.85) 100%); border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2">
-        <span class="badge" style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.75rem; font-weight: 700; padding: 4px 8px;">
-          <?= htmlspecialchars($displayLeague) ?>
-        </span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="match-league badge" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px;">
+          <?php if (!empty($leagueFlag)): ?>
+            <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
+          <?php endif; ?>
+          <?php if (!empty($leagueCountry) && $leagueCountry !== 'Outro'): ?>
+            <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
+          <?php endif; ?>
+          <?php if (!empty($leagueCountry) && $leagueCountry !== 'Outro' && !empty($displayLeague)): ?>
+            <span style="color: #475569;">•</span>
+          <?php endif; ?>
+          <?php if (!empty($displayLeague)): ?>
+            <i class="bi bi-trophy-fill" style="color: #fbbf24; font-size: 0.78rem;"></i>
+            <span style="color: #38bdf8; font-weight: 600;"><?= htmlspecialchars($displayLeague) ?></span>
+          <?php endif; ?>
+        </div>
         <?php if ($isCardPremium): ?>
           <span class="badge border px-2 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                 style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.35) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px;">
@@ -421,11 +436,27 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <div class="col-5 text-end">
         <div class="d-flex align-items-center justify-content-end gap-2">
           <div>
-            <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->home_team) ?></strong>
-            <span class="text-white-50 small" style="font-size: 0.70rem;">Mandante</span>
+            <div class="d-flex align-items-center justify-content-end gap-1">
+              <?php if (!empty($fix->home_rank)): ?>
+                <span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 6px;" title="Classificação: <?= $fix->home_rank ?>º lugar no campeonato<?= !empty($fix->home_ppg) ? ' (' . number_format((float)$fix->home_ppg, 2) . ' PPG)' : '' ?>">
+                  #<?= $fix->home_rank ?>
+                </span>
+              <?php endif; ?>
+              <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->home_team) ?></strong>
+            </div>
+            <span class="text-white-50 small" style="font-size: 0.70rem;">
+              Mandante<?= !empty($fix->home_rank) ? ' • <span class="text-info fw-semibold">' . $fix->home_rank . 'º na tabela</span>' : '' ?>
+            </span>
           </div>
           <?php if (!empty($fix->home_team_id)): ?>
-            <img src="<?= base_url('team-logo/' . $fix->home_team_id) ?>" alt="" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+            <div class="position-relative d-inline-flex flex-column align-items-center" style="min-width: 32px;">
+              <img src="<?= base_url('team-logo/' . $fix->home_team_id) ?>" alt="" style="width: 34px; height: 34px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+              <?php if (!empty($fix->home_rank)): ?>
+                <span class="badge shadow-sm" style="font-size: 0.62rem; font-weight: 700; background: #0f172a; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.6); padding: 1px 4px; border-radius: 4px; margin-top: 2px;" title="<?= $fix->home_rank ?>º colocado no campeonato">
+                  <?= $fix->home_rank ?>º
+                </span>
+              <?php endif; ?>
+            </div>
           <?php endif; ?>
         </div>
       </div>
@@ -441,11 +472,27 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <div class="col-5 text-start">
         <div class="d-flex align-items-center justify-content-start gap-2">
           <?php if (!empty($fix->away_team_id)): ?>
-            <img src="<?= base_url('team-logo/' . $fix->away_team_id) ?>" alt="" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+            <div class="position-relative d-inline-flex flex-column align-items-center" style="min-width: 32px;">
+              <img src="<?= base_url('team-logo/' . $fix->away_team_id) ?>" alt="" style="width: 34px; height: 34px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+              <?php if (!empty($fix->away_rank)): ?>
+                <span class="badge shadow-sm" style="font-size: 0.62rem; font-weight: 700; background: #0f172a; color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.6); padding: 1px 4px; border-radius: 4px; margin-top: 2px;" title="<?= $fix->away_rank ?>º colocado no campeonato">
+                  <?= $fix->away_rank ?>º
+                </span>
+              <?php endif; ?>
+            </div>
           <?php endif; ?>
           <div>
-            <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->away_team) ?></strong>
-            <span class="text-white-50 small" style="font-size: 0.70rem;">Visitante</span>
+            <div class="d-flex align-items-center justify-content-start gap-1">
+              <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->away_team) ?></strong>
+              <?php if (!empty($fix->away_rank)): ?>
+                <span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.4); padding: 2px 6px;" title="Classificação: <?= $fix->away_rank ?>º lugar no campeonato<?= !empty($fix->away_ppg) ? ' (' . number_format((float)$fix->away_ppg, 2) . ' PPG)' : '' ?>">
+                  #<?= $fix->away_rank ?>
+                </span>
+              <?php endif; ?>
+            </div>
+            <span class="text-white-50 small" style="font-size: 0.70rem;">
+              Visitante<?= !empty($fix->away_rank) ? ' • <span style="color: #a78bfa;" class="fw-semibold">' . $fix->away_rank . 'º na tabela</span>' : '' ?>
+            </span>
           </div>
         </div>
       </div>

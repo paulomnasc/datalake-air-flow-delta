@@ -3177,8 +3177,10 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
         elif c_line < -0.75:
             motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
+        elif c_line in (0.25, 0.5):
+            motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de desfalques importantes ou time reserva na súmula oficial"
         elif c_line > 0.0:
-            motivo = "Reprovada: Linhas positivas (+AH) são bloqueadas por expectativa matemática negativa histórica"
+            motivo = "Reprovada: Linhas positivas esticadas (+AH > +0.5) são bloqueadas por expectativa matemática negativa histórica"
         elif is_away and c_line < -0.25:
             motivo = "Reprovada: Linhas secas (< -0.25 AH) são restritas exclusivamente a mandantes (trava de mando de campo)"
         elif is_away and c_line <= 0.0 and raw_h > 0 and raw_a > 0 and (raw_a - raw_h) >= 0.15:

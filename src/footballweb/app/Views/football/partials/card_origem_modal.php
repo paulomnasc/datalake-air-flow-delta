@@ -109,6 +109,7 @@ if (!function_exists('simplifyRejectionReasonModal')) {
     function simplifyRejectionReasonModal($motivo) {
         $m = trim($motivo);
         if (empty($m)) return 'Reprovada';
+        if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
         if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
@@ -248,11 +249,40 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                                     $lineVal = $item[3];
                                     $oddVal = is_numeric($item[4]) ? number_format((float)$item[4], 2) : $item[4];
                                     $fullReason = trim($item[5] ?? ($isAprovada ? 'Aprovada pelo Gatekeeper com valor esperado positivo' : 'Reprovada'));
-                                    $shortReason = $isAprovada ? ($isRadar ? 'Aprovada (Radar / +EV)' : 'Aprovada (+EV)') : simplifyRejectionReasonModal($fullReason);
+                                    $isCondicional = (!$isAprovada && (
+                                        stripos($fullReason, 'súmula') !== false || 
+                                        stripos($fullReason, 'desfalque') !== false || 
+                                        stripos($fullReason, 'condicional') !== false ||
+                                        $lineVal === '+0.5' || $lineVal === '+0.25' || $lineVal === '+0.50' ||
+                                        (is_numeric($lineVal) && ((float)$lineVal == 0.5 || (float)$lineVal == 0.25) && strpos($lineVal, '-') === false)
+                                    ));
+                                    $shortReason = $isAprovada ? ($isRadar ? 'Aprovada (Radar / +EV)' : 'Aprovada (+EV)') : ($isCondicional ? 'Depende de Súmula' : simplifyRejectionReasonModal($fullReason));
 
-                                    $cardBg = $isAprovada ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(30, 41, 59, 0.6)';
-                                    $cardBorder = $isAprovada ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)';
-                                    $oddColor = $isAprovada ? '#34d399' : '#ffffff';
+                                    if ($isAprovada) {
+                                        $cardBg = 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)';
+                                        $cardBorder = '1.5px solid #10b981';
+                                        $oddColor = '#34d399';
+                                        $badgeColor = '#34d399';
+                                        $badgeBg = 'rgba(16, 185, 129, 0.2)';
+                                        $badgeBorder = 'rgba(16, 185, 129, 0.4)';
+                                        $icon = '🟢';
+                                    } elseif ($isCondicional) {
+                                        $cardBg = 'rgba(148, 163, 184, 0.18)';
+                                        $cardBorder = '1px solid rgba(148, 163, 184, 0.35)';
+                                        $oddColor = '#cbd5e1';
+                                        $badgeColor = '#e2e8f0';
+                                        $badgeBg = 'rgba(148, 163, 184, 0.22)';
+                                        $badgeBorder = 'rgba(203, 213, 225, 0.35)';
+                                        $icon = '⏳';
+                                    } else {
+                                        $cardBg = 'rgba(30, 41, 59, 0.6)';
+                                        $cardBorder = '1px solid rgba(255, 255, 255, 0.08)';
+                                        $oddColor = '#ffffff';
+                                        $badgeColor = '#f87171';
+                                        $badgeBg = 'rgba(239, 68, 68, 0.12)';
+                                        $badgeBorder = 'rgba(239, 68, 68, 0.25)';
+                                        $icon = '❌';
+                                    }
                                 ?>
                                 <div style="background: <?= $cardBg ?>; border: <?= $cardBorder ?>; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 44px; transition: transform 0.15s ease;" title="<?= htmlspecialchars($fullReason) ?>">
                                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -264,15 +294,9 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                                         </span>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-                                        <?php if ($isAprovada): ?>
-                                            <span style="font-size: 0.62rem; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); padding: 0 4px; border-radius: 4px;">
-                                                🟢 <?= htmlspecialchars($shortReason) ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span style="font-size: 0.60rem; font-weight: 600; color: #f87171; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); padding: 0 4px; border-radius: 4px;">
-                                                ❌ <?= htmlspecialchars($shortReason) ?>
-                                            </span>
-                                        <?php endif; ?>
+                                        <span style="font-size: 0.60rem; font-weight: 600; color: <?= $badgeColor ?>; background: <?= $badgeBg ?>; border: 1px solid <?= $badgeBorder ?>; padding: 0 4px; border-radius: 4px;">
+                                            <?= $icon ?> <?= htmlspecialchars($shortReason) ?>
+                                        </span>
                                     </div>
                                 </div>
                             <?php else: ?>

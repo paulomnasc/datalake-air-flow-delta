@@ -310,6 +310,7 @@ if (!function_exists('simplifyRejectionReasonDashboard')) {
     function simplifyRejectionReasonDashboard($motivo) {
         $m = trim($motivo);
         if (empty($m)) return 'Reprovada';
+        if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
         if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
@@ -500,14 +501,40 @@ if (!function_exists('renderStructuredMotivation')) {
                             $lVal = $item[3];
                             $oVal = is_numeric($item[4]) ? number_format((float)$item[4], 2) : $item[4];
                             $fReason = trim($item[5] ?? ($isAprov ? 'Aprovada com valor esperado positivo' : 'Reprovada'));
-                            $sReason = $isAprov ? 'Aprovada (+EV)' : simplifyRejectionReasonDashboard($fReason);
-                            $bg = $isAprov ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(30, 41, 59, 0.6)';
-                            $border = $isAprov ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)';
-                            $color = $isAprov ? '#34d399' : '#ffffff';
-                            $badgeColor = $isAprov ? '#34d399' : '#f87171';
-                            $badgeBg = $isAprov ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.12)';
-                            $badgeBorder = $isAprov ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.25)';
-                            $icon = $isAprov ? '🟢' : '❌';
+                            $isCondicional = (!$isAprov && (
+                                stripos($fReason, 'súmula') !== false || 
+                                stripos($fReason, 'desfalque') !== false || 
+                                stripos($fReason, 'condicional') !== false ||
+                                $lVal === '+0.5' || $lVal === '+0.25' || $lVal === '+0.50' ||
+                                (is_numeric($lVal) && ((float)$lVal == 0.5 || (float)$lVal == 0.25) && strpos($lVal, '-') === false)
+                            ));
+                            $sReason = $isAprov ? 'Aprovada (+EV)' : ($isCondicional ? 'Depende de Súmula' : simplifyRejectionReasonDashboard($fReason));
+
+                            if ($isAprov) {
+                                $bg = 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)';
+                                $border = '1.5px solid #10b981';
+                                $color = '#34d399';
+                                $badgeColor = '#34d399';
+                                $badgeBg = 'rgba(16, 185, 129, 0.2)';
+                                $badgeBorder = 'rgba(16, 185, 129, 0.4)';
+                                $icon = '🟢';
+                            } elseif ($isCondicional) {
+                                $bg = 'rgba(148, 163, 184, 0.18)';
+                                $border = '1px solid rgba(148, 163, 184, 0.35)';
+                                $color = '#cbd5e1';
+                                $badgeColor = '#e2e8f0';
+                                $badgeBg = 'rgba(148, 163, 184, 0.22)';
+                                $badgeBorder = 'rgba(203, 213, 225, 0.35)';
+                                $icon = '⏳';
+                            } else {
+                                $bg = 'rgba(30, 41, 59, 0.6)';
+                                $border = '1px solid rgba(255, 255, 255, 0.08)';
+                                $color = '#ffffff';
+                                $badgeColor = '#f87171';
+                                $badgeBg = 'rgba(239, 68, 68, 0.12)';
+                                $badgeBorder = 'rgba(239, 68, 68, 0.25)';
+                                $icon = '❌';
+                            }
                             
                             $auditTableHtml .= '<div style="background: ' . $bg . '; border: ' . $border . '; border-radius: 8px; padding: 6px 10px; min-height: 44px;" title="' . htmlspecialchars($fReason) . '">';
                             $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.80rem; color: #f1f5f9; font-weight: 700; font-family: monospace;">' . htmlspecialchars($lVal) . '</span><span style="font-size: 0.86rem; font-weight: 800; font-family: monospace; color: ' . $color . ';">' . $oVal . '</span></div>';

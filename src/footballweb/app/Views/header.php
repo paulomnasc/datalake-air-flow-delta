@@ -784,11 +784,30 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <!-- fecha sidebar -->
 
     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+    <!-- Barra Lateral Dock Retrátil Permanente no Canto Direito -->
+    <div id="sidebar-notif-dock" class="sidebar-notif-dock" title="Central de Notificações & Alertas" onclick="if(window.openSidebarNotif) window.openSidebarNotif();">
+        <button type="button" class="btn btn-sm btn-dock-toggle text-light p-0" id="btn-dock-toggle-notif" title="Expandir Notificações" aria-label="Expandir Notificações">
+            <i class="bi bi-list fs-5"></i>
+        </button>
+        <div class="dock-bell-wrapper position-relative">
+            <i class="bi bi-bell-fill text-warning fs-5"></i>
+            <span id="badge-notificacoes-dock" class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle" style="display: none; font-size: 0.62rem; padding: 0.2em 0.45em;">
+                0
+            </span>
+        </div>
+        <div class="dock-vertical-text">
+            <span>NOTIFICAÇÕES</span>
+        </div>
+    </div>
+
     <!-- Sidebar Retrátil e Pinável de Notificações Fixada à Direita -->
     <aside id="sidebar-notificacoes" class="sidebar-notificacoes-drawer" aria-label="Central de Alertas e Notificações">
         <!-- Topo da Sidebar: Título e Controles de Janela -->
         <div class="sidebar-notif-header px-3 py-2 d-flex justify-content-between align-items-center" style="background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.1);">
             <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-collapse-sidebar-notif" title="Recolher para barra lateral" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-list fs-5 text-light"></i>
+                </button>
                 <i class="bi bi-bell-fill text-warning fs-5"></i>
                 <span class="fw-bold text-light" style="font-size: 0.95rem; letter-spacing: 0.3px;">Notificações</span>
             </div>
@@ -984,13 +1003,89 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         box-sizing: border-box !important;
     }
 
+    /* Barra Lateral Dock Retrátil Permanente no Canto Direito */
+    .sidebar-notif-dock {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 44px;
+        height: 100vh;
+        background: #0f172a;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: -2px 0 12px rgba(0, 0, 0, 0.4);
+        z-index: 1060;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 18px;
+        gap: 16px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        user-select: none;
+    }
+    .sidebar-notif-dock:hover {
+        background: #162032;
+        border-left-color: rgba(56, 189, 248, 0.45);
+        box-shadow: -4px 0 18px rgba(0, 0, 0, 0.6);
+    }
+    .sidebar-notif-dock .btn-dock-toggle {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #f8fafc;
+        transition: all 0.2s ease;
+    }
+    .sidebar-notif-dock:hover .btn-dock-toggle {
+        background: rgba(56, 189, 248, 0.2);
+        border-color: #38bdf8;
+        color: #38bdf8 !important;
+        transform: scale(1.05);
+    }
+    .sidebar-notif-dock .dock-bell-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+    }
+    .sidebar-notif-dock .dock-vertical-text {
+        margin-top: auto;
+        margin-bottom: 24px;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-size: 0.66rem;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.38);
+        text-transform: uppercase;
+        pointer-events: none;
+        transition: color 0.2s ease;
+    }
+    .sidebar-notif-dock:hover .dock-vertical-text {
+        color: #38bdf8;
+    }
+
+    /* Oculta suavemente a barra dock quando a sidebar expandida estiver aberta */
+    body.sidebar-notif-open .sidebar-notif-dock {
+        transform: translateX(100%);
+        pointer-events: none;
+        opacity: 0;
+    }
+
     /* Sidebar Retrátil e Pinável de Notificações Fixada à Direita */
     .sidebar-notificacoes-drawer {
         position: fixed;
         top: 0;
         right: 0;
         bottom: 0;
-        width: 380px;
+        width: 400px;
         max-width: 92vw;
         height: 100vh;
         background: #1e293b;
@@ -1032,11 +1127,29 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         filter: brightness(1.2);
     }
 
-    /* Estado Pinado no Desktop: Ajuste suave no conteúdo sem quebrar a navbar nem o body */
-    @media (min-width: 1400px) {
-        body.sidebar-notif-pinned #main-content {
-            margin-right: 380px !important;
+    /* Ajuste Dinâmico e Responsivo do Conteúdo Principal */
+    @media (min-width: 992px) {
+        #main-content {
+            margin-right: 44px;
             transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        body.sidebar-notif-open #main-content,
+        body.sidebar-notif-pinned #main-content {
+            margin-right: 400px !important;
+            transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+    }
+    @media (max-width: 991px) {
+        .sidebar-notif-dock {
+            width: 38px;
+            padding-top: 14px;
+            gap: 14px;
+        }
+        .sidebar-notif-dock .dock-vertical-text {
+            display: none;
+        }
+        #main-content {
+            margin-right: 38px;
         }
     }
     body.sidebar-notif-pinned .sidebar-notificacoes-drawer {
@@ -1216,17 +1329,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             .then(data => {
                 if (!data || !data.success) return;
 
-                const badge = document.getElementById('badge-notificacoes');
-                const total = data.total_nao_lidas || 0;
-
-                if (badge) {
-                    if (total > 0) {
-                        badge.textContent = total > 99 ? '99+' : total;
-                        badge.style.display = 'inline-block';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                }
+                updateNotifBadges(data.total_nao_lidas || 0);
 
                 // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
@@ -1369,17 +1472,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 parentDiv.appendChild(checkSpan);
                             }
 
-                            // Decrementa o badge numérico no sininho
+                            // Decrementa o badge numérico no sininho e na dock bar
                             const badge = document.getElementById('badge-notificacoes');
-                            if (badge) {
-                                let count = parseInt(badge.textContent || '0');
-                                if (count > 1) {
-                                    badge.textContent = (count - 1);
-                                } else {
-                                    badge.style.display = 'none';
-                                    badge.textContent = '0';
-                                }
-                            }
+                            let count = parseInt(badge ? (badge.textContent || '0') : '0', 10);
+                            updateNotifBadges(Math.max(0, count - 1));
                         });
                     });
 
@@ -1403,15 +1499,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                     // Se era não lido, decrementa badge
                                     if (wasUnread) {
                                         const badge = document.getElementById('badge-notificacoes');
-                                        if (badge) {
-                                            let count = parseInt(badge.textContent || '0');
-                                            if (count > 1) {
-                                                badge.textContent = (count - 1);
-                                            } else {
-                                                badge.style.display = 'none';
-                                                badge.textContent = '0';
-                                            }
-                                        }
+                                        let count = parseInt(badge ? (badge.textContent || '0') : '0', 10);
+                                        updateNotifBadges(Math.max(0, count - 1));
                                     }
 
                                     // Se lista ficou vazia, exibe empty state
@@ -1724,6 +1813,22 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }, 18000);
         }
 
+        function updateNotifBadges(total) {
+            const badgeNav = document.getElementById('badge-notificacoes');
+            const badgeDock = document.getElementById('badge-notificacoes-dock');
+            const num = parseInt(total || 0, 10);
+            const textVal = num > 99 ? '99+' : (num > 0 ? num : '0');
+            const displayVal = num > 0 ? 'inline-block' : 'none';
+            if (badgeNav) {
+                badgeNav.textContent = textVal;
+                badgeNav.style.display = displayVal;
+            }
+            if (badgeDock) {
+                badgeDock.textContent = textVal;
+                badgeDock.style.display = displayVal;
+            }
+        }
+
         function isSidebarOpen() {
             const sb = document.getElementById('sidebar-notificacoes');
             return sb && sb.classList.contains('open');
@@ -1739,7 +1844,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             if (!sb) return;
 
             sb.classList.add('open');
-            if (!isSidebarPinned() && backdrop) {
+            document.body.classList.add('sidebar-notif-open');
+            try { localStorage.setItem('sidebar_notif_expanded', 'true'); } catch(e) {}
+
+            if (!isSidebarPinned() && backdrop && window.innerWidth < 992) {
                 backdrop.style.display = 'block';
                 void backdrop.offsetWidth;
                 backdrop.classList.add('show');
@@ -1752,6 +1860,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             if (!sb) return;
 
             sb.classList.remove('open');
+            document.body.classList.remove('sidebar-notif-open');
+            try { localStorage.setItem('sidebar_notif_expanded', 'false'); } catch(e) {}
+
             if (isSidebarPinned()) {
                 setSidebarPinned(false);
             }
@@ -1803,7 +1914,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 if (pinIcon) {
                     pinIcon.className = 'bi bi-pin-angle';
                 }
-                if (isSidebarOpen() && backdrop) {
+                if (isSidebarOpen() && backdrop && window.innerWidth < 992) {
                     backdrop.style.display = 'block';
                     void backdrop.offsetWidth;
                     backdrop.classList.add('show');
@@ -1815,7 +1926,32 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             setSidebarPinned(!isSidebarPinned());
         }
 
+        // Exporta para o escopo global para que gatilhos inline e outros módulos possam acionar
+        window.toggleSidebarNotif = toggleSidebarNotif;
+        window.openSidebarNotif = openSidebarNotif;
+        window.closeSidebarNotif = closeSidebarNotif;
+        window.setSidebarPinned = setSidebarPinned;
+
         document.addEventListener('DOMContentLoaded', function() {
+            // Gatilho de abertura pela barra lateral dock (retraída)
+            const dockBar = document.getElementById('sidebar-notif-dock');
+            if (dockBar) {
+                dockBar.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openSidebarNotif();
+                });
+            }
+
+            const dockToggleBtn = document.getElementById('btn-dock-toggle-notif');
+            if (dockToggleBtn) {
+                dockToggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openSidebarNotif();
+                });
+            }
+
             // Gatilho de abertura do sino no menu
             const toggleBtn = document.getElementById('btn-toggle-sidebar-notif');
             if (toggleBtn) {
@@ -1826,7 +1962,17 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 });
             }
 
-            // Botão fechar sidebar
+            // Botão recolher para barra lateral no topo da sidebar
+            const collapseBtn = document.getElementById('btn-collapse-sidebar-notif');
+            if (collapseBtn) {
+                collapseBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeSidebarNotif();
+                });
+            }
+
+            // Botão fechar sidebar tradicional
             const closeBtn = document.getElementById('btn-close-sidebar-notif');
             if (closeBtn) {
                 closeBtn.addEventListener('click', function(e) {
@@ -1864,11 +2010,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 }
             });
 
-            // Restaura estado pinado persistido do usuário
+            // Restaura estado expandido / pinado persistido do usuário
             try {
                 const wasPinned = localStorage.getItem('sidebar_notif_pinned') === 'true';
+                const wasExpanded = localStorage.getItem('sidebar_notif_expanded') === 'true';
                 if (wasPinned) {
                     setSidebarPinned(true);
+                } else if (wasExpanded && window.innerWidth >= 992) {
+                    openSidebarNotif();
                 }
             } catch(e) {}
 
@@ -1883,8 +2032,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     })
                     .then(res => res.json())
                     .then(() => {
-                        const badge = document.getElementById('badge-notificacoes');
-                        if (badge) badge.style.display = 'none';
+                        updateNotifBadges(0);
                         document.querySelectorAll('.notif-item.nao-lida').forEach(el => {
                             el.classList.remove('nao-lida');
                         });
@@ -1905,11 +2053,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     })
                     .then(res => res.json())
                     .then(() => {
-                        const badge = document.getElementById('badge-notificacoes');
-                        if (badge) {
-                            badge.style.display = 'none';
-                            badge.textContent = '0';
-                        }
+                        updateNotifBadges(0);
                         const container = document.getElementById('lista-notificacoes-container');
                         if (container) {
                             container.innerHTML = `

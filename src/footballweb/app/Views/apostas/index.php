@@ -86,9 +86,19 @@ if (!function_exists('fmtTopValorWithBrl')) {
   }
 
   .bet-container {
-    max-width: 1300px;
+    max-width: 1400px;
+    width: 100%;
     margin: 30px auto;
     padding: 0 20px 60px 20px;
+    box-sizing: border-box;
+    transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s ease;
+  }
+  body.sidebar-notif-open .bet-container,
+  body.sidebar-notif-pinned .bet-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-right: 25px;
+    box-sizing: border-box !important;
   }
 
   /* Header banner */

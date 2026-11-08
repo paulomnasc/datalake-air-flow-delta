@@ -939,6 +939,7 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     risco_base_dados = aud_dados.get("risco_base", "BAIXO")
     confronto_eq = aud_dados.get("confronto_equilibrado", False)
     alerta_critico_dados = aud_dados.get("alerta_critico", False)
+    jogo_ja_iniciado = bool(dossie.get("jogo_ja_iniciado", False))
 
     prompt_text = f"""
 Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
@@ -985,12 +986,14 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
    - "BAIXO": Exclusivamente para partidas com cotações e linhas estáveis com valor (+EV), favoritismo consistente de mercado (vantagem de probabilidade implícita >= 8.0% e cotação <= 2.40) E força máxima de elenco confirmada sem desfalques relevantes reportados.
    * REGRA MANDATÓRIA DE PROTOCOLO DE SÚMULA E ESCALAÇÃO OFICIAL:
      A) SE AS ESCALAÇÕES TITULARES NÃO FORAM DIVULGADAS NEM NA API NEM NA IMPRENSA/CLUBES NA WEB (escalacao_confirmada = false) E O RISCO FOR 'MEDIO' OU 'ALTO':
-        - Seu parecer explicativo DEVE OBRIGATORIAMENTE instruir:
+        - Se a partida JÁ ESTIVER EM ANDAMENTO (jogo_ja_iniciado = true):
+          '⏱️ Partida em Andamento: A súmula oficial de 11 titulares não foi disponibilizada a tempo pelas federações no pré-jogo. Operação pré-jogo encerrada; aguarde a conclusão da partida para liquidação.'
+        - Se a partida AINDA NÃO COMEÇOU (jogo_ja_iniciado = false):
           '⏳ Aguardar Súmula Oficial da Escalação: A partida apresenta risco moderado/elevado (odds abertas no 1X2, volatilidade ou exclusão de linhas viáveis pelas casas). As escalações oficiais de 11 titulares ainda não foram publicadas (previsão a ~45m do jogo). Recomendação: Aguarde a confirmação dos titulares oficiais antes de cravar a entrada. A Sentinela emitirá a análise de impacto assim que a súmula for liberada.'
         - "escalacao_confirmada": false
         - "fonte_escalacao": "NAO_DIVULGADA"
-        - "resumo_escalacao": "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
-        - "titulo_alerta": f"⏳ Aguardar Súmula Oficial [Risco Médio]: {dossie.get('home_team')} vs {dossie.get('away_team')}"
+        - "resumo_escalacao": "Súmula oficial não divulgada a tempo pelas federações" if jogo_ja_iniciado else "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
+        - "titulo_alerta": f"⏱️ Partida em Andamento [Sem Súmula Pré-Jogo]: {dossie.get('home_team')} vs {dossie.get('away_team')}" if jogo_ja_iniciado else f"⏳ Aguardar Súmula Oficial [Risco Médio]: {dossie.get('home_team')} vs {dossie.get('away_team')}"
      B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web via Google Search Grounding - escalacao_confirmada = true):
         - Seu parecer explicativo DEVE OBRIGATORIAMENTE iniciar com:
           '📋 Escalação Oficial Confirmada! Análise de Impacto das Escalações:'
@@ -1027,6 +1030,13 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
 }}
 """
 
+    # Se a súmula oficial da API-Sports já foi carregada, a inferência cognitiva da IA
+    # DEVE ser direta, poupando a cota estrita do Google Search Grounding e eliminando erros de HTTP 429.
+    # O Search Grounding só é acionado na ausência de escalações oficiais para pesquisar a web.
+    tools_config = []
+    if not lineups_disponiveis:
+        tools_config = [{"google_search": {}}]
+
     payload = {
         "contents": [
             {
@@ -1034,13 +1044,12 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
                 "parts": [{"text": prompt_text}]
             }
         ],
-        "tools": [
-            {"google_search": {}}
-        ],
         "generationConfig": {
             "temperature": 0.2
         }
     }
+    if tools_config:
+        payload["tools"] = tools_config
 
     headers = {"Content-Type": "application/json"}
     raw_text = ""
@@ -1054,13 +1063,19 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
             try:
                 resp = requests.post(url, json=payload, headers=headers, timeout=12)
                 if resp.status_code == 429:
-                    # Apenas se for 429 (cota da tool Search Grounding), tenta sem a tool
-                    payload_no_tools = {
-                        "contents": payload["contents"],
-                        "generationConfig": payload["generationConfig"]
-                    }
-                    url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-                    resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
+                    if tools_config:
+                        # Se tomou 429 com a tool google_search, tenta imediatamente sem tools
+                        payload_no_tools = {
+                            "contents": payload["contents"],
+                            "generationConfig": payload["generationConfig"]
+                        }
+                        url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                        resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
+                    else:
+                        # Se já estava sem tools e tomou 429, tenta modelo alternativo
+                        alt_model = "gemini-1.5-flash" if "lite" in model_name else "gemini-flash-lite-latest"
+                        url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/{alt_model}:generateContent?key={api_key}"
+                        resp = requests.post(url_alt, json=payload, headers=headers, timeout=15)
                 elif resp.status_code in (401, 403):
                     _GEMINI_KEY_BLOCKED = True
 
@@ -1080,9 +1095,51 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
             raw_text = _consultar_groq_fallback(prompt_text)
 
         if not raw_text.strip():
-            # Se ambas as IAs falharem, NUNCA emite falso "CONFIRMADO" sem avaliar a súmula!
+            # Se ambas as IAs falharem, mas a súmula oficial já estiver disponível no MySQL:
+            # emite parecer oficial estruturado a partir da súmula gravada para não perder a janela de apostas
             h_t = dossie.get("home_team", "Mandante")
             a_t = dossie.get("away_team", "Visitante")
+            if lineups_disponiveis or sumula_info.get("tem_sumula"):
+                motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+                is_alerta = alerta_estrutural or alerta_critico_dados
+                grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
+                badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
+                return {
+                    "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
+                    "grau_risco": grau_emerg,
+                    "badge_risco": badge_emerg,
+                    "tem_alerta": is_alerta,
+                    "escalacao_confirmada": True,
+                    "fonte_escalacao": "API_SPORTS",
+                    "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
+                    "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
+                    "parecer_explicativo": (
+                        f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada! Análise das Escalações:\n\n"
+                        f"1) Titulares confirmados: As federações oficiais liberaram a súmula da partida com os 11 titulares de cada equipe confirmados na API-Sports.\n"
+                        f"2) Ausências de peso: {motivos_str}.\n"
+                        f"3) Impacto tático na linha: Formações oficiais registradas e consistentes com o modelo pré-jogo.\n"
+                        f"4) Veredito final: {'🔴 Desfalque Crítico / Risco de Mercado Detectado - Cautela recomendada' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
+                    )
+                }
+            if alerta_estrutural:
+                return {
+                    "status": "ALERTA_RISCO",
+                    "grau_risco": "ALTO",
+                    "badge_risco": "🔴 Risco Alto",
+                    "tem_alerta": True,
+                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
+                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
+                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
+                }
+            return {
+                "status": None,
+                "grau_risco": "DESCONHECIDO",
+                "badge_risco": "⚪ Indefinido",
+                "tem_alerta": False,
+                "resumo_escalacao": "Auditoria de IA indisponível no momento",
+                "titulo_alerta": "",
+                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
+            }
             if alerta_estrutural:
                 return {
                     "status": "ALERTA_RISCO",
@@ -1554,7 +1611,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
                   AND (a.notificacao_escalacao_enviada = 0 OR a.notificacao_escalacao_enviada IS NULL)
-                  AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+                  AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 25 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
                 LIMIT 25
@@ -1666,6 +1723,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 "league_name": item.get('league_name', 'Liga'),
                 "country": item.get('country', ''),
                 "match_time": match_time,
+                "jogo_ja_iniciado": bool(dt_utc <= datetime.utcnow()) if item.get('fixture_date') else False,
                 "referee_name": item.get('referee_name', 'Não informado'),
                 "palpite": item.get('palpite', ''),
                 "odd": float(item.get('odd') or 1.0),

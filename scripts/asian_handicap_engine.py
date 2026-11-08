@@ -280,8 +280,20 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
             return BetTier.PREMIUM.gatekeeper_category
         if cand_tier == BetTier.QUASE_PREMIUM or (best_cand and best_cand.get('destaque') == BetTier.QUASE_PREMIUM):
             return BetTier.QUASE_PREMIUM.gatekeeper_category
-        if ('0.0' in sug_clean or '+0.25' in sug_clean or '-0.25' in sug_clean or 'empate anula' in sug_clean):
-            return BetTier.QUASE_PREMIUM.gatekeeper_category
+        if (best_cand or {}).get('gatekeeper_category') == 'Reset Tático por Súmula':
+            return 'Reset Tático por Súmula'
+
+        # Se best_cand não foi fornecido, inspeciona o texto da justificativa sem presunções cegas
+        if not best_cand and r_text:
+            if 'Oportunidade PREMIUM' in r_text or 'Prisma PREMIUM' in r_text:
+                return BetTier.PREMIUM.gatekeeper_category
+            if 'Reset Tático por Súmula' in r_text:
+                return 'Reset Tático por Súmula'
+            if 'Aposta Quase Premium' in r_text or 'Prisma Quase Premium' in r_text:
+                m_u5 = re.search(r'Eficiência U5J:[^|]*?(\d+(?:\.\d+)?)\s*pts', r_text)
+                if m_u5 and float(m_u5.group(1)) >= 12.0:
+                    return BetTier.QUASE_PREMIUM.gatekeeper_category
+
         return BetTier.REGULAR.gatekeeper_category
 
     # Categorias de Abstenção (NO_BET)
@@ -324,7 +336,7 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
     return 'Equilíbrio Excessivo ou Inconsistência'
 
 
-def format_gatekeeper_result(status_gk: str, suggestion: str, reason: str, category: str = None) -> str:
+def format_gatekeeper_result(status_gk: str, suggestion: str, reason: str, category: str = None, best_cand: dict = None) -> str:
     """
     Padroniza rigorosamente o resultado do Gatekeeper no formato oficial:
     STATUS GK: {status_gk}
@@ -335,7 +347,7 @@ def format_gatekeeper_result(status_gk: str, suggestion: str, reason: str, categ
     """
     clean_reason = str(reason or '').strip()
     if not category:
-        category = determine_gatekeeper_category(status_gk, suggestion, clean_reason)
+        category = determine_gatekeeper_category(status_gk, suggestion, clean_reason, best_cand=best_cand)
     
     didactic = GATEKEEPER_DIDACTIC_MAP.get(category, '')
     
@@ -1982,7 +1994,9 @@ def calculate_unified_handicap_recommendation(
         except Exception as e_bet_fetch:
             print(f"⚠️ [Asian Handicap Engine / DB SELECT] Falha ao consultar aposta prévia para fixture #{fixture_id}: {e_bet_fetch}")
 
-    if prior_odd_db > 1.0 and prior_palpite_db and betano_lines:
+    # Se houver desfalques críticos na súmula oficial, o drift na equipe desmontada é sintoma natural do sinistro;
+    # o fluxo não deve abortar com NO_BET de odd inflada, permitindo a reversão tática para o adversário íntegro.
+    if prior_odd_db > 1.0 and prior_palpite_db and betano_lines and not desfalques_criticos:
         matched_cand = next((c for c in betano_lines if c.get('palpite_str') == prior_palpite_db or (c.get('line') == 0.0 and str(c.get('line')) in prior_palpite_db and (away_team.lower() in prior_palpite_db.lower() if c.get('is_away') else home_team.lower() in prior_palpite_db.lower()))), None)
         if matched_cand:
             live_cand_odd = float(matched_cand.get('odd') or 0.0)
@@ -2059,7 +2073,11 @@ def calculate_unified_handicap_recommendation(
             }
             ia_audit_res = avaliar_oportunidade_handicap_com_ia(dossie_ia)
 
-            if best_cand and ia_audit_res.get('alerta_sinistro'):
+            team_penalizado = str((desfalques_criticos or {}).get('time_desfalcado', '')).lower() if desfalques_criticos else ''
+            target_cand_team = str(best_cand.get('target_team', '')).lower() if best_cand else ''
+            is_sinistro_on_target = (team_penalizado and team_penalizado in target_cand_team) if team_penalizado else True
+
+            if best_cand and ia_audit_res.get('alerta_sinistro') and is_sinistro_on_target:
                 print(f"🚨 [IA Sentinela AH / Veto por Sinistro] #{fixture_id} {home_team} vs {away_team}: Linha '{best_cand['palpite_str']}' vetada pela IA devido a desfalques críticos.")
                 best_cand = None
                 approved = []
@@ -2304,7 +2322,8 @@ def calculate_unified_handicap_recommendation(
             f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
             f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
         )
-    detalhe_calculo = format_gatekeeper_result('APROVADO', selected_palpite, raw_calc)
+    app_cat = (best_cand or {}).get("gatekeeper_category") or determine_gatekeeper_category('APROVADO', selected_palpite, raw_calc, best_cand=best_cand)
+    detalhe_calculo = format_gatekeeper_result('APROVADO', selected_palpite, raw_calc, category=app_cat, best_cand=best_cand)
 
     compound_r = compose_compound_ah_reasoning(
         cursor=cursor,

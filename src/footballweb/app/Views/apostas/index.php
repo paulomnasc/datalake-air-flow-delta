@@ -1005,6 +1005,25 @@ if (!function_exists('fmtTopValorWithBrl')) {
     width: 92%;
   }
 
+  /* Posicionamento do Modal Card Origem próximo ao canto esquerdo do container */
+  #modalCardOrigem .modal-dialog {
+    max-width: 820px;
+    width: 95%;
+    margin-left: max(24px, calc((100vw - 1400px) / 2 + 20px)) !important;
+    margin-right: auto !important;
+  }
+  body.sidebar-notif-open #modalCardOrigem .modal-dialog,
+  body.sidebar-notif-pinned #modalCardOrigem .modal-dialog {
+    margin-left: 28px !important;
+    margin-right: auto !important;
+  }
+  @media (max-width: 768px) {
+    #modalCardOrigem .modal-dialog {
+      margin-left: auto !important;
+      margin-right: auto !important;
+    }
+  }
+
   .modal-dark .modal-content {
     background-color: var(--bet-card-bg);
     border: 1px solid var(--bet-card-border);

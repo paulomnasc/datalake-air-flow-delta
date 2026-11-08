@@ -1370,7 +1370,7 @@ def evaluate_and_select_best_ah_candidate(
             # Parâmetros Canônicos Comprovados da Época de Ouro:
             required_prob = 55.0  # Retorno ao piso histórico que viabiliza o meio-reembolso
             required_ev = 5.0     # Retorno ao limiar canônico de Valor Esperado Positivo (+EV)
-        elif c_line in standard_allowed_lines:
+        elif c_line in standard_allowed_lines or (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)):
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
                 continue
@@ -1400,7 +1400,7 @@ def evaluate_and_select_best_ah_candidate(
                         continue
                 required_prob = 50.0 if is_cand_benefited_by_lineup else min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
-            if is_cand_fav and c_line > 0.0:
+            if is_cand_fav and c_line > 0.0 and not is_cand_benefited_by_lineup:
                 continue
             # Trava Anti-Inversão de Mercado: Linha positiva alta (>= 0.5 AH) com odd alta (>= 2.05)
             # só é aceitável se a equipe for comprovadamente zebra nas odds 1X2 (cand_odd > opp_odd + 0.20)
@@ -1517,6 +1517,17 @@ def evaluate_and_select_best_ah_candidate(
 
     if not approved:
         return None, []
+
+    # Prioridade Soberana no Reset Tático por Súmula Oficial:
+    # Em operações de reversão por sinistro de elenco, prioriza sempre +0.5 AH se tiver +EV; caso contrário, 0.0 AH
+    lineup_reversal_picks = [c for c in approved if c.get('gatekeeper_category') == 'Reset Tático por Súmula']
+    if lineup_reversal_picks:
+        plus50_pick = next((c for c in lineup_reversal_picks if abs(float(c.get('line') or 0.0) - 0.50) < 0.01), None)
+        if plus50_pick:
+            return plus50_pick, approved
+        dnb_pick = next((c for c in lineup_reversal_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
+        if dnb_pick:
+            return dnb_pick, approved
 
     # Prioridade Absoluta: Regra de Massacre Tier 1 com U5J próximo seleciona obrigatoriamente 0.0 AH
     tier1_massacre_picks = [c for c in approved if c.get('is_tier1_massacre')]

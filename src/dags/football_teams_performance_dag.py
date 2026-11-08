@@ -38,9 +38,9 @@ default_args = {
 dag = DAG(
     'football_teams_performance_ingestion_dag',
     default_args=default_args,
-    schedule_interval='0 3 * * *',  # Executa diariamente a cada 3 horas (America/São Paulo)
+    schedule_interval='30 7 * * *',  # Executa diariamente às 07:30 AM (America/São Paulo)
     catchup=False,
-    description="Ingests football team statistics and moving averages daily at 07:00 AM (America/São Paulo)",
+    description="Ingests football team statistics and moving averages daily at 07:30 AM (America/São Paulo)",
     tags=['football', 'api', 'ingestion', 'performance', 'teams']
 )
 

@@ -190,6 +190,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         'Aguardando assinatura',
                         'Execução',
                         'Recebido Provisorio',
+                        'Abrir aferição metrica',
                         'Em aferição metrica',
                         'Em divergência metrica',
                         'Parecer conformidade metrica',
@@ -237,6 +238,25 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             gap: 5px;
                             align-items: center;
                         }
+                        .btn-expand-demandas {
+                            transition: all 0.2s ease-in-out;
+                            box-shadow: none !important;
+                            font-size: 15px !important;
+                            line-height: 1 !important;
+                        }
+                        .btn-expand-demandas:hover {
+                            transform: scale(1.15);
+                        }
+                        tr.shown-demandas td {
+                            background-color: #f1f5f9 !important;
+                        }
+                        .demandas-child-container {
+                            animation: fadeInDemandas 0.25s ease-in-out;
+                        }
+                        @keyframes fadeInDemandas {
+                            from { opacity: 0; transform: translateY(-4px); }
+                            to { opacity: 1; transform: translateY(0); }
+                        }
                     </style>
 
                     <div class="mt-4 mb-4">
@@ -244,18 +264,23 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <h4 class="mb-0 text-primary" style="font-weight: 600;">
                                 <i class="bi bi-briefcase me-2"></i>Ordens de Serviço por Status
                             </h4>
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="filtro-sistema-dashboard" class="form-label mb-0 fw-bold text-secondary" style="white-space: nowrap;">
-                                    <i class="bi bi-filter me-1"></i> Sistema:
-                                </label>
-                                <select id="filtro-sistema-dashboard" class="form-select form-select-sm" style="min-width: 250px; border-radius: 6px; padding: 6px 12px; background-color: #fff;">
-                                    <option value="">-- Todos os Sistemas --</option>
-                                    <?php if (!empty($sistemas_list)): foreach ($sistemas_list as $sys): ?>
-                                        <option value="<?php echo esc($sys->descricao); ?>">
-                                            <?php echo !empty($sys->sigla) ? '[' . esc($sys->sigla) . '] ' : ''; ?><?php echo esc($sys->descricao); ?>
-                                        </option>
-                                    <?php endforeach; endif; ?>
-                                </select>
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <button type="button" class="btn btn-warning fw-bold d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa" id="btnAbrirModalReportIa" style="box-shadow: 0 4px 14px rgba(255, 193, 7, 0.4); border-radius: 50px; padding: 7px 20px; color: #1a1d29; border: none; white-space: nowrap; font-size: 0.95rem; cursor: pointer;">
+                                    <i class="bi bi-robot fs-5"></i> Status Report IA (Gemini)
+                                </button>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="filtro-sistema-dashboard" class="form-label mb-0 fw-bold text-secondary" style="white-space: nowrap;">
+                                        <i class="bi bi-filter me-1"></i> Sistema:
+                                    </label>
+                                    <select id="filtro-sistema-dashboard" class="form-select form-select-sm" style="min-width: 250px; border-radius: 6px; padding: 6px 12px; background-color: #fff;">
+                                        <option value="">-- Todos os Sistemas --</option>
+                                        <?php if (!empty($sistemas_list)): foreach ($sistemas_list as $sys): ?>
+                                            <option value="<?php echo esc($sys->descricao); ?>">
+                                                <?php echo !empty($sys->sigla) ? '[' . esc($sys->sigla) . '] ' : ''; ?><?php echo esc($sys->descricao); ?>
+                                            </option>
+                                        <?php endforeach; endif; ?>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -290,6 +315,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         <table class="data-table os-data-table table table-striped table-hover align-middle" style="width: 100%;">
                                             <thead>
                                                 <tr>
+                                                    <th style="width: 38px; text-align: center;"></th>
                                                     <th>ID</th>
                                                     <th>Sistema</th>
                                                     <th>Horas Alocadas</th>
@@ -303,7 +329,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </thead>
                                             <tbody>
                                                 <?php foreach ($osGroups[$st] as $os): ?>
-                                                    <tr id="row-<?php echo $os->id; ?>">
+                                                    <tr id="row-<?php echo $os->id; ?>" data-os-id="<?php echo $os->id; ?>">
+                                                        <td class="text-center align-middle">
+                                                            <button type="button" class="btn btn-sm btn-outline-primary btn-expand-demandas p-0 d-inline-flex align-items-center justify-content-center" 
+                                                                    data-os-id="<?php echo $os->id; ?>" 
+                                                                    style="width: 24px; height: 24px; font-weight: bold; border-radius: 4px;" 
+                                                                    title="Ver demandas associadas">+</button>
+                                                        </td>
                                                         <td><?php echo $os->id; ?></td>
                                                         <td>
                                                             <?php if (!empty($os->Sigla_Sistema)): ?>
@@ -347,6 +379,85 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     </div>
 
                     <script>
+                        function escapeHtml(text) {
+                            if (!text) return '';
+                            return $('<div>').text(text).html();
+                        }
+
+                        function renderDemandasSublist(demandas, osId) {
+                            var html = '<div class="demandas-child-container p-3 my-2 border rounded shadow-sm" style="background-color: #f8fafc; border-left: 4px solid #1976d2 !important;">';
+                            html += '<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">';
+                            html += '  <h6 class="mb-0 text-primary fw-bold" style="font-size: 0.95rem;"><i class="bi bi-list-task me-2"></i>Demandas Vinculadas à Ordem de Serviço #' + osId + '</h6>';
+                            html += '  <a href="<?php echo route_to('agile.demanda.add'); ?>?id_ordem_servico=' + osId + '" class="btn btn-sm btn-success" style="font-size: 0.8rem; font-weight: 600;">';
+                            html += '    <i class="bi bi-plus-circle me-1"></i>Nova Demanda';
+                            html += '  </a>';
+                            html += '</div>';
+
+                            if (!demandas || demandas.length === 0) {
+                                html += '<div class="alert alert-light border mb-0 text-muted d-flex align-items-center py-2 px-3" style="font-size: 0.88rem;">';
+                                html += '  <i class="bi bi-info-circle me-2 text-primary fs-5"></i>';
+                                html += '  <span>Nenhuma demanda vinculada a esta Ordem de Serviço no momento.</span>';
+                                html += '</div>';
+                                html += '</div>';
+                                return html;
+                            }
+
+                            html += '<div class="table-responsive">';
+                            html += '<table class="table table-sm table-bordered bg-white mb-0 align-middle shadow-sm" style="font-size: 0.86rem;">';
+                            html += '  <thead class="table-light">';
+                            html += '    <tr>';
+                            html += '      <th style="width: 55px;" class="text-center">ID</th>';
+                            html += '      <th style="min-width: 200px;">Título</th>';
+                            html += '      <th style="min-width: 250px;">Descrição da Demanda</th>';
+                            html += '      <th style="width: 140px;">Sistema</th>';
+                            html += '      <th style="width: 160px;">Status Atual</th>';
+                            html += '      <th style="width: 140px;" class="text-center">Ações</th>';
+                            html += '    </tr>';
+                            html += '  </thead>';
+                            html += '  <tbody>';
+
+                            demandas.forEach(function(d) {
+                                var st = d.status || 'Rascunho';
+                                var badgeClass = 'bg-secondary';
+                                if (st === 'Em Execução') badgeClass = 'bg-primary';
+                                else if (st === 'Homologação') badgeClass = 'bg-warning text-dark';
+                                else if (st.indexOf('Atualizado Produção') !== -1) badgeClass = 'bg-success';
+                                else if (st === 'Cancelada') badgeClass = 'bg-danger';
+
+                                var descTxt = d.descricao ? escapeHtml(d.descricao) : '<span class="text-muted fst-italic">Sem descrição informada</span>';
+                                
+                                var sistemaTxt = '';
+                                if (d.sistema_sigla) {
+                                    sistemaTxt += '<span class="badge bg-secondary font-monospace me-1">' + escapeHtml(d.sistema_sigla) + '</span>';
+                                }
+                                if (d.sistema_nome) {
+                                    sistemaTxt += escapeHtml(d.sistema_nome);
+                                } else if (!d.sistema_sigla) {
+                                    sistemaTxt = '<span class="text-muted">-</span>';
+                                }
+
+                                html += '    <tr>';
+                                html += '      <td class="text-center fw-bold text-secondary">#' + d.id + '</td>';
+                                html += '      <td class="fw-bold text-dark">' + escapeHtml(d.titulo) + '</td>';
+                                html += '      <td style="white-space: pre-wrap; font-size: 0.82rem; color: #475569;">' + descTxt + '</td>';
+                                html += '      <td>' + sistemaTxt + '</td>';
+                                html += '      <td><span class="badge ' + badgeClass + ' px-2 py-1">' + escapeHtml(st) + '</span></td>';
+                                html += '      <td class="text-center">';
+                                html += '        <div class="btn-group btn-group-sm" role="group">';
+                                html += '          <a href="<?php echo site_url('agile/backlog/'); ?>' + d.id + '" class="btn btn-outline-secondary py-0 px-2" title="Backlog da Demanda" style="font-size: 0.78rem;">Backlog</a>';
+                                html += '          <a href="<?php echo site_url('agile/kanban/'); ?>' + d.id + '" class="btn btn-outline-primary py-0 px-2" title="Kanban da Demanda" style="font-size: 0.78rem;">Kanban</a>';
+                                html += '        </div>';
+                                html += '      </td>';
+                                html += '    </tr>';
+                            });
+
+                            html += '  </tbody>';
+                            html += '</table>';
+                            html += '</div>';
+                            html += '</div>';
+                            return html;
+                        }
+
                         function confirmDelete(id, deleteUrl, formId) {
                             if (confirm("Você tem certeza que deseja deletar este registro?")) {
                                 $.ajax({
@@ -356,7 +467,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                     success: function(result) {
                                         if (result.status === 'success') {
                                             $('#row-' + id).remove();
-                                            // Usar sistema de mensagens do dashboard se existir
                                             if (typeof alert !== 'undefined') {
                                                 alert(result.mensagem);
                                             }
@@ -376,6 +486,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             $('.os-data-table').each(function() {
                                 $(this).DataTable({
                                     dom: 'lfrtip',
+                                    order: [[1, 'desc']], // Ordenar por ID decrescente por padrão
+                                    columnDefs: [
+                                        { orderable: false, searchable: false, targets: [0, 9] } // Coluna expander (+) e Ações não ordenáveis/pesquisáveis
+                                    ],
                                     language: {
                                         "sEmptyTable": "Nenhum registro encontrado",
                                         "sInfo": "Mostrando de _START_ até _END_ de _TOTAL_ registros",
@@ -396,14 +510,60 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 });
                             });
 
+                            // Evento de clique para expandir/retrair demandas associadas
+                            $(document).on('click', '.btn-expand-demandas', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                var btn = $(this);
+                                var tr = btn.closest('tr');
+                                var tableEl = tr.closest('table');
+                                var dt = tableEl.DataTable();
+                                var row = dt.row(tr);
+                                var osId = btn.data('os-id');
+
+                                if (row.child.isShown()) {
+                                    // Retrair sublista
+                                    row.child.hide();
+                                    tr.removeClass('shown-demandas');
+                                    btn.html('+')
+                                       .removeClass('btn-danger')
+                                       .addClass('btn-outline-primary')
+                                       .attr('title', 'Ver demandas associadas');
+                                } else {
+                                    // Exibir spinner de carregamento
+                                    btn.html('<span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;" role="status"></span>');
+                                    
+                                    $.ajax({
+                                        url: '<?php echo site_url('api/demandas_os/'); ?>' + osId,
+                                        type: 'GET',
+                                        dataType: 'json',
+                                        success: function(demandas) {
+                                            row.child(renderDemandasSublist(demandas, osId)).show();
+                                            tr.addClass('shown-demandas');
+                                            btn.html('&minus;')
+                                               .removeClass('btn-outline-primary')
+                                               .addClass('btn-danger')
+                                               .attr('title', 'Ocultar demandas');
+                                        },
+                                        error: function(err) {
+                                            console.error('Erro ao buscar demandas:', err);
+                                            btn.html('+')
+                                               .removeClass('btn-danger')
+                                               .addClass('btn-outline-primary');
+                                            alert('Não foi possível carregar as demandas da OS #' + osId);
+                                        }
+                                    });
+                                }
+                            });
+
                             $('#filtro-sistema-dashboard').on('change', function() {
                                 var val = $(this).val();
                                 var searchRegex = val ? $.fn.dataTable.util.escapeRegex(val) : '';
 
                                 $('.os-data-table').each(function() {
                                     var dt = $(this).DataTable();
-                                    // Coluna de índice 1 é a coluna "Sistema"
-                                    dt.column(1).search(searchRegex, false, false).draw();
+                                    // Coluna de índice 2 é a coluna "Sistema" (0=Expander, 1=ID, 2=Sistema)
+                                    dt.column(2).search(searchRegex, false, false).draw();
 
                                     // Atualiza o contador na aba correspondente
                                     var panelId = $(this).closest('.tab-pane').attr('id');
@@ -1685,4 +1845,5 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             checkboxes.forEach(cb => cb.checked = select);
         }
     </script>
+<?php require VIEWPATH . '/components/modal_status_report_ia.php'; ?>
 <?php require VIEWPATH . '/footer.php'; ?>

@@ -131,6 +131,127 @@ class MercadoPagoService
     }
 
     /**
+     * Criar um pagamento via Cartão de Crédito no Mercado Pago
+     *
+     * @param float       $valor               Valor da cobrança em BRL
+     * @param string      $token               Token do cartão gerado no frontend pelo Mercado Pago SDK
+     * @param int         $parcelas            Número de parcelas (installments)
+     * @param string      $paymentMethodId     ID do meio de pagamento (ex: 'visa', 'master', 'elo')
+     * @param string|null $issuerId            ID do emissor do cartão (opcional)
+     * @param string      $email               Email do pagador
+     * @param string      $nome                Nome completo do pagador
+     * @param string      $documento           CPF ou CNPJ do titular
+     * @param string      $externalReference   ID de referência externa (ex: user_id)
+     * @param string|null $notificationUrl     URL de Webhook
+     * @return array
+     */
+    public function criarPagamentoCartao(
+        float $valor,
+        string $token,
+        int $parcelas,
+        string $paymentMethodId,
+        ?string $issuerId,
+        string $email,
+        string $nome = 'Usuário',
+        string $documento = '',
+        string $externalReference = '',
+        ?string $notificationUrl = null
+    ): array {
+        $nomePartes = explode(' ', trim($nome), 2);
+        $firstName  = $nomePartes[0] ?? 'Usuário';
+        $lastName   = $nomePartes[1] ?? 'Cliente';
+
+        $payerData = [
+            'email'      => $email ?: 'cliente@mydataflow.com.br',
+            'first_name' => $firstName,
+            'last_name'  => $lastName
+        ];
+
+        $docLimpo = preg_replace('/[^0-9]/', '', $documento);
+        if (!empty($docLimpo)) {
+            $payerData['identification'] = [
+                'type'   => strlen($docLimpo) === 14 ? 'CNPJ' : 'CPF',
+                'number' => $docLimpo
+            ];
+        }
+
+        $payload = [
+            'transaction_amount' => round($valor, 2),
+            'token'              => $token,
+            'description'        => 'Recarga 20 Créditos Grok AI',
+            'installments'       => max(1, $parcelas),
+            'payment_method_id'  => $paymentMethodId,
+            'payer'              => $payerData,
+            'external_reference' => (string) $externalReference
+        ];
+
+        if (!empty($issuerId)) {
+            $payload['issuer_id'] = (int) $issuerId;
+        }
+
+        if (!empty($notificationUrl)) {
+            $payload['notification_url'] = $notificationUrl;
+        }
+
+        $idempotencyKey = uniqid('mp_card_', true);
+        $url = $this->baseUrl . '/v1/payments';
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $this->accessToken,
+                'Content-Type: application/json',
+                'X-Idempotency-Key: ' . $idempotencyKey
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+
+        $responseBody = curl_exec($ch);
+        $statusCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError    = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            if (function_exists('log_message')) {
+                log_message('error', '[MERCADOPAGO] Erro cURL ao criar pagamento Cartão: ' . $curlError);
+            }
+            return [
+                'success' => false,
+                'message' => 'Falha de conexão cURL com Mercado Pago: ' . $curlError
+            ];
+        }
+
+        $body = json_decode($responseBody, true) ?: [];
+
+        if ($statusCode >= 200 && $statusCode < 300 && !empty($body['id'])) {
+            return [
+                'success'           => true,
+                'payment_id'        => (string) $body['id'],
+                'status'            => $body['status'] ?? 'pending',
+                'status_detail'     => $body['status_detail'] ?? '',
+                'transaction_amount'=> $body['transaction_amount'] ?? $valor,
+                'raw_response'      => $body
+            ];
+        } else {
+            $errorMessage = $body['message'] ?? ($body['cause'][0]['description'] ?? 'Erro ao processar cartão no Mercado Pago');
+            if (function_exists('log_message')) {
+                log_message('error', '[MERCADOPAGO] Erro no processamento de Cartão (HTTP ' . $statusCode . '): ' . json_encode($body));
+            }
+            return [
+                'success'       => false,
+                'status'        => $body['status'] ?? 'rejected',
+                'status_detail' => $body['status_detail'] ?? '',
+                'message'       => $errorMessage,
+                'raw'           => $body
+            ];
+        }
+    }
+
+    /**
      * Consultar o status de um pagamento pelo ID no Mercado Pago
      *
      * @param string|int $paymentId ID da transação no Mercado Pago

@@ -58,12 +58,19 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             row_cc = cursor.fetchone()
             saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
 
-        saldo_posterior = round(saldo_anterior + valor, 2)
+        moeda_cod = 'BRL'
+        if aposta_id:
+            cursor.execute("SELECT moeda_codigo FROM apostas WHERE id = %s", (aposta_id,))
+            row_ap = cursor.fetchone()
+            if row_ap and row_ap.get('moeda_codigo'):
+                moeda_cod = row_ap['moeda_codigo']
+
+        saldo_posterior = round(saldo_anterior + valor, 8)
 
         cursor.execute("""
-            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
-        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior, moeda_cod))
 
         cursor.execute("""
             UPDATE usuario
@@ -71,7 +78,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             WHERE id = %s
         """, (saldo_posterior, usuario_id))
 
-        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado {moeda_cod} {valor} para Usuário #{usuario_id} (Novo Saldo: {moeda_cod} {saldo_posterior})")
         return True
     except Exception as e:
         print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")
@@ -213,9 +220,17 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 def ensure_fixture_card_stats(cursor, fixture):
     """
     Garante estatísticas de cartões de fim de jogo (FT) para a partida consultando a API se estiverem NULAS.
+    Exige janela mínima de consolidação de 20 minutos após score_processed_at.
     """
     fixture_id = fixture['fixture_id']
     home_team_id = fixture.get('home_team_id')
+
+    score_processed_at = fixture.get('score_processed_at')
+    if not score_processed_at:
+        return None
+    if isinstance(score_processed_at, datetime) and (datetime.now() - score_processed_at).total_seconds() < 1200:
+        print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture_id} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
+        return None
 
     yellow_home = fixture.get('yellow_cards_home')
     yellow_away = fixture.get('yellow_cards_away')
@@ -330,9 +345,12 @@ def evaluate_cards_under_bet(aposta, total_cards, yellow_home, yellow_away, red_
         won = (actual_cards < threshold)
         comp = "<"
 
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+
     if won:
-        payout = round(valor_aposta * odd, 2)
-        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> GANHA (Retorno R$ {payout:.2f})"
+        payout = round(valor_aposta * odd, dec)
+        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> GANHA (Retorno {moeda_cod} {payout})"
         return 'Ganha', payout, detalhe
     else:
         detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> PERDIDA"

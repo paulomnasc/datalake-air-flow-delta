@@ -217,6 +217,27 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Em vez de `$\times$`: usar "x" ou "multiplicado por".
 - **Objetivo Mandatório:** Assegurar que toda comunicação técnica seja fluida, elegante, profissional e imediatamente legível sem ruídos visuais de fórmulas ou tags de formatação acadêmica.
 
+---
+
+## 21. Proibição Absoluta de Busca e Parsing de Substrings para Classificação e Regras de Negócio (Escala de Prioridade de Boas Práticas e Enums Tipados)
+- **Tolerância Zero a Busca Textual Livre e Substrings em Regras de Negócio:**
+  - É expressamente proibido derivar lógica de negócio, governança de risco, dimensionamento de stake ou classificação de estados e badges buscando palavras-chave ou fragmentos textuais dentro de strings livres, relatórios, colunas descritivas ou memórias de cálculo (como `in str(...)`, `stripos(...)`, `strpos(...)` ou regexes livres).
+  - **Causa Raiz Evitada:** Busca por substrings gera colisões semânticas destrutivas (ex: a verificação de substring `'PREMIUM' in categoria` avalia como verdadeiro para `"QUASE PREMIUM"`, promovendo indevidamente apostas e triplicando stakes financeiras por colisão acidental de texto).
+
+- **Escala Obrigatória de Prioridade de Boas Práticas (Hierarquia de Decisão):**
+  1. **Prioridade 1 (Obrigatória e Soberana): Tipagem Estrita e Enums Canônicos (`IntEnum` / PHP `enum: int`):**
+     - Toda classificação de oportunidade, nível de risco, tier de aposta e estágio de processamento **DEVE OBRIGATORIAMENTE ser modelada através de Enums tipados** (em Python `scripts/bet_tier.py` e em PHP `App\Enums\BetTier`).
+     - **Tiers Oficiais de Apostas (`BetTier` / coluna `destaque tinyint(1)`):**
+       - **`0` (`REGULAR`)**: Aposta padrão aprovada (+EV), stake regular (1x), sem badge especial.
+       - **`1` (`QUASE_PREMIUM`)**: Aposta validada pelo Prisma Quase Premium (cobertura de empate 0.0 ou +/-0.25 AH), stake padrão (1x), badge `🛡️ Aposta Quase Premium (1x Stake)`.
+       - **`2` (`PREMIUM`)**: Super-Favorito Tier 1 com abismo técnico e Tríade convergente, stake alavancada (3x), badge `👑 ⭐ Aposta PREMIUM (3x Stake)`.
+     - Toda checagem condicional no backend Python ou na apresentação PHP deve consultar diretamente o Enum ou o inteiro da coluna (`$tier->isPremium()`, `$tier === BetTier::PREMIUM`, `tier == BetTier.PREMIUM`).
+  2. **Prioridade 2: Códigos Chave Fechados e Comparação Estrita (Strict Equality):**
+     - Em campos onde não houver suporte relacional direto a inteiros, a comparação deve ser feita exclusivamente por **igualdade estrita de código fechado** (ex: `$status === 'CONFIRMADO'`, `gk_category == 'Aposta Quase Premium (+EV Selecionado)'`), sendo terminantemente vedado o uso de `LIKE '%...%'`, `stripos` ou `in str`.
+  3. **Prioridade 3 (Proibida): Parsing de Texto Não Estruturado:**
+     - Nunca inspecionar `resultado_detalhado`, `ah_reasoning`, `mensagem` ou logs em busca de tags ou termos para tomar decisões operacionais ou de renderização na interface.
+
+
 
 
 

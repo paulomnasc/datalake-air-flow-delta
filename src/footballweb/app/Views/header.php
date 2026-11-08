@@ -261,7 +261,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     <!-- Icon Font Stylesheet -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
     <!-- "<!?= base_url("assets/templates/css/style.css"); ?>" -->
     <!-- Libraries Stylesheet -->
@@ -519,6 +519,25 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </ul>
                 </div>
 
+                <?php
+                    $moedaModelHeader = new \App\Models\MoedaConfigModel();
+                    $moedaPadraoHeader = $moedaModelHeader->getDefaultMoeda();
+                ?>
+                <?php if ($moedaPadraoHeader): ?>
+                <!-- Indicador da Moeda Padrão do Sistema (Entre Idioma e Usuário) -->
+                <a href="<?= base_url('moedas') ?>" class="btn btn-outline-light btn-sm d-flex align-items-center gap-1 text-nowrap me-2 shadow-sm" style="padding: 6px 12px; font-weight: 600; background: rgba(30, 41, 59, 0.7); border-color: rgba(255,255,255,0.25); text-decoration: none;" title="Moeda Padrão do Sistema: <?= esc($moedaPadraoHeader->nome) ?><?= $moedaPadraoHeader->tipo === 'CRYPTO' ? ' (Cotação Binance: R$ ' . number_format($moedaPadraoHeader->cotacao_brl, 2, ',', '.') . ')' : '' ?> - Clique para configurar">
+                    <?php if ($moedaPadraoHeader->simbolo !== $moedaPadraoHeader->codigo): ?>
+                        <span style="color: #38bdf8; font-weight: 700;"><?= esc($moedaPadraoHeader->simbolo) ?></span>
+                    <?php endif; ?>
+                    <span style="letter-spacing: 0.5px; font-weight: 600;"><?= esc($moedaPadraoHeader->codigo) ?></span>
+                    <?php if ($moedaPadraoHeader->tipo === 'CRYPTO'): ?>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 0.68rem; padding: 2px 5px; margin-left: 2px; border: 1px solid rgba(56, 189, 248, 0.4);">
+                            R$ <?= number_format($moedaPadraoHeader->cotacao_brl, 2, ',', '.') ?>
+                        </span>
+                    <?php endif; ?>
+                </a>
+                <?php endif; ?>
+
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
@@ -703,6 +722,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span>Metas Diárias</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('moedas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #f59e0b;" title="Configuração de Criptomoedas & Taxas Operacionais">
+                        <i class="bi bi-coin" style="font-size: 19px;"></i>
+                        <span>Criptomoedas</span>
+                    </a>
+                </li>
                 <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">
@@ -732,35 +757,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </div>
 
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                <!-- Central de Notificações do Usuário (Sino & Dropdown) -->
-                <div class="nav-item dropdown me-2 position-relative" id="dropdown-notificacoes-wrapper">
-                    <a class="nav-link px-2 d-flex align-items-center position-relative text-dark" href="#" id="notificacoesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notificações & Alertas de Apostas">
+                <!-- Botão Gatilho da Sidebar de Notificações & Alertas -->
+                <div class="nav-item me-2 position-relative" id="dropdown-notificacoes-wrapper">
+                    <a class="nav-link px-2 d-flex align-items-center position-relative text-dark" href="#" id="btn-toggle-sidebar-notif" role="button" title="Notificações & Alertas de Apostas">
                         <i class="bi bi-bell-fill" style="font-size: 20px; color: #f59e0b;"></i>
                         <span id="badge-notificacoes" class="position-absolute top-1 start-100 translate-middle badge rounded-pill bg-danger" style="display: none; font-size: 0.68rem; padding: 0.25em 0.5em;">
                             0
                         </span>
                     </a>
-                    <div class="dropdown-menu dropdown-menu-end shadow-lg p-0 border-0" aria-labelledby="notificacoesDropdown" style="width: 360px; max-width: 90vw; border-radius: 12px; overflow: hidden; background: #1e293b; color: #f8fafc; z-index: 1060;">
-                        <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-secondary" style="background: #0f172a;">
-                            <span class="fw-bold d-flex align-items-center gap-2 text-light" style="font-size: 0.95rem;">
-                                <i class="bi bi-bell-fill text-warning"></i> Notificações
-                            </span>
-                            <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0" id="btn-marcar-todas-lidas" style="font-size: 0.78rem;">
-                                Marcar lidas
-                            </button>
-                        </div>
-                        <div id="lista-notificacoes-container" style="max-height: 380px; overflow-y: auto;">
-                            <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
-                                <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
-                                Nenhuma notificação recente.
-                            </div>
-                        </div>
-                        <div class="p-2 text-center border-top border-secondary" style="background: #0f172a;">
-                            <a href="<?= base_url('apostas?filtro_status=Cancelada') ?>" class="text-decoration-none text-info small">
-                                Ver todas as apostas canceladas <i class="bi bi-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
                 </div>
                 <?php endif; ?>
 
@@ -778,6 +782,85 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
     </nav>
     <!-- fecha sidebar -->
+
+    <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+    <!-- Barra Lateral Dock Retrátil Permanente no Canto Direito -->
+    <div id="sidebar-notif-dock" class="sidebar-notif-dock" title="Central de Notificações & Alertas" onclick="if(window.openSidebarNotif) window.openSidebarNotif();">
+        <button type="button" class="btn btn-sm btn-dock-toggle text-light p-0" id="btn-dock-toggle-notif" title="Expandir Notificações" aria-label="Expandir Notificações">
+            <i class="bi bi-list fs-5"></i>
+        </button>
+        <div class="dock-bell-wrapper position-relative">
+            <i class="bi bi-bell-fill text-warning fs-5"></i>
+            <span id="badge-notificacoes-dock" class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle" style="display: none; font-size: 0.62rem; padding: 0.2em 0.45em;">
+                0
+            </span>
+        </div>
+        <div class="dock-vertical-text">
+            <span>NOTIFICAÇÕES</span>
+        </div>
+    </div>
+
+    <!-- Sidebar Retrátil e Pinável de Notificações Fixada à Direita -->
+    <aside id="sidebar-notificacoes" class="sidebar-notificacoes-drawer" aria-label="Central de Alertas e Notificações">
+        <!-- Topo da Sidebar: Título e Controles de Janela -->
+        <div class="sidebar-notif-header px-3 py-2 d-flex justify-content-between align-items-center" style="background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-collapse-sidebar-notif" title="Recolher para barra lateral" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-list fs-5 text-light"></i>
+                </button>
+                <i class="bi bi-bell-fill text-warning fs-5"></i>
+                <span class="fw-bold text-light" style="font-size: 0.95rem; letter-spacing: 0.3px;">Notificações</span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-pin-sidebar-notif" title="Fixar barra lateral aberta" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-pin-angle fs-6 text-light" id="icon-pin-sidebar"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-close-sidebar-notif" title="Recolher barra lateral" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
+                    <i class="bi bi-x-lg fs-6 text-light"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Ações Rápidas -->
+        <div class="sidebar-notif-toolbar px-3 py-2 d-flex justify-content-between align-items-center" style="background: #162032; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-marcar-todas-lidas" style="font-size: 0.76rem; font-weight: 500;" title="Marcar todos os alertas como lidos">
+                <i class="bi bi-check2-all"></i> Marcar lidos
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-limpar-historico-notif" style="font-size: 0.76rem; font-weight: 500;" title="Limpar todo o histórico de alertas">
+                <i class="bi bi-trash3"></i> Limpar histórico
+            </button>
+        </div>
+
+        <!-- Caixa de Pesquisa de Notificações em Tempo Real -->
+        <div class="sidebar-notif-search px-3 py-2" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div class="position-relative">
+                <i class="bi bi-search position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; pointer-events: none;"></i>
+                <input type="text" id="input-busca-notificacoes" class="form-control form-control-sm text-light ps-4 pe-4" placeholder="Buscar por time, título ou texto..." style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; font-size: 0.8rem;" autocomplete="off">
+                <button type="button" id="btn-limpar-busca-notif" class="btn btn-link position-absolute text-secondary p-0" style="right: 8px; top: 50%; transform: translateY(-50%); display: none; text-decoration: none;" title="Limpar busca">
+                    <i class="bi bi-x-circle-fill" style="font-size: 0.85rem;"></i>
+                </button>
+            </div>
+            <div id="busca-notif-feedback" class="mt-1 d-flex justify-content-between align-items-center text-muted" style="font-size: 0.70rem; display: none !important;">
+                <span id="busca-notif-contador"></span>
+                <span class="text-secondary opacity-75">ESC limpa</span>
+            </div>
+        </div>
+        <div id="lista-notificacoes-container" class="sidebar-notif-body flex-grow-1" style="overflow-y: auto;">
+            <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                Nenhuma notificação recente.
+            </div>
+        </div>
+        <div class="sidebar-notif-footer p-2 text-center border-top border-secondary" style="background: #0f172a;">
+            <a href="<?= base_url('apostas?filtro_status=Cancelada') ?>" class="text-decoration-none text-info small">
+                Ver todas as apostas canceladas <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Backdrop escuro para quando a sidebar estiver aberta e NÃO pinada -->
+    <div id="sidebar-notif-backdrop" class="sidebar-notif-backdrop" style="display: none;"></div>
+    <?php endif; ?>
 
     <!-- Mensagens de sucesso e erro centralizadas na tela -->
     <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
@@ -827,6 +910,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="#" id="toast-notif-link" class="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow" style="border-radius: 8px; font-size: 0.82rem; padding: 6px 12px;">
                         <i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out
                     </a>
+                    <button type="button" id="btn-copiar-toast-notif" class="btn btn-sm btn-outline-light text-nowrap d-flex align-items-center gap-1 shadow-sm" title="Copiar texto do alerta" style="border-radius: 8px; font-size: 0.80rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3);">
+                        <i class="bi bi-clipboard"></i> Copiar
+                    </button>
                 </div>
             </div>
         </div>
@@ -895,6 +981,183 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         font-size: 0.72rem;
         color: #94a3b8;
     }
+    .btn-marcar-lida-item:hover {
+        background: rgba(16, 185, 129, 0.35) !important;
+        color: #6ee7b7 !important;
+        transform: scale(1.08);
+    }
+    .btn-excluir-notif:hover {
+        background: rgba(239, 68, 68, 0.35) !important;
+        color: #fca5a5 !important;
+        transform: scale(1.08);
+    }
+
+    /* Blindagem Global contra Overflow Horizontal e Proteção da Navbar */
+    html, body {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    .navbar.sticky-top {
+        width: 100% !important;
+        max-width: 100vw !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Barra Lateral Dock Retrátil Permanente no Canto Direito */
+    .sidebar-notif-dock {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 44px;
+        height: 100vh;
+        background: #0f172a;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: -2px 0 12px rgba(0, 0, 0, 0.4);
+        z-index: 1060;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 18px;
+        gap: 16px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        user-select: none;
+    }
+    .sidebar-notif-dock:hover {
+        background: #162032;
+        border-left-color: rgba(56, 189, 248, 0.45);
+        box-shadow: -4px 0 18px rgba(0, 0, 0, 0.6);
+    }
+    .sidebar-notif-dock .btn-dock-toggle {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #f8fafc;
+        transition: all 0.2s ease;
+    }
+    .sidebar-notif-dock:hover .btn-dock-toggle {
+        background: rgba(56, 189, 248, 0.2);
+        border-color: #38bdf8;
+        color: #38bdf8 !important;
+        transform: scale(1.05);
+    }
+    .sidebar-notif-dock .dock-bell-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+    }
+    .sidebar-notif-dock .dock-vertical-text {
+        margin-top: auto;
+        margin-bottom: 24px;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-size: 0.66rem;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.38);
+        text-transform: uppercase;
+        pointer-events: none;
+        transition: color 0.2s ease;
+    }
+    .sidebar-notif-dock:hover .dock-vertical-text {
+        color: #38bdf8;
+    }
+
+    /* Oculta suavemente a barra dock quando a sidebar expandida estiver aberta */
+    body.sidebar-notif-open .sidebar-notif-dock {
+        transform: translateX(100%);
+        pointer-events: none;
+        opacity: 0;
+    }
+
+    /* Sidebar Retrátil e Pinável de Notificações Fixada à Direita */
+    .sidebar-notificacoes-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 400px;
+        max-width: 92vw;
+        height: 100vh;
+        background: #1e293b;
+        color: #f8fafc;
+        box-shadow: -6px 0 30px rgba(0, 0, 0, 0.5);
+        z-index: 1070;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        flex-direction: column;
+    }
+    .sidebar-notificacoes-drawer.open {
+        transform: translateX(0);
+    }
+    .sidebar-notif-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(2px);
+        z-index: 1065;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+    }
+    .sidebar-notif-backdrop.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Botões do Topo e Toolbar da Sidebar */
+    .sidebar-notif-header button:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+    }
+    .sidebar-notif-toolbar button:hover {
+        filter: brightness(1.2);
+    }
+
+    /* Ajuste Dinâmico e Responsivo do Conteúdo Principal */
+    @media (min-width: 992px) {
+        #main-content {
+            margin-right: 44px;
+            transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        body.sidebar-notif-open #main-content,
+        body.sidebar-notif-pinned #main-content {
+            margin-right: 400px !important;
+            transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+    }
+    @media (max-width: 991px) {
+        .sidebar-notif-dock {
+            width: 38px;
+            padding-top: 14px;
+            gap: 14px;
+        }
+        .sidebar-notif-dock .dock-vertical-text {
+            display: none;
+        }
+        #main-content {
+            margin-right: 38px;
+        }
+    }
+    body.sidebar-notif-pinned .sidebar-notificacoes-drawer {
+        box-shadow: -2px 0 16px rgba(0, 0, 0, 0.4);
+    }
+    body.sidebar-notif-pinned .sidebar-notif-backdrop {
+        display: none !important;
+    }
     </style>
 
     <script>
@@ -903,6 +1166,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const markReadUrl = '<?= base_url('notificacoes/marcar-lida') ?>';
         const markAllReadUrl = '<?= base_url('notificacoes/marcar-todas-lidas') ?>';
         const unpinUrl = '<?= base_url('notificacoes/despinar') ?>';
+        const deleteNotifUrl = '<?= base_url('notificacoes/excluir') ?>';
+        const clearHistoryUrl = '<?= base_url('notificacoes/limpar-historico') ?>';
 
         let popupsExibidos = new Set();
         try {
@@ -945,6 +1210,116 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             .catch(() => {});
         }
 
+        function fallbackCopiarTexto(texto, callback) {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                if (callback) callback();
+            } catch(e) {}
+            document.body.removeChild(ta);
+        }
+
+        function copiarTextoParaClipboard(texto, btnElement) {
+            if (!texto) return;
+            function feedbackOk() {
+                if (!btnElement) return;
+                const icon = btnElement.querySelector('i');
+                const originalHtml = btnElement.innerHTML;
+                btnElement.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                btnElement.classList.add('border-success');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHtml;
+                    btnElement.classList.remove('border-success');
+                }, 2000);
+            }
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(texto).then(feedbackOk).catch(() => {
+                    fallbackCopiarTexto(texto, feedbackOk);
+                });
+            } else {
+                fallbackCopiarTexto(texto, feedbackOk);
+            }
+        }
+
+        function escapeHtmlNotif(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function aplicarFiltroBuscaNotificacoes() {
+            const input = document.getElementById('input-busca-notificacoes');
+            const clearBtn = document.getElementById('btn-limpar-busca-notif');
+            const feedbackEl = document.getElementById('busca-notif-feedback');
+            const contadorEl = document.getElementById('busca-notif-contador');
+            const container = document.getElementById('lista-notificacoes-container');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.notif-item');
+            const emptyInitial = container.querySelector('#notif-empty-state');
+
+            // Remove empty state de busca anterior
+            const prevSearchEmpty = container.querySelector('.notif-search-empty-state');
+            if (prevSearchEmpty) prevSearchEmpty.remove();
+
+            if (!items.length) {
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (clearBtn) clearBtn.style.display = 'none';
+                return;
+            }
+
+            const rawQuery = input ? input.value.trim() : '';
+            const queryNorm = rawQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+            if (clearBtn) {
+                clearBtn.style.display = rawQuery ? 'inline-block' : 'none';
+            }
+
+            if (!queryNorm) {
+                items.forEach(el => el.style.display = '');
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (emptyInitial) emptyInitial.style.display = 'none';
+                return;
+            }
+
+            let matchesCount = 0;
+            items.forEach(el => {
+                const textNorm = (el.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                if (textNorm.includes(queryNorm)) {
+                    el.style.display = '';
+                    matchesCount++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (feedbackEl && contadorEl) {
+                feedbackEl.style.setProperty('display', 'flex', 'important');
+                contadorEl.textContent = matchesCount === 1 
+                    ? '1 alerta encontrado' 
+                    : `${matchesCount} de ${items.length} alertas encontrados`;
+            }
+
+            if (matchesCount === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'text-center text-muted p-4 notif-search-empty-state';
+                emptyDiv.style.fontSize = '0.84rem';
+                emptyDiv.innerHTML = `
+                    <i class="bi bi-search fs-4 d-block mb-2 text-secondary opacity-50"></i>
+                    Nenhum alerta encontrado para "<strong>${escapeHtmlNotif(rawQuery)}</strong>".
+                `;
+                container.appendChild(emptyDiv);
+            }
+        }
+
         function checkNotificacoes() {
             fetch(notifApiUrl, {
                 method: 'GET',
@@ -954,17 +1329,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             .then(data => {
                 if (!data || !data.success) return;
 
-                const badge = document.getElementById('badge-notificacoes');
-                const total = data.total_nao_lidas || 0;
-
-                if (badge) {
-                    if (total > 0) {
-                        badge.textContent = total > 99 ? '99+' : total;
-                        badge.style.display = 'inline-block';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                }
+                updateNotifBadges(data.total_nao_lidas || 0);
 
                 // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
@@ -974,8 +1339,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         const isUnread = (parseInt(n.lida) === 0);
                         const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
                         const isPinada = (parseInt(n.pinada || 0) === 1);
-                        const linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         const timeStr = n.criado_em ? n.criado_em.substring(5, 16).replace('-', '/') : '';
+
+                        // Alertas de apostas, sentinela e in-play sempre direcionam canonicamente para /apostas com scroll e highlight
+                        let linkHref = '#';
+                        if (isStopLoss) {
+                            linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
+                        } else {
+                            const fixIdParam = n.fixture_id ? 'fixture_id=' + n.fixture_id : '';
+                            const destIdParam = n.aposta_id ? 'destaque_id=' + n.aposta_id : '';
+                            const queryParts = [fixIdParam, destIdParam].filter(Boolean).join('&');
+                            if (queryParts) {
+                                linkHref = '<?= base_url('apostas') ?>?' + queryParts;
+                            } else if (n.link && !n.link.includes('trends')) {
+                                linkHref = n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link);
+                            } else {
+                                linkHref = '<?= base_url('apostas') ?>';
+                            }
+                        }
 
                         if (isStopLoss) {
                             html += `
@@ -987,6 +1368,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                             </strong>
                                         </a>
                                         <div class="d-flex align-items-center gap-1">
+                                            <button type="button" class="btn btn-xs btn-copiar-notif" data-msg="${encodeURIComponent(n.mensagem)}" title="Copiar texto do alerta" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; color: #cbd5e1; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                            ${isUnread ? `
+                                                <button type="button" class="btn btn-xs btn-marcar-lida-item" data-notif-id="${n.id}" title="Marcar este alerta como lido" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 4px; padding: 2px 6px; color: #34d399; font-size: 0.72rem; line-height: 1;">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                            ` : `
+                                                <span class="text-secondary d-inline-flex align-items-center" title="Alerta lido" style="font-size: 0.72rem; padding: 2px 4px; opacity: 0.5;">
+                                                    <i class="bi bi-check2-all text-info"></i>
+                                                </span>
+                                            `}
                                             ${isPinada ? `
                                                 <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
                                                 <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-despinar-item" data-notif-id="${n.id}" title="Despinar alerta para não reexibir" style="font-size: 0.70rem; border-radius: 4px; line-height: 1.2; background: rgba(239,68,68,0.15);">
@@ -995,6 +1388,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                             ` : `
                                                 <span class="notif-time">${timeStr}</span>
                                             `}
+                                            <button type="button" class="btn btn-xs btn-excluir-notif" data-notif-id="${n.id}" title="Excluir este alerta da lista" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; padding: 2px 6px; color: #f87171; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                     <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #fecaca; line-height: 1.3;">
@@ -1007,21 +1403,125 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             const iconHtml = (n.tipo === 'OPORTUNIDADE_AO_VIVO') ? '<i class="bi bi-lightning-charge-fill text-warning me-1"></i>' : (isItemAprovada ? '<i class="bi bi-bullseye text-success me-1"></i>' : '');
                             const titleColor = isUnread ? (isItemAprovada ? '#4ade80' : '#f87171') : '#f1f5f9';
                             html += `
-                                <a href="${linkHref}" class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}">
+                                <div class="notif-item ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <strong style="font-size: 0.85rem; color: ${titleColor};">
-                                            ${iconHtml}${n.titulo}
-                                        </strong>
-                                        <span class="notif-time">${timeStr}</span>
+                                        <a href="${linkHref}" class="text-decoration-none d-flex align-items-center flex-grow-1 me-2" style="color: inherit;">
+                                            <strong style="font-size: 0.85rem; color: ${titleColor};">
+                                                ${iconHtml}${n.titulo}
+                                            </strong>
+                                        </a>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="notif-time me-1">${timeStr}</span>
+                                            <button type="button" class="btn btn-xs btn-copiar-notif" data-msg="${encodeURIComponent(n.mensagem)}" title="Copiar texto do alerta" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; color: #cbd5e1; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                            ${isUnread ? `
+                                                <button type="button" class="btn btn-xs btn-marcar-lida-item" data-notif-id="${n.id}" title="Marcar este alerta como lido" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 4px; padding: 2px 6px; color: #34d399; font-size: 0.72rem; line-height: 1;">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                            ` : `
+                                                <span class="text-secondary d-inline-flex align-items-center" title="Alerta lido" style="font-size: 0.72rem; padding: 2px 4px; opacity: 0.5;">
+                                                    <i class="bi bi-check2-all text-info"></i>
+                                                </span>
+                                            `}
+                                            <button type="button" class="btn btn-xs btn-excluir-notif" data-notif-id="${n.id}" title="Excluir este alerta da lista" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; padding: 2px 6px; color: #f87171; font-size: 0.72rem; line-height: 1;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
+                                    <a href="${linkHref}" class="text-decoration-none d-block" style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">
                                         ${n.mensagem}
-                                    </div>
-                                </a>
+                                    </a>
+                                </div>
                             `;
                         }
                     });
                     container.innerHTML = html;
+
+                    // Marcar alerta individual como lido ao clicar no botão de check
+                    container.querySelectorAll('.btn-marcar-lida-item').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nid = this.getAttribute('data-notif-id');
+                            if (!nid) return;
+
+                            // Dispara marcação no backend
+                            fetch(markReadUrl + '/' + nid, {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+
+                            // Atualização visual instantânea do card do alerta
+                            const itemEl = this.closest('.notif-item');
+                            if (itemEl) {
+                                itemEl.classList.remove('nao-lida');
+                                const titleEl = itemEl.querySelector('strong');
+                                if (titleEl) titleEl.style.color = '#f1f5f9';
+                            }
+
+                            // Transforma o botão no ícone de lido
+                            const parentDiv = this.parentElement;
+                            this.remove();
+                            if (parentDiv) {
+                                const checkSpan = document.createElement('span');
+                                checkSpan.className = 'text-secondary d-inline-flex align-items-center';
+                                checkSpan.title = 'Alerta lido';
+                                checkSpan.style.cssText = 'font-size: 0.72rem; padding: 2px 4px; opacity: 0.5;';
+                                checkSpan.innerHTML = '<i class="bi bi-check2-all text-info"></i>';
+                                parentDiv.appendChild(checkSpan);
+                            }
+
+                            // Decrementa o badge numérico no sininho e na dock bar
+                            const badge = document.getElementById('badge-notificacoes');
+                            let count = parseInt(badge ? (badge.textContent || '0') : '0', 10);
+                            updateNotifBadges(Math.max(0, count - 1));
+                        });
+                    });
+
+                    // Excluir alerta individual da lista
+                    container.querySelectorAll('.btn-excluir-notif').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nid = this.getAttribute('data-notif-id');
+                            if (!nid) return;
+
+                            const itemEl = this.closest('.notif-item');
+                            if (itemEl) {
+                                itemEl.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+                                itemEl.style.opacity = '0';
+                                itemEl.style.transform = 'translateX(20px)';
+                                setTimeout(() => {
+                                    const wasUnread = itemEl.classList.contains('nao-lida');
+                                    itemEl.remove();
+
+                                    // Se era não lido, decrementa badge
+                                    if (wasUnread) {
+                                        const badge = document.getElementById('badge-notificacoes');
+                                        let count = parseInt(badge ? (badge.textContent || '0') : '0', 10);
+                                        updateNotifBadges(Math.max(0, count - 1));
+                                    }
+
+                                    // Se lista ficou vazia, exibe empty state
+                                    if (!container.querySelector('.notif-item')) {
+                                        container.innerHTML = `
+                                            <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                                                <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                                                Nenhuma notificação recente.
+                                            </div>
+                                        `;
+                                    }
+                                }, 250);
+                            }
+
+                            // Dispara exclusão no backend
+                            fetch(deleteNotifUrl + '/' + nid, {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                        });
+                    });
 
                     // Despinar no clique do botão despinar dentro do dropdown
                     container.querySelectorAll('.btn-despinar-item').forEach(btn => {
@@ -1033,38 +1533,66 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         });
                     });
 
-                    // Evento de clique para marcar lida e direcionar dinamicamente se já estiver em /apostas
+                    // Copiar texto do alerta ao clicar no botão de cópia
+                    container.querySelectorAll('.btn-copiar-notif').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const rawMsg = this.getAttribute('data-msg');
+                            let textToCopy = '';
+                            if (rawMsg) {
+                                try { textToCopy = decodeURIComponent(rawMsg); } catch(err) { textToCopy = rawMsg; }
+                            }
+                            if (!textToCopy) {
+                                const itemEl = this.closest('.notif-item');
+                                const msgEl = itemEl ? (itemEl.querySelector('.notif-mensagem-texto') || itemEl.querySelector('a:last-child')) : null;
+                                textToCopy = msgEl ? msgEl.textContent.trim() : '';
+                            }
+                            copiarTextoParaClipboard(textToCopy, this);
+                        });
+                    });
+
+                    // Evento de clique para marcar lida e direcionar para tela de apostas com scroll e highlight
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
-                            if (e.target.closest('.btn-despinar-item')) return;
+                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif') || e.target.closest('.btn-marcar-lida-item') || e.target.closest('.btn-excluir-notif')) return;
 
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
                                 fetch(markReadUrl + '/' + nid, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                             }
 
-                            const href = this.getAttribute('href') || this.getAttribute('data-href');
-                            if (href && typeof window.destacarApostaPorId === 'function') {
-                                try {
-                                    const parsedUrl = new URL(href, window.location.origin);
-                                    const destaqueId = parsedUrl.searchParams.get('destaque_id');
-                                    const dataJogo = parsedUrl.searchParams.get('data_jogo');
-                                    if (destaqueId) {
-                                        e.preventDefault();
-                                        window.history.pushState({}, '', href);
-                                        window.destacarApostaPorId(destaqueId, dataJogo);
+                            const href = this.getAttribute('data-href') || this.getAttribute('href');
+                            if (!href || href === '#') return;
 
-                                        // Fecha o dropdown de notificações
-                                        const notifDropdownEl = document.getElementById('notificacoesDropdown');
-                                        if (notifDropdownEl && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
-                                            const bsDrop = bootstrap.Dropdown.getInstance(notifDropdownEl);
-                                            if (bsDrop) bsDrop.hide();
-                                        }
+                            try {
+                                const parsedUrl = new URL(href, window.location.origin);
+                                const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                                const fixtureId = parsedUrl.searchParams.get('fixture_id');
+                                const dataJogo = parsedUrl.searchParams.get('data_jogo');
+
+                                // Se já estiver na tela de apostas (destacarApostaPorId existe), aplica scroll e highlight suave
+                                if (typeof window.destacarApostaPorId === 'function' && (destaqueId || fixtureId)) {
+                                    e.preventDefault();
+                                    window.history.pushState({}, '', href);
+                                    window.destacarApostaPorId(destaqueId, dataJogo, fixtureId);
+
+                                    // Fecha a barra lateral se não estiver pinada
+                                    if (!isSidebarPinned()) {
+                                        closeSidebarNotif();
                                     }
-                                } catch(err) {}
-                            }
+                                    return;
+                                }
+                            } catch(err) {}
+
+                            // Se estiver em outra página, navega diretamente para /apostas
+                            e.preventDefault();
+                            window.location.href = href;
                         });
                     });
+
+                    // Reaplica filtro ativo de busca (se houver termo digitado no input)
+                    aplicarFiltroBuscaNotificacoes();
                 }
 
                 // Disparo dos Pop-ups Toast Flutuantes na tela:
@@ -1157,20 +1685,31 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             msgEl.textContent = notif.mensagem;
 
             const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA' || notif.tipo === 'NOVA_OPORTUNIDADE_AH' || notif.tipo === 'OPORTUNIDADE_AO_VIVO');
+            const isSinalVerde = (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR' || notif.tipo === 'SINAL_VERDE_CONFIRMADA');
+            const isAlertaSentinela = (notif.tipo === 'ALERTA_SENTINELA_IA');
 
             if (badgeEl) {
                 if (notif.tipo === 'OPORTUNIDADE_AO_VIVO') {
                     badgeEl.className = 'badge bg-warning text-dark d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
                     badgeEl.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> ⚡ OPORTUNIDADE AO VIVO (IN-PLAY)';
+                } else if (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR') {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-clock-history"></i> 🟢 HORA DE APOSTAR (SINAL VERDE)';
+                } else if (notif.tipo === 'SINAL_VERDE_CONFIRMADA') {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-shield-check"></i> 🟢 FORÇA MÁXIMA CONFIRMADA';
+                } else if (isAlertaSentinela) {
+                    badgeEl.className = 'badge bg-warning text-dark d-flex align-items-center gap-1 pulse-badge-anim fw-bold';
+                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ⚠️ ALERTA PRÉ-JOGO (SENTINELA IA)';
                 } else if (notif.tipo === 'NOVA_OPORTUNIDADE_AH') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-bullseye"></i> 🎯 NOVA OPORTUNIDADE (HANDICAP)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO (HANDICAP)';
                 } else if (notif.tipo === 'APOSTA_CARTAO_APROVADA') {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO +EV (CARTÕES)';
                 } else if (isAprovada) {
                     badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
-                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 APOSTA GERADA (IA)';
+                    badgeEl.innerHTML = '<i class="bi bi-lightbulb-fill"></i> 💡 SUGESTÃO GERADA (IA)';
                 } else {
                     badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
                     badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA (ABSTENÇÃO IA)';
@@ -1178,17 +1717,33 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }
 
             if (linkEl) {
-                if (isAprovada) {
+                if (notif.tipo === 'SINAL_VERDE_HORA_APOSTAR') {
                     linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
-                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
+                    linkEl.innerHTML = '<i class="bi bi-check2-circle"></i> Ver Aposta & Fazer Entrada';
+                } else if (notif.tipo === 'SINAL_VERDE_CONFIRMADA') {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta Confirmada';
+                } else if (isAlertaSentinela) {
+                    linkEl.className = 'btn btn-sm btn-warning text-dark fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Avaliar Risco';
+                } else if (isAprovada) {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Sugestão';
                 } else {
                     linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
                     linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out';
                 }
             }
 
-            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
-            const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
+            let linkHref = defaultLink;
+            if (notif.fixture_id || notif.aposta_id) {
+                const fixIdParam = notif.fixture_id ? 'fixture_id=' + notif.fixture_id : '';
+                const destIdParam = notif.aposta_id ? 'destaque_id=' + notif.aposta_id : '';
+                const queryParts = [fixIdParam, destIdParam].filter(Boolean).join('&');
+                linkHref = '<?= base_url('apostas') ?>?' + queryParts;
+            } else if (notif.link && !notif.link.includes('trends')) {
+                linkHref = notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link);
+            }
             linkEl.href = linkHref;
 
             linkEl.onclick = function(e) {
@@ -1201,17 +1756,23 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (stackContainer) stackContainer.style.display = 'none';
                 }
 
-                if (linkHref && typeof window.destacarApostaPorId === 'function') {
+                if (linkHref) {
                     try {
                         const parsedUrl = new URL(linkHref, window.location.origin);
                         const destaqueId = parsedUrl.searchParams.get('destaque_id');
+                        const fixtureId = parsedUrl.searchParams.get('fixture_id');
                         const dataJogo = parsedUrl.searchParams.get('data_jogo');
-                        if (destaqueId) {
+
+                        if (typeof window.destacarApostaPorId === 'function' && (destaqueId || fixtureId)) {
                             e.preventDefault();
                             window.history.pushState({}, '', linkHref);
-                            window.destacarApostaPorId(destaqueId, dataJogo);
+                            window.destacarApostaPorId(destaqueId, dataJogo, fixtureId);
+                            return;
                         }
                     } catch(err) {}
+
+                    e.preventDefault();
+                    window.location.href = linkHref;
                 }
             };
 
@@ -1225,6 +1786,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (!slEl || slEl.style.display === 'none') {
                         if (stackContainer) stackContainer.style.display = 'none';
                     }
+                };
+            }
+
+            const btnCopiarToast = document.getElementById('btn-copiar-toast-notif');
+            if (btnCopiarToast) {
+                btnCopiarToast.onclick = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    copiarTextoParaClipboard(notif.mensagem, btnCopiarToast);
                 };
             }
 
@@ -1243,7 +1813,214 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             }, 18000);
         }
 
+        function updateNotifBadges(total) {
+            const badgeNav = document.getElementById('badge-notificacoes');
+            const badgeDock = document.getElementById('badge-notificacoes-dock');
+            const num = parseInt(total || 0, 10);
+            const textVal = num > 99 ? '99+' : (num > 0 ? num : '0');
+            const displayVal = num > 0 ? 'inline-block' : 'none';
+            if (badgeNav) {
+                badgeNav.textContent = textVal;
+                badgeNav.style.display = displayVal;
+            }
+            if (badgeDock) {
+                badgeDock.textContent = textVal;
+                badgeDock.style.display = displayVal;
+            }
+        }
+
+        function isSidebarOpen() {
+            const sb = document.getElementById('sidebar-notificacoes');
+            return sb && sb.classList.contains('open');
+        }
+
+        function isSidebarPinned() {
+            return document.body.classList.contains('sidebar-notif-pinned');
+        }
+
+        function openSidebarNotif() {
+            const sb = document.getElementById('sidebar-notificacoes');
+            const backdrop = document.getElementById('sidebar-notif-backdrop');
+            if (!sb) return;
+
+            sb.classList.add('open');
+            document.body.classList.add('sidebar-notif-open');
+            try { localStorage.setItem('sidebar_notif_expanded', 'true'); } catch(e) {}
+
+            if (!isSidebarPinned() && backdrop && window.innerWidth < 992) {
+                backdrop.style.display = 'block';
+                void backdrop.offsetWidth;
+                backdrop.classList.add('show');
+            }
+        }
+
+        function closeSidebarNotif() {
+            const sb = document.getElementById('sidebar-notificacoes');
+            const backdrop = document.getElementById('sidebar-notif-backdrop');
+            if (!sb) return;
+
+            sb.classList.remove('open');
+            document.body.classList.remove('sidebar-notif-open');
+            try { localStorage.setItem('sidebar_notif_expanded', 'false'); } catch(e) {}
+
+            if (isSidebarPinned()) {
+                setSidebarPinned(false);
+            }
+            if (backdrop) {
+                backdrop.classList.remove('show');
+                setTimeout(function() {
+                    if (!isSidebarOpen() && backdrop) backdrop.style.display = 'none';
+                }, 250);
+            }
+        }
+
+        function toggleSidebarNotif() {
+            if (isSidebarOpen()) {
+                closeSidebarNotif();
+            } else {
+                openSidebarNotif();
+            }
+        }
+
+        function setSidebarPinned(pinned) {
+            const pinBtn = document.getElementById('btn-pin-sidebar-notif');
+            const pinIcon = document.getElementById('icon-pin-sidebar');
+            const backdrop = document.getElementById('sidebar-notif-backdrop');
+
+            if (pinned) {
+                document.body.classList.add('sidebar-notif-pinned');
+                try { localStorage.setItem('sidebar_notif_pinned', 'true'); } catch(e) {}
+                if (pinBtn) {
+                    pinBtn.classList.remove('btn-outline-secondary');
+                    pinBtn.classList.add('btn-warning', 'text-dark');
+                    pinBtn.setAttribute('title', 'Desafixar barra lateral');
+                }
+                if (pinIcon) {
+                    pinIcon.className = 'bi bi-pin-fill';
+                }
+                if (backdrop) {
+                    backdrop.classList.remove('show');
+                    backdrop.style.display = 'none';
+                }
+                openSidebarNotif();
+            } else {
+                document.body.classList.remove('sidebar-notif-pinned');
+                try { localStorage.setItem('sidebar_notif_pinned', 'false'); } catch(e) {}
+                if (pinBtn) {
+                    pinBtn.classList.remove('btn-warning', 'text-dark');
+                    pinBtn.classList.add('btn-outline-secondary');
+                    pinBtn.setAttribute('title', 'Fixar barra lateral aberta');
+                }
+                if (pinIcon) {
+                    pinIcon.className = 'bi bi-pin-angle';
+                }
+                if (isSidebarOpen() && backdrop && window.innerWidth < 992) {
+                    backdrop.style.display = 'block';
+                    void backdrop.offsetWidth;
+                    backdrop.classList.add('show');
+                }
+            }
+        }
+
+        function togglePinSidebar() {
+            setSidebarPinned(!isSidebarPinned());
+        }
+
+        // Exporta para o escopo global para que gatilhos inline e outros módulos possam acionar
+        window.toggleSidebarNotif = toggleSidebarNotif;
+        window.openSidebarNotif = openSidebarNotif;
+        window.closeSidebarNotif = closeSidebarNotif;
+        window.setSidebarPinned = setSidebarPinned;
+
         document.addEventListener('DOMContentLoaded', function() {
+            // Gatilho de abertura pela barra lateral dock (retraída)
+            const dockBar = document.getElementById('sidebar-notif-dock');
+            if (dockBar) {
+                dockBar.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openSidebarNotif();
+                });
+            }
+
+            const dockToggleBtn = document.getElementById('btn-dock-toggle-notif');
+            if (dockToggleBtn) {
+                dockToggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openSidebarNotif();
+                });
+            }
+
+            // Gatilho de abertura do sino no menu
+            const toggleBtn = document.getElementById('btn-toggle-sidebar-notif');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleSidebarNotif();
+                });
+            }
+
+            // Botão recolher para barra lateral no topo da sidebar
+            const collapseBtn = document.getElementById('btn-collapse-sidebar-notif');
+            if (collapseBtn) {
+                collapseBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeSidebarNotif();
+                });
+            }
+
+            // Botão fechar sidebar tradicional
+            const closeBtn = document.getElementById('btn-close-sidebar-notif');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeSidebarNotif();
+                });
+            }
+
+            // Botão fixar (pin) sidebar
+            const pinBtn = document.getElementById('btn-pin-sidebar-notif');
+            if (pinBtn) {
+                pinBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    togglePinSidebar();
+                });
+            }
+
+            // Clique no backdrop fecha a sidebar se não pinada
+            const backdrop = document.getElementById('sidebar-notif-backdrop');
+            if (backdrop) {
+                backdrop.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (!isSidebarPinned()) {
+                        closeSidebarNotif();
+                    }
+                });
+            }
+
+            // Tecla Esc fecha a sidebar se não pinada
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && isSidebarOpen() && !isSidebarPinned()) {
+                    closeSidebarNotif();
+                }
+            });
+
+            // Restaura estado expandido / pinado persistido do usuário
+            try {
+                const wasPinned = localStorage.getItem('sidebar_notif_pinned') === 'true';
+                const wasExpanded = localStorage.getItem('sidebar_notif_expanded') === 'true';
+                if (wasPinned) {
+                    setSidebarPinned(true);
+                } else if (wasExpanded && window.innerWidth >= 992) {
+                    openSidebarNotif();
+                }
+            } catch(e) {}
+
             const btnAll = document.getElementById('btn-marcar-todas-lidas');
             if (btnAll) {
                 btnAll.addEventListener('click', function(e) {
@@ -1255,12 +2032,67 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     })
                     .then(res => res.json())
                     .then(() => {
-                        const badge = document.getElementById('badge-notificacoes');
-                        if (badge) badge.style.display = 'none';
+                        updateNotifBadges(0);
                         document.querySelectorAll('.notif-item.nao-lida').forEach(el => {
                             el.classList.remove('nao-lida');
                         });
                     });
+                });
+            }
+
+            const btnLimpar = document.getElementById('btn-limpar-historico-notif');
+            if (btnLimpar) {
+                btnLimpar.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!confirm('Deseja realmente limpar todo o histórico de alertas?')) return;
+
+                    fetch(clearHistoryUrl, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(res => res.json())
+                    .then(() => {
+                        updateNotifBadges(0);
+                        const container = document.getElementById('lista-notificacoes-container');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
+                                    <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
+                                    Nenhuma notificação recente.
+                                </div>
+                            `;
+                        }
+                    });
+                });
+            }
+
+            // Eventos da Caixa de Pesquisa de Notificações em Tempo Real
+            const searchInput = document.getElementById('input-busca-notificacoes');
+            const clearSearchBtn = document.getElementById('btn-limpar-busca-notif');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    aplicarFiltroBuscaNotificacoes();
+                });
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && this.value.trim() !== '') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.value = '';
+                        aplicarFiltroBuscaNotificacoes();
+                    }
+                });
+            }
+
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.focus();
+                    }
+                    aplicarFiltroBuscaNotificacoes();
                 });
             }
 

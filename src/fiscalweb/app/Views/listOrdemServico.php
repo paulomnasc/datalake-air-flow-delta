@@ -24,9 +24,14 @@ require VIEWPATH.'/header.php';
             </div>
         </div>
         
-        <form action="<?php echo site_url('addOrdemServico'); ?>" method="post">
-            <button type="submit" class="add-button">Incluir</button>
-        </form>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+            <form action="<?php echo site_url('addOrdemServico'); ?>" method="post">
+                <button type="submit" class="add-button">Incluir</button>
+            </form>
+            <button type="button" class="btn btn-warning fw-bold d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa" id="btnAbrirModalReportIa" style="box-shadow: 0 4px 14px rgba(255, 193, 7, 0.4); border-radius: 50px; padding: 7px 20px; color: #1a1d29; border: none; font-size: 0.95rem; cursor: pointer;">
+                <i class="bi bi-robot fs-5"></i> Status Report IA (Gemini)
+            </button>
+        </div>
 
         <table class="data-table" id="data-table">
             <thead>
@@ -119,4 +124,5 @@ require VIEWPATH.'/header.php';
         </script>
     </div>
 </div>
+<?php require VIEWPATH . '/components/modal_status_report_ia.php'; ?>
 <?php require VIEWPATH.'/footer.php'; ?>

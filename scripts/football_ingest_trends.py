@@ -352,6 +352,12 @@ _futbol24_failed_teams_cache = set()
 _api_sports_rate_limited = False
 _api_sports_odds_rate_limited = False
 _api_sports_quota_exceeded = False
+
+_api_sports_last5_calls_count = 0
+MAX_LAST5_CALLS_PER_RUN = 20
+
+_api_sports_single_odds_calls_count = 0
+MAX_SINGLE_ODDS_CALLS_PER_RUN = 10
 def _format_match_date(fdate):
     if not fdate:
         return ""
@@ -370,10 +376,13 @@ def _format_match_date(fdate):
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
     Busca os últimos N jogos de um time via API-Sports (https://v3.football.api-sports.io/fixtures?team={team_id}&last=5).
-    Possui cache em memória e mecanismo de retry/backoff contra rate limiting.
+    Possui cache em memória, trava orçamentária de cota e mecanismo de retry/backoff contra rate limiting.
     """
-    global _api_sports_rate_limited
-    if not team_id or _api_sports_rate_limited:
+    global _api_sports_rate_limited, _api_sports_quota_exceeded, _api_sports_last5_calls_count
+    if not team_id or _api_sports_rate_limited or _api_sports_quota_exceeded:
+        return None
+    
+    if _api_sports_last5_calls_count >= MAX_LAST5_CALLS_PER_RUN:
         return None
     
     try:
@@ -396,6 +405,7 @@ def fetch_api_sports_team_last5(team_id, limit=5):
         if _api_sports_rate_limited:
             return None
         try:
+            _api_sports_last5_calls_count += 1
             resp = requests.get(url, headers=headers, timeout=5).json()
             errs = resp.get('errors')
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
@@ -517,13 +527,13 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             matches.append(am)
                         if len(matches) >= 5:
                             break
-                    if len(matches) >= 5:
+                    if len(matches) > 0:
                         has_cached_entry = True
         except Exception as e_c:
             pass
 
-    # 2. Se NÃO encontrou no cache de 72h e team_id estiver disponível, consulta a API-Sports oficial (multi-competições) e persiste no MySQL
-    if not has_cached_entry and team_id and str(team_id).strip():
+    # 2. Se NÃO encontrou no cache de 72h e team_id estiver disponível sob teto de cota (<= 20 reqs), consulta API-Sports oficial
+    if not has_cached_entry and len(matches) == 0 and team_id and str(team_id).strip() and _api_sports_last5_calls_count < MAX_LAST5_CALLS_PER_RUN:
         try:
             api_m = fetch_api_sports_team_last5(team_id, limit=5)
             if api_m is not None and len(api_m) > 0:
@@ -2431,10 +2441,32 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
             usuario_id = aposta['usuario_id']
             valor = float(aposta['valor_aposta'] or 0.0)
 
-            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG,
+            # porém DEVE gerar ALERTA DE RISCO IMEDIATO (Sininho) e sinalização visual para permitir saída preventiva/cashout!
             is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
             if is_confirmada:
-                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Disparando Alerta de Saída Preventiva.")
+                cursor.execute("""
+                    UPDATE apostas 
+                    SET auditoria_ia_status = 'ALERTA_RISCO',
+                        updated_at = NOW() 
+                    WHERE id = %s
+                """, (aposta_id,))
+                try:
+                    cursor.execute("""
+                        INSERT INTO notificacoes_usuario (
+                            usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                        ) VALUES (
+                            %s, %s, %s, 'ALERTA_MERCADO_DRIFT', %s, %s, %s, 0, 1, NOW()
+                        )
+                    """, (
+                        usuario_id, aposta_id, fixture_id,
+                        f"🚨 Alerta de Mercado: NO_BET em {aposta['time_casa']} vs {aposta['time_fora']}",
+                        f"O Gatekeeper reclassificou a partida como NO_BET ({str(motivo)[:150]}). Avalie cashout ou cancelamento na sua casa de apostas.",
+                        f"/apostas?fixture_id={fixture_id}"
+                    ))
+                except Exception as e_notif:
+                    pass
                 continue
 
             # Se o motivo for exclusivamente falta de odds 1X2, mas a aposta já possui odd de mercado válida (ex: Betano AH),
@@ -2444,55 +2476,32 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
                 print(f"🔒 [Ingest Trends - Aposta com Odds Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} já possui cotação de mercado (@ {aposta['odd']}). Cancelamento por falta de odds 1X2 ignorado.")
                 continue
 
+            # Preserva a aposta como 'Pendente' conforme diretriz operacional (Diário de Bordo 22/10/2026),
+            # atualizando apenas a sinalização de risco do Gatekeeper e disparando o alerta no Sininho
             cursor.execute("""
                 UPDATE apostas 
-                SET status = 'Cancelada', 
-                    status_gatekeeper = 'NO_BET',
-                    resultado_detalhado = %s, 
+                SET status_gatekeeper = 'NO_BET',
+                    auditoria_ia_status = 'ALERTA_RISCO',
                     updated_at = NOW() 
                 WHERE id = %s
-            """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+            """, (aposta_id,))
 
-            # Verificar se houve débito em conta corrente
-            cursor.execute("""
-                SELECT id, valor FROM conta_corrente 
-                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
-                LIMIT 1
-            """, (usuario_id, aposta_id))
-            debito = cursor.fetchone()
-
-            if debito:
+            try:
                 cursor.execute("""
-                    SELECT id FROM conta_corrente 
-                    WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
-                    LIMIT 1
-                """, (usuario_id, aposta_id))
-                estorno_existente = cursor.fetchone()
-
-                if not estorno_existente:
-                    cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
-                    user_row = cursor.fetchone()
-                    saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
-                    saldo_posterior = round(saldo_anterior + valor, 2)
-
-                    desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
-
-                    cursor.execute("""
-                        INSERT INTO conta_corrente (
-                            usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
-                        ) VALUES (
-                            %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
-                        )
-                    """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
-
-                    cursor.execute("""
-                        UPDATE usuario 
-                        SET saldo_conta_corrente = %s 
-                        WHERE id = %s
-                    """, (saldo_posterior, usuario_id))
-
-                    print(f"💰 [Ingest Trends - Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
-            print(f"🛡️ [Ingest Trends - Aposta AH Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
+                    INSERT INTO notificacoes_usuario (
+                        usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                    ) VALUES (
+                        %s, %s, %s, 'ALERTA_MERCADO_DRIFT', %s, %s, %s, 0, 1, NOW()
+                    )
+                """, (
+                    usuario_id, aposta_id, fixture_id,
+                    f"🚨 Alerta de Mercado: NO_BET em {aposta['time_casa']} vs {aposta['time_fora']}",
+                    f"O Gatekeeper reclassificou a partida como NO_BET ({str(motivo)[:150]}). Avalie cashout ou cancelamento na sua casa de apostas.",
+                    f"/apostas?fixture_id={fixture_id}"
+                ))
+            except Exception as e_notif:
+                pass
+            print(f"🛡️ [Ingest Trends - Alerta NO_BET Registrado / Aposta Preservada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
     except Exception as e_canc:
         print(f"Aviso ao cancelar/estornar aposta em abstenção para fixture {fixture_id}: {e_canc}")
 
@@ -2751,14 +2760,17 @@ def sync_pending_past_fixtures(conn, headers):
                 fallback_updated = sync_scores_from_the_odds_api_fallback(cursor, still_pending, conn)
                 updated_count += fallback_updated
 
-        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias com cartões NULL
+        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias
+        # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
         cursor.execute("""
             SELECT fixture_id, home_team_id, away_team_id, home_team, away_team
             FROM fixtures_trends
             WHERE fixture_date <= UTC_TIMESTAMP()
               AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
               AND status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
-              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL)
+              AND score_processed_at IS NOT NULL
+              AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
+              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL OR cards_api_checked_at IS NULL)
             ORDER BY fixture_date DESC
             LIMIT 40
         """)
@@ -3384,10 +3396,11 @@ def main():
         cursor.execute("""
             SELECT fixture_id FROM fixtures_trends 
             WHERE status IN ('FT', 'AET', 'PEN') 
-              AND (
-                  cards_api_checked_at IS NOT NULL 
-                  OR (yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL)
-              )
+              AND score_processed_at IS NOT NULL
+              AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
+              AND cards_api_checked_at IS NOT NULL
+              AND yellow_cards_home IS NOT NULL
+              AND yellow_cards_away IS NOT NULL
         """)
         rows_ft = cursor.fetchall()
         cached_ft_stats = {r['fixture_id'] for r in rows_ft}
@@ -3426,6 +3439,8 @@ def main():
                 'league_id': f.get('league', {}).get('id'),
                 'league_name': f.get('league', {}).get('name'),
                 'fixture_date': f.get('fixture', {}).get('date'),
+                'home_team': f.get('teams', {}).get('home', {}).get('name'),
+                'away_team': f.get('teams', {}).get('away', {}).get('name'),
                 'referee_name': f.get('fixture', {}).get('referee') or existing_db_referees.get(f['fixture']['id'])
             } for f in filtered_fixtures]
             enriched_refs = enrich_missing_referees_batch(cursor, conn, flat_fixtures)
@@ -3611,27 +3626,28 @@ def main():
 
                 # Prioriza o histórico real competitivo do banco de dados (excluindo amistosos)
                 # Se houver histórico de jogos competitivos no banco (>= 3 jogos), utiliza a média competitiva direta do clube
+                prev_cards = float(res_stats.get("avg_cards", 0.0) or 0.0)
                 real_c_avg, real_c_cnt = get_team_cards_from_db_history(cur_db, t_name, None, t_id, l_id)
                 if real_c_cnt >= 3 and real_c_avg > 0:
                     res_stats["avg_cards"] = real_c_avg
                     res_stats["matches_count"] = max(res_stats.get("matches_count", 0), real_c_cnt)
-                    if t_id:
+                    if t_id and abs(prev_cards - real_c_avg) > 0.001:
                         try:
                             cur_db.execute("""
                                 UPDATE team_moving_averages
-                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
+                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = updated_at
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
                         except Exception as e_ma:
                             print(f"⚠️ [team_moving_averages] Erro ao atualizar médias de cartões do time #{t_id}: {e_ma}")
-                elif (res_stats.get("avg_cards", 0.0) <= 0.50 or res_stats.get("matches_count", 0) < 3) and real_c_avg > 0:
+                elif (prev_cards <= 0.50 or res_stats.get("matches_count", 0) < 3) and real_c_avg > 0:
                     res_stats["avg_cards"] = real_c_avg
                     res_stats["matches_count"] = max(res_stats.get("matches_count", 0), real_c_cnt)
-                    if t_id:
+                    if t_id and abs(prev_cards - real_c_avg) > 0.001:
                         try:
                             cur_db.execute("""
                                 UPDATE team_moving_averages
-                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = NOW()
+                                SET avg_cards = %s, matches_count = GREATEST(matches_count, %s), updated_at = updated_at
                                 WHERE team_id = %s
                             """, (real_c_avg, real_c_cnt, t_id))
                         except Exception as e_ma:
@@ -4226,14 +4242,14 @@ def main():
                             home_team_id = VALUES(home_team_id),
                             away_team_id = VALUES(away_team_id),
                             league_round = COALESCE(VALUES(league_round), league_round),
-                            referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), referee_name),
+                            referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), COALESCE(referee_name, VALUES(referee_name))),
                             prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
                             over_cards_probability = VALUES(over_cards_probability),
                             status = VALUES(status),
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
                             score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
-                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(yellow_cards_home) IS NOT NULL OR yellow_cards_home IS NOT NULL OR VALUES(last_event) IS NOT NULL OR last_event IS NOT NULL), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
+                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND score_processed_at IS NOT NULL AND score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE) AND (VALUES(yellow_cards_home) IS NOT NULL OR yellow_cards_home IS NOT NULL OR VALUES(last_event) IS NOT NULL OR last_event IS NOT NULL), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),
@@ -4300,9 +4316,13 @@ _api_sports_quota_exceeded = False
 def fetch_single_api_sports_odds(fix_id):
     """
     Busca odds de uma partida específica via API-Sports (Pro Plan por fixture_id).
+    Possui circuit-breaker e teto orçamentário para não exaurir a cota da API.
     """
-    global _api_sports_rate_limited
-    if not fix_id or _api_sports_rate_limited:
+    global _api_sports_rate_limited, _api_sports_odds_rate_limited, _api_sports_quota_exceeded, _api_sports_single_odds_calls_count
+    if not fix_id or _api_sports_rate_limited or _api_sports_odds_rate_limited or _api_sports_quota_exceeded:
+        return {}
+
+    if _api_sports_single_odds_calls_count >= MAX_SINGLE_ODDS_CALLS_PER_RUN:
         return {}
 
     if fix_id in _api_sports_single_odds_cache:
@@ -4317,6 +4337,7 @@ def fetch_single_api_sports_odds(fix_id):
     url = f"https://v3.football.api-sports.io/odds?fixture={fix_id}"
     bms_dict = {}
     try:
+        _api_sports_single_odds_calls_count += 1
         resp = requests.get(url, headers=headers, timeout=10).json()
         errs = resp.get('errors')
         if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
@@ -4572,7 +4593,7 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status, odd_home, odd_draw, odd_away FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
 
         # Ingestão de prévias e palpites editoriais do Futbol24
@@ -4628,7 +4649,7 @@ def update_oddspedia_odds(conn):
             b1, m1 = max(valid_c1.items(), key=lambda x: x[1])
             bX, mX = max(valid_cX.items(), key=lambda x: x[1])
             b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
-            return b1, m1, bX, mX, b2, m2
+            return m1, b1, mX, bX, m2, b2
 
         def find_source_match_odds(matches_list, home_team, away_team):
             if not matches_list:
@@ -4733,7 +4754,8 @@ def update_oddspedia_odds(conn):
             
             # Coleta cotações de cada uma das fontes independentes
             api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
-            if not api_bms and not _api_sports_rate_limited and not _api_sports_odds_rate_limited and not _api_sports_quota_exceeded:
+            has_db_odds = float(fix.get('odd_home') or 0.0) > 1.0 and float(fix.get('odd_away') or 0.0) > 1.0
+            if not api_bms and not has_db_odds and not _api_sports_rate_limited and not _api_sports_odds_rate_limited and not _api_sports_quota_exceeded:
                 api_bms = fetch_single_api_sports_odds(fix_id)
             toapi_bms = find_source_match_odds(api_odds_matches, fix['home_team'], fix['away_team'])
             op_bms = find_source_match_odds(scraped_matches_op, fix['home_team'], fix['away_team'])
@@ -4878,9 +4900,7 @@ def fetch_api_sports_standings(league_id, season):
         'User-Agent': 'Mozilla/5.0'
     }
 
-    seasons_to_try = [int(season)]
-    if int(season) != 2024:
-        seasons_to_try.extend([int(season)-1, 2024])
+    seasons_to_try = [int(season), int(season)-1]
 
     standings_map = {}
     for s_val in seasons_to_try:
@@ -4974,8 +4994,8 @@ def enrich_fixtures_standings(conn):
         home_data = standings.get(int(h_id)) if (h_id and int(h_id) in standings) else standings.get(h_name)
         away_data = standings.get(int(a_id)) if (a_id and int(a_id) in standings) else standings.get(a_name)
 
-        if not home_data or not away_data:
-            # Fallback para ligas nacionais populares (ex: Brasileirão 71)
+        if (not home_data or not away_data) and league_id in (71, 72, 73, 75, 76, 529):
+            # Fallback para liga nacional popular brasileira (Brasileirão 71) apenas para clubes nacionais
             nat_standings = fetch_api_sports_standings(71, season)
             if nat_standings:
                 if not home_data:

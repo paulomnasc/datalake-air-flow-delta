@@ -187,7 +187,10 @@
       <h1><i class="bi bi-graph-up-arrow"></i> <?= lang('App.perf_analysis_title') ?></h1>
       <div class="bet-subtitle"><?= lang('App.perf_analysis_subtitle') ?></div>
     </div>
-    <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="badge bg-primary bg-opacity-25 text-info font-weight-bold px-3 py-2 fs-6 rounded-pill border border-info border-opacity-50 shadow-sm" id="headerPerfBadge" style="display: <?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL' ? 'inline-block' : 'none') ?>;">
+        <i class="bi bi-magic me-1"></i> Projeção Ativa: <strong><?= number_format($activeStake ?? 10.0, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?></strong> (~ R$ <?= number_format($activeStakeBrl ?? 0.0, 2, ',', '.') ?>)
+      </span>
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light rounded-pill px-4 fw-semibold text-decoration-none">
         <i class="bi bi-arrow-left me-1"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
@@ -240,9 +243,24 @@
           <i class="bi bi-shield-check text-success"></i> Confirmadas:
         </span>
         <div class="bet-slide-toggle" id="perfConfirmedSlideToggle">
-          <button type="button" class="slide-btn" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
-          <button type="button" class="slide-btn active" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn active" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+          <button type="button" class="slide-btn" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
           <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
+        </div>
+      </div>
+
+      <!-- Slide Button: Espelhar Stakes -->
+      <div class="d-flex align-items-center gap-2" title="Alternar entre projeção unificada com a stake padrão atual (Espelhar) e a auditoria contábil das stakes originais (Histórico Real)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;">
+          <i class="bi bi-magic text-info"></i> Stakes:
+        </span>
+        <div class="bet-slide-toggle" id="perfEspelharSlideToggle">
+          <button type="button" class="slide-btn <?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL' ? 'active' : '') ?>" data-val="1" onclick="setPerfEspelharFilter('1', this)" title="⚡ Espelhar: Projeta todo o histórico com a stake padrão ativa (<?= number_format($activeStake ?? 10.0, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo ?? 'BRL') ?>) para avaliar o modelo com gestão de banca padronizada">
+            ⚡ Espelhar (<?= esc($activeMoedaCodigo ?? 'BRL') ?>)
+          </button>
+          <button type="button" class="slide-btn <?= (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 'active-no' : '') ?>" data-val="0" onclick="setPerfEspelharFilter('0', this)" title="📜 Histórico Real: Exibe a auditoria contábil exata com as stakes e moedas originais gravadas em cada aposta realizada">
+            📜 Histórico Real
+          </button>
         </div>
       </div>
 
@@ -331,15 +349,16 @@
             <th>Período</th>
             <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
             <th class="text-center"><i class="bi bi-check-circle-fill text-success me-1"></i> <?= lang('App.win_rate') ?? 'Taxa de Acerto' ?></th>
-            <th>Simulado Bruto (R$)</th>
-            <th>Retorno Bruto (R$)</th>
-            <th>Lucro Líquido (R$)</th>
+            <th>Simulado Bruto</th>
+            <th>Retorno Bruto</th>
+            <th>Lucro Bruto</th>
             <th>ROI (%)</th>
+            <th>Líquido em Reais (R$)</th>
           </tr>
         </thead>
         <tbody id="tableBreakdownBody">
           <tr>
-            <td colspan="7" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
+            <td colspan="8" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
           </tr>
         </tbody>
         <tfoot id="tableBreakdownFoot"></tfoot>
@@ -675,6 +694,51 @@
 <script>
 const rawBets = <?= json_encode($apostas ?? []) ?>;
 const gatekeeperStatsData = <?= json_encode($gatekeeperStats ?? ['total_partidas' => 0, 'categorias' => []]) ?>;
+const moedasConfigList = <?= json_encode((new \App\Models\MoedaConfigModel())->getAllMoedas(false) ?? []) ?>;
+const moedasMap = {};
+moedasConfigList.forEach(m => { moedasMap[m.codigo] = m; });
+
+let perfEspelharFilter = '<?= (($activeMoedaCodigo ?? 'BRL') !== 'BRL') ? '1' : '0' ?>';
+const activeStake = <?= (float)($activeStake ?? 10.0) ?>;
+const activeMoedaCodigo = '<?= esc($activeMoedaCodigo ?? 'BRL') ?>';
+const activeSimbolo = '<?= esc($activeSimbolo ?? 'R$') ?>';
+const activeDecimais = <?= (int)($activeDecimais ?? 2) ?>;
+const activeCotacao = <?= (float)($activeCotacao ?? 1.0) ?>;
+const activeStakeBrl = <?= (float)($activeStakeBrl ?? 10.0) ?>;
+
+function formatDynamicCurrency(v) {
+  const val = Number(v) || 0;
+  if (activeMoedaCodigo !== 'BRL') {
+    return `${activeSimbolo} ${val.toLocaleString('pt-BR', { minimumFractionDigits: activeDecimais, maximumFractionDigits: activeDecimais })}`;
+  }
+  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatBrlOnly(v) {
+  return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function setPerfEspelharFilter(val, btnEl) {
+  perfEspelharFilter = val;
+  const container = document.getElementById('perfEspelharSlideToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => {
+      btn.classList.remove('active', 'active-no');
+    });
+  }
+  if (btnEl) {
+    if (val === '0') {
+      btnEl.classList.add('active-no');
+    } else {
+      btnEl.classList.add('active');
+    }
+  }
+  const badge = document.getElementById('headerPerfBadge');
+  if (badge) {
+    badge.style.display = (val === '1') ? 'inline-block' : 'none';
+  }
+  updatePerformanceDashboard();
+}
 
 let perfChart = null;
 let modalidadesChart = null;
@@ -738,7 +802,7 @@ function onLeagueSortChange(val) {
   updatePerformanceDashboard();
 }
 
-let perfConfirmedFilter = '1';
+let perfConfirmedFilter = 'all';
 
 function setPerfConfirmedFilter(val, btnEl) {
   perfConfirmedFilter = val;
@@ -888,54 +952,90 @@ function getWeekKey(dateStr) {
   return `${year}-W${String(weekNumber).padStart(2, '0')}`;
 }
 
-function computeNetProfit(item) {
+function getBetNormalizedValues(item) {
+  const isEspelhar = (perfEspelharFilter === '1');
   const status = item.status || '';
-  const valor = parseFloat(item.valor_aposta) || 0;
   const odd = parseFloat(item.odd) || 0;
-  const ganho = parseFloat(item.ganhos_potenciais) || 0;
-  const cashout = parseFloat(item.cash_out) || 0;
+  const origStake = parseFloat(item.valor_aposta) || 0;
+  const origGanho = parseFloat(item.ganhos_potenciais) || 0;
+  const origCashout = parseFloat(item.cash_out) || 0;
+  const itemMoeda = item.moeda_codigo || 'BRL';
+  const cotacao = parseFloat(item.cotacao_brl_snapshot) || (moedasMap[itemMoeda] ? parseFloat(moedasMap[itemMoeda].cotacao_brl) : 1.0) || activeCotacao || 1.0;
+
+  let stake = 0;
+  let stakeBrl = 0;
+
+  if (isEspelhar) {
+    stake = activeStake;
+    stakeBrl = activeStake * (activeMoedaCodigo !== 'BRL' ? activeCotacao : 1.0);
+  } else {
+    // Histórico Real: converte com precisão moedas heterogêneas para a moeda ativa da tela
+    if (itemMoeda === activeMoedaCodigo) {
+      stake = origStake;
+      stakeBrl = (activeMoedaCodigo !== 'BRL') ? (origStake * activeCotacao) : origStake;
+    } else if (itemMoeda === 'BRL') {
+      stakeBrl = origStake;
+      stake = (activeMoedaCodigo !== 'BRL') ? ((activeCotacao > 0) ? (origStake / activeCotacao) : origStake) : origStake;
+    } else {
+      stakeBrl = origStake * cotacao;
+      stake = (activeCotacao > 0) ? (stakeBrl / activeCotacao) : stakeBrl;
+    }
+  }
+
+  let grossReturn = 0;
+  let netProfit = 0;
+  let grossReturnBrl = 0;
+  let netProfitBrl = 0;
 
   if (status === 'Ganha') {
-    const ret = ganho > 0 ? ganho : (valor * odd);
-    return ret - valor;
+    grossReturn = stake * odd;
+    netProfit = stake * (odd - 1.0);
+    grossReturnBrl = stakeBrl * odd;
+    netProfitBrl = stakeBrl * (odd - 1.0);
   } else if (status === 'Meio Ganha') {
-    const fullRet = ganho > 0 ? ganho : (valor * odd);
-    return (fullRet - valor) / 2;
-  } else if (status === 'Cashout') {
-    const cashVal = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
-    return cashVal - valor;
+    grossReturn = stake + ((stake * (odd - 1.0)) / 2);
+    netProfit = (stake * (odd - 1.0)) / 2;
+    grossReturnBrl = stakeBrl + ((stakeBrl * (odd - 1.0)) / 2);
+    netProfitBrl = (stakeBrl * (odd - 1.0)) / 2;
   } else if (status === 'Perdida') {
-    return -valor;
+    grossReturn = 0;
+    netProfit = -stake;
+    grossReturnBrl = 0;
+    netProfitBrl = -stakeBrl;
   } else if (status === 'Meio Perdida') {
-    return -(valor * 0.5);
+    grossReturn = stake * 0.5;
+    netProfit = -(stake * 0.5);
+    grossReturnBrl = stakeBrl * 0.5;
+    netProfitBrl = -(stakeBrl * 0.5);
+  } else if (status === 'Cashout') {
+    let ratio = 1.0;
+    if (origStake > 0 && origCashout > 0) {
+      ratio = origCashout / origStake;
+    } else if (origStake > 0 && origGanho > 0) {
+      ratio = origGanho / origStake;
+    } else if (odd > 0) {
+      ratio = odd;
+    }
+    grossReturn = stake * ratio;
+    netProfit = stake * (ratio - 1.0);
+    grossReturnBrl = stakeBrl * ratio;
+    netProfitBrl = stakeBrl * (ratio - 1.0);
   } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
-    return 0;
+    grossReturn = stake;
+    netProfit = 0;
+    grossReturnBrl = stakeBrl;
+    netProfitBrl = 0;
   }
-  return 0;
+
+  return { stake, stakeBrl, grossReturn, netProfit, grossReturnBrl, netProfitBrl };
+}
+
+function computeNetProfit(item) {
+  return getBetNormalizedValues(item).netProfit;
 }
 
 function computeGrossReturn(item) {
-  const status = item.status || '';
-  const valor = parseFloat(item.valor_aposta) || 0;
-  const odd = parseFloat(item.odd) || 0;
-  const ganho = parseFloat(item.ganhos_potenciais) || 0;
-  const cashout = parseFloat(item.cash_out) || 0;
-
-  if (status === 'Ganha') {
-    return ganho > 0 ? ganho : (valor * odd);
-  } else if (status === 'Meio Ganha') {
-    const fullRet = ganho > 0 ? ganho : (valor * odd);
-    return valor + ((fullRet - valor) / 2);
-  } else if (status === 'Cashout') {
-    return cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
-  } else if (status === 'Perdida') {
-    return 0;
-  } else if (status === 'Meio Perdida') {
-    return valor * 0.5;
-  } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
-    return valor;
-  }
-  return 0;
+  return getBetNormalizedValues(item).grossReturn;
 }
 
 function getBetDateBRT(bet) {
@@ -958,7 +1058,9 @@ function updatePerformanceDashboard() {
     const status = bet.status || 'Pendente';
     
     if (statusFilter === 'concluidas') {
-      if (status === 'Pendente') return false;
+      if (status === 'Pendente' || status === 'Cancelada' || status === 'CANCELADA' || status === 'ANULADA' || status === 'Anulada') return false;
+    } else if (statusFilter === 'all') {
+      if (status === 'Cancelada' || status === 'CANCELADA' || status === 'ANULADA' || status === 'Anulada') return false;
     } else if (statusFilter === 'Pendente') {
       if (status !== 'Pendente') return false;
     } else if (statusFilter === 'Ganha') {
@@ -1031,9 +1133,10 @@ function updatePerformanceDashboard() {
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
-    const valor = parseFloat(bet.valor_aposta) || 0;
-    const netProfit = computeNetProfit(bet);
-    const grossReturn = computeGrossReturn(bet);
+    const norm = getBetNormalizedValues(bet);
+    const valor = norm.stake;
+    const netProfit = norm.netProfit;
+    const grossReturn = norm.grossReturn;
     const rawDate = getBetDateBRT(bet);
     const isBetToday = (rawDate === todayStr);
     const isBetPending = (status === 'Pendente');
@@ -1229,6 +1332,8 @@ function updatePerformanceDashboard() {
         apostado: 0,
         retorno: 0,
         lucro: 0,
+        lucroLiquidoBrl: 0,
+        taxaDescontadaBrl: 0,
         count: 0,
         pendingCount: 0,
         hasPending: false,
@@ -1239,9 +1344,23 @@ function updatePerformanceDashboard() {
         decided: 0
       };
     }
+
+    const bMoeda = (perfEspelharFilter === '1') ? activeMoedaCodigo : (bet.moeda_codigo || 'BRL');
+    const mInfo = moedasMap[bMoeda] || { tipo: 'FIAT', cotacao_brl: 1.0, taxa_saque_fixa: 0, taxa_rede_estimada: 0, taxa_spot_percentual: 0 };
+    const cotacao = (perfEspelharFilter === '1') ? activeCotacao : (parseFloat(bet.cotacao_brl_snapshot) || parseFloat(mInfo.cotacao_brl) || activeCotacao || 1.0);
+    let bLiqBrl = norm.netProfitBrl;
+    let bTaxaBrl = 0;
+    if (mInfo.tipo === 'CRYPTO' && norm.netProfit > 0) {
+      bTaxaBrl = ((parseFloat(mInfo.taxa_saque_fixa) || 0) + (parseFloat(mInfo.taxa_rede_estimada) || 0)) * cotacao;
+      bTaxaBrl += (bLiqBrl * ((parseFloat(mInfo.taxa_spot_percentual) || 0) / 100));
+      bLiqBrl -= bTaxaBrl;
+    }
+
     buckets[key].apostado += valor;
     buckets[key].retorno += grossReturn;
     buckets[key].lucro += netProfit;
+    buckets[key].lucroLiquidoBrl += bLiqBrl;
+    buckets[key].taxaDescontadaBrl += bTaxaBrl;
     buckets[key].count += 1;
     if (status === 'Pendente') {
       buckets[key].pendingCount += 1;
@@ -1315,17 +1434,16 @@ function updatePerformanceDashboard() {
     }
   });
 
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  // Se o usuário selecionou visualização geral ou multi-dias, os KPIs consolidam estritamente dias concluídos
-  const useClosedOnly = (!isSingleDayToday && closedBetsCount > 0);
-  const displayApostado = useClosedOnly ? closedApostadoLiquidado : (totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado);
-  const displayRetorno = useClosedOnly ? closedRetorno : totalRetorno;
-  const displayLucro = useClosedOnly ? closedLucroLiquido : totalLucroLiquido;
-  const displayWinCount = useClosedOnly ? closedWinCount : winCount;
-  const displayDecidedCount = useClosedOnly ? closedDecidedCount : decidedCount;
-  const displayTotalApostas = useClosedOnly ? closedBetsCount : filteredBets.length;
+  // Os KPIs consolidam o volume liquidado de todas as partidas finalizadas no período filtrado
+  const displayApostado = totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado;
+  const displayRetorno = totalRetorno;
+  const displayLucro = totalLucroLiquido;
+  const displayWinCount = winCount;
+  const displayDecidedCount = decidedCount;
+  const displayTotalApostas = filteredBets.length;
 
   const baseInvestida = displayApostado > 0 ? displayApostado : 1;
   const roi = (displayLucro / baseInvestida) * 100;
@@ -1337,12 +1455,9 @@ function updatePerformanceDashboard() {
   }
   const elPendenteInfo = document.getElementById('kpiPendenteInfo');
   if (elPendenteInfo) {
-    if (openApostado > 0) {
-      if (openPendingBetsCount > 0) {
-        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
-      } else {
-        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (aguardando fechamento noturno)`;
-      }
+    if (openPendingBetsCount > 0) {
+      const openPendingApostado = openPendingBetsCount * activeStake;
+      elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openPendingApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
       elPendenteInfo.style.display = 'block';
     } else {
       elPendenteInfo.style.display = 'none';
@@ -1356,11 +1471,8 @@ function updatePerformanceDashboard() {
 
   const elLucroHoje = document.getElementById('kpiLucroHojeInfo');
   if (elLucroHoje) {
-    if (useClosedOnly && openTotalBetsCount > 0) {
-      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Hoje (em apuração): ${formatBrl(openPartialLucro)} parcial`;
-      elLucroHoje.style.display = 'block';
-    } else if (isSingleDayToday) {
-      elLucroHoje.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>Dia em andamento (aguardando fechamento noturno)`;
+    if (openPendingBetsCount > 0) {
+      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>${openPendingBetsCount} aposta(s) em andamento hoje`;
       elLucroHoje.style.display = 'block';
     } else {
       elLucroHoje.style.display = 'none';
@@ -1394,23 +1506,16 @@ function updatePerformanceDashboard() {
     const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
 
     runningApostado += b.apostado;
-    // O lucro acumulado fechado na curva gráfica só soma períodos concluídos
-    if (!isOpen || isSingleDayToday) {
-      runningLucro += b.lucro;
-    }
+    runningLucro += b.lucro;
 
     const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
-    if (!isOpen || isSingleDayToday) {
-      runningCartoesLucro += modTime.cartoesLucro;
-      runningAhLucro += modTime.ahLucro;
-    }
+    runningCartoesLucro += modTime.cartoesLucro;
+    runningAhLucro += modTime.ahLucro;
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
 
-    if (!isOpen || isSingleDayToday) {
-      runningGanhas += (b.ganhas || 0);
-      runningDecided += (b.decided || 0);
-    }
+    runningGanhas += (b.ganhas || 0);
+    runningDecided += (b.decided || 0);
     const curWinRate = runningDecided > 0 ? (runningGanhas / runningDecided) * 100 : 0;
     cumulativeWinRateData.push(parseFloat(curWinRate.toFixed(1)));
 
@@ -2012,7 +2117,7 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
               const meta = metaDetails[idx];
               if (!meta) return '';
 
-              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatBrl = (v) => formatDynamicCurrency(v);
               const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
               return [
@@ -2106,7 +2211,7 @@ function renderLeagueProfitChart(labels, data, bgColors, borderColors, metaDetai
               const meta = metaDetails[idx];
               if (!meta) return '';
 
-              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatBrl = (v) => formatDynamicCurrency(v);
               const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
               const lines = [
@@ -2169,7 +2274,7 @@ function renderLeagueTableBreakdown(keys, buckets, outlierCount = 0, minThreshol
     return;
   }
 
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
   let html = '';
@@ -2237,7 +2342,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 
   const now = new Date();
   const todayStr = formatDateYYYYMMDD(now);
-  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatBrl = (v) => formatDynamicCurrency(v);
 
   let html = '';
   let sumCount = 0;
@@ -2246,6 +2351,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   let sumLucro = 0;
   let sumGanhas = 0;
   let sumDecided = 0;
+  let sumLucroLiquidoBrl = 0;
 
   const closedKeys = keys.filter(k => {
     const b = buckets[k];
@@ -2276,14 +2382,13 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       : 'text-white-50';
     const winRateText = b.decided > 0 ? `${bWinRate.toFixed(1).replace('.', ',')}%` : '-';
 
-    if (!isOpen) {
-      sumCount += b.count;
-      sumApostado += b.apostado;
-      sumRetorno += b.retorno;
-      sumLucro += bLucro;
-      sumGanhas += (b.ganhas || 0);
-      sumDecided += (b.decided || 0);
-    }
+    sumCount += b.count;
+    sumApostado += b.apostado;
+    sumRetorno += b.retorno;
+    sumLucro += bLucro;
+    sumGanhas += (b.ganhas || 0);
+    sumDecided += (b.decided || 0);
+    sumLucroLiquidoBrl += (b.lucroLiquidoBrl || 0);
 
     const statusBadge = isOpen
       ? `<span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"><i class="bi bi-hourglass-split"></i> Em Andamento</span>`
@@ -2301,6 +2406,10 @@ function renderTableBreakdown(keys, buckets, groupMode) {
         <td>${formatBrl(b.retorno)}</td>
         <td class="${lucroClass}">${formatBrl(bLucro)} ${lucroBadge}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
+        <td class="${(b.lucroLiquidoBrl || 0) >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'}">
+          ${formatBrlOnly(b.lucroLiquidoBrl || 0)}
+          ${(b.taxaDescontadaBrl || 0) > 0 ? `<div class="small text-white-50" style="font-size:0.7rem;">-R$ ${(b.taxaDescontadaBrl).toFixed(2).replace('.', ',')} taxas</div>` : ''}
+        </td>
       </tr>
     `;
   });
@@ -2308,51 +2417,32 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   tbody.innerHTML = html;
 
   if (tfoot) {
-    // Se não houver períodos fechados (ex: filtro apenas do dia de hoje), computa sobre os buckets existentes
-    let finalSumCount = sumCount;
-    let finalSumApostado = sumApostado;
-    let finalSumRetorno = sumRetorno;
-    let finalSumLucro = sumLucro;
-    let finalSumGanhas = sumGanhas;
-    let finalSumDecided = sumDecided;
-
-    if (closedKeys.length === 0 && keys.length > 0) {
-      keys.forEach(k => {
-        const b = buckets[k];
-        finalSumCount += b.count;
-        finalSumApostado += b.apostado;
-        finalSumRetorno += b.retorno;
-        finalSumLucro += b.lucro;
-        finalSumGanhas += (b.ganhas || 0);
-        finalSumDecided += (b.decided || 0);
-      });
-    }
-
     // Percentuais mantidos como média consolidada ponderada
-    const avgRoi = finalSumApostado > 0 ? (finalSumLucro / finalSumApostado) * 100 : 0;
-    const avgWinRate = finalSumDecided > 0 ? (finalSumGanhas / finalSumDecided) * 100 : 0;
+    const avgRoi = sumApostado > 0 ? (sumLucro / sumApostado) * 100 : 0;
+    const avgWinRate = sumDecided > 0 ? (sumGanhas / sumDecided) * 100 : 0;
 
-    const sumCountStr = finalSumCount.toLocaleString('pt-BR');
-    const lucroClass = finalSumLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const sumCountStr = sumCount.toLocaleString('pt-BR');
+    const lucroClass = sumLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const avgRoiClass = avgRoi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
-    const avgWinRateClass = finalSumDecided > 0
+    const avgWinRateClass = sumDecided > 0
       ? (avgWinRate >= 60 ? 'text-success fw-bold' : (avgWinRate >= 45 ? 'text-warning fw-bold' : 'text-danger fw-bold'))
       : 'text-white';
-    const avgWinRateText = finalSumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
+    const avgWinRateText = sumDecided > 0 ? `${avgWinRate.toFixed(1).replace('.', ',')}%` : '-';
+    const sumLucroBrl = sumLucroLiquidoBrl;
 
     tfoot.innerHTML = `
       <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
         <td class="text-warning fw-bold">
           <i class="bi bi-calculator me-1"></i> Total Consolidado
-          ${closedKeys.length < keys.length && closedKeys.length > 0 ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} períodos fechados • em andamento excluídos do total)</div>` : ''}
         </td>
         <td class="text-center text-white">${sumCountStr}</td>
         <td class="text-center ${avgWinRateClass}">${avgWinRateText}</td>
-        <td class="text-white">${formatBrl(finalSumApostado)}</td>
-        <td class="text-white">${formatBrl(finalSumRetorno)}</td>
-        <td class="${lucroClass}">${formatBrl(finalSumLucro)}</td>
+        <td class="text-white">${formatBrl(sumApostado)}</td>
+        <td class="text-white">${formatBrl(sumRetorno)}</td>
+        <td class="${lucroClass}">${formatBrl(sumLucro)}</td>
         <td class="${avgRoiClass}">${(avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',')}%</td>
+        <td class="${sumLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'}">${formatBrlOnly(sumLucroBrl)}</td>
       </tr>
     `;
   }

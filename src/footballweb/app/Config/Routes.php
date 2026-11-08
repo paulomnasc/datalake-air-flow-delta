@@ -84,16 +84,21 @@ $routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstenc
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
+$routes->post('/apostas/reauditar-ia', 'ApostaController::reauditarIa', ['as' => 'apostas.reauditar_ia']);
 $routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', ['as' => 'apostas.validar_linha_ah']);
 $routes->get('/apostas/radar-linhas-ah/(:num)', 'ApostaController::radarLinhasAh/$1', ['as' => 'apostas.radar_linhas_ah']);
+$routes->get('/apostas/timeline/(:num)', 'ApostaController::timeline/$1', ['as' => 'apostas.timeline']);
 $routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
+$routes->get('/apostas/card-origem/(:num)', 'ApostaController::cardOrigem/$1', ['as' => 'apostas.card_origem']);
 
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
 $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
 $routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
 $routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
 $routes->post('/notificacoes/despinar/(:num)', 'ApostaController::despinarNotificacao/$1', ['as' => 'notificacoes.despinar']);
+$routes->post('/notificacoes/excluir/(:num)', 'ApostaController::excluirNotificacao/$1', ['as' => 'notificacoes.excluir']);
+$routes->post('/notificacoes/limpar-historico', 'ApostaController::limparHistoricoNotificacoes', ['as' => 'notificacoes.limpar_historico']);
 
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
@@ -108,6 +113,11 @@ $routes->get('/conta-corrente/aposta-detalhes/(:num)', 'ContaCorrenteController:
 $routes->get('/metas', 'MetaController::index', ['as' => 'metas.index']);
 $routes->post('/metas/salvar-config', 'MetaController::salvarConfig', ['as' => 'metas.salvar_config']);
 $routes->post('/metas/recalcular-dia', 'MetaController::recalcularDia', ['as' => 'metas.recalcular_dia']);
+
+// Rotas de Configuração de Moedas e Criptomoedas Operacionais
+$routes->get('/moedas', 'MoedaController::index', ['as' => 'moedas.index']);
+$routes->post('/moedas/salvar', 'MoedaController::salvar', ['as' => 'moedas.salvar']);
+$routes->post('/moedas/set-default', 'MoedaController::setDefault', ['as' => 'moedas.set_default']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
@@ -280,6 +290,7 @@ $routes->get('/subscription/buy-grok-credits', 'SubscriptionController::buyGrokC
 $routes->get('/subscription/buyGrokCredits', 'SubscriptionController::buyGrokCredits'); // Alias compatibilidade
 $routes->post('/subscription/confirmGrokPayment', 'SubscriptionController::confirmGrokPayment', ['as'=>'subscription.confirmGrokPayment']); // Confirmar Pix Grok
 $routes->post('/subscription/create-mp-pix', 'SubscriptionController::createMpPix', ['as'=>'subscription.createMpPix']); // Criar Pix Mercado Pago
+$routes->post('/subscription/process-mp-card', 'SubscriptionController::processMpCardPayment', ['as'=>'subscription.processMpCardPayment']); // Processar Cartão Mercado Pago
 $routes->get('/subscription/check-mp-pix/(:segment)', 'SubscriptionController::checkMpPixStatus/$1', ['as'=>'subscription.checkMpPixStatus']); // Checar status Pix MP
 $routes->match(['get', 'post'], '/subscription/simulate-mp-pix/(:segment)', 'SubscriptionController::simulateMpPixStatus/$1', ['as'=>'subscription.simulateMpPixStatus']); // Simular aprovação Pix MP (Dev)
 $routes->match(['get', 'post'], '/subscription/mp-webhook', 'SubscriptionController::mpWebhook', ['as'=>'subscription.mpWebhook']); // Webhook Mercado Pago

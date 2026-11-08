@@ -45,8 +45,9 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
-            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Execução' => ['Execução', 'Cancelada', 'Abrir aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Abrir aferição metrica'],
+            'Abrir aferição metrica' => ['Abrir aferição metrica', 'Em aferição metrica'],
             'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
             'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
             'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],
@@ -437,8 +438,9 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução', 'Cancelada', 'Em aferição metrica'],
-            'Recebido Provisorio' => ['Recebido Provisorio', 'Em aferição metrica'],
+            'Execução' => ['Execução', 'Cancelada', 'Abrir aferição metrica'],
+            'Recebido Provisorio' => ['Recebido Provisorio', 'Abrir aferição metrica'],
+            'Abrir aferição metrica' => ['Abrir aferição metrica', 'Em aferição metrica'],
             'Em aferição metrica' => ['Em aferição metrica', 'Em divergência metrica', 'Parecer conformidade metrica'],
             'Em divergência metrica' => ['Em divergência metrica', 'Em aferição metrica', 'Parecer conformidade metrica'],
             'Parecer conformidade metrica' => ['Parecer conformidade metrica', 'Liberado para faturamento'],

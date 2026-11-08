@@ -110,7 +110,13 @@ class ApiController extends Controller
     public function getDemandasByOs($id_os)
     {
         $db = \Config\Database::connect();
-        $demandas = $db->table('agile_demandas')->where('id_ordem_servico', $id_os)->get()->getResult();
+        $demandas = $db->table('agile_demandas ad')
+                       ->select('ad.*, asis.sigla as sistema_sigla, asis.nome as sistema_nome')
+                       ->join('agile_sistemas asis', 'asis.id = ad.id_sistema', 'left')
+                       ->where('ad.id_ordem_servico', $id_os)
+                       ->orderBy('ad.id', 'ASC')
+                       ->get()
+                       ->getResult();
         return $this->response->setJSON($demandas);
     }
 

@@ -200,7 +200,7 @@ def main():
                 if cl.get('type') == 'Under' and cl.get('line', 0.0) >= 3.5 and cl.get('odd', 0.0) >= 1.62:
                     tit = f"⚡ Oportunidade Ao Vivo (Cartões): {h_team} vs {a_team}"
                     msg = f"Jogo no {live_status} ({elapsed}'). Árbitro brando ({ref_avg_yellow:.1f} cartões/j). Linha disponível na Betano: {cl['label']} @ {cl['odd']:.2f}."
-                    lnk = f"/trends?destaque_id={fid}#fixture-{fid}"
+                    lnk = f"/apostas?fixture_id={fid}"
                     if registrar_notificacao_live(cursor, target_uid, fid, tit, msg, lnk):
                         oportunidades_geradas += 1
                     break
@@ -217,7 +217,7 @@ def main():
                 if al.get('is_home') and al.get('line') in ('-0.25', '-0.5', '+0.0', '0.0') and al.get('odd', 0.0) >= 1.65:
                     tit = f"⚡ Oportunidade Ao Vivo (AH): {h_team} vs {a_team}"
                     msg = f"Favorito {h_team} {gh}x{ga} {a_team} ({elapsed}'). Linha de valor encurtada na Betano: {al['label']} @ {al['odd']:.2f}."
-                    lnk = f"/trends?destaque_id={fid}#fixture-{fid}"
+                    lnk = f"/apostas?fixture_id={fid}"
                     if registrar_notificacao_live(cursor, target_uid, fid, tit, msg, lnk):
                         oportunidades_geradas += 1
                     break
@@ -227,7 +227,7 @@ def main():
                 if not al.get('is_home') and al.get('line') in ('-0.25', '-0.5', '+0.0', '0.0') and al.get('odd', 0.0) >= 1.65:
                     tit = f"⚡ Oportunidade Ao Vivo (AH): {h_team} vs {a_team}"
                     msg = f"Favorito {a_team} {gh}x{ga} ({elapsed}'). Linha de valor encurtada na Betano: {al['label']} @ {al['odd']:.2f}."
-                    lnk = f"/trends?destaque_id={fid}#fixture-{fid}"
+                    lnk = f"/apostas?fixture_id={fid}"
                     if registrar_notificacao_live(cursor, target_uid, fid, tit, msg, lnk):
                         oportunidades_geradas += 1
                     break

@@ -306,6 +306,21 @@ if (!function_exists('getTier1DominanceInfo')) {
     }
 }
 
+if (!function_exists('simplifyRejectionReasonDashboard')) {
+    function simplifyRejectionReasonDashboard($motivo) {
+        $m = trim($motivo);
+        if (empty($m)) return 'Reprovada';
+        if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
+        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
+        if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
+        if (stripos($m, 'divergência de mando') !== false || stripos($m, 'caldeirão') !== false || stripos($m, 'restritas exclusivamente a mandantes') !== false) return 'Trava de mando';
+        if (stripos($m, 'cobertura de empate') !== false) return 'Exige 1X2 <= 1.55';
+        if (stripos($m, 'curva descendente') !== false) return 'U5J em declínio';
+        if (stripos($m, 'margem de valor') !== false) return 'EV insuficiente';
+        return mb_substr(preg_replace('/^Reprovada:\s*/iu', '', $m), 0, 22) . '...';
+    }
+}
+
 if (!function_exists('renderStructuredMotivation')) {
     function renderStructuredMotivation($rawMotivation, $rawReasoning = '', $fix = null) {
         if (empty($rawMotivation) && empty($rawReasoning) && !$fix) return '';
@@ -314,6 +329,7 @@ if (!function_exists('renderStructuredMotivation')) {
         $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
 
         $topics = [];
+        $rawAuditText = '';
 
         // 1. Tenta quebrar por marcadores de tópicos explícitos (ex: "• ")
         if (strpos($cleanText, '•') !== false) {
@@ -322,6 +338,10 @@ if (!function_exists('renderStructuredMotivation')) {
                 $t = trim($part);
                 if (empty($t)) {
                     continue;
+                }
+                if (preg_match('/📋\s*Linhas de Handicap Asiático Auditadas/u', $t)) {
+                    $rawAuditText = $t;
+                    continue; // Remove do loop de itens numerados (evita duplicação)
                 }
                 // Se for o texto antes da primeira vieta (cabeçalho), limpa a frase introdutória "A indicação a favor..."
                 if ($index === 0) {
@@ -451,6 +471,58 @@ if (!function_exists('renderStructuredMotivation')) {
             $probTableHtml .= '</div>';
         }
 
+        // Renderização Tabular de Linhas Disponíveis (Padrão 1win Bet)
+        $auditTableHtml = '';
+        if (empty($rawAuditText) && preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
+            $rawAuditText = $mAud[1];
+        }
+        if (!empty($rawAuditText)) {
+            $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
+            preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
+            if (!empty($matches)) {
+                $pairs = array_chunk($matches, 2);
+                $homeTeam = $fix->home_team ?? 'Mandante';
+                $awayTeam = $fix->away_team ?? 'Visitante';
+                
+                $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
+                $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
+                $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)</span>';
+                $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
+                $auditTableHtml .= '</div>';
+                $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;"><div style="text-align: left;">🏠 ' . htmlspecialchars($homeTeam) . '</div><div style="text-align: right;">✈️ ' . htmlspecialchars($awayTeam) . '</div></div>';
+                $auditTableHtml .= '<div style="display: flex; flex-direction: column; gap: 6px;">';
+                foreach ($pairs as $pair) {
+                    $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+                    foreach ([$pair[0] ?? null, $pair[1] ?? null] as $item) {
+                        if ($item) {
+                            $isAprov = (stripos($item[1], 'APROVADA') !== false);
+                            $tName = trim($item[2]);
+                            $lVal = $item[3];
+                            $oVal = is_numeric($item[4]) ? number_format((float)$item[4], 2) : $item[4];
+                            $fReason = trim($item[5] ?? ($isAprov ? 'Aprovada com valor esperado positivo' : 'Reprovada'));
+                            $sReason = $isAprov ? 'Aprovada (+EV)' : simplifyRejectionReasonDashboard($fReason);
+                            $bg = $isAprov ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(30, 41, 59, 0.6)';
+                            $border = $isAprov ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)';
+                            $color = $isAprov ? '#34d399' : '#ffffff';
+                            $badgeColor = $isAprov ? '#34d399' : '#f87171';
+                            $badgeBg = $isAprov ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.12)';
+                            $badgeBorder = $isAprov ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.25)';
+                            $icon = $isAprov ? '🟢' : '❌';
+                            
+                            $auditTableHtml .= '<div style="background: ' . $bg . '; border: ' . $border . '; border-radius: 8px; padding: 6px 10px; min-height: 44px;" title="' . htmlspecialchars($fReason) . '">';
+                            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.74rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' . htmlspecialchars($tName . ' ' . $lVal) . '</span><span style="font-size: 0.86rem; font-weight: 800; font-family: monospace; color: ' . $color . ';">' . $oVal . '</span></div>';
+                            $auditTableHtml .= '<div style="margin-top: 2px;"><span style="font-size: 0.60rem; font-weight: 600; color: ' . $badgeColor . '; background: ' . $badgeBg . '; border: 1px solid ' . $badgeBorder . '; padding: 0 4px; border-radius: 4px;">' . $icon . ' ' . htmlspecialchars($sReason) . '</span></div>';
+                            $auditTableHtml .= '</div>';
+                        } else {
+                            $auditTableHtml .= '<div></div>';
+                        }
+                    }
+                    $auditTableHtml .= '</div>';
+                }
+                $auditTableHtml .= '</div></div>';
+            }
+        }
+
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
         $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> ' . lang('App.detailed_motivation_title');
@@ -466,6 +538,7 @@ if (!function_exists('renderStructuredMotivation')) {
         }
 
         $html .= '</ol>';
+        $html .= $auditTableHtml;
         $html .= $probTableHtml;
         $html .= '</div>';
 
@@ -584,9 +657,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     if ($userId) {
         $db = \Config\Database::connect();
         $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
-        $userGrokCredits = $userRow ? (int)$userRow->grok_credits : 0;
+        $userGrokCredits = $userRow ? (float)$userRow->grok_credits : 0.0;
         $isGoogleUser = $userRow && !empty($userRow->google_id);
-        $userHasBalance = ($userGrokCredits > 0) || ($userRow && in_array($userRow->status_assinatura ?? '', ['active', 'trial']));
+        $userHasBalance = ($userGrokCredits > 0.0) || ($userRow && in_array($userRow->status_assinatura ?? '', ['active', 'trial']));
     }
 }
 
@@ -2505,7 +2578,7 @@ if (!function_exists('getBetDecisionTree')) {
                 <?php if ($userLoggedIn && $isGoogleUser): ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🤖</span>
-                        <span>Grok: <strong><?= $userGrokCredits ?></strong> <?= lang('App.queries') ?></span>
+                        <span>Grok: <strong><?= ((float)$userGrokCredits == (int)$userGrokCredits) ? (int)$userGrokCredits : number_format($userGrokCredits, 1, ',', '.') ?></strong> <?= lang('App.queries') ?></span>
                         <a href="/subscription/buy-grok-credits" class="btn-recarregar"><?= lang('App.reload') ?></a>
                     </div>
                 <?php elseif ($userLoggedIn): ?>
@@ -2649,6 +2722,8 @@ if (!function_exists('getBetDecisionTree')) {
 
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <?php
+                                    $startDate = $startDate ?? date('Y-m-d');
+                                    $endDate = $endDate ?? date('Y-m-d');
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));
                                     $today = date('Y-m-d');
                                     $tomorrow = date('Y-m-d', strtotime('+1 day'));
@@ -2961,7 +3036,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         $minsPassed = 0;
                                         if (!empty($fix->updated_at)) {
                                             try {
-                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                 $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
                                             } catch (\Exception $e) {}
                                         }
@@ -2978,7 +3053,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         $minsPassed = 0;
                                         if (!empty($fix->updated_at)) {
                                             try {
-                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                $dtUp = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                 $minsPassed = max(0, floor(($now->getTimestamp() - $dtUp->getTimestamp()) / 60));
                                             } catch (\Exception $e) {}
                                         }
@@ -3097,7 +3172,31 @@ if (!function_exists('getBetDecisionTree')) {
                                             <span class="proc-status-badge <?= $procClass ?>" title="<?= htmlspecialchars($procTooltip, ENT_QUOTES) ?>">
                                                 <?= htmlspecialchars($procText) ?>
                                             </span>
-                                            <?php if ($t1Info['is_dominant']): ?>
+                                            <?php 
+                                                $isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
+                                                $isCardPremium = $isCardAhApproved && (
+                                                    (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
+                                                    (($fix->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+                                                );
+                                                $isCardQuasePremium = $isCardAhApproved && !$isCardPremium && (
+                                                    (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
+                                                    (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
+                                                    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion)
+                                                );
+                                            ?>
+                                            <?php if ($isCardPremium): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                                                      style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.35) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.4) !important;" 
+                                                      title="Oportunidade PREMIUM: Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Alavancagem sugerida: 3x Stake.">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM
+                                                </span>
+                                            <?php elseif ($isCardQuasePremium): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                                                      style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(56, 189, 248, 0.25) !important;" 
+                                                      title="Aposta Quase Premium: Crivo do Gatekeeper com consistência de mando e cobertura de empate (+EV). Stake padrão (1x).">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">🛡️</span> Quase Premium
+                                                </span>
+                                            <?php elseif ($t1Info['is_dominant']): ?>
                                                 <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                                                       style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(250, 204, 21, 0.25) !important;" 
                                                       title="Destaque: Equipe <?= htmlspecialchars($t1Info['dominant_team']) ?> (Tier 1 de Elite) contra adversário com baixo desempenho recente no U5J">
@@ -3256,6 +3355,63 @@ if (!function_exists('getBetDecisionTree')) {
                                             <?php endif; ?>
                                         </div>
 
+                                        <!-- Widget Eficiência U5J (Twin Progress Bars) -->
+                                        <?php 
+                                            $effHome = null;
+                                            $effAway = null;
+                                            if (!empty($u5j_data_pre['home'])) {
+                                                $effHome = (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency']))
+                                                    ? floatval($u5j_data_pre['home']['pts_efficiency']) 
+                                                    : floatval($u5j_data_pre['home']['pts'] ?? 0);
+                                            }
+                                            if (!empty($u5j_data_pre['away'])) {
+                                                $effAway = (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency']))
+                                                    ? floatval($u5j_data_pre['away']['pts_efficiency']) 
+                                                    : floatval($u5j_data_pre['away']['pts'] ?? 0);
+                                            }
+                                        ?>
+                                        <?php if ($effHome !== null || $effAway !== null): ?>
+                                            <?php
+                                                $valHome = max(0.0, floatval($effHome ?? 0.0));
+                                                $valAway = max(0.0, floatval($effAway ?? 0.0));
+                                                $maxRef = max(35.0, max($valHome, $valAway));
+                                                $barPctHome = min(100, max(6, round(($valHome / $maxRef) * 100)));
+                                                $barPctAway = min(100, max(6, round(($valAway / $maxRef) * 100)));
+                                            ?>
+                                            <div class="bet-u5j-twin-bars" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; padding: 5px 8px; margin: 4px 0 8px 0;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <span style="font-size: 0.67rem; font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 4px;">
+                                                        <i class="bi bi-speedometer2"></i> Eficiência U5J
+                                                    </span>
+                                                    <span style="font-size: 0.60rem; color: #94a3b8; font-weight: 500;">Força Recente</span>
+                                                </div>
+                                                <!-- Mandante -->
+                                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
+                                                    <span style="font-size: 0.65rem; color: #38bdf8; font-weight: 700; width: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($fix->home_team) ?>">
+                                                        🏠 <?= htmlspecialchars(mb_substr($fix->home_team, 0, 8)) ?>
+                                                    </span>
+                                                    <div style="flex: 1; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden;">
+                                                        <div style="width: <?= $barPctHome ?>%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); border-radius: 3px;"></div>
+                                                    </div>
+                                                    <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; min-width: 56px; text-align: right; font-family: monospace;">
+                                                        <?= number_format($valHome, 1) ?> <span style="font-size: 0.56rem; font-weight: 400; color: #94a3b8;">pts</span>
+                                                    </span>
+                                                </div>
+                                                <!-- Visitante -->
+                                                <div style="display: flex; align-items: center; gap: 6px;">
+                                                    <span style="font-size: 0.65rem; color: #a78bfa; font-weight: 700; width: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($fix->away_team) ?>">
+                                                        ✈️ <?= htmlspecialchars(mb_substr($fix->away_team, 0, 8)) ?>
+                                                    </span>
+                                                    <div style="flex: 1; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden;">
+                                                        <div style="width: <?= $barPctAway ?>%; height: 100%; background: linear-gradient(90deg, #7c3aed, #a78bfa); border-radius: 3px;"></div>
+                                                    </div>
+                                                    <span style="font-size: 0.72rem; font-weight: 800; color: #a78bfa; min-width: 56px; text-align: right; font-family: monospace;">
+                                                        <?= number_format($valAway, 1) ?> <span style="font-size: 0.56rem; font-weight: 400; color: #94a3b8;">pts</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+
                                         <div class="bet-team-row-wrapper">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
                                                 <?php if (!empty($fix->away_team_id)): ?>
@@ -3309,7 +3465,7 @@ if (!function_exists('getBetDecisionTree')) {
                                          $oddsUpdatedAtFormatted = 'Atualizado recentemente';
                                          if (!empty($fix->updated_at)) {
                                              try {
-                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('America/Sao_Paulo'));
                                                  $dtOdds->setTimezone(new DateTimeZone('America/Sao_Paulo'));
                                                  $oddsUpdatedAtFormatted = $dtOdds->format('d/m/Y \à\s H:i');
                                              } catch (\Exception $eFormat) {
@@ -3817,20 +3973,6 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
                                                         <?= htmlspecialchars($ah_block_desc ?: $nl_explanation) ?>
                                                     </div>
-                                                    <?php 
-                                                        $auditLinesText = '';
-                                                        if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*[\s\S]*?)(?:\|\||$)/u', ($raw_reasoning ?? '') . ' ' . ($motivation ?? ''), $mAud)) {
-                                                            $auditLinesText = trim($mAud[1]);
-                                                        }
-                                                    ?>
-                                                    <div class="ah-lines-audit-widget-<?= $fix->fixture_id ?>" style="<?= empty($auditLinesText) ? 'display: none;' : '' ?> margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 3px solid #f87171; border-radius: 6px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; white-space: pre-line;">
-                                                        <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
-                                                            <i class="bi bi-card-checklist"></i> Linhas de Handicap Asiático Auditadas:
-                                                        </div>
-                                                        <div class="ah-lines-audit-content-<?= $fix->fixture_id ?>">
-                                                            <?= htmlspecialchars(preg_replace('/^•\s*📋\s*Linhas de Handicap Asiático Auditadas(?:\s+na\s+Betano)?:\s*/u', '', $auditLinesText)) ?>
-                                                        </div>
-                                                    </div>
                                                     <?php if (!empty($ah_block_detail)): ?>
                                                         <div style="margin-top: 6px; padding: 4px 8px; background: rgba(15, 23, 42, 0.9); border-radius: 4px; border: 1px solid rgba(248, 113, 113, 0.25); font-size: 0.71rem; color: #cbd5e1;">
                                                             ℹ️ <strong><?= lang('App.metric_indicators') ?? 'Indicadores' ?>:</strong> <?= htmlspecialchars($ah_block_detail) ?>
@@ -3902,6 +4044,15 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                     <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
                                                         <i class="bi bi-shield-shaded"></i> <?= lang('App.goals_market_handicap') ?>:
+                                                        <?php
+                                                            $tsParecerCard = !empty($fix->auditoria_ia_checked_at) ? $fix->auditoria_ia_checked_at : (!empty($fix->updated_at) ? $fix->updated_at : null);
+                                                            if (!empty($tsParecerCard)):
+                                                                $parecerIaFormatted = date('d/m/Y H:i', strtotime($tsParecerCard));
+                                                        ?>
+                                                            <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.69rem; padding: 2px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora da gravação do parecer da IA">
+                                                                <i class="bi bi-clock-history"></i> Parecer IA: <?= $parecerIaFormatted ?>
+                                                            </span>
+                                                        <?php endif; ?>
                                                     </span>
                                                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                                         <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.7rem; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; border-radius: 6px;" onclick="checarOddsDashboard(<?= $fix->fixture_id ?>, this)">
@@ -4590,7 +4741,7 @@ if (!function_exists('getBetDecisionTree')) {
                         let minsPassed = 0;
                         const updatedStr = el.getAttribute('data-updated-utc');
                         if (updatedStr) {
-                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + '-03:00').getTime();
                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                             }
@@ -4613,7 +4764,7 @@ if (!function_exists('getBetDecisionTree')) {
                         let minsPassed = 0;
                         const updatedStr = el.getAttribute('data-updated-utc');
                         if (updatedStr) {
-                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + 'Z').getTime();
+                            const updatedTime = new Date(updatedStr.replace(' ', 'T') + '-03:00').getTime();
                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                             }
@@ -5123,7 +5274,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         const baseMin = (rawEl <= 45) ? (45 + rawEl) : rawEl;
                                         let minsPassed = 0;
                                         if (fix.updated_at) {
-                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + '-03:00').getTime();
                                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                                             }
@@ -5139,7 +5290,7 @@ if (!function_exists('getBetDecisionTree')) {
                                     if (rawEl !== null && !isNaN(rawEl)) {
                                         let minsPassed = 0;
                                         if (fix.updated_at) {
-                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + 'Z').getTime();
+                                            const updatedTime = new Date(fix.updated_at.replace(' ', 'T') + '-03:00').getTime();
                                             if (!isNaN(updatedTime) && updatedTime > 0) {
                                                 minsPassed = Math.max(0, Math.floor((Date.now() - updatedTime) / 60000));
                                             }

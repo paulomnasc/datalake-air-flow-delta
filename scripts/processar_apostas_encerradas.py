@@ -59,12 +59,19 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             row_cc = cursor.fetchone()
             saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
 
-        saldo_posterior = round(saldo_anterior + valor, 2)
+        moeda_cod = 'BRL'
+        if aposta_id:
+            cursor.execute("SELECT moeda_codigo FROM apostas WHERE id = %s", (aposta_id,))
+            row_ap = cursor.fetchone()
+            if row_ap and row_ap.get('moeda_codigo'):
+                moeda_cod = row_ap['moeda_codigo']
+
+        saldo_posterior = round(saldo_anterior + valor, 8)
 
         cursor.execute("""
-            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
-        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior, moeda_cod))
 
         cursor.execute("""
             UPDATE usuario
@@ -72,7 +79,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             WHERE id = %s
         """, (saldo_posterior, usuario_id))
 
-        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado {moeda_cod} {valor} para Usuário #{usuario_id} (Novo Saldo: {moeda_cod} {saldo_posterior})")
         return True
     except Exception as e:
         print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")
@@ -226,6 +233,12 @@ def get_fixture_stats(fixture, cursor=None):
     if not score_processed_at:
         return None
 
+    # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
+    if isinstance(score_processed_at, datetime):
+        if (datetime.now() - score_processed_at).total_seconds() < 1200:
+            print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
+            return None
+
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')
 
@@ -296,7 +309,10 @@ def evaluate_bet(aposta, stats):
     mercado = aposta.get('mercado', '').strip()
     valor_aposta = float(aposta.get('valor_aposta', 0.0) or 0.0)
     odd_original = float(aposta.get('odd', 1.0) or 1.0)
-    ganhos_originais = float(aposta.get('ganhos_potenciais', 0.0) or (valor_aposta * odd_original))
+    
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+    ganhos_reais = round(valor_aposta * odd_original, dec)
     
     total_cards = stats['total_cards']
     total_goals = stats['total_goals']
@@ -347,21 +363,22 @@ def evaluate_bet(aposta, stats):
         adj = diff_gols + line
 
         if adj > 0.25:
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA!"
-            return 'Ganha', detalhe, ganhos_originais
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA! (Retorno {moeda_cod} {ganhos_reais})"
+            return 'Ganha', detalhe, ganhos_reais
         elif abs(adj - 0.25) < 0.01:
             # MEIO GANHA (50% ganha na odd + 50% reembolsada)
-            valor_computado = valor_aposta * ((odd_original + 1.0) / 2.0)
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {valor_computado:.2f})"
+            valor_computado = round(valor_aposta * ((odd_original + 1.0) / 2.0), dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno {moeda_cod} {valor_computado})"
             return 'Meio Ganha', detalhe, valor_computado
         elif abs(adj) < 0.01:
             # ANULADA (100% Reembolsada)
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
-            return 'ANULADA', detalhe, valor_aposta
+            valor_computado = round(valor_aposta, dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso {moeda_cod} {valor_computado})"
+            return 'ANULADA', detalhe, valor_computado
         elif abs(adj - (-0.25)) < 0.01:
             # MEIO PERDIDA (50% Reembolsada + 50% Perdida)
-            valor_computado = valor_aposta * 0.5
-            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {valor_computado:.2f})"
+            valor_computado = round(valor_aposta * 0.5, dec)
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno {moeda_cod} {valor_computado})"
             return 'Meio Perdida', detalhe, valor_computado
         else:
             # PERDIDA (100% Perdida)
@@ -423,7 +440,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT | {target_name}: {actual_cards} ({breakdown}) {comp} Limite {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
     elif 'gol' in mercado_norm or 'gol' in palpite_norm:
@@ -442,7 +459,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Total {total_goals} Gols {comp} {threshold}) -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # 3. MERCADO: RESULTADO / VENCEDOR (Ex: "Casa Vence", "Empate", "Fora Vence")
     elif 'vencedor' in mercado_norm or 'resultado' in mercado_norm or 'vence' in palpite_norm:
@@ -457,7 +474,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar Final: {goals_home}x{goals_away} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # FALLBACK GENÉRICO (Trata palpites tipo "Menos de X")
     match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
@@ -466,10 +483,10 @@ def evaluate_bet(aposta, stats):
         won = (total_cards < threshold)
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Resultado {total_cards} vs Limite {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe, (ganhos_originais if won else 0.0)
+        return status_str, detalhe, (ganhos_reais if won else 0.0)
 
     # Se não conseguir avaliar, marca como Ganha por default para simulação
-    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!", ganhos_originais
+    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!", ganhos_reais
 
 def process_pending_bets():
     """
@@ -716,6 +733,7 @@ def process_palpites_gerados(cursor):
         JOIN fixtures_trends f ON p.fixture_id = f.fixture_id
         WHERE f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
           AND f.score_processed_at IS NOT NULL
+          AND f.score_processed_at <= DATE_SUB(NOW(), INTERVAL 20 MINUTE)
           AND f.goals_home IS NOT NULL
           AND f.goals_away IS NOT NULL
     """)

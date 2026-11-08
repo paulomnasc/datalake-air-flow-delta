@@ -440,15 +440,15 @@ class SubscriptionController extends BaseController
     }
 
     /**
-     * Página em manutenção/construção para créditos do Grok AI
+     * Página de recarga de créditos do Grok AI (Checkout Pix e Cartão de Crédito)
      */
     public function buyGrokCredits()
     {
-        return view('subscription/under_construction');
+        return $this->buyGrokCreditsCheckout();
     }
 
     /**
-     * Fluxo original de checkout preservado para reativação futura
+     * Fluxo completo de checkout (Pix e Cartão via Mercado Pago)
      */
     public function buyGrokCreditsCheckout()
     {
@@ -471,7 +471,7 @@ class SubscriptionController extends BaseController
         // Valor fixo de R$ 10,00 para a recarga de créditos
         $valorBrl = 10.00;
 
-        // Gera o payload do PIX no backend para maior confiabilidade
+        // Gera o payload do PIX no backend para contingência
         $pixPayload = $this->buildPixPayload(
             '03206740703', // Chave CPF de Cristiane (somente números)
             $valorBrl,
@@ -483,13 +483,16 @@ class SubscriptionController extends BaseController
         // Verifica se o cadastro foi realizado com login social Google
         $needsGoogleLogin = empty($usuario->google_id);
 
+        $mpService = new MercadoPagoService();
+
         $data = [
-            'usuario_nome' => $usuario->nome ?? 'Usuário',
-            'usuario_email' => $usuario->email ?? '',
-            'valor_brl' => $valorBrl,
-            'pix_payload' => $pixPayload,
-            'grok_credits' => $usuario->grok_credits ?? 0,
-            'needs_google_login' => $needsGoogleLogin
+            'usuario_nome'       => $usuario->nome ?? 'Usuário',
+            'usuario_email'      => $usuario->email ?? '',
+            'valor_brl'          => $valorBrl,
+            'pix_payload'        => $pixPayload,
+            'grok_credits'       => $usuario->grok_credits ?? 0,
+            'needs_google_login' => $needsGoogleLogin,
+            'mp_public_key'      => $mpService->getPublicKey()
         ];
 
         return view('subscription/buy_grok_credits', $data);
@@ -688,6 +691,158 @@ class SubscriptionController extends BaseController
                 'message' => $result['message'] ?? 'Erro ao criar Pix no Mercado Pago'
             ]);
         }
+    }
+
+    /**
+     * Processa pagamento via Cartão de Crédito pelo Mercado Pago
+     */
+    public function processMpCardPayment()
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Você precisa estar logado para adquirir créditos.'
+            ]);
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Sessão inválida. Faça login novamente.'
+            ]);
+        }
+
+        $usuarioModel = new UsuarioModel();
+        $usuario = $usuarioModel->find($userId);
+        if (!$usuario) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Usuário não encontrado.'
+            ]);
+        }
+
+        $input = $this->request->getJSON(true) ?: $this->request->getPost();
+
+        $token           = trim($input['token'] ?? '');
+        $paymentMethodId = trim($input['payment_method_id'] ?? '');
+        $installments    = (int)($input['installments'] ?? 1);
+        $issuerId        = !empty($input['issuer_id']) ? (string)$input['issuer_id'] : null;
+        $docNumber       = trim($input['doc_number'] ?? '');
+        $cardholderEmail = trim($input['cardholder_email'] ?? ($usuario->email ?? ''));
+        $cardholderName  = trim($input['cardholder_name'] ?? ($usuario->nome ?? 'Usuário'));
+        $tipo            = $input['tipo'] ?? 'grok_credits';
+
+        if (empty($token) || empty($paymentMethodId)) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Token do cartão ou método de pagamento ausente.'
+            ]);
+        }
+
+        $valorBrl = 10.00;
+
+        $mpService = new MercadoPagoService();
+        $notificationUrl = base_url('subscription/mp-webhook');
+
+        $result = $mpService->criarPagamentoCartao(
+            $valorBrl,
+            $token,
+            $installments,
+            $paymentMethodId,
+            $issuerId,
+            $cardholderEmail,
+            $cardholderName,
+            $docNumber,
+            (string) $userId,
+            $notificationUrl
+        );
+
+        $db = \Config\Database::connect();
+
+        if ($result['success']) {
+            $paymentId    = $result['payment_id'];
+            $statusMp     = $result['status'];
+            $statusDetail = $result['status_detail'];
+
+            $db->table('pagamento_transacao')->insert([
+                'usuario_id'    => $userId,
+                'mp_payment_id' => $paymentId,
+                'status'        => $statusMp,
+                'status_detail' => $statusDetail,
+                'valor'         => $valorBrl,
+                'tipo'          => $tipo,
+                'ticket_url'    => $result['raw_response']['transaction_details']['external_resource_url'] ?? null
+            ]);
+
+            if ($statusMp === 'approved') {
+                if ($tipo === 'grok_credits') {
+                    $currentCredits = (int)($usuario->grok_credits ?? 0);
+                    $newCredits = $currentCredits + 20;
+                    $usuarioModel->update($userId, ['grok_credits' => $newCredits]);
+                    log_message('info', "[MERCADOPAGO CARD] 20 créditos adicionados ao usuário {$userId}. Saldo: {$newCredits}");
+                }
+
+                return $this->response->setJSON([
+                    'status'        => 'success',
+                    'approved'      => true,
+                    'payment_id'    => $paymentId,
+                    'status_detail' => $statusDetail,
+                    'message'       => 'Pagamento com Cartão Aprovado com Sucesso! 20 créditos foram adicionados à sua conta.'
+                ]);
+            } elseif ($statusMp === 'in_process') {
+                return $this->response->setJSON([
+                    'status'        => 'pending',
+                    'approved'      => false,
+                    'payment_id'    => $paymentId,
+                    'status_detail' => $statusDetail,
+                    'message'       => 'Seu pagamento está sendo processado pelo emissor do cartão. Em instantes você receberá a confirmação.'
+                ]);
+            } else {
+                $friendlyMsg = $this->traduzirStatusDetailCartao($statusDetail);
+                return $this->response->setJSON([
+                    'status'        => 'error',
+                    'approved'      => false,
+                    'payment_id'    => $paymentId,
+                    'status_detail' => $statusDetail,
+                    'message'       => $friendlyMsg
+                ]);
+            }
+        } else {
+            $statusDetail = $result['status_detail'] ?? '';
+            $friendlyMsg  = !empty($statusDetail) ? $this->traduzirStatusDetailCartao($statusDetail) : ($result['message'] ?? 'Falha ao processar pagamento com cartão no Mercado Pago.');
+
+            return $this->response->setJSON([
+                'status'        => 'error',
+                'approved'      => false,
+                'status_detail' => $statusDetail,
+                'message'       => $friendlyMsg
+            ]);
+        }
+    }
+
+    /**
+     * Traduz códigos de status_detail do Mercado Pago para mensagens claras ao usuário
+     */
+    private function traduzirStatusDetailCartao(string $statusDetail): string
+    {
+        $mensagens = [
+            'cc_rejected_bad_filled_card_number'   => 'Revise o número do cartão digitado.',
+            'cc_rejected_bad_filled_date'          => 'Revise a data de validade informada.',
+            'cc_rejected_bad_filled_other'         => 'Revise os dados preenchidos do cartão.',
+            'cc_rejected_bad_filled_security_code' => 'Revise o código de segurança (CVV).',
+            'cc_rejected_blacklist'                => 'Não foi possível processar seu pagamento com este cartão.',
+            'cc_rejected_call_for_authorize'       => 'Você precisa autorizar o pagamento de R$ 10,00 junto ao seu banco emissor.',
+            'cc_rejected_card_disabled'            => 'Ligue para a operadora do seu cartão para ativar o cartão antes de tentar novamente.',
+            'cc_rejected_duplicated_payment'       => 'Você já realizou um pagamento recentemente com este mesmo valor.',
+            'cc_rejected_high_risk'                => 'O pagamento foi recusado pela análise de risco do Mercado Pago.',
+            'cc_rejected_insufficient_amount'      => 'Saldo ou limite insuficiente no cartão.',
+            'cc_rejected_invalid_installments'     => 'Número de parcelas não permitido para este meio de pagamento.',
+            'cc_rejected_max_attempts'             => 'Você atingiu o limite de tentativas. Escolha outro cartão ou realize o pagamento via PIX.',
+            'cc_rejected_other_reason'             => 'O emissor não autorizou a transação. Tente com outro cartão ou use o PIX.'
+        ];
+
+        return $mensagens[$statusDetail] ?? 'O pagamento não foi autorizado pela operadora do cartão. Verifique os dados ou pague via PIX.';
     }
 
     /**

@@ -14,6 +14,7 @@ class MetaDiariaModel extends Model
     protected $protectFields    = true;
     protected $allowedFields    = [
         'usuario_id',
+        'moeda_codigo',
         'titulo',
         'stake_padrao',
         'total_apostas_alvo',
@@ -30,6 +31,29 @@ class MetaDiariaModel extends Model
 
     protected $useTimestamps = false;
 
+    public const DATA_CORTE_DEBITO = '2026-10-22';
+
+    /**
+     * Retorna a cláusula SQL para filtrar apostas válidas nas metas diárias:
+     * Para datas anteriores a 2026-10-22, preserva o histórico original.
+     * A partir de 2026-10-22, exige aposta confirmada (confirmada = 1) E com registro de débito em conta corrente (DEBITO_APOSTA).
+     */
+    public function getSqlCondicaoApostaValida(string $aliasAposta = 'a'): string
+    {
+        $corte = self::DATA_CORTE_DEBITO;
+        return "(
+            DATE(DATE_SUB(COALESCE({$aliasAposta}.data_hora_jogo, {$aliasAposta}.criado_em), INTERVAL 3 HOUR)) < '{$corte}'
+            OR (
+                {$aliasAposta}.confirmada = 1
+                AND EXISTS (
+                    SELECT 1 FROM conta_corrente cc 
+                    WHERE cc.aposta_id = {$aliasAposta}.id 
+                      AND cc.tipo = 'DEBITO_APOSTA'
+                )
+            )
+        )";
+    }
+
     /**
      * Retorna a meta ativa do usuário (ou gera a padrão se não existir).
      */
@@ -44,10 +68,14 @@ class MetaDiariaModel extends Model
             ->getRow();
 
         if (!$meta) {
+            $moedaModel = new \App\Models\MoedaConfigModel();
+            $moedaPadrao = $moedaModel->getDefaultMoeda();
+
             // Cria meta padrão inicial
             $default = [
                 'usuario_id'         => $usuarioId,
-                'titulo'             => 'Meta Padrão - Ciclo 10 Apostas R$ 10',
+                'moeda_codigo'       => $moedaPadrao->codigo ?? 'BRL',
+                'titulo'             => 'Meta Padrão - Ciclo 10 Apostas',
                 'stake_padrao'       => 10.00,
                 'total_apostas_alvo' => 10,
                 'odd_media_alvo'     => 1.75,
@@ -77,6 +105,7 @@ class MetaDiariaModel extends Model
 
         $payload = [
             'titulo'             => !empty($dados['titulo']) ? trim($dados['titulo']) : 'Meta Diária',
+            'moeda_codigo'       => !empty($dados['moeda_codigo']) ? strtoupper(trim($dados['moeda_codigo'])) : ($metaExistente->moeda_codigo ?? 'BRL'),
             'stake_padrao'       => isset($dados['stake_padrao']) ? (float)$dados['stake_padrao'] : 10.00,
             'total_apostas_alvo' => isset($dados['total_apostas_alvo']) ? (int)$dados['total_apostas_alvo'] : 10,
             'odd_media_alvo'     => isset($dados['odd_media_alvo']) ? (float)$dados['odd_media_alvo'] : 1.75,
@@ -121,14 +150,16 @@ class MetaDiariaModel extends Model
                 $temPendentes = ((int)($cache['pendentes_count'] ?? 0) > 0);
 
                 // Consulta leve no banco para verificar integridade e frescor das apostas
+                $condValida = $this->getSqlCondicaoApostaValida('a');
                 $betCheck = $db->query("
                     SELECT 
                         COUNT(*) as total_apostas,
-                        MAX(updated_at) as max_updated_at
-                    FROM apostas
-                    WHERE usuario_id = ?
-                      AND status NOT IN ('Cancelada', 'CANCELADA')
-                      AND DATE(DATE_SUB(COALESCE(data_hora_jogo, criado_em), INTERVAL 3 HOUR)) = ?
+                        MAX(a.updated_at) as max_updated_at
+                    FROM apostas a
+                    WHERE a.usuario_id = ?
+                      AND a.status NOT IN ('Cancelada', 'CANCELADA')
+                      AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) = ?
+                      AND {$condValida}
                 ", [$usuarioId, $dataReferencia])->getRowArray();
 
                 $totalApostas = (int)($betCheck['total_apostas'] ?? 0);
@@ -166,46 +197,82 @@ class MetaDiariaModel extends Model
         $db = \Config\Database::connect();
         $meta = $this->getMetaAtiva($usuarioId);
 
-        // Agregação direta das apostas confirmadas para a data informada
-        $sql = "
-            SELECT 
-                COUNT(*) as total_cadastradas,
-                SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN 1 ELSE 0 END) as total_liquidadas,
-                SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
-                SUM(CASE WHEN status = 'Ganha' THEN 1.0 WHEN status = 'Meio Ganha' THEN 0.5 ELSE 0.0 END) as greens,
-                SUM(CASE WHEN status IN ('ANULADA', 'Anulada') THEN 1 ELSE 0 END) as pushes,
-                SUM(CASE WHEN status = 'Perdida' THEN 1.0 WHEN status = 'Meio Perdida' THEN 0.5 ELSE 0.0 END) as reds,
-                COALESCE(AVG(odd), 0) as odd_media,
-                COALESCE(SUM(valor_aposta), 0) as total_apostado,
-                COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_liquidado,
-                COALESCE(SUM(CASE 
-                    WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
-                    WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))
-                    WHEN status IN ('ANULADA', 'Anulada') THEN valor_aposta
-                    WHEN status = 'Meio Perdida' THEN (valor_aposta * 0.5)
-                    WHEN status = 'Cashout' THEN COALESCE(NULLIF(cash_out, 0), COALESCE(NULLIF(ganhos_potenciais, 0), valor_aposta))
-                    ELSE 0 
-                END), 0) as retornos_totais
-            FROM apostas
-            WHERE usuario_id = ?
-              AND status NOT IN ('Cancelada', 'CANCELADA')
-              AND DATE(DATE_SUB(COALESCE(data_hora_jogo, criado_em), INTERVAL 3 HOUR)) = ?
-        ";
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
+        $metaObj = $moedaModel->getMoedaByCodigo($metaMoeda);
+        $metaCotacaoBrl = (float)($metaObj->cotacao_brl ?? 1.0);
+        $decRound = ($metaMoeda !== 'BRL') ? 8 : 2;
 
-        $res = $db->query($sql, [$usuarioId, $dataReferencia])->getRowArray();
+        // Consulta direta das apostas válidas para a data informada (fuso Brasília -3h)
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $apostasDia = $db->query("
+            SELECT a.*
+            FROM apostas a
+            WHERE a.usuario_id = ?
+              AND a.status NOT IN ('Cancelada', 'CANCELADA')
+              AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) = ?
+              AND {$condValida}
+            ORDER BY COALESCE(a.data_hora_jogo, a.criado_em) ASC, a.id ASC
+        ", [$usuarioId, $dataReferencia])->getResultObject();
 
-        $cadastradas = (int)($res['total_cadastradas'] ?? 0);
-        $liquidadas  = (int)($res['total_liquidadas'] ?? 0);
-        $pendentes   = (int)($res['pendentes'] ?? 0);
-        $greens      = round((float)($res['greens'] ?? 0.0), 1);
-        $pushes      = (int)($res['pushes'] ?? 0);
-        $reds        = round((float)($res['reds'] ?? 0.0), 1);
-        $oddMedia    = round((float)($res['odd_media'] ?? 0), 2);
-        $apostado    = (float)($res['total_apostado'] ?? 0);
-        $liquidado   = (float)($res['total_liquidado'] ?? 0);
-        $retornos    = (float)($res['retornos_totais'] ?? 0);
+        $cadastradas = count($apostasDia);
+        $liquidadas  = 0;
+        $pendentes   = 0;
+        $greens      = 0.0;
+        $pushes      = 0;
+        $reds        = 0.0;
+        $somaOdds    = 0.0;
+        $apostado    = 0.0;
+        $liquidado   = 0.0;
+        $retornos    = 0.0;
 
-        $lucroLiquido = round($retornos - $liquidado, 2);
+        foreach ($apostasDia as $ap) {
+            $st     = $ap->status;
+            $rawVal = (float)$ap->valor_aposta;
+            $odd    = (float)$ap->odd;
+
+            $apMoeda   = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+            $val       = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+
+            $apostado += $val;
+            $somaOdds += $odd;
+
+            $stNorm = strtolower(trim((string)$st));
+            if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
+                $pendentes++;
+            } else {
+                $liquidadas++;
+                $liquidado += $val;
+                if ($st === 'Ganha') {
+                    $greens += 1.0;
+                    $retornos += ($val * $odd);
+                } elseif ($st === 'Meio Ganha') {
+                    $greens += 0.5;
+                    $retornos += ($val + (($val * $odd - $val) / 2));
+                } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
+                    $pushes++;
+                    $retornos += $val;
+                } elseif ($st === 'Perdida') {
+                    $reds += 1.0;
+                } elseif ($st === 'Meio Perdida') {
+                    $reds += 0.5;
+                    $retornos += ($val * 0.5);
+                } elseif ($st === 'Cashout') {
+                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                    $retornos += $cashVal;
+                }
+            }
+        }
+
+        $greens       = round($greens, 1);
+        $reds         = round($reds, 1);
+        $oddMedia     = $cadastradas > 0 ? round($somaOdds / $cadastradas, 2) : 0.0;
+        $apostado     = round($apostado, $decRound);
+        $liquidado    = round($liquidado, $decRound);
+        $retornos     = round($retornos, $decRound);
+        $lucroLiquido = round($retornos - $liquidado, $decRound);
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
 
         $alvoApostas = (int)($meta->total_apostas_alvo ?? 10);
@@ -349,11 +416,14 @@ class MetaDiariaModel extends Model
         $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
 
         // Busca todas as apostas válidas em ordem cronológica
-        $todasApostas = $db->table('apostas')
-            ->where('usuario_id', $usuarioId)
-            ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
-            ->orderBy('id', 'ASC')
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $todasApostas = $db->table('apostas a')
+            ->select('a.*')
+            ->where('a.usuario_id', $usuarioId)
+            ->whereNotIn('a.status', ['Cancelada', 'CANCELADA'])
+            ->where($condValida)
+            ->orderBy('COALESCE(a.data_hora_jogo, a.criado_em)', 'ASC', false)
+            ->orderBy('a.id', 'ASC')
             ->get()
             ->getResultObject();
 
@@ -399,6 +469,12 @@ class MetaDiariaModel extends Model
         $ultimoCicloFechado = 0;
         $cicloComJogosHoje = null;
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
+        $metaObj = $moedaModel->getMoedaByCodigo($metaMoeda);
+        $metaCotacaoBrl = (float)($metaObj->cotacao_brl ?? 1.0);
+        $decRound = ($metaMoeda !== 'BRL') ? 8 : 2;
+
         for ($c = 1; $c <= $totalCiclosExistentes; $c++) {
             $offsetBloco = ($c - 1) * $tamanho;
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
@@ -413,8 +489,12 @@ class MetaDiariaModel extends Model
             foreach ($blocoTeste as $bt) {
                 $stBt = (string)($bt->status ?? '');
                 $stBtNorm = strtolower(trim($stBt));
-                $valBt = (float)($bt->valor_aposta ?? 0);
+                $rawValBt = (float)($bt->valor_aposta ?? 0);
                 $oddBt = (float)($bt->odd ?? 0);
+
+                $apMoeda = !empty($bt->moeda_codigo) ? strtoupper(trim((string)$bt->moeda_codigo)) : 'BRL';
+                $apCotacao = (float)($bt->cotacao_brl_snapshot ?? 1.0);
+                $valBt = $this->normalizarValorParaMoedaMeta($rawValBt, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
 
                 if (in_array($stBtNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
                     $pendentesBloco++;
@@ -432,7 +512,9 @@ class MetaDiariaModel extends Model
                         $redsBloco += 0.5;
                         $retornosBloco += ($valBt * 0.5);
                     } elseif ($stBt === 'Cashout') {
-                        $retornosBloco += (float)($bt->cash_out ?? $valBt);
+                        $rawCash = ($bt->cash_out !== null) ? (float)$bt->cash_out : $rawValBt;
+                        $cashBt = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                        $retornosBloco += $cashBt;
                     }
                 }
 
@@ -443,7 +525,7 @@ class MetaDiariaModel extends Model
                 }
             }
 
-            $lucroBloco = round($retornosBloco - $liquidadoBloco, 2);
+            $lucroBloco = round($retornosBloco - $liquidadoBloco, $decRound);
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
@@ -509,8 +591,13 @@ class MetaDiariaModel extends Model
 
         foreach ($apostasCiclo as $ap) {
             $st = $ap->status;
-            $val = (float)$ap->valor_aposta;
+            $rawVal = (float)$ap->valor_aposta;
             $odd = (float)$ap->odd;
+
+            $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+            $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+
             $apostado += $val;
             $somaOdds += $odd;
 
@@ -536,12 +623,14 @@ class MetaDiariaModel extends Model
                     $retornos += ($val * 0.5);
                 } elseif ($st === 'Cashout') {
                     $cashouts++;
-                    $retornos += (float)($ap->cash_out ?? $val);
+                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                    $retornos += $cashVal;
                 }
             }
         }
 
-        $lucroLiquido = round($retornos - $liquidado, 2);
+        $lucroLiquido = round($retornos - $liquidado, $decRound);
         $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
         $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
@@ -590,15 +679,15 @@ class MetaDiariaModel extends Model
             'reds'                => $reds,
             'cashouts'            => $cashouts,
             'odd_media'           => $oddMedia,
-            'total_apostado'      => $apostado,
-            'total_liquidado'     => $liquidado,
-            'ganhos_totais'       => round($retornos, 2),
+            'total_apostado'      => round($apostado, $decRound),
+            'total_liquidado'     => round($liquidado, $decRound),
+            'ganhos_totais'       => round($retornos, $decRound),
             'lucro_liquido'       => $lucroLiquido,
             'roi_pct'             => $roiPct,
             'progresso_pct'       => $progressoPct,
             'lucro_alvo'          => $lucroAlvo,
             'stake_padrao'        => (float)($meta->stake_padrao ?? 10.00),
-            'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), 2),
+            'volume_alvo'         => round($tamanho * (float)($meta->stake_padrao ?? 10.00), $decRound),
             'apostas'             => $apostasCiclo
         ];
     }
@@ -620,11 +709,14 @@ class MetaDiariaModel extends Model
         $meta = $this->getMetaAtiva($usuarioId);
         $tamanho = $tamanhoCiclo > 0 ? $tamanhoCiclo : (int)($meta->total_apostas_alvo ?? 10);
 
-        $todasApostas = $db->table('apostas')
-            ->where('usuario_id', $usuarioId)
-            ->whereNotIn('status', ['Cancelada', 'CANCELADA'])
-            ->orderBy('COALESCE(data_hora_jogo, criado_em)', 'ASC', false)
-            ->orderBy('id', 'ASC')
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $todasApostas = $db->table('apostas a')
+            ->select('a.*')
+            ->where('a.usuario_id', $usuarioId)
+            ->whereNotIn('a.status', ['Cancelada', 'CANCELADA'])
+            ->where($condValida)
+            ->orderBy('COALESCE(a.data_hora_jogo, a.criado_em)', 'ASC', false)
+            ->orderBy('a.id', 'ASC')
             ->get()
             ->getResultObject();
 
@@ -636,26 +728,50 @@ class MetaDiariaModel extends Model
         $numCiclos = (int)ceil($totalApostas / $tamanho);
         $historico = [];
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
+        $metaObj = $moedaModel->getMoedaByCodigo($metaMoeda);
+        $metaCotacaoBrl = (float)($metaObj->cotacao_brl ?? 1.0);
+        $decRound = ($metaMoeda !== 'BRL') ? 8 : 2;
+
         for ($c = $numCiclos; $c >= 1; $c--) {
             $offset = ($c - 1) * $tamanho;
             $bloco = array_slice($todasApostas, $offset, $tamanho);
             if (empty($bloco)) continue;
 
-            $totalB = count($bloco);
+            $totalB = 0;
             $greens = 0.0; $pushes = 0; $reds = 0.0; $cashouts = 0; $pendentes = 0;
-            $liquidado = 0.0; $retornos = 0.0;
+            $apostado = 0.0; $liquidado = 0.0; $retornos = 0.0;
 
             $dtInicio = null;
             $dtFim = null;
 
             foreach ($bloco as $ap) {
-                $rawDt = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : $ap->criado_em;
-                if ($dtInicio === null) $dtInicio = $rawDt;
-                $dtFim = $rawDt;
+                $rawDt  = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : $ap->criado_em;
+                $dtBrt  = !empty($rawDt) ? date('Y-m-d H:i:s', strtotime($rawDt . ' -3 hours')) : null;
+                $diaBrt = $dtBrt ? substr($dtBrt, 0, 10) : null;
+
+                // Filtra estritamente as apostas dentro da janela de datas selecionada (fuso Brasília -3h)
+                if (!empty($dataInicio) && $diaBrt !== null && $diaBrt < $dataInicio) {
+                    continue;
+                }
+                if (!empty($dataFim) && $diaBrt !== null && $diaBrt > $dataFim) {
+                    continue;
+                }
+
+                $totalB++;
+                if ($dtInicio === null) $dtInicio = $dtBrt;
+                $dtFim = $dtBrt;
 
                 $st = $ap->status;
-                $val = (float)$ap->valor_aposta;
+                $rawVal = (float)$ap->valor_aposta;
                 $odd = (float)$ap->odd;
+
+                $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+                $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+                $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+
+                $apostado += $val;
 
                 $stNorm = strtolower(trim((string)$st));
                 if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
@@ -670,7 +786,6 @@ class MetaDiariaModel extends Model
                         $retornos += ($val + (($val * $odd - $val) / 2));
                     } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                         $pushes++;
-                        $retornos += $val;
                     } elseif ($st === 'Perdida') {
                         $reds += 1.0;
                     } elseif ($st === 'Meio Perdida') {
@@ -678,31 +793,32 @@ class MetaDiariaModel extends Model
                         $retornos += ($val * 0.5);
                     } elseif ($st === 'Cashout') {
                         $cashouts++;
-                        $retornos += (float)($ap->cash_out ?? $val);
+                        $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                        $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                        $retornos += $cashVal;
+                    }
+                    if (in_array($st, ['ANULADA', 'Anulada'])) {
+                        $retornos += $val;
                     }
                 }
             }
 
-            // Filtro por período de datas (intersecção com o intervalo do bloco)
-            $cDataIni = !empty($dtInicio) ? substr($dtInicio, 0, 10) : null;
-            $cDataFim = !empty($dtFim) ? substr($dtFim, 0, 10) : null;
-
-            if (!empty($dataInicio) && $cDataFim !== null && $cDataFim < $dataInicio) {
-                continue;
-            }
-            if (!empty($dataFim) && $cDataIni !== null && $cDataIni > $dataFim) {
+            if ($totalB === 0) {
                 continue;
             }
 
-            $lucroLiq = round($retornos - $liquidado, 2);
+            $apostado  = round($apostado, $decRound);
+            $liquidado = round($liquidado, $decRound);
+            $retornos  = round($retornos, $decRound);
+            $lucroLiq  = round($retornos - $liquidado, $decRound);
             $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
 
             $isStopLoss = ($lucroLiq <= $stopLossConfig || ($reds >= $maxRedsConfig && $lucroLiq < 0));
-            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && $totalB >= $tamanho && $pendentes === 0);
-            $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || ($totalB >= $tamanho && $pendentes === 0));
+            $isMetaBatida = ($lucroLiq >= $lucroAlvoConfig && count($bloco) >= $tamanho && $pendentes === 0);
+            $isFechado = (($isStopLoss && $pendentes === 0) || $isMetaBatida || (count($bloco) >= $tamanho && $pendentes === 0));
 
             if ($isStopLoss && $pendentes === 0) {
                 $status = 'STOP_LOSS_ATINGIDO';
@@ -723,22 +839,24 @@ class MetaDiariaModel extends Model
             }
 
             $historico[] = [
-                'numero_ciclo'   => $c,
-                'total_apostas'  => $totalB,
-                'tamanho_ciclo'  => $tamanho,
-                'data_inicio'    => $dtInicio,
-                'data_fim'       => $dtFim,
-                'greens'         => $greens,
-                'pushes'         => $pushes,
-                'reds'           => $reds,
-                'cashouts'       => $cashouts,
-                'pendentes'      => $pendentes,
-                'investido'      => $liquidado,
-                'retornos'       => $retornos,
-                'lucro_liquido'  => $lucroLiq,
-                'roi_pct'        => $roi,
-                'is_fechado'     => $isFechado,
-                'status'         => $status
+                'numero_ciclo'        => $c,
+                'total_apostas'       => $totalB,
+                'total_apostas_bloco' => count($bloco),
+                'tamanho_ciclo'       => $tamanho,
+                'data_inicio'         => $dtInicio,
+                'data_fim'            => $dtFim,
+                'greens'              => $greens,
+                'pushes'              => $pushes,
+                'reds'                => $reds,
+                'cashouts'            => $cashouts,
+                'pendentes'           => $pendentes,
+                'apostado'            => $apostado,
+                'investido'           => $liquidado,
+                'retornos'            => $retornos,
+                'lucro_liquido'       => $lucroLiq,
+                'roi_pct'             => $roi,
+                'is_fechado'          => $isFechado,
+                'status'              => $status
             ];
 
             if (count($historico) >= $limite) {
@@ -750,63 +868,101 @@ class MetaDiariaModel extends Model
     }
 
     /**
-     * Retorna o histórico de dias cacheados dos últimos N dias (suporta filtro de datas).
+     * Retorna o histórico de dias cacheados para a janela selecionada, garantindo sincronia 100% com as apostas válidas.
      */
     public function getHistoricoDias(int $usuarioId, int $limite = 30, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
+        $meta = $this->getMetaAtiva($usuarioId);
+        $metaMoeda = strtoupper(trim((string)($meta->moeda_codigo ?? 'BRL')));
 
-        // Se datas forem fornecidas, assegura que dias com apostas tenham cache gerado
-        if (!empty($dataInicio) || !empty($dataFim)) {
-            $bApostas = $db->table('apostas')
-                ->select("DATE(COALESCE(data_hora_jogo, criado_em)) as dia_aposta", false)
-                ->where('usuario_id', $usuarioId)
-                ->whereNotIn('status', ['Cancelada', 'CANCELADA']);
-            if (!empty($dataInicio)) {
-                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) >=", $dataInicio, false);
-            }
-            if (!empty($dataFim)) {
-                $bApostas->where("DATE(COALESCE(data_hora_jogo, criado_em)) <=", $dataFim, false);
-            }
-            $bApostas->groupBy("DATE(COALESCE(data_hora_jogo, criado_em))");
-            $diasComApostas = $bApostas->get()->getResultArray();
-
-            foreach ($diasComApostas as $dca) {
-                $diaStr = $dca['dia_aposta'] ?? null;
-                if (!empty($diaStr)) {
-                    $existeNoCache = $db->table('metas_diarias_cache')
-                        ->where('usuario_id', $usuarioId)
-                        ->where('data_referencia', $diaStr)
-                        ->countAllResults();
-                    if ($existeNoCache === 0) {
-                        $this->recalcularCacheDiario($usuarioId, $diaStr);
-                    }
-                }
-            }
-        }
-
-        // Identifica no cache se existem dias passados gravados com jogos pendentes que já foram finalizados
-        $builderPendentes = $db->table('metas_diarias_cache')
-            ->select('data_referencia')
-            ->where('usuario_id', $usuarioId)
-            ->where('data_referencia <', date('Y-m-d'))
-            ->where('pendentes_count >', 0);
-
+        // 1. Levanta todos os dias com apostas válidas (no fuso de Brasília -3h) dentro da janela selecionada
+        $condValida = $this->getSqlCondicaoApostaValida('a');
+        $params = [$usuarioId];
+        $whereDataSql = '';
         if (!empty($dataInicio)) {
-            $builderPendentes->where('data_referencia >=', $dataInicio);
+            $whereDataSql .= " AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) >= ?";
+            $params[] = $dataInicio;
         }
         if (!empty($dataFim)) {
-            $builderPendentes->where('data_referencia <=', $dataFim);
+            $whereDataSql .= " AND DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) <= ?";
+            $params[] = $dataFim;
         }
 
-        $diasPendentesPassados = $builderPendentes->get()->getResultArray();
+        $diasReaisRows = $db->query("
+            SELECT 
+                DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR)) as dia_aposta,
+                COUNT(*) as total_real
+            FROM apostas a
+            WHERE a.usuario_id = ?
+              AND a.status NOT IN ('Cancelada', 'CANCELADA')
+              AND {$condValida}
+              {$whereDataSql}
+            GROUP BY DATE(DATE_SUB(COALESCE(a.data_hora_jogo, a.criado_em), INTERVAL 3 HOUR))
+        ", $params)->getResultArray();
 
-        foreach ($diasPendentesPassados as $dp) {
-            $this->recalcularCacheDiario($usuarioId, $dp['data_referencia']);
+        $mapaDiasReais = [];
+        foreach ($diasReaisRows as $r) {
+            if (!empty($r['dia_aposta'])) {
+                $mapaDiasReais[$r['dia_aposta']] = (int)$r['total_real'];
+            }
         }
 
+        // 2. Busca o estado atual no cache para o intervalo
+        $bCache = $db->table('metas_diarias_cache')->where('usuario_id', $usuarioId);
+        if (!empty($dataInicio)) {
+            $bCache->where('data_referencia >=', $dataInicio);
+        }
+        if (!empty($dataFim)) {
+            $bCache->where('data_referencia <=', $dataFim);
+        }
+        $cacheExistenteRows = $bCache->get()->getResultArray();
+        $mapaCache = [];
+        foreach ($cacheExistenteRows as $cRow) {
+            $mapaCache[$cRow['data_referencia']] = $cRow;
+        }
+
+        // 3. Recompõe dias ausentes, desatualizados, com pendentes vencidos ou valores sem normalização de moeda
+        $todosDiasJanela = array_unique(array_merge(array_keys($mapaDiasReais), array_keys($mapaCache)));
+        $hojeStr = date('Y-m-d');
+
+        foreach ($todosDiasJanela as $diaStr) {
+            $qtdReal = $mapaDiasReais[$diaStr] ?? 0;
+            $cRow    = $mapaCache[$diaStr] ?? null;
+
+            if ($cRow === null) {
+                if ($qtdReal > 0) {
+                    $this->recalcularCacheDiario($usuarioId, $diaStr);
+                }
+                continue;
+            }
+
+            $qtdCache   = (int)($cRow['total_apostas_cadastradas'] ?? 0);
+            $pendCache  = (int)($cRow['pendentes_count'] ?? 0);
+            $apostCache = (float)($cRow['total_apostado'] ?? 0.0);
+
+            $precisaRecalcular = false;
+            if ($qtdCache !== $qtdReal) {
+                $precisaRecalcular = true;
+            } elseif ($diaStr < $hojeStr && $pendCache > 0) {
+                $precisaRecalcular = true;
+            } elseif ($metaMoeda !== 'BRL' && $qtdCache > 0 && $apostCache > ($qtdCache * 1.5)) {
+                // Detecta registros antigos gravados em BRL antes da normalização para criptomoeda da meta
+                $precisaRecalcular = true;
+            }
+
+            if ($precisaRecalcular) {
+                $this->recalcularCacheDiario($usuarioId, $diaStr);
+            }
+        }
+
+        // 4. Retorna os dias com apostas (ou dia atual) na janela selecionada
         $builder = $db->table('metas_diarias_cache')
-            ->where('usuario_id', $usuarioId);
+            ->where('usuario_id', $usuarioId)
+            ->groupStart()
+                ->where('total_apostas_cadastradas >', 0)
+                ->orWhere('data_referencia', $hojeStr)
+            ->groupEnd();
 
         if (!empty($dataInicio)) {
             $builder->where('data_referencia >=', $dataInicio);
@@ -816,13 +972,29 @@ class MetaDiariaModel extends Model
         }
 
         $builder->orderBy('data_referencia', 'DESC');
-
-        if (empty($dataInicio) && empty($dataFim)) {
-            $builder->limit($limite);
-        } else {
-            $builder->limit(max($limite, 365));
-        }
+        $builder->limit(max($limite, 1000));
 
         return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Converte o valor de uma aposta para a moeda da meta caso pertençam a moedas diferentes.
+     */
+    public function normalizarValorParaMoedaMeta(float $valor, string $moedaOrigem, float $cotacaoOrigemBrl, string $moedaDestino, float $cotacaoDestinoBrl): float
+    {
+        if ($moedaOrigem === $moedaDestino || $valor == 0.0) {
+            return $valor;
+        }
+
+        // Converte primeiro para BRL
+        $valorBrl = ($moedaOrigem === 'BRL') ? $valor : ($valor * ($cotacaoOrigemBrl > 0 ? $cotacaoOrigemBrl : 1.0));
+
+        // Converte de BRL para a moeda de destino
+        if ($moedaDestino === 'BRL') {
+            return $valorBrl;
+        }
+
+        $cotDestino = ($cotacaoDestinoBrl > 0) ? $cotacaoDestinoBrl : 1.0;
+        return $valorBrl / $cotDestino;
     }
 }

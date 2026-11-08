@@ -51,8 +51,8 @@ class ApostaController extends BaseController
             ];
         }
 
-        $credits = (int)($userRow->grok_credits ?? 0);
-        $hasTokens = ($credits > 0);
+        $credits = (float)($userRow->grok_credits ?? 0.0);
+        $hasTokens = ($credits > 0.0);
 
         return [
             'authenticated' => true,
@@ -218,12 +218,29 @@ class ApostaController extends BaseController
             $stakePadrao = 10.00;
         }
 
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $activeMoedaCodigo = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : ($moedaDefault->codigo ?? 'BRL');
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? $activeMoedaCodigo;
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        if ($activeCotacao <= 0) {
+            $activeCotacao = 1.0;
+        }
+        $isCryptoActive = ($activeMoedaCodigo !== 'BRL');
+
         $data = [
             'title'              => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
             'hasTokens'          => $hasTokens,
             'userCredits'        => $userCredits,
             'saldoContaCorrente' => $saldoContaCorrente,
             'stakePadrao'        => $stakePadrao,
+            'activeMoedaCodigo'  => $activeMoedaCodigo,
+            'activeSimbolo'      => $activeSimbolo,
+            'activeDecimais'     => $activeDecimais,
+            'activeCotacao'      => $activeCotacao,
+            'isCryptoActive'     => $isCryptoActive,
             'apostas'            => $apostas,
             'resumo'             => $resumo,
             'fixtures'           => $fixtures,
@@ -276,6 +293,13 @@ class ApostaController extends BaseController
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
         }
 
+        if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital.'
+            ])->setStatusCode(422);
+        }
+
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
@@ -283,16 +307,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        $moedaCodStore = !empty($metaAtiva->moeda_codigo) ? strtoupper($metaAtiva->moeda_codigo) : 'BRL';
+        $decimaisStore = $this->contaCorrenteModel->getDecimais($moedaCodStore);
+
         if ($status === 'ANULADA') {
             $ganhosPotenciais = $valorAposta;
         } elseif ($status === 'Meio Ganha') {
-            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), $decimaisStore);
         } elseif ($status === 'Meio Perdida') {
-            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+            $ganhosPotenciais = round($valorAposta * 0.5, $decimaisStore);
         } elseif ($status === 'Perdida') {
             $ganhosPotenciais = 0.00;
         } else {
-            $ganhosPotenciais = round($odd * $valorAposta, 2);
+            $ganhosPotenciais = round($odd * $valorAposta, $decimaisStore);
         }
 
         // Validação do Gatekeeper
@@ -673,6 +700,14 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
+                // Restrição Canônica: Apenas linhas Under 6.5 e 7.5+ (linhas < 6.5 descontinuadas)
+                if ($line < 6.49) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperCategory = 'Linha Curta Descontinuada';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Linhas Under inferiores a 6.5 (Under 3.5, 4.5 e 5.5) estão permanentemente descontinuadas por excessiva volatilidade estatística e armadilha de seleção de mercado. Autorizadas estritamente linhas Under 6.5 e Under 7.5+.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                }
+
                 // 2. Disparidade Técnica Extrema / Massacre (Veto Under 5.5)
                 $isExtremeDisparity = false;
                 if ($ftOddH > 1.0 && $ftOddA > 1.0) {
@@ -706,8 +741,8 @@ class ApostaController extends BaseController
                     return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
                 }
 
-                // Critérios específicos por linha (Under 4.5/5.5: 1.50 | Under 6.5+: 1.40)
-                $minOddReq  = ($line >= 6.49) ? 1.40 : 1.50;
+                // Critérios específicos por linha (Under 6.5+: 1.50)
+                $minOddReq  = 1.50;
                 $maxXcReq   = $line - 1.00;
                 $minProbReq = 60.0;
                 $minEvReq   = 0.0;
@@ -867,6 +902,13 @@ class ApostaController extends BaseController
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
         }
 
+        if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital.'
+            ])->setStatusCode(422);
+        }
+
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
@@ -874,16 +916,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        $moedaCodUpd = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+        $decimaisUpd = $this->contaCorrenteModel->getDecimais($moedaCodUpd);
+
         if ($status === 'ANULADA') {
             $ganhosPotenciais = $valorAposta;
         } elseif ($status === 'Meio Ganha') {
-            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), $decimaisUpd);
         } elseif ($status === 'Meio Perdida') {
-            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+            $ganhosPotenciais = round($valorAposta * 0.5, $decimaisUpd);
         } elseif ($status === 'Perdida') {
             $ganhosPotenciais = 0.00;
         } else {
-            $ganhosPotenciais = round($odd * $valorAposta, 2);
+            $ganhosPotenciais = round($odd * $valorAposta, $decimaisUpd);
         }
 
         // Reavalia o Gatekeeper ao editar a aposta
@@ -954,7 +999,8 @@ class ApostaController extends BaseController
                         (int)$aposta->usuario_id,
                         $apostaId,
                         (float)$retorno,
-                        "Retorno Aposta #{$apostaId} ({$status})"
+                        "Retorno Aposta #{$apostaId} ({$status})",
+                        $moedaCodUpd
                     );
                 }
             }
@@ -1227,12 +1273,56 @@ class ApostaController extends BaseController
             ])->setStatusCode(400);
         }
 
+        if (!empty($aposta->status) && in_array(strtolower($aposta->status), ['ganha', 'perdida', 'meio ganha', 'meio perdida', 'anulada', 'cashout'], true)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => "Esta aposta já foi encerrada com o status '{$aposta->status}' e não pode ser confirmada."
+            ])->setStatusCode(400);
+        }
+
         $userId = (int)$access['user_id'];
         if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ])->setStatusCode(403);
+        }
+
+        // =========================================================================
+        // TRAVA MANDATÓRIA DE GOVERNANÇA: SÚMULA OFICIAL E SENTINELA GEMINI
+        // Apostas PREMIUM (destaque 2) e Quase Premium (destaque 1 / Quase Premium)
+        // NÃO podem ser confirmadas sem a publicação da súmula oficial.
+        // Se a súmula oficial já foi notificada com ALERTA_RISCO, o apostador pode prosseguir
+        // assumindo o risco individual conscientemente no card.
+        // =========================================================================
+        $betTier = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+        $isPremium = $betTier->isPremium();
+        $isQuasePremium = $betTier->isQuasePremium();
+
+        if ($isPremium || $isQuasePremium) {
+            $sentinelaStatus = $aposta->auditoria_ia_status ?? null;
+            if ($sentinelaStatus !== 'CONFIRMADO' && $sentinelaStatus !== 'ALERTA_RISCO') {
+                $tipoNome = $isPremium ? '👑 PREMIUM' : '🛡️ Quase Premium';
+                $motivoSentinela = "A súmula oficial com os 11 titulares ainda não foi confirmada pela IA Sentinela Gemini (previsão a ~45 min do apito inicial).";
+
+                return $this->response->setJSON([
+                    'success' => false,
+                    'is_locked_by_lineup' => true,
+                    'message' => "🔒 Confirmação Bloqueada por Governança de Risco ({$tipoNome}): {$motivoSentinela} A aposta só pode ser confirmada e debitada após o Sinal Verde formal da Sentinela com a escalação oficial."
+                ])->setStatusCode(422);
+            }
+        }
+
+        // =========================================================================
+        // TRAVA MANDATÓRIA DE SEGURANÇA DA BANCA: TETO DE RISCO UNIVERSAL (-0.75 AH)
+        // Linhas além de -0.75 AH para favoritos estão permanentemente bloqueadas.
+        // =========================================================================
+        if ($this->isHandicapExceedingCeiling($aposta->mercado ?? '', $aposta->palpite ?? '')) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked_by_ceiling' => true,
+                'message' => '🔒 Trava de Segurança da Banca: Esta aposta excede o teto máximo de risco permitido para favoritos (-0.75 AH) e está bloqueada para confirmação e débito na banca.'
+            ])->setStatusCode(422);
         }
 
         $db = \Config\Database::connect();
@@ -1257,6 +1347,13 @@ class ApostaController extends BaseController
         }
 
         $valorAposta = (float)$aposta->valor_aposta;
+        $rawValor = $this->request->getPost('valor_aposta');
+        if ($rawValor !== null && trim((string)$rawValor) !== '') {
+            $parsedValor = (float)str_replace(',', '.', trim((string)$rawValor));
+            if ($parsedValor > 0) {
+                $valorAposta = $parsedValor;
+            }
+        }
 
         $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
         $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
@@ -1270,21 +1367,32 @@ class ApostaController extends BaseController
 
         $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
         $updateData = [
-            'confirmada' => 1,
-            'status'     => $novoStatus,
-            'updated_at' => date('Y-m-d H:i:s')
+            'confirmada'   => 1,
+            'status'       => $novoStatus,
+            'valor_aposta' => $valorAposta,
+            'updated_at'   => date('Y-m-d H:i:s')
         ];
 
         $rawOdd = $this->request->getPost('odd');
         if ($rawOdd !== null && trim((string)$rawOdd) !== '') {
             $novaOdd = (float)str_replace(',', '.', trim((string)$rawOdd));
             if ($novaOdd >= 1.01) {
+                $moedaCodConf = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+                $decimaisConf = $this->contaCorrenteModel->getDecimais($moedaCodConf);
                 $updateData['odd'] = $novaOdd;
-                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, 2);
+                $updateData['retorno_potencial'] = round($valorAposta * $novaOdd, $decimaisConf);
+                $updateData['ganhos_potenciais']  = round($valorAposta * $novaOdd, $decimaisConf);
             }
         }
 
         $this->apostaModel->update($apostaId, $updateData);
+
+        // Marca como lidas notificações prévias de Sinal Verde desta aposta já confirmada
+        $db->table('notificacoes_usuario')
+            ->where('aposta_id', $apostaId)
+            ->where('lida', 0)
+            ->like('tipo', 'VERDE')
+            ->update(['lida' => 1]);
 
         $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
 
@@ -1355,9 +1463,10 @@ class ApostaController extends BaseController
             );
         }
 
-        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na Stake";
+        $motivo = "Cancelada pelo usuário: Linha de Handicap/Aposta indisponível na casa de aposta";
         $this->apostaModel->update($apostaId, [
             'status'              => 'Cancelada',
+            'status_gatekeeper'   => 'CANCELADA_USUARIO',
             'confirmada'          => 0,
             'resultado_detalhado' => $motivo,
             'updated_at'          => date('Y-m-d H:i:s')
@@ -1423,6 +1532,7 @@ class ApostaController extends BaseController
 
         $db = \Config\Database::connect();
         $confirmedCount = 0;
+        $skippedLineupCount = 0;
         $totalDebitado = 0.00;
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
@@ -1440,6 +1550,21 @@ class ApostaController extends BaseController
             // Apenas status elegíveis: 'Pendente' ou 'Não Confirmada'
             if ($aposta->status !== 'Pendente' && $aposta->status !== 'Não Confirmada') {
                 continue;
+            }
+
+            // Trava de Governança para Confirmação em Lote (Apostas Premium / Quase Premium):
+            $tierLote = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+            $isPremLote = $tierLote->isPremium();
+            $isQuasePremLote = $tierLote->isQuasePremium();
+
+            if (($isPremLote || $isQuasePremLote) && ($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') {
+                $skippedLineupCount++;
+                continue; // Pula sem debitar
+            }
+
+            // Trava Mandatória de Segurança da Banca: Teto de -0.75 AH para favoritos
+            if ($this->isHandicapExceedingCeiling($aposta->mercado ?? '', $aposta->palpite ?? '')) {
+                continue; // Pula sem debitar
             }
 
             $apostaId = (int)$aposta->id;
@@ -1468,27 +1593,42 @@ class ApostaController extends BaseController
                 'updated_at' => $now
             ]);
 
+            // Marca como lidas notificações prévias de Sinal Verde desta aposta já confirmada
+            $db->table('notificacoes_usuario')
+                ->where('aposta_id', $apostaId)
+                ->where('lida', 0)
+                ->like('tipo', 'VERDE')
+                ->update(['lida' => 1]);
+
             $confirmedCount++;
         }
 
         $novoSaldo = $this->contaCorrenteModel->getSaldo($userId);
 
         if ($confirmedCount === 0) {
+            $msg = 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.';
+            if ($skippedLineupCount > 0) {
+                $msg = "Nenhuma aposta foi confirmada. {$skippedLineupCount} aposta(s) [PREMIUM / Quase Premium] foram retidas aguardando a publicação da súmula oficial e o aval da IA Sentinela Gemini.";
+            }
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Nenhuma aposta elegível (pendente e não confirmada) foi processada.'
+                'message' => $msg
             ]);
         }
 
         $strDebitado = number_format($totalDebitado, 2, ',', '.');
         $pluralApostas = ($confirmedCount === 1) ? 'aposta confirmada' : 'apostas confirmadas';
+        $msgSucesso = "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente.";
+        if ($skippedLineupCount > 0) {
+            $msgSucesso .= " (Obs: {$skippedLineupCount} aposta(s) Premium/Quase Premium foram preservadas aguardando a súmula oficial da Sentinela Gemini).";
+        }
 
         return $this->response->setJSON([
             'success'         => true,
             'confirmed_count' => $confirmedCount,
             'total_debitado'  => $totalDebitado,
             'novo_saldo'      => $novoSaldo,
-            'message'         => "{$confirmedCount} {$pluralApostas} com sucesso! R$ {$strDebitado} debitado da conta corrente."
+            'message'         => $msgSucesso
         ]);
     }
 
@@ -1506,7 +1646,10 @@ class ApostaController extends BaseController
             ])->setStatusCode(403);
         }
 
-        $scriptPath = '/root/datalake-air-flow-delta/scripts/processar_apostas_encerradas.py';
+        $scriptPath = '/datalake-root/scripts/processar_apostas_encerradas.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/processar_apostas_encerradas.py';
+        }
         if (file_exists($scriptPath)) {
             $cmd = "python3 " . escapeshellarg($scriptPath) . " 2>&1";
             $output = shell_exec($cmd);
@@ -2311,6 +2454,26 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Trava de Risco da Banca: Verifica se a linha de Handicap Asiático para o favorito excede o teto permitido (-0.75 AH).
+     * Linhas além de -0.75 (ex: -1.0, -1.25, -1.5, -2.0) são estritamente bloqueadas.
+     */
+    private function isHandicapExceedingCeiling(string $mercado, string $palpite): bool
+    {
+        $isHandicap = (stripos($mercado, 'handicap') !== false || stripos($palpite, 'ah') !== false);
+        if (!$isHandicap) {
+            return false;
+        }
+
+        if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $palpite, $m)) {
+            $val = (float)str_replace(',', '.', $m[1]);
+            if ($val < -0.75) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Relatório de Eficiência de Palpites (KPIs Win Rate, Red Rate, Void Rate, Abstenção, ROI)
      * Restrito exclusivamente a partidas encerradas (FT).
      */
@@ -2397,6 +2560,9 @@ class ApostaController extends BaseController
                 a.valor_aposta,
                 a.ganhos_potenciais,
                 a.cash_out,
+                a.moeda_codigo,
+                a.cotacao_brl_snapshot,
+                a.taxa_movimentacao_estimada_brl,
                 a.status as aposta_status,
                 a.status_gatekeeper,
                 a.resultado_detalhado,
@@ -2518,6 +2684,31 @@ class ApostaController extends BaseController
         $lucroPrejuizoUnidades = 0.0;
         $totalApostadoReal = 0.0;
         $lucroLiquidoReal = 0.0;
+        $totalLucroLiquidoBrl = 0.0;
+        $totalTaxasDescontadasBrl = 0.0;
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+
+        // Recupera a meta ativa do usuário para permitir espelhar a stake e moeda configurada (Opção A)
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva(!empty($userId) ? (int)$userId : 1);
+        $activeMoedaCodigo = $metaAtiva->moeda_codigo ?? ($moedaDefault->codigo ?? 'BRL');
+        $activeStake = (float)($metaAtiva->stake_padrao ?? 10.0);
+        if ($activeStake <= 0.0) $activeStake = 10.0;
+
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? 'R$';
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        $activeStakeBrl = $activeStake * $activeCotacao;
+
+        // Toggle de espelhamento de stake: se não informado, ativa por padrão para moedas cripto
+        $espelharStakeParam = $this->request->getVar('espelhar_stake');
+        if ($espelharStakeParam !== null) {
+            $espelharStake = ($espelharStakeParam === '1' || $espelharStakeParam === 'true') ? '1' : '0';
+        } else {
+            $espelharStake = ($activeMoedaCodigo !== 'BRL') ? '1' : '0';
+        }
 
         $allGreenCount = 0;
         $allRedCount = 0;
@@ -2606,8 +2797,17 @@ class ApostaController extends BaseController
             $odd = (float)($ap->odd ?? 1.85);
             if ($odd <= 1.0) $odd = 1.85;
 
-            $stake = (float)($ap->valor_aposta ?? 10.0);
-            if ($stake <= 0.0) $stake = 10.0;
+            // Se o modo de espelhamento estiver ativo, projeta sobre a stake e moeda ativa da meta
+            if ($espelharStake === '1') {
+                $stake = $activeStake;
+                $moedaItemCodigo = $activeMoedaCodigo;
+                $cotacaoItem = $activeCotacao;
+            } else {
+                $stake = (float)($ap->valor_aposta ?? 10.0);
+                if ($stake <= 0.0) $stake = 10.0;
+                $moedaItemCodigo = $ap->moeda_codigo ?? 'BRL';
+                $cotacaoItem = !empty($ap->cotacao_brl_snapshot) ? (float)$ap->cotacao_brl_snapshot : null;
+            }
 
             $statusNorm = 'PENDING';
             $lucroAposta = 0.0;
@@ -2620,28 +2820,52 @@ class ApostaController extends BaseController
 
             $isConfirmedOrDebited = (isset($ap->confirmada) && (int)$ap->confirmada === 1) || (!empty($ap->tem_debito) && (int)$ap->tem_debito > 0);
 
-            // 1. Contabilidade Financeira Real da Carteira (Mantém ROI e Lucro Líquido intactos)
-            if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
-                $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
-                $lucroAposta = $ret - $stake;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
-            } elseif ($statusRaw === 'Meio Ganha') {
-                $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
-                $lucroAposta = ($fullRet - $stake) / 2.0;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
-            } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
-                $lucroAposta = -$stake;
-                $unidadeDelta = -1.0;
-            } elseif ($statusRaw === 'Meio Perdida') {
-                $lucroAposta = -($stake / 2.0);
-                $unidadeDelta = -0.5;
-            } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
-                $lucroAposta = 0.0;
-                $unidadeDelta = 0.0;
-            } elseif ($statusRaw === 'Cashout') {
-                $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
-                $lucroAposta = $cashVal - $stake;
-                $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+            // 1. Contabilidade Financeira (Real ou Projetada via Toggle)
+            if ($espelharStake === '1') {
+                // Cálculo proporcional exato para stake padronizada
+                if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                    $lucroAposta = $stake * ($odd - 1.0);
+                    $unidadeDelta = ($odd - 1.0);
+                } elseif ($statusRaw === 'Meio Ganha') {
+                    $lucroAposta = ($stake * ($odd - 1.0)) / 2.0;
+                    $unidadeDelta = ($odd - 1.0) / 2.0;
+                } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                    $lucroAposta = -$stake;
+                    $unidadeDelta = -1.0;
+                } elseif ($statusRaw === 'Meio Perdida') {
+                    $lucroAposta = -($stake / 2.0);
+                    $unidadeDelta = -0.5;
+                } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                    $lucroAposta = 0.0;
+                    $unidadeDelta = 0.0;
+                } elseif ($statusRaw === 'Cashout') {
+                    $origStake = (float)($ap->valor_aposta ?? 0.0);
+                    $lucroAposta = ($origStake > 0.0 && $cashout > 0.0) ? ($stake * ($cashout / $origStake) - $stake) : 0.0;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+                }
+            } else {
+                if (in_array($statusRaw, ['Ganha', 'GREEN'], true)) {
+                    $ret = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                    $lucroAposta = $ret - $stake;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : ($odd - 1.0);
+                } elseif ($statusRaw === 'Meio Ganha') {
+                    $fullRet = ($ganho > 0.0) ? $ganho : ($stake * $odd);
+                    $lucroAposta = ($fullRet - $stake) / 2.0;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : (($odd - 1.0) / 2.0);
+                } elseif (in_array($statusRaw, ['Perdida', 'RED'], true)) {
+                    $lucroAposta = -$stake;
+                    $unidadeDelta = -1.0;
+                } elseif ($statusRaw === 'Meio Perdida') {
+                    $lucroAposta = -($stake / 2.0);
+                    $unidadeDelta = -0.5;
+                } elseif (in_array($statusRaw, ['Anulada', 'ANULADA', 'VOID', 'Cancelada', 'CANCELADA'], true)) {
+                    $lucroAposta = 0.0;
+                    $unidadeDelta = 0.0;
+                } elseif ($statusRaw === 'Cashout') {
+                    $cashVal = ($cashout > 0.0) ? $cashout : (($ganho > 0.0) ? $ganho : ($stake * $odd));
+                    $lucroAposta = $cashVal - $stake;
+                    $unidadeDelta = ($stake > 0.0) ? ($lucroAposta / $stake) : 0.0;
+                }
             }
 
             // 2. Avaliação Esportiva do Palpite (Acurácia de Campo da IA para Win Rate, Red Rate, Cobertura e Badges)
@@ -2913,6 +3137,26 @@ class ApostaController extends BaseController
             $itemObj->red_cards_home    = $ap->red_cards_home;
             $itemObj->red_cards_away    = $ap->red_cards_away;
 
+            // Cálculo do Valor Líquido em Reais (BRL) deduzindo taxas de movimentação (saque/rede/spot)
+            $calcLiq = $moedaConfigModel->calcularValorLiquidoBrl(
+                (float)$lucroAposta, 
+                $moedaItemCodigo, 
+                $cotacaoItem
+            );
+
+            $itemObj->moeda_codigo        = $calcLiq['moeda_codigo'];
+            $itemObj->moeda_simbolo       = $calcLiq['moeda_simbolo'];
+            $itemObj->casas_decimais      = $calcLiq['casas_decimais'];
+            $itemObj->cotacao_brl         = $calcLiq['cotacao_utilizada'];
+            $itemObj->lucro_bruto_brl     = $calcLiq['lucro_bruto_brl'];
+            $itemObj->taxa_descontada_brl = $calcLiq['taxa_descontada_brl'];
+            $itemObj->lucro_liquido_brl   = $calcLiq['lucro_liquido_brl'];
+
+            if ($statusNorm !== 'NO_BET' && $statusRaw !== 'Pendente') {
+                $totalLucroLiquidoBrl += $calcLiq['lucro_liquido_brl'];
+                $totalTaxasDescontadasBrl += $calcLiq['taxa_descontada_brl'];
+            }
+
             $palpites[] = $itemObj;
         }
 
@@ -2998,12 +3242,22 @@ class ApostaController extends BaseController
             'roiPercent'            => $roiPercent,
             'totalApostadoReal'     => round($totalApostadoReal, 2),
             'lucroLiquidoReal'      => round($lucroLiquidoReal, 2),
+            'totalLucroLiquidoBrl'  => round($totalLucroLiquidoBrl, 2),
+            'totalTaxasDescontadasBrl' => round($totalTaxasDescontadasBrl, 2),
+            'moedaDefault'          => ($espelharStake === '1') ? $moedaAtivaObj : $moedaDefault,
             'openApostado'          => round($openApostado, 2),
             'openPartialLucro'      => round($openPartialLucro, 2),
             'openBetsCount'         => $openBetsCount,
             'useClosedOnly'         => $useClosedOnly,
             'contaCorrenteStats'    => $contaCorrenteStats,
-            'confirmedFilter'       => $confirmedFilter
+            'confirmedFilter'       => $confirmedFilter,
+            'espelharStake'         => $espelharStake,
+            'activeStake'           => $activeStake,
+            'activeMoedaCodigo'     => $activeMoedaCodigo,
+            'activeSimbolo'         => $activeSimbolo,
+            'activeDecimais'        => $activeDecimais,
+            'activeCotacao'         => $activeCotacao,
+            'activeStakeBrl'        => $activeStakeBrl
         ];
 
         return view('header', $data)
@@ -3096,15 +3350,35 @@ class ApostaController extends BaseController
             unset($ap);
         }
 
+        $metaDiariaModel = new \App\Models\MetaDiariaModel();
+        $metaAtiva = $metaDiariaModel->getMetaAtiva((int)$userId);
+        $moedaConfigModel = new \App\Models\MoedaConfigModel();
+        $moedaDefault = $moedaConfigModel->getDefaultMoeda();
+        $activeMoedaCodigo = $metaAtiva->moeda_codigo ?? ($moedaDefault->codigo ?? 'BRL');
+        $activeStake = (float)($metaAtiva->stake_padrao ?? 10.0);
+        if ($activeStake <= 0.0) $activeStake = 10.0;
+
+        $moedaAtivaObj = $moedaConfigModel->where('codigo', $activeMoedaCodigo)->first() ?? $moedaDefault;
+        $activeSimbolo = $moedaAtivaObj->simbolo ?? 'R$';
+        $activeDecimais = (int)($moedaAtivaObj->casas_decimais ?? 2);
+        $activeCotacao = (float)($moedaAtivaObj->cotacao_brl ?? 1.0);
+        $activeStakeBrl = $activeStake * $activeCotacao;
+
         $gatekeeperStats = $this->computeGatekeeperCategoryStats();
 
         $data = [
-            'title'           => 'Análise de Desempenho | Gestão de Riscos & Palpites',
-            'user'            => $access['user'],
-            'hasTokens'       => $hasTokens,
-            'userCredits'     => $userCredits,
-            'apostas'         => $apostas,
-            'gatekeeperStats' => $gatekeeperStats
+            'title'             => 'Análise de Desempenho | Gestão de Riscos & Palpites',
+            'user'              => $access['user'],
+            'hasTokens'         => $hasTokens,
+            'userCredits'       => $userCredits,
+            'apostas'           => $apostas,
+            'gatekeeperStats'   => $gatekeeperStats,
+            'activeStake'       => $activeStake,
+            'activeMoedaCodigo' => $activeMoedaCodigo,
+            'activeSimbolo'     => $activeSimbolo,
+            'activeDecimais'    => $activeDecimais,
+            'activeCotacao'     => $activeCotacao,
+            'activeStakeBrl'    => $activeStakeBrl
         ];
 
         return view('header', $data)
@@ -3357,6 +3631,76 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Endpoint AJAX para reauditar aposta e card sob demanda com IA Sentinela (súmula oficial, notícias e risco).
+     */
+    public function reauditarIa()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para reauditar aposta com IA.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida (fixture_id) não informado.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/datalake-root/scripts/gemini_sentinel.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/gemini_sentinel.py';
+            if (!file_exists($scriptPath)) {
+                $scriptPath = '/usr/local/bin/scripts/gemini_sentinel.py';
+            }
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --phase=2 --window=1440 --json_output 2>&1";
+        $output = shell_exec($cmd);
+        $result = null;
+
+        if (!empty($output)) {
+            $marker = '--- JSON_RESULT ---';
+            $pos = strpos($output, $marker);
+            if ($pos !== false) {
+                $jsonStr = trim(substr($output, $pos + strlen($marker)));
+                $result = json_decode($jsonStr, true);
+            } else {
+                $jsonStart = strpos($output, '{');
+                $jsonEnd = strrpos($output, '}');
+                if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd > $jsonStart) {
+                    $result = json_decode(substr($output, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+                }
+            }
+        }
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar reauditoria da IA: ' . $output
+            ]);
+        }
+
+        $result['success'] = true;
+        return $this->response->setJSON($result);
+    }
+
+    /**
      * Endpoint AJAX para validar linha customizada de Handicap Asiático informada pelo usuário no Gatekeeper.
      */
     public function validarLinhaAh()
@@ -3391,6 +3735,14 @@ class ApostaController extends BaseController
             ])->setStatusCode(400);
         }
 
+        if ($this->isHandicapExceedingCeiling('Handicap Asiático', $linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'aprovado' => false,
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas.'
+            ]);
+        }
+
         $fixtureId = (int)$fixtureId;
         $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
         if (!file_exists($scriptPath)) {
@@ -3408,6 +3760,7 @@ class ApostaController extends BaseController
             $apostaId = (int)$apostaId;
             $cmd .= " --aposta_id={$apostaId}";
         }
+        $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
         $result = null;
@@ -3477,6 +3830,85 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Endpoint AJAX para consultar a Linha do Tempo e Histórico de Decisões de uma partida.
+     */
+    public function timeline($fixtureId)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para consultar a linha do tempo.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        try {
+            $db = \Config\Database::connect();
+            $logs = $db->table('pipeline_lifecycle_logs l')
+                ->select('l.*, n.titulo as notif_titulo, n.mensagem as notif_mensagem')
+                ->join('notificacoes_usuario n', 'l.notificacao_id = n.id', 'left')
+                ->where('l.fixture_id', $fixtureId)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            // Fallback resiliente: se não houver registros em lifecycle_logs, busca direto em notificacoes_usuario
+            if (empty($logs)) {
+                $notifs = $db->table('notificacoes_usuario')
+                    ->where('fixture_id', $fixtureId)
+                    ->orderBy('id', 'ASC')
+                    ->get()
+                    ->getResultArray();
+                foreach ($notifs as $n) {
+                    $logs[] = [
+                        'id' => null,
+                        'fixture_id' => $fixtureId,
+                        'aposta_id' => $n['aposta_id'],
+                        'notificacao_id' => $n['id'],
+                        'notificacao_criada_em' => $n['criado_em'],
+                        'componente' => 'NOTIFICACAO_SISTEMA',
+                        'tipo_evento' => $n['tipo'] ?? 'ALERTA',
+                        'delta_json' => null,
+                        'motivo_detalhado' => $n['mensagem'],
+                        'criado_em' => $n['criado_em'],
+                        'notif_titulo' => $n['titulo'],
+                        'notif_mensagem' => $n['mensagem'],
+                    ];
+                }
+            }
+
+            $aposta = $db->table('apostas')
+                ->select('id, fixture_id, time_casa, time_fora, mercado, palpite, odd, odd_justa, valor_aposta, moeda_codigo, confirmada, casa_de_aposta, status, status_gatekeeper, resultado_detalhado, criado_em')
+                ->where('fixture_id', $fixtureId)
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getFirstRow('array');
+
+            return $this->response->setJSON([
+                'success' => true,
+                'fixture_id' => $fixtureId,
+                'total' => count($logs),
+                'timeline' => $logs,
+                'aposta' => $aposta
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[ApostaController::timeline] Erro ao consultar linha do tempo fixture ' . $fixtureId . ': ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao carregar auditoria: ' . $e->getMessage()
+            ])->setStatusCode(500);
+        }
+    }
+
+    /**
      * Endpoint AJAX para salvar linha customizada de Handicap Asiático validada e aprovada pelo Gatekeeper.
      */
     public function salvarLinhaAh()
@@ -3511,6 +3943,13 @@ class ApostaController extends BaseController
             ])->setStatusCode(400);
         }
 
+        if ($this->isHandicapExceedingCeiling('Handicap Asiático', $linhaAh)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas.'
+            ])->setStatusCode(422);
+        }
+
         $fixtureId = (int)$fixtureId;
         $apostaId  = (int)$apostaId;
         $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
@@ -3525,6 +3964,7 @@ class ApostaController extends BaseController
         if (!empty($odd) && is_numeric($odd)) {
             $cmd .= " --odd=" . escapeshellarg((float)$odd);
         }
+        $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
         $result = null;
@@ -3632,20 +4072,26 @@ class ApostaController extends BaseController
             log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
         }
 
-        // Contar total de não lidas para o usuário
+        // Contar total de não lidas para o usuário (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
         $totalNaoLidas = $db->table('notificacoes_usuario n')
+            ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
             ->where('n.usuario_id', $userId)
             ->where('n.lida', 0)
+            ->where("n.tipo != 'APOSTA_CANCELADA'")
+            ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->countAllResults();
 
-        // Buscar as últimas 15 notificações (Pinadas e não lidas no topo absoluto, depois não lidas, depois mais recentes)
+        // Buscar as últimas 15 notificações (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
         $notificacoes = $db->table('notificacoes_usuario n')
             ->select('n.*')
+            ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
             ->where('n.usuario_id', $userId)
+            ->where("n.tipo != 'APOSTA_CANCELADA'")
+            ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
-            ->orderBy('n.lida', 'ASC')
-            ->orderBy('n.criado_em', 'DESC')
-            ->limit(15)
+            ->orderBy('COALESCE(ft.fixture_date, n.criado_em)', 'DESC', false)
+            ->orderBy('n.id', 'DESC')
+            ->limit(35)
             ->get()
             ->getResultArray();
 
@@ -3730,6 +4176,47 @@ class ApostaController extends BaseController
             ]);
 
         return $this->response->setJSON(['success' => true, 'message' => 'Alerta despinado com sucesso']);
+    }
+
+    /**
+     * Exclui uma notificação individual do usuário.
+     */
+    public function excluirNotificacao($id = null)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $id = (int)$id;
+
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('id', $id)
+            ->where('usuario_id', $userId)
+            ->delete();
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Notificação excluída com sucesso']);
+    }
+
+    /**
+     * Limpa todo o histórico de notificações do usuário.
+     */
+    public function limparHistoricoNotificacoes()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->delete();
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Histórico de notificações limpo com sucesso']);
     }
 
 
@@ -3892,6 +4379,10 @@ class ApostaController extends BaseController
                                 $cat = 'Sobrevivência do Mandante';
                                 $regra = 'Caldeirão da Degola: mandante no Z-4 ou ameaçado joga a vida da temporada';
                                 $badgeColor = '#e11d48';
+                            } elseif (stripos($tag, 'Odd Inflada') !== false || stripos($tag, 'Armadilha da Odd Inflada') !== false) {
+                                $cat = 'Armadilha da Odd Inflada';
+                                $regra = 'Drift de Risco: odd inflou bruscamente (>= 12% e >= 0.20) acima do valor justo, indicando fuga de mercado';
+                                $badgeColor = '#f97316';
                             } else {
                                 $cat = 'AH: ' . $tag;
                             }
@@ -3903,6 +4394,10 @@ class ApostaController extends BaseController
                             $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
                             $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
                             $badgeColor = '#f59e0b';
+                        } elseif (stripos($fullAh, 'Odd Inflada') !== false || stripos($fullAh, 'Armadilha da Odd Inflada') !== false) {
+                            $cat = 'Armadilha da Odd Inflada';
+                            $regra = 'Drift de Risco: odd inflou bruscamente (>= 12% e >= 0.20) acima do valor justo, indicando fuga de mercado';
+                            $badgeColor = '#f97316';
                         } elseif (stripos($fullAh, 'Mando de Campo Soberano') !== false || stripos($fullAh, 'Divergência de Mercado') !== false) {
                             $cat = 'Mando de Campo Soberano';
                             $regra = 'Divergência de Mercado: força e adaptação do estádio superam momento do visitante';
@@ -4204,6 +4699,70 @@ class ApostaController extends BaseController
         return view('header', $data)
              . view('apostas/relatorio_abstencoes', $data)
              . view('footer');
+    }
+
+    /**
+     * Retorna o HTML do Card de Origem da Aposta para exibição em Modal Sobreposto (AJAX)
+     */
+    public function cardOrigem($fixtureId = null)
+    {
+        $fixtureId = (int)$fixtureId;
+        if ($fixtureId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $userTimezone = $_SESSION['user_timezone'] ?? $this->request->getCookie('user_timezone') ?? 'America/Sao_Paulo';
+        date_default_timezone_set($userTimezone);
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('fixtures_trends ft');
+        $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level,
+                          th.avg_goals_scored as home_avg_goals_scored, th.avg_goals_conceded as home_avg_goals_conceded, th.clean_sheets_pct as home_clean_sheets_pct, th.avg_corners as home_avg_corners, th.avg_cards as home_avg_cards,
+                          ta.avg_goals_scored as away_avg_goals_scored, ta.avg_goals_conceded as away_avg_goals_conceded, ta.clean_sheets_pct as away_clean_sheets_pct, ta.avg_corners as away_avg_corners, ta.avg_cards as away_avg_cards');
+        $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
+        $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
+        $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
+        $builder->where('ft.fixture_id', $fixtureId);
+        $fix = $builder->get()->getRow();
+
+        if (!$fix) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Card de origem não encontrado no banco de dados para esta partida.'
+            ])->setStatusCode(404);
+        }
+
+        $apostaId = (int)$this->request->getGet('aposta_id');
+        $aposta = null;
+        if ($apostaId > 0) {
+            $aposta = $db->table('apostas')->where('id', $apostaId)->get()->getRow();
+        }
+        if (!$aposta && $fixtureId > 0) {
+            $aposta = $db->table('apostas')
+                         ->where('fixture_id', $fixtureId)
+                         ->orderBy('id', 'DESC')
+                         ->get()
+                         ->getRow();
+        }
+
+        $data = [
+            'fix'          => $fix,
+            'aposta'       => $aposta,
+            'userTimezone' => $userTimezone,
+            'fixtureId'    => $fixtureId
+        ];
+
+        $html = view('football/partials/card_origem_modal', $data);
+
+        return $this->response->setJSON([
+            'success'   => true,
+            'html'      => $html,
+            'title'     => ($fix->home_team ?? 'Mandante') . ' x ' . ($fix->away_team ?? 'Visitante'),
+            'fixtureId' => $fixtureId
+        ]);
     }
 }
 

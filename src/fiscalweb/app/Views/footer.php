@@ -48,5 +48,12 @@
 <script src="<?= base_url('assets/js/multi-table-selection.js'); ?>"></script>
 <script src="<?= base_url('assets/js/multi-upload.js'); ?>"></script>
 
+<?php
+if (!defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/components/modal_status_report_ia.php';
+?>
+
 </body> 
 </html>

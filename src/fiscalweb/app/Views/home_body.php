@@ -313,6 +313,7 @@ $statuses = [
     'Aguardando assinatura',
     'Execução',
     'Recebido Provisorio',
+    'Abrir aferição metrica',
     'Em aferição metrica',
     'Em divergência metrica',
     'Parecer conformidade metrica',
@@ -378,10 +379,37 @@ if (isset($list) && is_array($list)) {
         margin-left: 5px;
         background-color: var(--accent-blue) !important;
     }
+    /* Estilo do Botão Status Report IA */
+    .btn-report-ia {
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+        color: #1a1d29 !important;
+        font-weight: 700;
+        border: none;
+        padding: 9px 20px;
+        border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(255, 215, 0, 0.35);
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+    .btn-report-ia:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 215, 0, 0.55);
+        background: linear-gradient(135deg, #FFA500 0%, #FFD700 100%);
+        color: #000 !important;
+    }
 </style>
 
 <div class="container mt-4" style="background: var(--card-bg); padding: 30px; border-radius: 12px; margin-top: 30px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
-    <h3 style="color: var(--gold); text-align: center; margin-bottom: 25px; font-weight: 700;">Ordens de Serviço por Status</h3>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <h3 style="color: var(--gold); margin-bottom: 0; font-weight: 700;">Ordens de Serviço por Status</h3>
+        <button type="button" class="btn-report-ia" data-bs-toggle="modal" data-bs-target="#modalStatusReportIa" id="btnAbrirModalReportIa">
+            <i class="bi bi-robot fs-5"></i> Status Report IA (Gemini)
+        </button>
+    </div>
     
     <!-- Nav tabs -->
     <ul class="nav nav-tabs" id="osTabs" role="tablist">
@@ -454,6 +482,4 @@ if (isset($list) && is_array($list)) {
     </div>
 </div>
 
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<?php require VIEWPATH . '/components/modal_status_report_ia.php'; ?>

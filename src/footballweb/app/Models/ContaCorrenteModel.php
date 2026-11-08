@@ -16,6 +16,7 @@ class ContaCorrenteModel extends Model
         'usuario_id',
         'aposta_id',
         'tipo',
+        'moeda_codigo',
         'descricao',
         'valor',
         'saldo_anterior',
@@ -25,6 +26,31 @@ class ContaCorrenteModel extends Model
 
     protected $useTimestamps = false;
     protected $createdField  = 'criado_em';
+
+    /**
+     * Retorna a moeda padrão ativa do sistema
+     */
+    public function getMoedaPadrao(): object
+    {
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        return $moedaModel->getDefaultMoeda();
+    }
+
+    /**
+     * Retorna o número de casas decimais para cálculo
+     */
+    public function getDecimais(?string $moedaCodigo = null): int
+    {
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        if (!empty($moedaCodigo)) {
+            $m = $moedaModel->getMoedaByCodigo($moedaCodigo);
+            if ($m) {
+                return (int)$m->casas_decimais;
+            }
+        }
+        $mDef = $moedaModel->getDefaultMoeda();
+        return (int)($mDef->casas_decimais ?? 2);
+    }
 
     /**
      * Sincroniza apostas históricas se o usuário ainda não possuir lançamentos na conta corrente
@@ -56,6 +82,7 @@ class ContaCorrenteModel extends Model
 
             $apostaId = (int)$ap->id;
             $valorAposta = (float)$ap->valor_aposta;
+            $moedaAp = $ap->moeda_codigo ?? null;
             $status = $ap->status;
             $timeCasa = $ap->time_casa;
             $timeFora = $ap->time_fora;
@@ -63,11 +90,11 @@ class ContaCorrenteModel extends Model
             $ganhosPotenciais = (float)$ap->ganhos_potenciais;
             $cashOut = $ap->cash_out !== null ? (float)$ap->cash_out : null;
 
-            $this->debitarAposta($usuarioId, $apostaId, $valorAposta, "Aposta #{$apostaId} ({$timeCasa} x {$timeFora} - {$palpite})");
+            $this->debitarAposta($usuarioId, $apostaId, $valorAposta, "Aposta #{$apostaId} ({$timeCasa} x {$timeFora} - {$palpite})", $moedaAp);
 
             if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
                 $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
-                $this->creditarRetornoAposta($usuarioId, $apostaId, (float)$retorno, "Retorno Aposta #{$apostaId} ({$status})");
+                $this->creditarRetornoAposta($usuarioId, $apostaId, (float)$retorno, "Retorno Aposta #{$apostaId} ({$status})", $moedaAp);
             }
         }
     }
@@ -103,23 +130,29 @@ class ContaCorrenteModel extends Model
     /**
      * Adicionar créditos monetários na conta corrente (Depósito / Aporte)
      */
-    public function adicionarCredito(int $usuarioId, float $valor, string $descricao = 'Crédito Adicionado na Conta Corrente'): array
+    public function adicionarCredito(int $usuarioId, float $valor, string $descricao = 'Crédito Adicionado na Conta Corrente', ?string $moedaCodigo = null): array
     {
         if ($valor <= 0) {
             return ['success' => false, 'message' => 'O valor do crédito deve ser maior que zero.'];
         }
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $moeda = !empty($moedaCodigo) ? ($moedaModel->getMoedaByCodigo($moedaCodigo) ?? $this->getMoedaPadrao()) : $this->getMoedaPadrao();
+        $codMoeda = $moeda->codigo ?? 'BRL';
+        $dec = (int)($moeda->casas_decimais ?? 2);
+
         $db = \Config\Database::connect();
         $db->transStart();
 
         $saldoAnterior = $this->getSaldo($usuarioId);
-        $saldoPosterior = round($saldoAnterior + $valor, 2);
+        $saldoPosterior = round($saldoAnterior + $valor, $dec);
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
             'aposta_id'       => null,
             'tipo'            => 'CREDITO_ADICIONADO',
+            'moeda_codigo'    => $codMoeda,
             'descricao'       => $descricao,
             'valor'           => $valor,
             'saldo_anterior'  => $saldoAnterior,
@@ -142,37 +175,45 @@ class ContaCorrenteModel extends Model
             'message'         => 'Crédito adicionado com sucesso!',
             'saldo_anterior'  => $saldoAnterior,
             'saldo_posterior' => $saldoPosterior,
-            'valor'           => $valor
+            'valor'           => $valor,
+            'moeda_codigo'    => $codMoeda
         ];
     }
 
     /**
      * Resgatar crédito da conta corrente (Saque / Retirada)
      */
-    public function resgatarCredito(int $usuarioId, float $valor, string $descricao = 'Resgate de Crédito da Conta Corrente'): array
+    public function resgatarCredito(int $usuarioId, float $valor, string $descricao = 'Resgate de Crédito da Conta Corrente', ?string $moedaCodigo = null): array
     {
         if ($valor <= 0) {
             return ['success' => false, 'message' => 'O valor do resgate deve ser maior que zero.'];
         }
 
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $moeda = !empty($moedaCodigo) ? ($moedaModel->getMoedaByCodigo($moedaCodigo) ?? $this->getMoedaPadrao()) : $this->getMoedaPadrao();
+        $codMoeda = $moeda->codigo ?? 'BRL';
+        $dec = (int)($moeda->casas_decimais ?? 2);
+        $simbolo = $moeda->simbolo ?? $codMoeda;
+
         $saldoAnterior = $this->getSaldo($usuarioId);
         if ($valor > $saldoAnterior) {
             return [
                 'success' => false,
-                'message' => 'Saldo insuficiente para resgate. Saldo atual disponível: R$ ' . number_format($saldoAnterior, 2, ',', '.')
+                'message' => 'Saldo insuficiente para resgate. Saldo atual disponível: ' . $simbolo . ' ' . number_format($saldoAnterior, $dec, ',', '.')
             ];
         }
 
         $db = \Config\Database::connect();
         $db->transStart();
 
-        $saldoPosterior = round($saldoAnterior - $valor, 2);
+        $saldoPosterior = round($saldoAnterior - $valor, $dec);
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
             'aposta_id'       => null,
             'tipo'            => 'RESGATE_CREDITO',
+            'moeda_codigo'    => $codMoeda,
             'descricao'       => $descricao,
             'valor'           => -$valor, // Armazena negativo representando débito/saída
             'saldo_anterior'  => $saldoAnterior,
@@ -195,14 +236,15 @@ class ContaCorrenteModel extends Model
             'message'         => 'Resgate de crédito realizado com sucesso!',
             'saldo_anterior'  => $saldoAnterior,
             'saldo_posterior' => $saldoPosterior,
-            'valor'           => $valor
+            'valor'           => $valor,
+            'moeda_codigo'    => $codMoeda
         ];
     }
 
     /**
      * Debitar valor de uma aposta criada
      */
-    public function debitarAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = ''): array
+    public function debitarAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = '', ?string $moedaCodigo = null): array
     {
         if ($valor <= 0) {
             return ['success' => false, 'message' => 'Valor inválido de aposta.'];
@@ -227,16 +269,28 @@ class ContaCorrenteModel extends Model
             $descricao = "Débito Aposta #" . $apostaId;
         }
 
+        if (empty($moedaCodigo)) {
+            $qAp = $db->table('apostas')->select('moeda_codigo')->where('id', $apostaId)->get();
+            $rowAp = $qAp ? $qAp->getRow() : null;
+            $moedaCodigo = $rowAp->moeda_codigo ?? null;
+        }
+
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $moeda = !empty($moedaCodigo) ? ($moedaModel->getMoedaByCodigo($moedaCodigo) ?? $this->getMoedaPadrao()) : $this->getMoedaPadrao();
+        $codMoeda = $moeda->codigo ?? 'BRL';
+        $dec = (int)($moeda->casas_decimais ?? 2);
+
         $db->transStart();
 
         $saldoAnterior = $this->getSaldo($usuarioId);
-        $saldoPosterior = round($saldoAnterior - $valor, 2);
+        $saldoPosterior = round($saldoAnterior - $valor, $dec);
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
             'aposta_id'       => $apostaId,
             'tipo'            => 'DEBITO_APOSTA',
+            'moeda_codigo'    => $codMoeda,
             'descricao'       => $descricao,
             'valor'           => -$valor, // Armazena negativo para representar débito
             'saldo_anterior'  => $saldoAnterior,
@@ -252,14 +306,15 @@ class ContaCorrenteModel extends Model
 
         return [
             'success'         => ($db->transStatus() !== false),
-            'saldo_posterior' => $saldoPosterior
+            'saldo_posterior' => $saldoPosterior,
+            'moeda_codigo'    => $codMoeda
         ];
     }
 
     /**
      * Creditar retorno de uma aposta resolvida/ganha/cashout/anulada
      */
-    public function creditarRetornoAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = ''): array
+    public function creditarRetornoAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = '', ?string $moedaCodigo = null): array
     {
         if ($valor <= 0) {
             return ['success' => true, 'message' => 'Retorno nulo ou zero.'];
@@ -297,16 +352,28 @@ class ContaCorrenteModel extends Model
             $descricao = "Retorno de Aposta #" . $apostaId;
         }
 
+        if (empty($moedaCodigo)) {
+            $qAp = $db->table('apostas')->select('moeda_codigo')->where('id', $apostaId)->get();
+            $rowAp = $qAp ? $qAp->getRow() : null;
+            $moedaCodigo = $rowAp->moeda_codigo ?? null;
+        }
+
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $moeda = !empty($moedaCodigo) ? ($moedaModel->getMoedaByCodigo($moedaCodigo) ?? $this->getMoedaPadrao()) : $this->getMoedaPadrao();
+        $codMoeda = $moeda->codigo ?? 'BRL';
+        $dec = (int)($moeda->casas_decimais ?? 2);
+
         $db->transStart();
 
         $saldoAnterior = $this->getSaldo($usuarioId);
-        $saldoPosterior = round($saldoAnterior + $valor, 2);
+        $saldoPosterior = round($saldoAnterior + $valor, $dec);
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
             'aposta_id'       => $apostaId,
             'tipo'            => 'CREDITO_RETORNO_APOSTA',
+            'moeda_codigo'    => $codMoeda,
             'descricao'       => $descricao,
             'valor'           => $valor,
             'saldo_anterior'  => $saldoAnterior,
@@ -322,14 +389,15 @@ class ContaCorrenteModel extends Model
 
         return [
             'success'         => ($db->transStatus() !== false),
-            'saldo_posterior' => $saldoPosterior
+            'saldo_posterior' => $saldoPosterior,
+            'moeda_codigo'    => $codMoeda
         ];
     }
 
     /**
      * Estornar débito de uma aposta que foi excluída/cancelada enquanto pendente
      */
-    public function estornarAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = ''): array
+    public function estornarAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = '', ?string $moedaCodigo = null): array
     {
         if ($valor <= 0) {
             return ['success' => false, 'message' => 'Valor de estorno inválido.'];
@@ -367,16 +435,28 @@ class ContaCorrenteModel extends Model
             $descricao = "Estorno Aposta #" . $apostaId;
         }
 
+        if (empty($moedaCodigo)) {
+            $qAp = $db->table('apostas')->select('moeda_codigo')->where('id', $apostaId)->get();
+            $rowAp = $qAp ? $qAp->getRow() : null;
+            $moedaCodigo = $rowAp->moeda_codigo ?? null;
+        }
+
+        $moedaModel = new \App\Models\MoedaConfigModel();
+        $moeda = !empty($moedaCodigo) ? ($moedaModel->getMoedaByCodigo($moedaCodigo) ?? $this->getMoedaPadrao()) : $this->getMoedaPadrao();
+        $codMoeda = $moeda->codigo ?? 'BRL';
+        $dec = (int)($moeda->casas_decimais ?? 2);
+
         $db->transStart();
 
         $saldoAnterior = $this->getSaldo($usuarioId);
-        $saldoPosterior = round($saldoAnterior + $valor, 2);
+        $saldoPosterior = round($saldoAnterior + $valor, $dec);
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
             'aposta_id'       => $apostaId,
             'tipo'            => 'ESTORNO_APOSTA',
+            'moeda_codigo'    => $codMoeda,
             'descricao'       => $descricao,
             'valor'           => $valor,
             'saldo_anterior'  => $saldoAnterior,
@@ -392,7 +472,8 @@ class ContaCorrenteModel extends Model
 
         return [
             'success'         => ($db->transStatus() !== false),
-            'saldo_posterior' => $saldoPosterior
+            'saldo_posterior' => $saldoPosterior,
+            'moeda_codigo'    => $codMoeda
         ];
     }
 
@@ -467,7 +548,8 @@ class ContaCorrenteModel extends Model
             'total_estornos'             => $totalEstornos,
             'total_resgates'             => $totalResgates,
             'lucro_liquido_apostas'      => $lucroLiquidoApostas,
-            'total_transacoes'           => (int)($summary->total_transacoes ?? 0)
+            'total_transacoes'           => (int)($summary->total_transacoes ?? 0),
+            'moeda'                      => $this->getMoedaPadrao()
         ];
     }
 
@@ -521,11 +603,13 @@ class ContaCorrenteModel extends Model
         $acumCreditos = 0.0;
         $acumRetornos = 0.0;
 
+        $dec = $this->getDecimais();
+
         // Se houver filtro de data_inicio, adiciona o ponto inicial do gráfico (Saldo Inicial do Período)
         if (!empty($dataInicio)) {
             $dtInicialLabel = date('d/m/Y H:i', strtotime($dataInicio . ' 00:00:00'));
             $labels[] = $dtInicialLabel;
-            $saldoEvolucao[] = round($saldoInicial, 2);
+            $saldoEvolucao[] = round($saldoInicial, $dec);
             $creditosAdicionadosAcum[] = 0.0;
             $retornosApostasAcum[] = 0.0;
 
@@ -533,7 +617,7 @@ class ContaCorrenteModel extends Model
                 'criado_em'       => $dataInicio . ' 00:00:00',
                 'tipo'            => 'SALDO_INICIAL',
                 'valor'           => 0.0,
-                'saldo_posterior' => round($saldoInicial, 2)
+                'saldo_posterior' => round($saldoInicial, $dec)
             ];
         }
 
@@ -549,8 +633,8 @@ class ContaCorrenteModel extends Model
 
             $labels[] = $dt;
             $saldoEvolucao[] = (float)$r->saldo_posterior;
-            $creditosAdicionadosAcum[] = round($acumCreditos, 2);
-            $retornosApostasAcum[] = round($acumRetornos, 2);
+            $creditosAdicionadosAcum[] = round($acumCreditos, $dec);
+            $retornosApostasAcum[] = round($acumRetornos, $dec);
 
             $rawItems[] = [
                 'criado_em'       => $r->criado_em,
@@ -566,7 +650,8 @@ class ContaCorrenteModel extends Model
             'creditos_adicionados_acum'   => $creditosAdicionadosAcum,
             'retornos_apostas_acum'       => $retornosApostasAcum,
             'items'                       => $rawItems,
-            'saldo_inicial'               => round($saldoInicial, 2)
+            'saldo_inicial'               => round($saldoInicial, $dec),
+            'moeda'                       => $this->getMoedaPadrao()
         ];
     }
 

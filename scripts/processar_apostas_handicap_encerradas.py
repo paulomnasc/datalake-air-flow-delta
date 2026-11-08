@@ -58,12 +58,19 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             row_cc = cursor.fetchone()
             saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
 
-        saldo_posterior = round(saldo_anterior + valor, 2)
+        moeda_cod = 'BRL'
+        if aposta_id:
+            cursor.execute("SELECT moeda_codigo FROM apostas WHERE id = %s", (aposta_id,))
+            row_ap = cursor.fetchone()
+            if row_ap and row_ap.get('moeda_codigo'):
+                moeda_cod = row_ap['moeda_codigo']
+
+        saldo_posterior = round(saldo_anterior + valor, 8)
 
         cursor.execute("""
-            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
-        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, moeda_codigo, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior, moeda_cod))
 
         cursor.execute("""
             UPDATE usuario
@@ -71,7 +78,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
             WHERE id = %s
         """, (saldo_posterior, usuario_id))
 
-        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado {moeda_cod} {valor} para Usuário #{usuario_id} (Novo Saldo: {moeda_cod} {saldo_posterior})")
         return True
     except Exception as e:
         print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")
@@ -89,6 +96,9 @@ def get_fixture_handicap_stats(fixture):
 
     score_processed_at = fixture.get('score_processed_at')
     if not score_processed_at:
+        return None
+    if isinstance(score_processed_at, datetime) and (datetime.now() - score_processed_at).total_seconds() < 1200:
+        print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
         return None
 
     goals_home = fixture.get('goals_home')
@@ -143,29 +153,32 @@ def evaluate_asian_handicap_bet(aposta, goals_home, goals_away):
     # Saldo ajustado do Handicap
     adj = diff_gols + line
 
+    moeda_cod = aposta.get('moeda_codigo') or 'BRL'
+    dec = 8 if moeda_cod in ('LTC', 'BTC', 'ETH') else 2
+
     if adj > 0.25:
         # Aposta GANHA (100% Lucro + 100% Stake)
-        payout = valor_aposta * odd
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> GANHA (Retorno R$ {payout:.2f})"
-        return 'Ganha', round(payout, 2), detalhe
+        payout = round(valor_aposta * odd, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> GANHA (Retorno {moeda_cod} {payout})"
+        return 'Ganha', payout, detalhe
 
     elif abs(adj - 0.25) < 0.01:
         # MEIO GANHA (50% Lucro + 100% Stake)
-        payout = valor_aposta * ((odd + 1.0) / 2.0)
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {payout:.2f})"
-        return 'Meio Ganha', round(payout, 2), detalhe
+        payout = round(valor_aposta * ((odd + 1.0) / 2.0), dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno {moeda_cod} {payout})"
+        return 'Meio Ganha', payout, detalhe
 
     elif abs(adj) < 0.01:
         # ANULADA / EMPATE ANULA (100% Reembolso da Stake)
-        payout = valor_aposta
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> ANULADA (Reembolso R$ {payout:.2f})"
-        return 'ANULADA', round(payout, 2), detalhe
+        payout = round(valor_aposta, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> ANULADA (Reembolso {moeda_cod} {payout})"
+        return 'ANULADA', payout, detalhe
 
     elif abs(adj - (-0.25)) < 0.01:
         # MEIO PERDIDA (50% Stake de volta + 50% Perdida)
-        payout = valor_aposta * 0.5
-        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {payout:.2f})"
-        return 'Meio Perdida', round(payout, 2), detalhe
+        payout = round(valor_aposta * 0.5, dec)
+        detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno {moeda_cod} {payout})"
+        return 'Meio Perdida', payout, detalhe
 
     else:
         # PERDIDA (100% Perdida)

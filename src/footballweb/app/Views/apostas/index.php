@@ -15,7 +15,34 @@ if (!function_exists('getBookmakerUrl')) {
     require_once APPPATH . 'Helpers/BookmakerHelper.php';
 }
 $userStakePadrao = isset($stakePadrao) && (float)$stakePadrao > 0 ? (float)$stakePadrao : 10.00;
-$userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
+$userStakePadraoFmt = ($userStakePadrao > 0 && ($userStakePadrao != round($userStakePadrao, 2))) 
+    ? number_format($userStakePadrao, 8, '.', '') 
+    : number_format($userStakePadrao, 2, '.', '');
+
+$activeMoedaCodigo = $activeMoedaCodigo ?? 'BRL';
+$activeCotacao = (float)($activeCotacao ?? 1.0);
+$activeDecimais = (int)($activeDecimais ?? 2);
+$isCryptoActive = !empty($isCryptoActive) || ($activeMoedaCodigo !== 'BRL');
+
+if (!function_exists('fmtTopValorWithBrl')) {
+    function fmtTopValorWithBrl($val, $moeda, $cotacao, $decimais = 2, $showPlus = false, $subColor = '#94a3b8') {
+        $num = (float)$val;
+        $plus = ($showPlus && $num > 0) ? '+' : '';
+        $sign = ($num < 0) ? '-' : $plus;
+        $absNum = abs($num);
+        $dec = ($decimais > 2 && $absNum != round($absNum, 2)) ? $decimais : min(2, $decimais);
+        $numFmt = number_format($absNum, $dec, ',', '.');
+
+        if ($moeda === 'BRL') {
+            return "<span>{$sign}R$ {$numFmt}</span>";
+        }
+
+        $brlVal = $num * $cotacao;
+        $brlSign = ($brlVal < 0) ? '-' : (($showPlus && $brlVal > 0) ? '+' : '');
+        $brlFmt = number_format(abs($brlVal), 2, ',', '.');
+        return "<span>{$sign}{$numFmt} {$moeda}</span><div class=\"stat-sub-brl\" style=\"font-size: 0.85rem; color: {$subColor}; font-weight: 500; margin-top: 4px;\">~ {$brlSign}R$ {$brlFmt}</div>";
+    }
+}
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,9 +86,19 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   }
 
   .bet-container {
-    max-width: 1300px;
+    max-width: 1400px;
+    width: 100%;
     margin: 30px auto;
     padding: 0 20px 60px 20px;
+    box-sizing: border-box;
+    transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s ease;
+  }
+  body.sidebar-notif-open .bet-container,
+  body.sidebar-notif-pinned .bet-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-right: 25px;
+    box-sizing: border-box !important;
   }
 
   /* Header banner */
@@ -252,6 +289,20 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     gap: 24px;
   }
 
+  /* Estado de Carregamento Suave: Oculta cards brutos até que os filtros sejam aplicados */
+  .bets-grid.bets-container-loading .bet-card-item {
+    display: none !important;
+  }
+  .bets-loading-skeleton {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--bet-text-muted);
+  }
+
   .bet-card-item {
     background: var(--bet-card-bg);
     border: 1px solid var(--bet-card-border);
@@ -412,16 +463,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     padding: 0 0 10px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .bets-grid.list-view .bet-card-header > div:first-child {
-    flex: 1 1 auto;
-    min-width: 260px;
+    gap: 8px;
   }
   .bets-grid.list-view .match-time {
     align-items: flex-end !important;
@@ -552,11 +597,21 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
   .bet-card-header {
     background: #1c2128;
-    padding: 16px 20px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--bet-card-border);
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .bet-card-header-top {
+    display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .match-teams {
@@ -564,15 +619,56 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     font-weight: 700;
     font-size: 1.1rem;
     color: #ffffff;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
   }
 
   .match-time {
-    font-size: 0.8rem;
-    color: var(--bet-text-muted);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
+    text-align: right;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .match-time-game {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #ffffff !important;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .match-time-game strong {
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  .match-time-game i {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.85rem;
+  }
+
+  .match-time-created {
+    font-size: 0.76rem;
+    color: var(--bet-accent);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .match-badges-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .bet-card-body {
@@ -733,6 +829,11 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     background: rgba(16, 185, 129, 0.14);
     color: #10b981;
     border: 1px solid rgba(16, 185, 129, 0.35);
+  }
+  .proc-status-badge.proc-canceled {
+    background: rgba(148, 163, 184, 0.14);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.35);
   }
 
   .bet-card-footer {
@@ -996,25 +1097,29 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" title="Saldo de crédito disponível em conta corrente para confirmação e débito de apostas">
       <div class="stat-label" style="color: #34d399;"><i class="bi bi-wallet2"></i> Saldo Conta Corrente</div>
       <div class="stat-value current-balance-value" style="color: <?= $saldoCcVal >= 0 ? '#34d399' : '#f87171' ?>;" id="topSaldoContaCorrente" data-saldo-cc="<?= $saldoCcVal ?>">
-        R$ <?= number_format($saldoCcVal, 2, ',', '.') ?>
+        <?= fmtTopValorWithBrl($saldoCcVal, $activeMoedaCodigo, $activeCotacao, $activeDecimais) ?>
       </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-cash-stack"></i> <?= lang('App.total_staked') ?></div>
-      <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value" id="topTotalApostado">
+        <?= fmtTopValorWithBrl($resumo['total_apostado'] ?? 0, $activeMoedaCodigo, $activeCotacao, $activeDecimais) ?>
+      </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-trophy"></i> <?= lang('App.gross_return') ?></div>
-      <div class="stat-value primary" id="topRetornoBruto">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value primary" id="topRetornoBruto">
+        <?= fmtTopValorWithBrl($resumo['ganhos_totais'] ?? 0, $activeMoedaCodigo, $activeCotacao, $activeDecimais, false, '#38bdf8') ?>
+      </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-calculator"></i> <?= lang('App.net_balance') ?></div>
       <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
       <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>" id="topSaldoLiquido">
-        <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
+        <?= fmtTopValorWithBrl($saldoTop, $activeMoedaCodigo, $activeCotacao, $activeDecimais, true, ($saldoTop >= 0 ? '#94a3b8' : '#fca5a5')) ?>
       </div>
     </div>
 
@@ -1040,8 +1145,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             }
             return "{$label} ({$count} - {$pctStr})";
           };
+          $concluidasCount = ($resumo['ganhas'] ?? 0) + ($resumo['meio_ganhas'] ?? 0) + ($resumo['perdidas'] ?? 0) + ($resumo['meio_perdidas'] ?? 0) + ($resumo['cashouts'] ?? 0);
         ?>
         <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge(lang('App.all_statuses'), $totalApostasCount) ?></button>
+        <button class="filter-btn" id="btnFilterConcluidas" onclick="filterBets('concluidas', this)"><?= $calcPctBadge(lang('App.status_concluded') ?? 'Concluídas', $concluidasCount) ?></button>
         <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge(lang('App.pending'), $resumo['pendentes'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge(lang('App.won'), $resumo['ganhas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge(lang('App.half_won'), $resumo['meio_ganhas'] ?? 0) ?></button>
@@ -1049,6 +1156,22 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge(lang('App.half_lost'), $resumo['meio_perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge(lang('App.lost'), $resumo['perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
+      </div>
+
+      <!-- Dropdown Status da Aposta (Alinhado com Análise de Desempenho) -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar por Status da Aposta">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?? 'Status' ?>:
+        </span>
+        <select id="betStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="onBetStatusSelectChange(this.value)" title="Filtrar por status da aposta">
+          <option value="all" selected>♾️ <?= lang('App.status_all_pending') ?? 'Todas (Inc. Pendentes)' ?></option>
+          <option value="concluidas">✅ <?= lang('App.status_concluded') ?? 'Concluídas (Encerradas)' ?></option>
+          <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?? 'Apenas Pendentes' ?></option>
+          <option value="Ganha">🟢 <?= lang('App.won') ?? 'Ganhas' ?> / Meio Ganhas</option>
+          <option value="Perdida">🔴 <?= lang('App.lost') ?? 'Perdidas' ?> / Meio Perdidas</option>
+          <option value="Cashout">💰 Cashout</option>
+          <option value="ANULADA">⚪ <?= lang('App.refunded') ?? 'Anuladas / Canceladas' ?></option>
+        </select>
       </div>
 
       <!-- Slide Button: Apostas Confirmadas [Sim/Não] -->
@@ -1098,6 +1221,21 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         </div>
       </div>
 
+      <!-- Slide Button: Stakes [⚡ Espelhar (LTC) / 📜 Histórico Real] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Alternar entre projeção unificada com a stake padrão atual (Espelhar) e a auditoria contábil das stakes originais (Histórico Real)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-coin text-warning"></i> Stakes:
+        </span>
+        <div class="bet-slide-toggle" id="espelharStakeSlideToggle">
+          <button type="button" class="slide-btn <?= ($isCryptoActive ? 'active' : '') ?>" data-val="1" onclick="setEspelharStakeFilter('1', this)" title="⚡ Espelhar: Projeta todo o histórico com a stake padrão ativa (<?= number_format($userStakePadrao, (($activeMoedaCodigo ?? 'BRL') === 'BRL' ? 2 : 6), ',', '.') ?> <?= esc($activeMoedaCodigo) ?>) para avaliar o modelo com gestão de banca padronizada">
+            ⚡ Espelhar (<?= esc($activeMoedaCodigo) ?>)
+          </button>
+          <button type="button" class="slide-btn <?= (!$isCryptoActive ? 'active-no' : '') ?>" data-val="0" onclick="setEspelharStakeFilter('0', this)" title="📜 Histórico Real: Exibe a auditoria contábil exata com as stakes e moedas originais gravadas em cada aposta realizada">
+            📜 Histórico Real
+          </button>
+        </div>
+      </div>
+
       <!-- Filtro por Mercado de Simulações de Apostas -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> <?= lang('App.market') ?>:</span>
@@ -1131,35 +1269,41 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       </div>
 
       <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
-      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
+      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-2 rounded-3 border border-secondary flex-wrap" style="font-size: 0.94rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
         <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas simulações de apostas do período/filtro">
           <i class="bi bi-cash-coin text-warning"></i>
           <span class="text-light-50"><?= lang('App.total_staked') ?>:</span>
-          <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
+          <strong id="calcTotalApostado" class="text-white">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em simulações de apostas vencidas ou cashouts (Retorno Bruto)">
           <i class="bi bi-graph-up-arrow text-success"></i>
           <span class="text-light-50"><?= lang('App.total_won_label') ?>:</span>
-          <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
+          <strong id="calcTotalGanho" class="text-success">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Simulação × Odd) - Simulação)">
           <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
           <span class="text-light-50"><?= lang('App.odds_gain_label') ?>:</span>
-          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
+          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas simulações de apostas do período/filtro">
           <i class="bi bi-graph-down-arrow text-danger"></i>
           <span class="text-light-50"><?= lang('App.total_loss_label') ?>:</span>
-          <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
+          <strong id="calcTotalPerda" class="text-danger">--</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Simulações Liquidadas)">
           <i class="bi bi-calculator text-info"></i>
           <span class="text-light-50"><?= lang('App.net_balance') ?>:</span>
-          <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
+          <strong id="calcSaldoLiquido" class="text-info fw-bold">--</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: ROI = (Saldo Líquido / Total Apostado Liquidado) × 100">
+          <i class="bi bi-pie-chart-fill text-warning"></i>
+          <span class="text-light-50"><?= lang('App.roi') ?>:</span>
+          <strong id="calcRoiResultante" class="text-info fw-bold">--</strong>
         </div>
       </div>
     </div>
@@ -1216,7 +1360,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   </div>
 
   <!-- Bet Cards / List Container -->
-  <div class="bets-grid list-view" id="betsContainer">
+  <div class="bets-grid list-view bets-container-loading" id="betsContainer">
+    <?php if (!empty($apostas)): ?>
+      <div id="betsLoadingSkeleton" class="bets-loading-skeleton">
+        <div class="spinner-border text-info mb-2" role="status" style="width: 2rem; height: 2rem;">
+          <span class="visually-hidden">Carregando...</span>
+        </div>
+        <div class="small fw-semibold text-muted">Carregando simulações de apostas...</div>
+      </div>
+    <?php endif; ?>
     <?php if (empty($apostas)): ?>
       <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
         <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
@@ -1278,7 +1430,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           }
 
           $detalhadoExibir = $aposta->resultado_detalhado ?? '';
-          if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+          $isSettledStatus = in_array($aposta->status, ['Ganha', 'Meio Ganha', 'Perdida', 'Meio Perdida', 'ANULADA', 'Cashout'], true);
+          if (empty($detalhadoExibir) && !empty($placarExibir) && $isSettledStatus) {
             $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
           }
 
@@ -1306,85 +1459,155 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           );
 
           $isVolatilidadeBloqueada = ($isVolatilidade && !$isAbstencaoBloqueada && (!$isConfirmada || $aposta->status === 'Não Confirmada'));
+
+          $apMoeda = !empty($aposta->moeda_codigo) ? strtoupper($aposta->moeda_codigo) : 'BRL';
+          $apCotacao = (float)($aposta->cotacao_brl_snapshot ?? 1.0);
+          $isCrypto = ($apMoeda !== 'BRL');
+          $fmtValorMoeda = function($val, $moeda) {
+              $num = (float)$val;
+              if ($moeda === 'BRL') {
+                  return 'R$ ' . number_format($num, 2, ',', '.');
+              }
+              if ($num == 0.0) {
+                  return '0,00000000 ' . $moeda;
+              }
+              return number_format($num, 8, ',', '.') . ' ' . $moeda;
+          };
+          $displayGanho = ((float)($aposta->ganhos_potenciais ?? 0) > 0)
+              ? (float)$aposta->ganhos_potenciais
+              : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
+
+          $betTier = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+          $isApostaPremium = $betTier->isPremium();
+          $isQuasePremium = $betTier->isQuasePremium();
+
+          $lineupNotifStatus = \App\Enums\LineupNotificationStatus::fromValue(isset($aposta->notificacao_escalacao_enviada) ? (int)$aposta->notificacao_escalacao_enviada : null);
+          $isLineupNotified = $lineupNotifStatus->isNotificado();
+          $sentinelaStatus = $aposta->auditoria_ia_status ?? '';
+
+          // Estado 1: Súmula Realmente Pendente (Aposta Premium/Quase Premium aguardando súmula oficial e notificação)
+          $isLineupPending = ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+
+          // Estado 3: Súmula Notificada com Alerta de Risco
+          $isLineupRiskAlert = ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+
+          // Bloqueio rígido de confirmação de governança: apenas enquanto a súmula estiver pendente
+          $isLockedByLineup = $isLineupPending;
+
+          $isHandicap = (stripos($aposta->mercado ?? '', 'handicap') !== false || stripos($aposta->palpite ?? '', 'ah') !== false);
+          $isExceedingCeiling = false;
+          if ($isHandicap && preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $aposta->palpite ?? '', $mLine)) {
+              $lVal = (float)str_replace(',', '.', $mLine[1]);
+              if ($lVal < -0.75) {
+                  $isExceedingCeiling = true;
+              }
+          }
+          $isLockedByRiskCeiling = $isExceedingCeiling && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
-            <div class="d-flex flex-column align-items-start gap-1">
-              <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
-                <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
-                
-                <?php if (!empty($aposta->destaque)): ?>
+            <?php if ($isApostaPremium || $isQuasePremium || !empty($aposta->destaque)): ?>
+              <div class="bet-card-tier-top d-flex align-items-center justify-content-start w-100 mb-2">
+                <?php if ($isApostaPremium): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
+                        style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                        title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
+                    <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
+                  </span>
+                <?php elseif ($isQuasePremium): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-quase-premium" 
+                        style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.18) 100%) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.6) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.2) !important;" 
+                        title="Aposta Quase Premium (1x Stake): Crivo rigoroso do Gatekeeper com consistência contextual comprovada e cobertura de empate (+EV).">
+                    <span style="font-size: 0.95rem; line-height: 1;">🛡️</span> Aposta Quase Premium (1x Stake)
+                  </span>
+                <?php elseif (!empty($aposta->destaque)): ?>
                   <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                         style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
                         title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
                     <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
                   </span>
                 <?php endif; ?>
+              </div>
+            <?php endif; ?>
 
-                <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
-                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
-                        style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.5) !important; letter-spacing: 0.3px;" 
-                        title="Confronto Equilibrado / Odds Abertas: Mercado com volatilidade de cotações">
-                    <span style="font-size: 0.88rem; line-height: 1;">🚨</span> Confronto Equilibrado / Odds Abertas
-                  </span>
-                <?php endif; ?>
-                
-                <?php if (!empty($placarExibir)): ?>
-                  <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
-                    ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
-                  </span>
-                <?php endif; ?>
-
-                <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                  <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
-                    ⚠️ <?= lang('App.unconfirmed_badge') ?>
-                  </span>
-                <?php else: ?>
-                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
-                    ✅ <?= lang('App.debited_badge') ?>
-                  </span>
-                <?php endif; ?>
-                <?php if (!empty($aposta->fixture_id)): ?>
-                  <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                     target="_blank" rel="noopener noreferrer"
-                     class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
-                     style="font-size: 0.75rem; transition: all 0.2s ease;" 
-                     title="<?= lang('App.origin_card') ?>">
-                    <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                  </a>
-                <?php endif; ?>
+            <div class="bet-card-header-top d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
+              <div class="match-teams">
+                <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
               </div>
 
-              <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
-                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                  <?php if (!empty($leagueFlag)): ?>
-                    <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
-                  <?php endif; ?>
-                  <?php if (!empty($leagueCountry)): ?>
-                    <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
-                  <?php endif; ?>
-                  <?php if (!empty($leagueCountry) && !empty($aposta->league_name)): ?>
-                    <span style="color: #475569;">•</span>
-                  <?php endif; ?>
-                  <?php if (!empty($aposta->league_name)): ?>
-                    <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
-                    <span><?= htmlspecialchars($aposta->league_name) ?></span>
-                  <?php endif; ?>
+              <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto">
+                <div class="match-time-game" title="<?= lang('App.match') ?>">
+                  <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>
                 </div>
+                <?php if (!empty($displayCreatedTime)): ?>
+                  <div class="match-time-created" title="<?= lang('App.created') ?>">
+                    <i class="bi bi-clock-history me-1"></i> <?= lang('App.created') ?>: <strong><?= $displayCreatedTime ?></strong>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </div>
+
+            <div class="match-badges-header d-flex align-items-center gap-1.5 flex-wrap w-100 mt-1">
+
+              <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
+                <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-volatilidade-header" 
+                      style="font-size: 0.78rem; background: rgba(239, 68, 68, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.5) !important; letter-spacing: 0.3px;" 
+                      title="Confronto Equilibrado / Odds Abertas: Mercado com volatilidade de cotações">
+                  <span style="font-size: 0.88rem; line-height: 1;">🚨</span> Confronto Equilibrado / Odds Abertas
+                </span>
+              <?php endif; ?>
+              
+              <?php if (!empty($placarExibir)): ?>
+                <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
+                  ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
+                </span>
+              <?php endif; ?>
+
+              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
+                  ⚠️ <?= lang('App.unconfirmed_badge') ?>
+                </span>
+              <?php else: ?>
+                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
+                  ✅ <?= lang('App.debited_badge') ?>
+                </span>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id)): ?>
+                <button type="button" 
+                        class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1 btn-card-origem-modal" 
+                        style="font-size: 0.75rem; transition: all 0.2s ease; cursor: pointer; border-radius: 6px;" 
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', <?= (int)$aposta->id ?>)"
+                        title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
+                  <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
+                </button>
+                <button type="button" 
+                        class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50 text-decoration-none px-2 py-1 btn-auditoria-simula-aposta" 
+                        style="font-size: 0.75rem; transition: all 0.2s ease; cursor: pointer; border-radius: 6px;" 
+                        onclick="handleAbrirAuditoriaSimulaAposta(<?= (int)$aposta->id ?>, <?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="Auditoria simula aposta (Histórico e Log do Ciclo de Vida)">
+                  <i class="bi bi-clipboard-pulse me-1"></i> Auditoria simula aposta
+                </button>
               <?php endif; ?>
             </div>
 
-            <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto" style="font-size: 0.78rem; gap: 2px;">
-              <div title="<?= lang('App.match') ?>" style="color: var(--bet-text-muted);">
-                <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>
+            <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
+              <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                <?php if (!empty($leagueFlag)): ?>
+                  <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
+                <?php endif; ?>
+                <?php if (!empty($leagueCountry)): ?>
+                  <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
+                <?php endif; ?>
+                <?php if (!empty($leagueCountry) && !empty($aposta->league_name)): ?>
+                  <span style="color: #475569;">•</span>
+                <?php endif; ?>
+                <?php if (!empty($aposta->league_name)): ?>
+                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
+                  <span><?= htmlspecialchars($aposta->league_name) ?></span>
+                <?php endif; ?>
               </div>
-              <?php if (!empty($displayCreatedTime)): ?>
-                <div title="<?= lang('App.created') ?>" style="color: var(--bet-accent); font-weight: 500;">
-                  <i class="bi bi-clock-history me-1"></i> <?= lang('App.created') ?>: <strong><?= $displayCreatedTime ?></strong>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
 
           <div class="bet-card-body">
@@ -1439,6 +1662,63 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               }
             ?>
 
+            <?php
+              // Cálculo da Faixa Viável de Odd (Mínima e Máxima) para auxílio na pesquisa em outras casas (Stake, Pinnacle, Bet365)
+              $oddMinViavel = null;
+              $oddMaxViavel = null;
+              $oddJusta = !empty($aposta->odd_justa) ? (float)$aposta->odd_justa : null;
+              $oddReal = !empty($aposta->odd) ? (float)$aposta->odd : null;
+
+              if ($isHandicap) {
+                  $lineVal = 0.0;
+                  if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $aposta->palpite ?? '', $mL)) {
+                      $lineVal = (float)str_replace(',', '.', $mL[1]);
+                  }
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $pisoBase = $isApostaPremium ? 1.50 : 1.45;
+                      $oddMinViavel = max($pisoBase, round($oddJusta * 1.05, 2));
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.45, round($oddReal * 0.88, 2));
+                  }
+
+                  // Teto dinâmico de segurança contra anomalias/distorções de mercado
+                  if ($lineVal <= -0.5) {
+                      $oddMaxViavel = 1.95;
+                  } elseif ($lineVal == -0.25) {
+                      $oddMaxViavel = 1.95;
+                  } elseif ($lineVal == 0.0) {
+                      $oddMaxViavel = 2.15;
+                  } else {
+                      // Linhas positivas (+0.25, +0.5, +0.75, +1.0)
+                      $oddMaxViavel = 2.35;
+                  }
+                  if ($oddReal !== null && $oddReal > $oddMaxViavel) {
+                      $oddMaxViavel = round($oddReal * 1.15, 2);
+                  }
+                  if ($oddMinViavel !== null && $oddMaxViavel <= $oddMinViavel) {
+                      $oddMaxViavel = round($oddMinViavel + 0.35, 2);
+                  }
+              } elseif ($isCardMarket) {
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $oddMinViavel = max(1.50, round($oddJusta * 1.05, 2));
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.50, round($oddReal * 0.88, 2));
+                  }
+                  $oddMaxViavel = 2.10;
+                  if ($oddReal !== null && $oddReal > $oddMaxViavel) {
+                      $oddMaxViavel = round($oddReal * 1.15, 2);
+                  }
+              } else {
+                  if ($oddJusta !== null && $oddJusta > 0) {
+                      $oddMinViavel = max(1.45, round($oddJusta * 1.05, 2));
+                      $oddMaxViavel = round($oddJusta * 1.60, 2);
+                  } elseif ($oddReal !== null && $oddReal > 0) {
+                      $oddMinViavel = max(1.45, round($oddReal * 0.88, 2));
+                      $oddMaxViavel = round($oddReal * 1.25, 2);
+                  }
+              }
+            ?>
+
             <div class="market-info">
               <div>
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
@@ -1451,13 +1731,39 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                   <?php endif; ?>
                 </div>
               </div>
-              <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
-                <?php if ($isAbstencaoBloqueada): ?>
-                  <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
-                    <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+              <div class="d-flex flex-column align-items-end justify-content-center flex-shrink-0 text-end">
+                <div class="d-flex align-items-center gap-1.5 flex-nowrap">
+                  <?php 
+                    $casaNome = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
+                    $isRadarCasa = (stripos($casaNome, 'Radar') !== false || stripos($casaNome, 'Stake') !== false);
+                  ?>
+                  <?php if (!$isAbstencaoBloqueada): ?>
+                    <span class="badge border fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                          style="font-size: 0.86rem; padding: 5px 10px; border-radius: 7px; <?= $isRadarCasa ? 'background: rgba(14, 165, 233, 0.18) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important;' : 'background: rgba(255, 102, 0, 0.18) !important; color: #ff8c38 !important; border-color: rgba(255, 102, 0, 0.45) !important;' ?>" 
+                          title="Casa de apostas aprovada: <?= htmlspecialchars($casaNome) ?>">
+                      <i class="bi <?= $isRadarCasa ? 'bi-radar' : 'bi-check-circle-fill' ?>" style="font-size: 0.85rem;"></i>
+                      <span><?= $isRadarCasa ? 'Sugestão Radar' : 'Betano' ?></span>
+                    </span>
+                    <div class="odd-badge" title="Odd Aprovada na <?= htmlspecialchars($casaNome) ?>: <?= number_format($aposta->odd, 2) ?>">
+                      <?= number_format($aposta->odd, 2) ?>
+                    </div>
+                  <?php else: ?>
+                    <div class="odd-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5);" title="Odd aprovada anteriormente: <?= number_format($aposta->odd, 2) ?> (Cancelada no pré-jogo)">
+                      <span style="font-size: 0.68rem; opacity: 0.8; margin-right: 2px;">Odd prévia:</span> <?= number_format($aposta->odd, 2) ?>
+                    </div>
+                  <?php endif; ?>
+                </div>
+
+                <?php if (!$isAbstencaoBloqueada && !empty($oddMinViavel) && !empty($oddMaxViavel)): ?>
+                  <div class="mt-1.5 d-inline-flex align-items-center gap-1 px-2.5 py-1" 
+                       style="font-size: 0.84rem; font-weight: 600; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.45); color: #94a3b8; border-radius: 7px;"
+                       title="Faixa de Odd Viável (+EV) para pesquisar em outras casas (Stake, Pinnacle, Bet365): Piso mínimo aceitável de @ <?= number_format($oddMinViavel, 2) ?> (+EV seguro) até o teto dinâmico de @ <?= number_format($oddMaxViavel, 2) ?>.">
+                    <i class="bi bi-arrows-expand text-info" style="font-size: 0.80rem;"></i>
+                    <span style="color: #64748b;">Faixa:</span>
+                    <strong style="color: #38bdf8; font-size: 0.88rem;">@ <?= number_format($oddMinViavel, 2) ?></strong>
+                    <span style="color: #475569;">~</span>
+                    <strong style="color: #38bdf8; font-size: 0.88rem;">@ <?= number_format($oddMaxViavel, 2) ?></strong>
                   </div>
-                <?php else: ?>
-                  <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
                 <?php endif; ?>
               </div>
             </div>
@@ -1465,11 +1771,33 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             <div class="values-grid">
               <div class="val-box">
                 <div class="val-title"><?= lang('App.bet_simulation_label') ?></div>
-                <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
+                <?php if ($isCrypto): ?>
+                  <div class="val-amount" style="font-size: 0.95rem; font-weight: 700;">
+                    <?= $fmtValorMoeda($aposta->valor_aposta, $apMoeda) ?>
+                    <?php if ($apCotacao > 0): ?>
+                      <div style="font-size: 0.72rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">
+                        ~ R$ <?= number_format((float)$aposta->valor_aposta * $apCotacao, 2, ',', '.') ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
+                <?php endif; ?>
               </div>
               <div class="val-box highlight">
                 <div class="val-title"><?= lang('App.potential_earnings_label') ?></div>
-                <div class="val-amount primary">R$ <?= number_format($aposta->ganhos_potenciais, 2, ',', '.') ?></div>
+                <?php if ($isCrypto): ?>
+                  <div class="val-amount primary" style="font-size: 0.95rem; font-weight: 700;">
+                    <?= $fmtValorMoeda($displayGanho, $apMoeda) ?>
+                    <?php if ($apCotacao > 0): ?>
+                      <div style="font-size: 0.72rem; color: #38bdf8; font-weight: normal; margin-top: 2px;">
+                        ~ R$ <?= number_format((float)$displayGanho * $apCotacao, 2, ',', '.') ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="val-amount primary">R$ <?= number_format($displayGanho, 2, ',', '.') ?></div>
+                <?php endif; ?>
               </div>
             </div>
 
@@ -1486,19 +1814,26 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               ];
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
 
-              // Status de Processamento da Aposta
-              $betProcText = 'Processamento: ⏳ Pendente';
-              $betProcClass = 'proc-pending';
-              $betProcTooltip = 'Aposta em andamento ou aguardando fechamento da partida.';
+              // Status de Processamento da Aposta (Regra de Ouro 4 - Esteira de 3 Estados)
+              $isSettledBet = in_array($aposta->status, ['Ganha', 'Meio Ganha', 'Perdida', 'Meio Perdida', 'ANULADA', 'Cashout'], true);
+              $isCanceledBet = ($aposta->status === 'Cancelada');
 
-              if ($aposta->status !== 'Pendente') {
+              if ($isSettledBet) {
                 $betProcText = 'Processamento: ✅ Completo';
                 $betProcClass = 'proc-complete';
                 $betProcTooltip = 'Aposta devidamente liquidada com resultado oficial gravado.';
+              } elseif ($isCanceledBet) {
+                $betProcText = 'Processamento: ⚪ Cancelada';
+                $betProcClass = 'proc-canceled';
+                $betProcTooltip = 'Aposta cancelada no pré-jogo por ausência de valor (+EV) ou decisão do usuário.';
               } elseif (!empty($placarExibir)) {
                 $betProcText = 'Processamento: 🌗 Parcial';
                 $betProcClass = 'proc-partial';
                 $betProcTooltip = 'Partida encerrada com placar registrado, aguardando apuração da DAG de liquidação.';
+              } else {
+                $betProcText = 'Processamento: ⏳ Aguardando Súmula Oficial';
+                $betProcClass = 'proc-pending';
+                $betProcTooltip = 'Aposta aprovada em andamento ou pré-jogo (NS/LIVE), aguardando apuração oficial.';
               }
             ?>
 
@@ -1559,7 +1894,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               ?>
 
               <!-- Botão Retrátil no padrão dos cards do Dashboard -->
-              <div class="bet-badge-toggle-bar">
+              <div class="bet-badge-toggle-bar d-flex justify-content-between align-items-center w-100 flex-wrap gap-2">
                 <button type="button" 
                         id="btn-gk-<?= $aposta->id ?>" 
                         class="bet-toggle-badge <?= $gkBadgeColor ?>" 
@@ -1567,6 +1902,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         title="Clique para expandir/retrair a auditoria detalhada do Gatekeeper">
                   <i class="bi <?= $gkBadgeIcon ?> me-1"></i> <?= $gkBadgeText ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                 </button>
+                <?php 
+                  $tsParecerAposta = !empty($aposta->criado_em) ? $aposta->criado_em : (!empty($aposta->auditoria_ia_checked_at) ? $aposta->auditoria_ia_checked_at : (!empty($aposta->updated_at) ? $aposta->updated_at : null));
+                  if (!empty($tsParecerAposta)):
+                    $parecerApostaFmt = date('d/m/Y H:i', strtotime($tsParecerAposta));
+                ?>
+                  <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
+                    <i class="bi bi-clock-history"></i> Parecer IA: <?= $parecerApostaFmt ?>
+                  </span>
+                <?php endif; ?>
               </div>
 
               <!-- Seção Retrátil do STATUS GK (carregada oculta com display: none por padrão) -->
@@ -1610,9 +1954,18 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                     </div>
                   </div>
                 <?php elseif (!empty($detalhadoExibir)): ?>
-                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; width: 100%;">
-                    <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
-                    <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 12px; font-size: 0.78rem; color: #e2e8f0; width: 100%;">
+                    <?php if (!empty($tsParecerAposta)): ?>
+                      <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
+                          <i class="bi bi-clock-history"></i> Parecer gravado em: <?= $parecerApostaFmt ?>
+                        </span>
+                      </div>
+                    <?php endif; ?>
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                      <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
+                      <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                    </div>
                   </div>
                 <?php endif; ?>
               </div>
@@ -1734,38 +2087,66 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
           <div class="bet-card-footer">
             <div class="actions-primary">
-              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                <?php if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada'): ?>
-                  <button type="button" class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px; opacity: 0.6; cursor: not-allowed;" disabled title="Aposta cancelada pelo sistema">
-                    <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php elseif ($isVolatilidadeBloqueada): ?>
-                  <button type="button" 
-                          class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm btn-confirmar-bloqueado" 
-                          id="btn-confirm-<?= $aposta->id ?>"
-                          data-needs-check="1"
-                          data-aposta-id="<?= $aposta->id ?>"
-                          data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
-                          data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
-                          data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
-                          data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
-                          data-valor="<?= (float)$aposta->valor_aposta ?>"
-                          data-odd="<?= (float)($aposta->odd ?? 0) ?>"
-                          style="border-radius: 8px; background: rgba(100, 116, 139, 0.35); border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; cursor: not-allowed;" 
-                          disabled 
-                          title="Bloqueio Preventivo: Confronto equilibrado com odds abertas. Clique primeiro em 'Checar Odds Agora' para auditar as cotações em tempo real e desbloquear a confirmação.">
-                    <i class="bi bi-lock-fill me-1 text-warning"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php else: ?>
-                  <button type="button" 
-                          class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
-                          id="btn-confirm-<?= $aposta->id ?>"
-                          style="border-radius: 8px;" 
-                          onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>, <?= (float)($aposta->odd ?? 0) ?>)">
-                    <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
-                  </button>
-                <?php endif; ?>
-              <?php endif; ?>
+              <?php 
+                if ($isConfirmada && $aposta->status !== 'Não Confirmada') {
+                    $btnConfirmClass = 'btn-outline-success';
+                    $btnConfirmIcon = 'bi-check2-circle';
+                    $btnConfirmTitle = 'Aposta já confirmada';
+                    $btnConfirmText = lang('App.confirm_bet');
+                } elseif (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+                    $btnConfirmClass = 'btn-secondary';
+                    $btnConfirmIcon = 'bi-x-circle';
+                    $btnConfirmTitle = 'Aposta cancelada';
+                    $btnConfirmText = lang('App.confirm_bet');
+                } elseif ($isLockedByRiskCeiling) {
+                    $btnConfirmClass = 'btn-secondary disabled';
+                    $btnConfirmIcon = 'bi-shield-slash-fill';
+                    $btnConfirmTitle = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+                    $btnConfirmText = '🔒 Limite Excedido';
+                } elseif ($isLineupPending) {
+                    // Estado 1: Súmula Realmente Pendente
+                    $btnConfirmClass = 'btn-secondary disabled';
+                    $btnConfirmIcon = 'bi-hourglass-split';
+                    $btnConfirmTitle = 'Trava de Governança: Aguardando publicação da súmula oficial e validação da Sentinela Gemini';
+                    $btnConfirmText = '⏳ Aguardar Súmula';
+                } elseif ($isLineupRiskAlert) {
+                    // Estado 3: Súmula Notificada com Alerta de Risco (Habilitado para decisão e assunção de risco do apostador)
+                    $btnConfirmClass = 'btn-warning text-dark';
+                    $btnConfirmIcon = 'bi-exclamation-triangle-fill';
+                    $btnConfirmTitle = 'Alerta de Risco da Sentinela: A súmula oficial foi confirmada, mas a IA Sentinela identificou desfalques ou alto risco. Clique para prosseguir assumindo o risco.';
+                    $btnConfirmText = '⚠️ Alerta de Risco';
+                } else {
+                    // Estado 2 (CONFIRMADO) ou Regular (+EV): Liberado para confirmar
+                    $btnConfirmClass = 'btn-success';
+                    $btnConfirmIcon = 'bi-lightning-charge-fill';
+                    $btnConfirmTitle = 'Confirmar Aposta';
+                    $btnConfirmText = lang('App.confirm_bet');
+                }
+
+                $onclickAction = $isLockedByRiskCeiling 
+                  ? "alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.'); return false;" 
+                  : ($isLineupPending 
+                    ? "alert('⏳ Trava de Governança de Risco: Esta aposta é classificada como " . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . ". É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.'); return false;" 
+                    : 'openConfirmBetModalFromButton(this)'
+                    );
+              ?>
+              <button type="button" 
+                      class="btn btn-sm <?= $btnConfirmClass ?> fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
+                      id="btn-confirm-<?= $aposta->id ?>"
+                      data-aposta-id="<?= $aposta->id ?>"
+                      data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>"
+                      data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>"
+                      data-time-casa="<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>"
+                      data-time-fora="<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>"
+                      data-mercado="<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>"
+                      data-palpite="<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>"
+                      data-valor="<?= (float)$aposta->valor_aposta ?>"
+                      data-odd="<?= (float)($aposta->odd ?? 0) ?>"
+                      <?= ($isLockedByLineup || $isLockedByRiskCeiling) ? 'disabled style="border-radius: 8px; opacity: 0.85; cursor: not-allowed;"' : 'style="border-radius: 8px; cursor: pointer;"' ?>
+                      onclick="<?= $onclickAction ?>"
+                      title="<?= $btnConfirmTitle ?>">
+                <i class="bi <?= $btnConfirmIcon ?> me-1"></i> <?= $btnConfirmText ?>
+              </button>
               <?php if ((!$isConfirmada || $aposta->status === 'Não Confirmada') && !empty($aposta->fixture_id)): ?>
                 <button type="button" 
                         class="btn btn-sm btn-outline-info fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-check-odds-ah" 
@@ -1773,6 +2154,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         onclick="handleChecarOddsAgora(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
                         title="Auditar cotações em tempo real na API Football e recalibrar palpite">
                   <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
+                </button>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id) && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-primary fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-reauditar-ia" 
+                        style="border-radius: 8px; font-size: 0.78rem; border-color: #818cf8; color: #a5b4fc;" 
+                        onclick="handleReauditarIa(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
+                        title="Reauditar com IA Gemini: Inspecionar Súmula Oficial, Notícias Recentes e Recalibrar Palpite">
+                  <i class="bi bi-robot"></i> 🤖 Reauditar com IA
                 </button>
               <?php endif; ?>
               <?php if (!empty($aposta->fixture_id) && stripos($aposta->mercado, 'Handicap') !== false && !in_array($aposta->status, ['Ganha', 'Perdida', 'Anulada'], true)): ?>
@@ -1785,7 +2175,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                 </button>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
-                CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
+                CASH OUT <?= $isCrypto ? $fmtValorMoeda($aposta->cash_out ?? $aposta->valor_aposta, $apMoeda) : ('R$ ' . number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.')) ?>
               </button>
               <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="<?= lang('App.rebet') ?>">
                 <i class="bi bi-arrow-repeat"></i> <?= lang('App.rebet') ?>
@@ -1794,12 +2184,20 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
             <div class="actions-secondary">
               <?php if (!empty($aposta->fixture_id)): ?>
-                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                   target="_blank" rel="noopener noreferrer"
-                   class="btn-icon-link text-warning fw-semibold text-decoration-none" 
-                   title="<?= lang('App.origin_card') ?>">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                </a>
+                <button type="button" 
+                        class="btn-icon-link text-warning fw-semibold text-decoration-none btn-card-origem-footer" 
+                        style="cursor: pointer;"
+                        onclick="handleAbrirCardOrigem(<?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', <?= (int)$aposta->id ?>)"
+                        title="<?= lang('App.origin_card') ?> (Visualização em Modal Sobreposto)">
+                  <i class="bi bi-window-stack me-1"></i> <?= lang('App.origin_card') ?>
+                </button>
+                <button type="button" 
+                        class="btn-icon-link text-info fw-semibold text-decoration-none ms-2 btn-auditoria-simula-aposta-footer" 
+                        style="cursor: pointer;"
+                        onclick="handleAbrirAuditoriaSimulaAposta(<?= (int)$aposta->id ?>, <?= (int)$aposta->fixture_id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?> x <?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>')"
+                        title="Auditoria simula aposta (Histórico e Log do Ciclo de Vida)">
+                  <i class="bi bi-clipboard-pulse me-1"></i> Auditoria simula aposta
+                </button>
               <?php else: ?>
                 <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
                    target="_blank" rel="noopener noreferrer"
@@ -1821,7 +2219,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
                         data-mercado="<?= htmlspecialchars($aposta->mercado ?? '', ENT_QUOTES, 'UTF-8') ?>" 
                         data-palpite="<?= htmlspecialchars($aposta->palpite ?? '', ENT_QUOTES, 'UTF-8') ?>" 
                         data-odd="<?= number_format((float)($aposta->odd ?? 1.0), 2, '.', '') ?>" 
-                        data-valor="<?= number_format((float)($aposta->valor_aposta ?? 10.0), 2, '.', '') ?>" 
+                        data-valor="<?= ($isCrypto ? number_format((float)($aposta->valor_aposta ?? 10.0), 8, '.', '') : number_format((float)($aposta->valor_aposta ?? 10.0), 2, '.', '')) ?>" 
                         data-tipo="<?= htmlspecialchars($aposta->tipo ?? 'Simples', ENT_QUOTES, 'UTF-8') ?>" 
                         data-status="<?= htmlspecialchars($aposta->status ?? 'Pendente', ENT_QUOTES, 'UTF-8') ?>" 
                         onclick="handleOpenEditModal(this)" 
@@ -1975,18 +2373,18 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
-              <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" oninput="calcGanhos()">
+              <input type="number" step="any" class="form-control" id="valorInput" required placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.potential_earnings') ?></label>
-              <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="R$ 14,70">
+              <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="0,00">
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.cashout_value') ?></label>
-              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="number" step="any" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="<?= $userStakePadraoFmt ?>" value="<?= $userStakePadraoFmt ?>" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -2065,15 +2463,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
               <input type="number" step="0.01" min="1.01" class="form-control bg-dark text-white border-secondary fw-bold text-success" id="editOddInput" required>
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> (R$) *</label>
-              <input type="number" step="0.01" min="0.01" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
+              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> *</label>
+              <input type="number" step="any" min="0.00000001" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
-              <label class="form-label text-white"><?= lang('App.cashout') ?> (R$)</label>
-              <input type="number" step="0.01" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
+              <label class="form-label text-white"><?= lang('App.cashout') ?></label>
+              <input type="number" step="any" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -2133,6 +2531,22 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
           <div class="d-flex justify-content-between mb-0">
             <span class="text-muted small"><?= lang('App.bet_amount') ?> (Débito):</span>
             <strong id="confirmBetAmount" class="text-warning fs-6">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <!-- Alerta de Alavancagem e Gestão de Banca para Aposta PREMIUM -->
+        <div id="confirmBetPremiumNotice" class="p-2.5 mb-3 rounded-3" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; font-size: 0.78rem;">
+          <div class="d-flex align-items-center gap-1.5 fw-bold mb-1">
+            <span style="font-size: 1rem;">👑</span> ⭐ Aposta PREMIUM (+EV Alavancado)
+          </div>
+          <div style="color: #fde68a; line-height: 1.4;">
+            💡 <strong>Gestão de Banca:</strong> Superioridade técnica extrema do super-favorito detectada pelo Gatekeeper. A stake recomendada já foi pré-configurada em <strong>3x a stake padrão</strong>.
+          </div>
+          <div class="d-flex align-items-center gap-1.5 mt-2 pt-2 border-top border-warning border-opacity-25 flex-wrap">
+            <span class="text-white-50 small me-1">Ajustar Multiplicador:</span>
+            <button type="button" class="btn btn-xs btn-outline-secondary btn-confirm-stake-mult" id="btnStakeMult1" onclick="setConfirmBetStakeMultiplier(1)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">1x Padrão</button>
+            <button type="button" class="btn btn-xs btn-outline-warning btn-confirm-stake-mult" id="btnStakeMult2" onclick="setConfirmBetStakeMultiplier(2)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">2x</button>
+            <button type="button" class="btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active" id="btnStakeMult3" onclick="setConfirmBetStakeMultiplier(3)" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">⭐ 3x (Recomendado)</button>
           </div>
         </div>
 
@@ -2226,7 +2640,86 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
   </div>
 </div>
 
+<!-- MODAL CARD ORIGEM (OVERLAY MODAL VIEW) -->
+<div class="modal fade modal-dark" id="modalCardOrigem" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(8px);">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style="max-width: 820px;">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.8); border-radius: 14px;">
+      <div class="modal-header border-bottom border-secondary d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95); padding: 12px 20px;">
+        <h6 class="modal-title fw-bold text-white d-flex align-items-center gap-2 m-0" id="modalCardOrigemTitle" style="font-size: 0.95rem;">
+          <i class="bi bi-shield-shaded text-info"></i> Card de Origem da Aposta
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <a href="#" id="modalCardOrigemExternalLink" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-info d-flex align-items-center gap-1 shadow-sm" style="font-size: 0.74rem; border-radius: 6px; padding: 4px 10px;" title="Abrir no Dashboard (Nova Aba)">
+            <i class="bi bi-box-arrow-up-right"></i> Abrir em nova aba
+          </a>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3" id="modalCardOrigemBody" style="min-height: 280px; max-height: 80vh; overflow-y: auto;">
+        <!-- Carregamento dinâmico via AJAX / Cache em Memória -->
+      </div>
+      <div class="modal-footer border-top border-secondary py-2 px-3 d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95);">
+        <span class="text-white-50 small" style="font-size: 0.75rem;"><i class="bi bi-info-circle text-info me-1"></i> Você pode fechar e reabrir este card a qualquer momento sem sair da tela.</span>
+        <button type="button" class="btn btn-secondary btn-sm px-3 fw-bold" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AUDITORIA SIMULA APOSTA (TIMELINE & LOGS DE CICLO DE VIDA) -->
+<div class="modal fade modal-dark" id="modalAuditoriaSimulaAposta" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(8px);">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style="max-width: 860px;">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.8); border-radius: 14px;">
+      <div class="modal-header border-bottom border-secondary d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95); padding: 12px 20px;">
+        <h6 class="modal-title fw-bold text-white d-flex align-items-center gap-2 m-0" id="modalAuditoriaSimulaApostaTitle" style="font-size: 0.95rem;">
+          <i class="bi bi-clipboard-pulse text-info"></i> Auditoria simula aposta
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 shadow-sm" id="btnCopiarLogAuditoria" onclick="copiarLogAuditoriaParaClipboard()" style="font-size: 0.78rem; border-radius: 6px; padding: 4px 12px; font-weight: 600;">
+            <i class="bi bi-clipboard me-1" id="btnCopiarIcone"></i> <span id="btnCopiarTexto">Copiar para Área de Transferência</span>
+          </button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3" id="modalAuditoriaSimulaApostaBody" style="background: #0b1120; min-height: 280px; max-height: 80vh; overflow-y: auto;">
+        <!-- Preenchido dinamicamente via JS -->
+      </div>
+      <div class="modal-footer border-top border-secondary py-2 px-3 d-flex justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.95);">
+        <span class="text-white-50 small" style="font-size: 0.75rem;">
+          <i class="bi bi-shield-check text-success me-1"></i> Rastreamento e auditoria transversal (Pipeline Lifecycle Logs & Sininho)
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm px-3 fw-bold" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+  const activeMoedaCodigo = '<?= esc($activeMoedaCodigo) ?>';
+  const activeCotacao = <?= (float)$activeCotacao ?>;
+  const activeDecimais = <?= (int)$activeDecimais ?>;
+  const isCryptoActive = <?= $isCryptoActive ? 'true' : 'false' ?>;
+  const userStakePadrao = <?= (float)$userStakePadrao ?>;
+  let currentEspelharStake = '<?= ($isCryptoActive ? '1' : '0') ?>';
+
+  function setEspelharStakeFilter(val, btnEl) {
+    currentEspelharStake = String(val);
+    const container = document.getElementById('espelharStakeSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (btnEl) {
+        if (val === '0') {
+          btnEl.classList.add('active-no');
+        } else {
+          btnEl.classList.add('active');
+        }
+      }
+    }
+    updateCalculatedSummary();
+  }
+
   let allFixtureOptions = [];
 
   function initFixtureOptions() {
@@ -2275,6 +2768,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
   }
 
+  function revealBetsContainer() {
+    const skeleton = document.getElementById('betsLoadingSkeleton');
+    if (skeleton) skeleton.remove();
+    const container = document.getElementById('betsContainer');
+    if (container) {
+      container.classList.remove('bets-container-loading');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
@@ -2291,6 +2793,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     } else {
       applyBetFilters();
     }
+    
+    // Libera os cards filtrados e remove o skeleton de carregamento
+    revealBetsContainer();
     
     const newBetModalEl = document.getElementById('newBetModal');
     if (newBetModalEl) {
@@ -2493,7 +2998,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const valRaw = valInput ? valInput.value : '0';
     const val = parseFloat(valRaw) || 0;
     const res = odd * val;
-    document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const isCryptoVal = (val > 0 && (valRaw.includes('.') && valRaw.split('.')[1].length > 2 || val < 1));
+    if (isCryptoVal) {
+      document.getElementById('ganhosDisplay').value = res.toFixed(8).replace('.', ',');
+    } else {
+      document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    }
     const cashoutEl = document.getElementById('cashoutInput');
     if (cashoutEl) cashoutEl.value = valRaw;
   }
@@ -2504,7 +3014,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const valRaw = valInput ? valInput.value : '0';
     const val = parseFloat(valRaw) || 0;
     const res = odd * val;
-    document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const isCryptoVal = (val > 0 && (valRaw.includes('.') && valRaw.split('.')[1].length > 2 || val < 1));
+    if (isCryptoVal) {
+      document.getElementById('editGanhosDisplay').value = res.toFixed(8).replace('.', ',');
+    } else {
+      document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    }
     const editCashoutEl = document.getElementById('editCashoutInput');
     if (editCashoutEl) editCashoutEl.value = valRaw;
   }
@@ -2740,7 +3255,26 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (btn) {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+    } else {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      let targetId = 'btnFilterAll';
+      if (status === 'concluidas') targetId = 'btnFilterConcluidas';
+      else if (status === 'Pendente') targetId = 'btnFilterPendente';
+      else if (status === 'Ganha') targetId = 'btnFilterGanha';
+      else if (status === 'Meio Ganha') targetId = 'btnFilterMeioGanha';
+      else if (status === 'Meio Perdida') targetId = 'btnFilterMeioPerdida';
+      else if (status === 'Perdida') targetId = 'btnFilterPerdida';
+      else if (status === 'Cashout') targetId = 'btnFilterCashout';
+      else if (status === 'ANULADA') targetId = 'btnFilterAnulada';
+      const targetBtn = document.getElementById(targetId);
+      if (targetBtn) targetBtn.classList.add('active');
     }
+
+    const selectEl = document.getElementById('betStatusSelect');
+    if (selectEl && selectEl.value !== status) {
+      selectEl.value = status;
+    }
+
     currentStatusFilter = status;
     currentFixtureIdFilter = null; // Reseta filtro de partida específica ao alternar abas de status
 
@@ -2754,6 +3288,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
 
     applyBetFilters();
+  }
+
+  function onBetStatusSelectChange(val) {
+    filterBets(val);
   }
 
   function searchBets() {
@@ -3089,7 +3627,24 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         }
       }
 
-      const statusMatch = (status === 'all' || cardStatus === status);
+      let statusMatch = false;
+      if (status === 'all') {
+        statusMatch = true;
+      } else if (status === 'concluidas') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        const isPendente = (cardStatus === 'Pendente');
+        const isCanceled = cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD');
+        statusMatch = (!isPendente && !isCanceled);
+      } else if (status === 'Ganha') {
+        statusMatch = (cardStatus === 'Ganha' || cardStatus === 'Meio Ganha');
+      } else if (status === 'Perdida') {
+        statusMatch = (cardStatus === 'Perdida' || cardStatus === 'Meio Perdida');
+      } else if (status === 'ANULADA') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        statusMatch = (cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD'));
+      } else {
+        statusMatch = (cardStatus === status);
+      }
 
       if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         card.style.display = 'flex';
@@ -3199,6 +3754,7 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
 
     const btnAll = document.getElementById('btnFilterAll');
+    const btnConcluidas = document.getElementById('btnFilterConcluidas');
     const btnPendente = document.getElementById('btnFilterPendente');
     const btnGanha = document.getElementById('btnFilterGanha');
     const btnMeioGanha = document.getElementById('btnFilterMeioGanha');
@@ -3207,7 +3763,10 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const btnPerdida = document.getElementById('btnFilterPerdida');
     const btnCashout = document.getElementById('btnFilterCashout');
 
+    const concluidasCount = (counts['Ganha'] || 0) + (counts['Meio Ganha'] || 0) + (counts['Perdida'] || 0) + (counts['Meio Perdida'] || 0) + (counts['Cashout'] || 0);
+
     if (btnAll) btnAll.textContent = formatBadge(<?= json_encode(lang('App.all_statuses')) ?>, total);
+    if (btnConcluidas) btnConcluidas.textContent = formatBadge(<?= json_encode(lang('App.status_concluded') ?? 'Concluídas') ?>, concluidasCount);
     if (btnPendente) btnPendente.textContent = formatBadge(<?= json_encode(lang('App.pending')) ?>, counts['Pendente'] || 0);
     if (btnGanha) btnGanha.textContent = formatBadge(<?= json_encode(lang('App.won')) ?>, counts['Ganha'] || 0);
     if (btnMeioGanha) btnMeioGanha.textContent = formatBadge(<?= json_encode(lang('App.half_won')) ?>, counts['Meio Ganha'] || 0);
@@ -3217,14 +3776,63 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (btnCashout) btnCashout.textContent = formatBadge('Cashout', counts['Cashout'] || 0);
   }
 
+  function formatValWithBrl(val, valBrl = null, showPlus = false) {
+    const num = parseFloat(val) || 0;
+    const plus = (showPlus && num > 0) ? '+' : '';
+    const dec = (activeDecimais > 2 && num !== Math.round(num * 100) / 100) ? activeDecimais : Math.min(2, activeDecimais);
+    const numFmt = Math.abs(num).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: activeDecimais });
+    const sign = num < 0 ? '-' : plus;
+
+    if (!isCryptoActive) {
+      return sign + 'R$ ' + numFmt;
+    }
+
+    const brl = (valBrl !== null) ? (parseFloat(valBrl) || 0) : (num * activeCotacao);
+    const brlPlus = (showPlus && brl > 0) ? '+' : '';
+    const brlFmt = Math.abs(brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const brlSign = brl < 0 ? '-' : brlPlus;
+
+    return `${sign}${numFmt} ${activeMoedaCodigo} <span class="stat-sub-brl text-light-50 fw-normal" style="font-size: 0.85rem;">~ ${brlSign}R$ ${brlFmt}</span>`;
+  }
+
+  function formatTopCardWithBrl(el, val, valBrl = null, showPlus = false, subColor = '#94a3b8') {
+    if (!el) return;
+    const num = parseFloat(val) || 0;
+    const plus = (showPlus && num > 0) ? '+' : '';
+    const dec = (activeDecimais > 2 && num !== Math.round(num * 100) / 100) ? activeDecimais : Math.min(2, activeDecimais);
+    const numFmt = Math.abs(num).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: activeDecimais });
+    const sign = num < 0 ? '-' : plus;
+
+    if (!isCryptoActive) {
+      el.innerHTML = sign + 'R$ ' + numFmt;
+      return;
+    }
+
+    const brl = (valBrl !== null) ? (parseFloat(valBrl) || 0) : (num * activeCotacao);
+    const brlPlus = (showPlus && brl > 0) ? '+' : '';
+    const brlFmt = Math.abs(brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const brlSign = brl < 0 ? '-' : brlPlus;
+
+    el.innerHTML = `<span>${sign}${numFmt} ${activeMoedaCodigo}</span><div class="stat-sub-brl" style="font-size: 0.85rem; color: ${subColor}; font-weight: 500; margin-top: 4px;">~ ${brlSign}R$ ${brlFmt}</div>`;
+  }
+
   function updateCalculatedSummary() {
     const cards = document.querySelectorAll('.bet-card-item');
     let totalApostado = 0;
+    let totalApostadoBrl = 0;
     let totalApostadoLiquidado = 0;
+    let totalApostadoLiquidadoBrl = 0;
     let totalRetorno = 0;
+    let totalRetornoBrl = 0;
     let totalLucro = 0;
+    let totalLucroBrl = 0;
     let totalPerda = 0;
+    let totalPerdaBrl = 0;
     let visibleCount = 0;
+
+    // Blindagem de leitura direta do DOM para garantir o estado do toggle de Stakes
+    const espelharBtnActive = document.querySelector('#espelharStakeSlideToggle .slide-btn.active');
+    const isEspelhar = espelharBtnActive ? (espelharBtnActive.getAttribute('data-val') === '1') : (currentEspelharStake === '1');
 
     cards.forEach(card => {
       if (card.style.display !== 'none') {
@@ -3234,47 +3842,172 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         const odd = parseFloat(card.getAttribute('data-odd') || '0') || 0;
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
         const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
+        const cardMoeda = card.getAttribute('data-moeda') || 'BRL';
+        const cotacao = parseFloat(card.getAttribute('data-cotacao') || '0') || activeCotacao || 1.0;
 
         const isCanceled = (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA');
 
-        if (!isCanceled) {
-          totalApostado += valor;
-        }
+        let stakeActive = 0;
+        let stakeBrl = 0;
 
-        if (status !== 'Pendente' && !isCanceled) {
-          totalApostadoLiquidado += valor;
-        }
-
-        if (status === 'Ganha') {
-          const ret = ganho > 0 ? ganho : (valor * odd);
-          totalRetorno += ret;
-          const lucroItem = (ret - valor);
-          if (lucroItem > 0) totalLucro += lucroItem;
-        } else if (status === 'Meio Ganha') {
-          const fullRet = ganho > 0 ? ganho : (valor * odd);
-          const ret = valor + ((fullRet - valor) / 2);
-          totalRetorno += ret;
-          const lucroItem = ((fullRet - valor) / 2);
-          if (lucroItem > 0) totalLucro += lucroItem;
-        } else if (status === 'Cashout') {
-          const cashVal = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
-          totalRetorno += cashVal;
-          if (cashVal > valor) {
-            totalLucro += (cashVal - valor);
+        if (isEspelhar) {
+          // Modo Espelhar Stake: padroniza cada aposta com a stake configurada
+          stakeActive = userStakePadrao;
+          stakeBrl = userStakePadrao * (isCryptoActive ? activeCotacao : 1.0);
+        } else {
+          // Modo Histórico Real: converte com precisão moedas heterogêneas
+          if (cardMoeda === activeMoedaCodigo) {
+            stakeActive = valor;
+            stakeBrl = isCryptoActive ? (valor * cotacao) : valor;
+          } else if (cardMoeda === 'BRL') {
+            stakeBrl = valor;
+            stakeActive = isCryptoActive ? ((cotacao > 0) ? (valor / cotacao) : (valor / activeCotacao)) : valor;
+          } else {
+            stakeBrl = valor * cotacao;
+            stakeActive = (activeCotacao > 0) ? (stakeBrl / activeCotacao) : stakeBrl;
           }
-        } else if (status === 'Perdida') {
-          totalPerda += valor;
-        } else if (status === 'Meio Perdida') {
-          totalRetorno += (valor * 0.5);
-          totalPerda += (valor * 0.5);
+        }
+
+        if (!isCanceled) {
+          totalApostado += stakeActive;
+          totalApostadoBrl += stakeBrl;
+        }
+
+        if (status !== 'Pendente' && status !== 'Não Confirmada' && !isCanceled) {
+          totalApostadoLiquidado += stakeActive;
+          totalApostadoLiquidadoBrl += stakeBrl;
+        }
+
+        if (isEspelhar) {
+          // Retornos e Lucros projetados/espelhados pela stake padrão
+          if (status === 'Ganha') {
+            const ret = stakeActive * odd;
+            const retBrl = stakeBrl * odd;
+            const lucro = stakeActive * (odd - 1.0);
+            const lucroBrl = stakeBrl * (odd - 1.0);
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (lucro > 0) {
+              totalLucro += lucro;
+              totalLucroBrl += lucroBrl;
+            }
+          } else if (status === 'Meio Ganha') {
+            const ret = stakeActive + ((stakeActive * (odd - 1.0)) / 2);
+            const retBrl = stakeBrl + ((stakeBrl * (odd - 1.0)) / 2);
+            const lucro = (stakeActive * (odd - 1.0)) / 2;
+            const lucroBrl = (stakeBrl * (odd - 1.0)) / 2;
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (lucro > 0) {
+              totalLucro += lucro;
+              totalLucroBrl += lucroBrl;
+            }
+          } else if (status === 'Cashout') {
+            const origStake = valor;
+            const ret = (origStake > 0 && cashout > 0) ? (stakeActive * (cashout / origStake)) : stakeActive;
+            const retBrl = (origStake > 0 && cashout > 0) ? (stakeBrl * (cashout / origStake)) : stakeBrl;
+            totalRetorno += ret;
+            totalRetornoBrl += retBrl;
+            if (ret > stakeActive) {
+              totalLucro += (ret - stakeActive);
+              totalLucroBrl += (retBrl - stakeBrl);
+            }
+          } else if (status === 'Perdida') {
+            totalPerda += stakeActive;
+            totalPerdaBrl += stakeBrl;
+          } else if (status === 'Meio Perdida') {
+            totalRetorno += (stakeActive * 0.5);
+            totalRetornoBrl += (stakeBrl * 0.5);
+            totalPerda += (stakeActive * 0.5);
+            totalPerdaBrl += (stakeBrl * 0.5);
+          }
+        } else {
+          // Histórico Real
+          if (status === 'Ganha') {
+            const rawRet = ganho > 0 ? ganho : (valor * odd);
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawRet;
+              retBrl = isCryptoActive ? (rawRet * cotacao) : rawRet;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawRet;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawRet / cotacao) : (rawRet / activeCotacao)) : rawRet;
+            } else {
+              retBrl = rawRet * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            const lucroItem = (retActive - stakeActive);
+            const lucroItemBrl = (retBrl - stakeBrl);
+            if (lucroItem > 0) {
+              totalLucro += lucroItem;
+              totalLucroBrl += lucroItemBrl;
+            }
+          } else if (status === 'Meio Ganha') {
+            const rawFull = ganho > 0 ? ganho : (valor * odd);
+            const rawRet = valor + ((rawFull - valor) / 2);
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawRet;
+              retBrl = isCryptoActive ? (rawRet * cotacao) : rawRet;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawRet;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawRet / cotacao) : (rawRet / activeCotacao)) : rawRet;
+            } else {
+              retBrl = rawRet * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            const lucroItem = (retActive - stakeActive);
+            const lucroItemBrl = (retBrl - stakeBrl);
+            if (lucroItem > 0) {
+              totalLucro += lucroItem;
+              totalLucroBrl += lucroItemBrl;
+            }
+          } else if (status === 'Cashout') {
+            const rawCash = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
+            let retActive = 0;
+            let retBrl = 0;
+            if (cardMoeda === activeMoedaCodigo) {
+              retActive = rawCash;
+              retBrl = isCryptoActive ? (rawCash * cotacao) : rawCash;
+            } else if (cardMoeda === 'BRL') {
+              retBrl = rawCash;
+              retActive = isCryptoActive ? ((cotacao > 0) ? (rawCash / cotacao) : (rawCash / activeCotacao)) : rawCash;
+            } else {
+              retBrl = rawCash * cotacao;
+              retActive = (activeCotacao > 0) ? (retBrl / activeCotacao) : retBrl;
+            }
+            totalRetorno += retActive;
+            totalRetornoBrl += retBrl;
+            if (retActive > stakeActive) {
+              totalLucro += (retActive - stakeActive);
+              totalLucroBrl += (retBrl - stakeBrl);
+            }
+          } else if (status === 'Perdida') {
+            totalPerda += stakeActive;
+            totalPerdaBrl += stakeBrl;
+          } else if (status === 'Meio Perdida') {
+            totalRetorno += (stakeActive * 0.5);
+            totalRetornoBrl += (stakeBrl * 0.5);
+            totalPerda += (stakeActive * 0.5);
+            totalPerdaBrl += (stakeBrl * 0.5);
+          }
         }
       }
     });
 
     // Saldo Líquido Real = Retorno Total Bruto - Total Apostado em Apostas Concluídas/Liquidadas
     const saldoLiquido = totalRetorno - totalApostadoLiquidado;
+    const saldoLiquidoBrl = totalRetornoBrl - totalApostadoLiquidadoBrl;
 
-    const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    // Total apostado para exibição: exibe o volume total simulado das apostas ativas/visíveis do período
+    const displayApostadoVal = totalApostado;
+    const displayApostadoBrl = totalApostadoBrl;
 
     const elApostado = document.getElementById('calcTotalApostado');
     const elGanho = document.getElementById('calcTotalGanho');
@@ -3282,13 +4015,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const elPerda = document.getElementById('calcTotalPerda');
     const elSaldo = document.getElementById('calcSaldoLiquido');
 
-    if (elApostado) elApostado.textContent = formatBrl(totalApostado);
-    if (elGanho) elGanho.textContent = formatBrl(totalRetorno);
-    if (elLucro) elLucro.textContent = formatBrl(totalLucro);
-    if (elPerda) elPerda.textContent = formatBrl(totalPerda);
+    if (elApostado) elApostado.innerHTML = formatValWithBrl(displayApostadoVal, displayApostadoBrl);
+    if (elGanho) elGanho.innerHTML = formatValWithBrl(totalRetorno, totalRetornoBrl);
+    if (elLucro) elLucro.innerHTML = formatValWithBrl(totalLucro, totalLucroBrl);
+    if (elPerda) elPerda.innerHTML = formatValWithBrl(totalPerda, totalPerdaBrl);
     if (elSaldo) {
-      const prefix = saldoLiquido > 0 ? '+' : '';
-      elSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      elSaldo.innerHTML = formatValWithBrl(saldoLiquido, saldoLiquidoBrl, true);
       if (saldoLiquido > 0) {
         elSaldo.className = 'text-success fw-bold';
       } else if (saldoLiquido < 0) {
@@ -3298,18 +4030,35 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       }
     }
 
+    // Cálculo do ROI % (Retorno sobre Investimento Liquidado)
+    const baseInvestida = totalApostadoLiquidado > 0 ? totalApostadoLiquidado : (totalApostado > 0 ? totalApostado : 0);
+    const roiResultante = baseInvestida > 0 ? ((saldoLiquido / baseInvestida) * 100) : 0;
+    const elRoi = document.getElementById('calcRoiResultante');
+    if (elRoi) {
+      const roiSign = roiResultante > 0 ? '+' : '';
+      const roiFmt = roiResultante.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      elRoi.textContent = `${roiSign}${roiFmt}%`;
+      if (roiResultante > 0) {
+        elRoi.className = 'text-success fw-bold';
+      } else if (roiResultante < 0) {
+        elRoi.className = 'text-danger fw-bold';
+      } else {
+        elRoi.className = 'text-info fw-bold';
+      }
+    }
+
     // Atualiza Top Cards (Resumo Superior)
     const topApostado = document.getElementById('topTotalApostado');
     const topGanho = document.getElementById('topRetornoBruto');
     const topSaldo = document.getElementById('topSaldoLiquido');
     const topApostas = document.getElementById('topTotalApostas');
 
-    if (topApostado) topApostado.textContent = formatBrl(totalApostado);
-    if (topGanho) topGanho.textContent = formatBrl(totalRetorno);
+    if (topApostado) formatTopCardWithBrl(topApostado, displayApostadoVal, displayApostadoBrl, false, '#94a3b8');
+    if (topGanho) formatTopCardWithBrl(topGanho, totalRetorno, totalRetornoBrl, false, '#38bdf8');
     if (topApostas) topApostas.textContent = visibleCount;
     if (topSaldo) {
-      const prefix = saldoLiquido > 0 ? '+' : '';
-      topSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      const subColor = saldoLiquido >= 0 ? '#94a3b8' : '#fca5a5';
+      formatTopCardWithBrl(topSaldo, saldoLiquido, saldoLiquidoBrl, true, subColor);
       if (saldoLiquido > 0) {
         topSaldo.className = 'stat-value primary';
       } else if (saldoLiquido < 0) {
@@ -3327,6 +4076,8 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       firstBtn.classList.add('active');
     }
+    const statusSelect = document.getElementById('betStatusSelect');
+    if (statusSelect) statusSelect.value = 'all';
     const marketEl = document.getElementById('betMarketFilterSelect');
     if (marketEl) marketEl.value = 'all';
     const searchEl = document.getElementById('betSearchInput');
@@ -3344,13 +4095,38 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const futureGamesBtnAll = document.querySelector('#futureGamesSlideToggle .slide-btn[data-val="all"]');
     if (futureGamesBtnAll) setFutureGamesFilter('all', futureGamesBtnAll);
 
+    const espelharBtnDefault = document.querySelector(`#espelharStakeSlideToggle .slide-btn[data-val="${isCryptoActive ? '1' : '0'}"]`);
+    if (espelharBtnDefault) setEspelharStakeFilter(isCryptoActive ? '1' : '0', espelharBtnDefault);
+
     clearDateFilter();
+  }
+
+  function isHandicapExceedingCeiling(mercado, palpite) {
+    const m = (mercado || '').toLowerCase();
+    const p = (palpite || '').toLowerCase();
+    const isAh = m.includes('handicap') || p.includes('ah');
+    if (!isAh) return false;
+    const match = p.match(/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i);
+    if (match && match[1]) {
+      const val = parseFloat(match[1].replace(',', '.'));
+      if (!isNaN(val) && val < -0.75) {
+        return true;
+      }
+    }
+    return false;
   }
 
   let isSubmittingNewBet = false;
   function submitNewBet(e, confirmRisco = false) {
     if (e && e.preventDefault) e.preventDefault();
     if (isSubmittingNewBet && !confirmRisco) return;
+
+    const mercadoVal = document.getElementById('mercadoInput')?.value || '';
+    const palpiteVal = document.getElementById('palpiteInput')?.value || '';
+    if (isHandicapExceedingCeiling(mercadoVal, palpiteVal)) {
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      return;
+    }
 
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
     if (oddVal <= 1.0) {
@@ -3556,6 +4332,13 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     if (e && e.preventDefault) e.preventDefault();
     if (isSubmittingEditBet && !confirmRisco) return;
 
+    const editMercadoVal = document.getElementById('editMercadoInput')?.value || '';
+    const editPalpiteVal = document.getElementById('editPalpiteInput')?.value || '';
+    if (isHandicapExceedingCeiling(editMercadoVal, editPalpiteVal)) {
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      return;
+    }
+
     const rawOddStr = (document.getElementById('editOddInput').value || '').replace(',', '.');
     const oddVal = parseFloat(rawOddStr) || 0;
     if (oddVal <= 1.0) {
@@ -3627,11 +4410,87 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
   let currentBetToConfirm = null;
 
+  function openConfirmBetModalFromButton(btn) {
+    if (!btn) return;
+    const cardEl = btn.closest('.bet-card-item') || document.getElementById('aposta-card-' + btn.getAttribute('data-aposta-id'));
+    const apostaId = btn.getAttribute('data-aposta-id');
+    const timeCasa = btn.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
+    const timeFora = btn.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
+    const mercado = btn.getAttribute('data-mercado') || 'Handicap Asiático';
+    const palpite = btn.getAttribute('data-palpite') || '';
+    const valor = parseFloat(btn.getAttribute('data-valor')) || 10;
+    const odd = parseFloat(btn.getAttribute('data-odd')) || 1.80;
+
+    openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valor, odd);
+  }
+
   function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta, oddAposta) {
     const cardEl = document.getElementById('aposta-card-' + apostaId);
-    if (cardEl && cardEl.querySelector('[data-needs-check="1"]')) {
-      alert('⚠️ Este confronto possui odds abertas / equilibradas. É obrigatório clicar em "Checar Odds Agora" antes de confirmar a aposta.');
-      return;
+    if (cardEl) {
+      const statusRaw = (cardEl.getAttribute('data-status') || '').trim();
+      const status = statusRaw.toLowerCase();
+      const isConfirmada = (cardEl.getAttribute('data-confirmada') === '1') && status !== 'não confirmada' && status !== 'nao confirmada';
+      const gatekeeper = (cardEl.getAttribute('data-gatekeeper') || '').toUpperCase().trim();
+      const palpiteLower = (palpite || '').toLowerCase();
+      const isNobet = gatekeeper === 'NO_BET' || status === 'cancelada' || palpiteLower.includes('abstenção') || palpiteLower.includes('abstencao') || palpiteLower.includes('sem entrada');
+
+      // 1. Já confirmada: avisa com mensagem clara
+      if (isConfirmada) {
+        alert('ℹ️ Esta aposta já foi confirmada anteriormente e o débito foi lançado em sua conta corrente.');
+        return;
+      }
+
+      // 2. Cancelada: avisa com mensagem clara
+      if (status === 'cancelada') {
+        alert('⚠️ Esta simulação de aposta foi cancelada e não pode ser confirmada.');
+        return;
+      }
+
+      // 3. Anulada: avisa com mensagem clara
+      if (status === 'anulada') {
+        alert('⚠️ Esta aposta foi anulada e não pode ser confirmada.');
+        return;
+      }
+
+      // 4. Encerrada com resultado
+      if (['ganha', 'perdida', 'meio ganha', 'meio perdida', 'cashout'].includes(status)) {
+        alert('ℹ️ Esta aposta já foi encerrada com o resultado: ' + statusRaw + '.');
+        return;
+      }
+
+      // 4.1 Trava Mandatória de Governança: Súmula Oficial para Apostas Premium e Quase Premium
+      const isLockedLineup = cardEl.getAttribute('data-locked-lineup') === '1' || cardEl.querySelector('#btn-confirm-' + apostaId)?.getAttribute('data-locked-lineup') === '1';
+      if (isLockedLineup) {
+        alert('🔒 Trava de Governança de Risco:\nEsta aposta é classificada como PREMIUM ou Quase Premium.\n\nÉ terminantemente proibido confirmar e debitar da banca sem a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini.');
+        return;
+      }
+
+      // 4.2 Trava Mandatória de Segurança da Banca: Teto de -0.75 AH para Favoritos
+      const isLockedRisk = cardEl.getAttribute('data-locked-risk') === '1' || isHandicapExceedingCeiling(mercado, palpite);
+      if (isLockedRisk) {
+        alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nEsta aposta possui uma linha além do limite de risco permitido (-1.0, -1.25, -1.5) e está terminantemente bloqueada para confirmação e débito na banca.');
+        return;
+      }
+
+      // 4.3 Alerta de Risco da Sentinela (Estado 3): Diálogo de assunção de risco
+      const sentinelaStatus = (cardEl.getAttribute('data-sentinela-status') || '').trim();
+      if (sentinelaStatus === 'ALERTA_RISCO') {
+        const prosseguir = confirm('⚠️ Alerta de Risco da Sentinela:\nA IA Sentinela identificou desfalques ou alto risco nesta partida.\n\nDeseja prosseguir assumindo o risco e abrir a tela de confirmação?');
+        if (!prosseguir) {
+          return;
+        }
+      } else if (isNobet) {
+        // 5. NO_BET / Abstenção da IA: avisa com diálogo sem impedir
+        const prosseguir = confirm('⚠️ Aviso da IA / Gestão de Risco:\nEsta aposta possui recomendação de NO_BET (Abstenção).\n\nDeseja abrir a tela de confirmação mesmo assim?');
+        if (!prosseguir) {
+          return;
+        }
+      } else if (cardEl.getAttribute('data-volatilidade') === '1' || cardEl.querySelector('[data-needs-check="1"]')) {
+        const prosseguir = confirm('⚠️ Alerta de Volatilidade / Odds Abertas:\nEste confronto possui cotações equilibradas. Recomenda-se auditar em "Checar Odds Agora" antes de enviar para a banca.\n\nDeseja prosseguir com a confirmação mesmo assim?');
+        if (!prosseguir) {
+          return;
+        }
+      }
     }
 
     currentBetToConfirm = { 
@@ -3643,22 +4502,58 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       valor: parseFloat(valorAposta) || 0,
       odd: parseFloat(oddAposta) || 0
     };
+
+    const isPremium = cardEl && cardEl.getAttribute('data-is-premium') === '1';
+    const premiumNoticeEl = document.getElementById('confirmBetPremiumNotice');
+    if (premiumNoticeEl) {
+      if (isPremium) {
+        premiumNoticeEl.style.display = 'block';
+        currentBetToConfirm.baseValor = (currentBetToConfirm.valor >= 30) ? (currentBetToConfirm.valor / 3.0) : (currentBetToConfirm.valor / 3.0 || 10.0);
+        currentBetToConfirm.multiplier = 3;
+        document.querySelectorAll('.btn-confirm-stake-mult').forEach(b => {
+          if (b.getAttribute('onclick').includes('(3)')) {
+            b.className = 'btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active';
+          } else {
+            b.className = 'btn btn-xs btn-outline-secondary btn-confirm-stake-mult';
+          }
+        });
+      } else {
+        premiumNoticeEl.style.display = 'none';
+        currentBetToConfirm.baseValor = currentBetToConfirm.valor;
+        currentBetToConfirm.multiplier = 1;
+      }
+    }
     
     const matchNameEl = document.getElementById('confirmBetMatchName');
     const pickInfoEl = document.getElementById('confirmBetPickInfo');
     const betAmountEl = document.getElementById('confirmBetAmount');
     const oddInputEl = document.getElementById('confirmBetOddInput');
     
+    const apMoeda = cardEl ? (cardEl.getAttribute('data-moeda') || 'BRL') : 'BRL';
+    const apCotacao = cardEl ? parseFloat(cardEl.getAttribute('data-cotacao') || '1') : 1.0;
+
     if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
     if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
-    if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    if (betAmountEl) {
+      if (apMoeda !== 'BRL') {
+        const valCrypto = currentBetToConfirm.valor.toFixed(8).replace('.', ',') + ' ' + apMoeda;
+        const valBrl = apCotacao > 0 ? ' (~ R$ ' + (currentBetToConfirm.valor * apCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        betAmountEl.textContent = valCrypto + valBrl;
+      } else {
+        betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+      }
+    }
     if (oddInputEl) oddInputEl.value = currentBetToConfirm.odd > 0 ? currentBetToConfirm.odd.toFixed(2) : '';
     
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
     if (saldoEl) {
-      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
-      saldoVal = parseFloat(raw) || 0;
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
     }
     
     const proj = saldoVal - currentBetToConfirm.valor;
@@ -3666,8 +4561,24 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const curBalEl = document.getElementById('confirmBetCurrentBalance');
     const projBalEl = document.getElementById('confirmBetProjectedBalance');
     
-    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
-    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    if (curBalEl) {
+      if (isCryptoActive) {
+        const cVal = saldoVal.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (saldoVal * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        curBalEl.textContent = cVal + bVal;
+      } else {
+        curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+      }
+    }
+    if (projBalEl) {
+      if (isCryptoActive) {
+        const cVal = proj.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (proj * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        projBalEl.textContent = cVal + bVal;
+      } else {
+        projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      }
+    }
     
     const alertEl = document.getElementById('confirmBetAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBet');
@@ -3704,6 +4615,54 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     }
   }
 
+  function setConfirmBetStakeMultiplier(mult) {
+    if (!currentBetToConfirm) return;
+    const base = currentBetToConfirm.baseValor || 10.0;
+    const novoValor = parseFloat((base * mult).toFixed(2));
+    currentBetToConfirm.valor = novoValor;
+    currentBetToConfirm.multiplier = mult;
+
+    const betAmountEl = document.getElementById('confirmBetAmount');
+    if (betAmountEl) {
+      betAmountEl.textContent = 'R$ ' + novoValor.toFixed(2).replace('.', ',');
+    }
+
+    document.querySelectorAll('.btn-confirm-stake-mult').forEach(b => {
+      if (b.getAttribute('onclick').includes('(' + mult + ')')) {
+        b.className = 'btn btn-xs btn-warning fw-bold text-dark btn-confirm-stake-mult active';
+      } else {
+        b.className = 'btn btn-xs btn-outline-secondary btn-confirm-stake-mult';
+      }
+    });
+
+    const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
+    let saldoVal = 0;
+    if (saldoEl) {
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
+    }
+    const proj = saldoVal - novoValor;
+    const projBalEl = document.getElementById('confirmBetProjectedBalance');
+    if (projBalEl) {
+      projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      projBalEl.className = proj < 0 ? 'fw-bold text-danger' : 'fw-bold text-white';
+    }
+    const alertEl = document.getElementById('confirmBetAlert');
+    if (alertEl) {
+      if (proj < 0) {
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Aviso:</strong> O saldo da sua conta corrente ficará negativo (R$ ' + proj.toFixed(2).replace('.', ',') + ') após esta confirmação.';
+      } else {
+        alertEl.style.display = 'none';
+      }
+    }
+  }
+
   function executeConfirmBet() {
     if (!currentBetToConfirm || !currentBetToConfirm.id) return;
     
@@ -3719,6 +4678,9 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const oddInputEl = document.getElementById('confirmBetOddInput');
     if (oddInputEl && oddInputEl.value) {
       formData.append('odd', oddInputEl.value);
+    }
+    if (currentBetToConfirm.valor > 0) {
+      formData.append('valor_aposta', currentBetToConfirm.valor);
     }
     
     fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
@@ -3844,20 +4806,48 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
     const countEl = document.getElementById('confirmBatchCount');
     const amountEl = document.getElementById('confirmBatchTotalAmount');
     if (countEl) countEl.textContent = eligibleCards.length + (eligibleCards.length === 1 ? ' aposta' : ' apostas');
-    if (amountEl) amountEl.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+    if (amountEl) {
+      if (isCryptoActive) {
+        const amtCrypto = totalValor.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const amtBrl = activeCotacao > 0 ? ' (~ R$ ' + (totalValor * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        amountEl.textContent = amtCrypto + amtBrl;
+      } else {
+        amountEl.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+      }
+    }
 
     const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
     let saldoVal = 0;
     if (saldoEl) {
-      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
-      saldoVal = parseFloat(raw) || 0;
+      if (saldoEl.dataset && saldoEl.dataset.saldoCc !== undefined) {
+        saldoVal = parseFloat(saldoEl.dataset.saldoCc) || 0;
+      } else {
+        const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+        saldoVal = parseFloat(raw) || 0;
+      }
     }
 
     const proj = saldoVal - totalValor;
     const curBalEl = document.getElementById('confirmBatchCurrentBalance');
     const projBalEl = document.getElementById('confirmBatchProjectedBalance');
-    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
-    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    if (curBalEl) {
+      if (isCryptoActive) {
+        const cVal = saldoVal.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (saldoVal * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        curBalEl.textContent = cVal + bVal;
+      } else {
+        curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+      }
+    }
+    if (projBalEl) {
+      if (isCryptoActive) {
+        const cVal = proj.toFixed(activeDecimais).replace('.', ',') + ' ' + activeMoedaCodigo;
+        const bVal = activeCotacao > 0 ? ' (~ R$ ' + (proj * activeCotacao).toFixed(2).replace('.', ',') + ')' : '';
+        projBalEl.textContent = cVal + bVal;
+      } else {
+        projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+      }
+    }
 
     const alertEl = document.getElementById('confirmBatchAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBatch');
@@ -4429,7 +5419,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         // Atualizar ganhos potenciais
         const ganhoEl = cardEl.querySelector('.val-amount.primary');
         if (ganhoEl && data.ganhos_potenciais_novos) {
-          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+          if (cardMoeda !== 'BRL') {
+            ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+          } else {
+            ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          }
           ganhoEl.classList.add('pulse-highlight');
           setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
         }
@@ -4445,14 +5440,15 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
         // Tratamento da decisão do Gatekeeper em tempo real
         if (data.tipo_mudanca === 'cancelada' || data.tipo_mudanca === 'no_bet' || Number(data.odd_nova) === 0) {
           cardEl.setAttribute('data-status', 'Cancelada');
+          cardEl.setAttribute('data-gatekeeper', 'NO_BET');
           const btnConfirm = cardEl.querySelector('#btn-confirm-' + apostaId);
           if (btnConfirm) {
             btnConfirm.className = 'btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm';
-            btnConfirm.disabled = true;
+            btnConfirm.disabled = false;
             btnConfirm.removeAttribute('data-needs-check');
-            btnConfirm.style.opacity = '0.6';
-            btnConfirm.style.cursor = 'not-allowed';
-            btnConfirm.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Cancelada pelo Gatekeeper';
+            btnConfirm.style.opacity = '1';
+            btnConfirm.style.cursor = 'pointer';
+            btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
           }
           cardEl.classList.remove('bet-card-volatilidade');
           const headerBadge = cardEl.querySelector('.badge-volatilidade-header');
@@ -4517,6 +5513,497 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
       toast.style.transform = 'translateX(25px)';
       setTimeout(() => toast.remove(), 350);
     }, 7000);
+  }
+
+  // Função para Reauditar Palpite com IA Gemini (Súmula Oficial, Notícias e Recalibração de Odds/Palpite)
+  function handleReauditarIa(apostaId, fixtureId, btnEl) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui partida vinculada para reauditar.');
+      return;
+    }
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> 🤖 Auditando IA & Súmula...';
+    }
+
+    fetch('<?= base_url('apostas/reauditar-ia') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams({
+        fixture_id: fixtureId,
+        aposta_id: apostaId
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        alert(data.message || 'Não foi possível reauditar a partida com IA no momento.');
+        return;
+      }
+
+      // Atualizar dados no Card do DOM
+      const cardEl = document.getElementById('aposta-card-' + apostaId);
+      if (cardEl) {
+        // Atualizar palpite
+        if (data.palpite_novo) {
+          const palpiteEl = cardEl.querySelector('.palpite-name');
+          if (palpiteEl) {
+            palpiteEl.textContent = data.palpite_novo;
+            palpiteEl.classList.add('pulse-highlight');
+            setTimeout(() => palpiteEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-palpite', data.palpite_novo);
+        }
+
+        // Atualizar cotação / odd
+        if (data.odd_nova) {
+          const oddBadge = cardEl.querySelector('.odd-badge');
+          if (oddBadge) {
+            oddBadge.textContent = Number(data.odd_nova).toFixed(2);
+            oddBadge.classList.add('pulse-highlight');
+            setTimeout(() => oddBadge.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-odd', data.odd_nova);
+        }
+
+        // Atualizar valor / stake alavancada
+        if (data.valor_aposta) {
+          const valEl = cardEl.querySelector('.val-amount:not(.primary)');
+          if (valEl) {
+            valEl.textContent = 'R$ ' + Number(data.valor_aposta).toFixed(2).replace('.', ',');
+            valEl.classList.add('pulse-highlight');
+            setTimeout(() => valEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-valor', data.valor_aposta);
+        }
+
+        // Atualizar ganhos potenciais
+        if (data.ganhos_potenciais_novos) {
+          const ganhoEl = cardEl.querySelector('.val-amount.primary');
+          if (ganhoEl) {
+            const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+            if (cardMoeda !== 'BRL') {
+              ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+            } else {
+              ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+            }
+            ganhoEl.classList.add('pulse-highlight');
+            setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
+          }
+          cardEl.setAttribute('data-ganho', data.ganhos_potenciais_novos);
+        }
+
+        // Se for Aposta PREMIUM (+EV Alavancado)
+        if (data.is_premium || data.destaque == 2) {
+          cardEl.setAttribute('data-is-premium', '1');
+          cardEl.setAttribute('data-destaque', '2');
+          cardEl.classList.add('bet-card-destaque');
+          
+          let tierTop = cardEl.querySelector('.bet-card-tier-top');
+          if (!tierTop) {
+            const cardHeader = cardEl.querySelector('.bet-card-header');
+            if (cardHeader) {
+              tierTop = document.createElement('div');
+              tierTop.className = 'bet-card-tier-top d-flex align-items-center justify-content-start w-100 mb-2';
+              cardHeader.insertBefore(tierTop, cardHeader.firstChild);
+            }
+          }
+          if (tierTop && !tierTop.querySelector('.badge-destaque-premium')) {
+            tierTop.innerHTML = `
+              <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm badge-destaque-premium" 
+                    style="font-size: 0.80rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.3) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35) !important;" 
+                    title="Oportunidade PREMIUM (+EV Alavancado): Super-Favorito com Eficiência U5J Extrema contra adversário frágil. Stake alavancada recomendada (3x).">
+                <span style="font-size: 0.95rem; line-height: 1;">👑</span> ⭐ Aposta PREMIUM (3x Stake)
+              </span>
+            `;
+          }
+        }
+
+        // Atualizar Parecer Tático / Detalhado
+        const detalhadoEl = cardEl.querySelector('.detalhado-text-content');
+        if (detalhadoEl && data.novo_detalhado) {
+          let cleanDetalhado = data.novo_detalhado.replace(/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/is, '').trim();
+          cleanDetalhado = cleanDetalhado.replace(/\|+$/, '').trim();
+          detalhadoEl.textContent = cleanDetalhado;
+        }
+
+        // Atualizar botão Confirmar Bet
+        unlockBetConfirmButton(apostaId, data.palpite_novo || cardEl.getAttribute('data-palpite'), data.odd_nova || cardEl.getAttribute('data-odd'), data.valor_aposta || cardEl.getAttribute('data-valor'));
+      }
+
+      showToastReauditarIa(data);
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      alert('Erro ao conectar com o servidor para reauditar.');
+    });
+  }
+
+  function showToastReauditarIa(data) {
+    let toastContainer = document.getElementById('toastOddsContainer');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'toastOddsContainer';
+      toastContainer.style.cssText = 'position: fixed; top: 25px; right: 25px; z-index: 999999; max-width: 460px;';
+      document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-odds-item shadow-lg';
+    const isPremium = data.is_premium || data.destaque == 2;
+    const borderCol = isPremium ? '#f59e0b' : '#818cf8';
+    toast.style.cssText = `background: #0f172a; border: 1px solid ${borderCol}; border-left: 4px solid ${borderCol}; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; color: #ffffff; font-size: 0.85rem; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: all 0.3s ease;`;
+
+    let icon = isPremium ? '⭐' : (data.palpite_invertido ? '🔄' : '🤖');
+    let title = isPremium ? 'Oportunidade PREMIUM Detectada!' : (data.palpite_invertido ? 'Inversão Tática de Palpite!' : 'Reauditoria da IA Concluída!');
+    
+    toast.innerHTML = `
+      <div class="d-flex align-items-start justify-content-between gap-2">
+        <div class="d-flex align-items-start gap-2">
+          <span style="font-size: 1.3rem;">${icon}</span>
+          <div>
+            <strong style="color: ${borderCol}; display: block; font-size: 0.92rem; margin-bottom: 3px;">${title}</strong>
+            <p style="margin: 0; color: #cbd5e1; line-height: 1.45;">${data.motivo || data.message || 'Auditoria de súmula e inteligência finalizada com sucesso.'}</p>
+          </div>
+        </div>
+        <button type="button" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 0 4px; line-height: 1;" onclick="this.closest('.toast-odds-item').remove()">&times;</button>
+      </div>
+    `;
+
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(25px)';
+      setTimeout(() => toast.remove(), 350);
+    }, 7000);
+  }
+
+  // Cache em memória para aberturas instantâneas do Card Origem (0ms) sem reconsultar o servidor
+  const cachedOriginCards = {};
+
+  function handleAbrirCardOrigem(fixtureId, matchTitle, apostaId) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui identificador de partida vinculado.');
+      return;
+    }
+
+    const cacheKey = fixtureId + '_' + (apostaId || 0);
+    const modalEl = document.getElementById('modalCardOrigem');
+    const titleEl = document.getElementById('modalCardOrigemTitle');
+    const bodyEl = document.getElementById('modalCardOrigemBody');
+    const extLink = document.getElementById('modalCardOrigemExternalLink');
+
+    if (titleEl) {
+      titleEl.innerHTML = `<i class="bi bi-shield-shaded text-info me-1"></i> Origem: <strong>${matchTitle || 'Partida'}</strong>`;
+    }
+    if (extLink) {
+      extLink.href = `<?= base_url('football-trends?fixture_id=') ?>${fixtureId}#card-${fixtureId}`;
+    }
+
+    // Se já estiver em cache, exibe instantaneamente e abre o modal
+    if (cachedOriginCards[cacheKey]) {
+      if (bodyEl) bodyEl.innerHTML = cachedOriginCards[cacheKey];
+      if (modalEl) showModalSafely(modalEl);
+      return;
+    }
+
+    // Exibe spinner enquanto carrega
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-info mb-2" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
+          <p class="text-white-50 small mb-0">Carregando card de origem da partida...</p>
+        </div>
+      `;
+    }
+    if (modalEl) showModalSafely(modalEl);
+
+    const url = `<?= base_url('apostas/card-origem/') ?>${fixtureId}${apostaId ? '?aposta_id=' + apostaId : ''}`;
+    fetch(url, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.html) {
+        cachedOriginCards[cacheKey] = data.html;
+        if (bodyEl) bodyEl.innerHTML = data.html;
+      } else {
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="alert alert-warning py-3 text-center my-4 rounded-3" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fef08a;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> ${data.message || 'Não foi possível carregar os dados de origem desta partida.'}
+            </div>
+          `;
+        }
+      }
+    })
+    .catch(err => {
+      console.error('Erro ao buscar card de origem:', err);
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div class="alert alert-danger py-3 text-center my-4 rounded-3" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            <i class="bi bi-x-circle-fill me-1"></i> Erro ao conectar com o servidor para buscar o card de origem.
+          </div>
+        `;
+      }
+    });
+  }
+
+  // --- Auditoria simula aposta: Timeline e Lifecycle Logger ---
+  let currentAuditoriaLogPlainText = '';
+
+  function handleAbrirAuditoriaSimulaAposta(apostaId, fixtureId, matchTitle) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui identificador de partida vinculado.');
+      return;
+    }
+
+    const modalEl = document.getElementById('modalAuditoriaSimulaAposta');
+    const titleEl = document.getElementById('modalAuditoriaSimulaApostaTitle');
+    const bodyEl = document.getElementById('modalAuditoriaSimulaApostaBody');
+    const btnCopiarTexto = document.getElementById('btnCopiarTexto');
+    const btnCopiarIcone = document.getElementById('btnCopiarIcone');
+
+    if (btnCopiarTexto) btnCopiarTexto.innerText = 'Copiar para Área de Transferência';
+    if (btnCopiarIcone) btnCopiarIcone.className = 'bi bi-clipboard me-1';
+    currentAuditoriaLogPlainText = '';
+
+    if (titleEl) {
+      titleEl.innerHTML = `<i class="bi bi-clipboard-pulse text-info me-1"></i> Auditoria simula aposta: <strong>${matchTitle || 'Partida'}</strong> <span class="badge bg-secondary ms-1" style="font-size: 0.72rem;">#${fixtureId}</span>`;
+    }
+
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-info mb-2" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
+          <p class="text-white-50 small mb-0">Carregando log de ciclo de vida e histórico de alertas...</p>
+        </div>
+      `;
+    }
+    if (modalEl) showModalSafely(modalEl);
+
+    fetch(`<?= base_url('apostas/timeline/') ?>${fixtureId}`, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => {
+      return r.json().catch(() => {
+        throw new Error(`Resposta inválida do servidor (HTTP ${r.status})`);
+      });
+    })
+    .then(data => {
+      if (!data || !data.success) {
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="alert alert-warning py-3 text-center my-4 rounded-3" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fef08a;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> ${(data && data.message) ? data.message : 'Não foi possível carregar a auditoria desta partida.'}
+            </div>
+          `;
+        }
+        return;
+      }
+
+      const timeline = data.timeline || [];
+      const aposta = data.aposta || null;
+
+      let plainText = `======================================================================\n`;
+      plainText += `AUDITORIA E LOG DO CICLO DE VIDA DA APOSTA\n`;
+      plainText += `Partida: ${matchTitle || ''} (Fixture #${fixtureId})\n`;
+      if (aposta) {
+        plainText += `Aposta ID: #${aposta.id} | Status: ${aposta.status} | Palpite: ${aposta.palpite || aposta.mercado || 'AH'}\n`;
+        plainText += `Odd: ${aposta.odd || ''} | Odd Justa: ${aposta.odd_justa || 'N/D'} | Casa: ${aposta.casa_de_aposta || 'Betano'}\n`;
+        if (aposta.status_gatekeeper) {
+          plainText += `Status Gatekeeper: ${aposta.status_gatekeeper}\n`;
+        }
+      }
+      plainText += `Data da Consulta: ${new Date().toLocaleString('pt-BR')}\n`;
+      plainText += `Total de Eventos: ${timeline.length}\n`;
+      plainText += `======================================================================\n\n`;
+
+      if (timeline.length === 0) {
+        plainText += `Nenhum evento registrado no log de ciclo de vida para esta partida.\n`;
+        currentAuditoriaLogPlainText = plainText;
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div class="p-4 text-center text-white-50">
+              <i class="bi bi-info-circle fs-3 text-info d-block mb-2"></i>
+              <p class="mb-1 fw-semibold text-white">Nenhum evento de ciclo de vida registrado ainda.</p>
+              <small>Esta aposta foi criada antes da ativação do rastreador de ciclo de vida ou não gerou alertas específicos.</small>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      let html = '';
+      if (aposta) {
+        html += `
+          <div class="mb-3 p-3 rounded-3" style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(71, 85, 105, 0.5);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50">Aposta #${aposta.id}</span>
+                <span class="badge ${aposta.status === 'Cancelada' ? 'bg-danger' : (aposta.status === 'Não Confirmada' ? 'bg-warning text-dark' : 'bg-success')}">${aposta.status}</span>
+                <span class="fw-bold text-white small">${aposta.palpite || aposta.mercado || 'Handicap'}</span>
+              </div>
+              <div class="text-white-50 small">
+                Casa: <strong class="text-info">${aposta.casa_de_aposta || 'Betano'}</strong> |
+                Odd: <strong class="text-warning">${aposta.odd || ''}</strong> 
+                ${aposta.odd_justa ? `(Justa: <strong class="text-info">${aposta.odd_justa}</strong>)` : ''}
+              </div>
+            </div>
+            ${aposta.status_gatekeeper ? `
+              <div class="mt-2 text-info small" style="font-size: 0.8rem;">
+                <i class="bi bi-shield-check me-1"></i> <strong>Gatekeeper:</strong> ${aposta.status_gatekeeper}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      html += `<div class="timeline-container d-flex flex-column gap-3">`;
+
+      timeline.forEach((item, idx) => {
+        const notifBadge = item.notificacao_id 
+          ? `<span class="badge bg-warning text-dark fw-bold" style="font-size: 0.72rem;"><i class="bi bi-bell-fill me-1"></i> Alerta #${item.notificacao_id}</span>` 
+          : `<span class="badge bg-secondary bg-opacity-50 text-white-50" style="font-size: 0.72rem;">Sem Notificação</span>`;
+        
+        const dataHora = item.notificacao_criada_em || item.criado_em || 'Data n/d';
+        const componente = item.componente || 'SISTEMA';
+        const tipoEvento = item.tipo_evento || 'EVENTO';
+
+        plainText += `[${idx + 1}] ${dataHora} | ${componente} | ${tipoEvento}\n`;
+        if (item.notificacao_id) {
+          plainText += `    ID do Alerta: #${item.notificacao_id}\n`;
+        }
+        if (item.notif_titulo) {
+          plainText += `    Título: ${item.notif_titulo}\n`;
+        }
+        if (item.notif_mensagem) {
+          plainText += `    Mensagem: ${item.notif_mensagem}\n`;
+        }
+        if (item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem) {
+          plainText += `    Motivo Detalhado: ${item.motivo_detalhado}\n`;
+        }
+        if (item.delta_json) {
+          plainText += `    Parâmetros: ${item.delta_json}\n`;
+        }
+        plainText += `----------------------------------------------------------------------\n`;
+
+        html += `
+          <div class="p-3 rounded-3 shadow-sm" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50" style="font-size: 0.72rem;">${componente}</span>
+                <span class="badge bg-dark border border-secondary text-light" style="font-size: 0.72rem;">${tipoEvento}</span>
+                ${notifBadge}
+              </div>
+              <small class="text-white-50" style="font-size: 0.78rem;">
+                <i class="bi bi-clock me-1"></i> ${dataHora}
+              </small>
+            </div>
+            ${item.notif_titulo ? `
+              <div class="fw-bold text-white mb-1" style="font-size: 0.88rem;">
+                ${item.notif_titulo}
+              </div>
+            ` : ''}
+            ${item.notif_mensagem ? `
+              <div class="text-white-50 small mb-2 p-2 rounded" style="background: rgba(30, 41, 59, 0.6); font-size: 0.82rem; line-height: 1.45;">
+                ${item.notif_mensagem}
+              </div>
+            ` : ''}
+            ${item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem ? `
+              <div class="text-light small mt-2" style="font-size: 0.82rem; line-height: 1.45;">
+                <strong class="text-info"><i class="bi bi-file-text me-1"></i> Diagnóstico:</strong> ${item.motivo_detalhado}
+              </div>
+            ` : ''}
+            ${item.delta_json ? `
+              <div class="mt-2 text-white-50 small" style="font-size: 0.75rem; font-family: monospace;">
+                <code>${item.delta_json}</code>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      currentAuditoriaLogPlainText = plainText;
+      if (bodyEl) bodyEl.innerHTML = html;
+    })
+    .catch(err => {
+      console.error('Erro ao buscar auditoria da aposta:', err);
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div class="alert alert-danger py-3 text-center my-4 rounded-3" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            <i class="bi bi-x-circle-fill me-1"></i> Erro ao conectar com o servidor para buscar o log de auditoria.
+          </div>
+        `;
+      }
+    });
+  }
+
+  function copiarLogAuditoriaParaClipboard() {
+    if (!currentAuditoriaLogPlainText) {
+      alert('Nenhum log disponível para cópia.');
+      return;
+    }
+
+    const btnTexto = document.getElementById('btnCopiarTexto');
+    const btnIcone = document.getElementById('btnCopiarIcone');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentAuditoriaLogPlainText).then(() => {
+        if (btnTexto) btnTexto.innerText = 'Copiado!';
+        if (btnIcone) btnIcone.className = 'bi bi-check-lg me-1 text-success';
+        setTimeout(() => {
+          if (btnTexto) btnTexto.innerText = 'Copiar para Área de Transferência';
+          if (btnIcone) btnIcone.className = 'bi bi-clipboard me-1';
+        }, 2500);
+      }).catch(err => {
+        fallbackCopyTextToClipboard(currentAuditoriaLogPlainText, btnTexto, btnIcone);
+      });
+    } else {
+      fallbackCopyTextToClipboard(currentAuditoriaLogPlainText, btnTexto, btnIcone);
+    }
+  }
+
+  function fallbackCopyTextToClipboard(text, btnTexto, btnIcone) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      if (btnTexto) btnTexto.innerText = 'Copiado!';
+      if (btnIcone) btnIcone.className = 'bi bi-check-lg me-1 text-success';
+      setTimeout(() => {
+        if (btnTexto) btnTexto.innerText = 'Copiar para Área de Transferência';
+        if (btnIcone) btnIcone.className = 'bi bi-clipboard me-1';
+      }, 2500);
+    } catch (err) {
+      alert('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
+    }
+    document.body.removeChild(textArea);
   }
 
   // Alternar exibição retrátil do STATUS GK detalhado nos cards (Padrão Dashboard)
@@ -4901,7 +6388,12 @@ $userStakePadraoFmt = number_format($userStakePadrao, 2, '.', '');
 
         const ganhoEl = cardEl.querySelector('.val-amount.primary');
         if (ganhoEl && data.ganhos_potenciais_novos) {
-          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          const cardMoeda = cardEl.getAttribute('data-moeda') || 'BRL';
+          if (cardMoeda !== 'BRL') {
+            ganhoEl.textContent = Number(data.ganhos_potenciais_novos).toFixed(8).replace('.', ',') + ' ' + cardMoeda;
+          } else {
+            ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          }
           ganhoEl.classList.add('pulse-highlight');
           setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
         }

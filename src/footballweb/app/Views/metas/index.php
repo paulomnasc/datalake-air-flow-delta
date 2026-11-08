@@ -38,6 +38,27 @@ $fmtScore = function($v) {
     $num = (float)$v;
     return (fmod($num, 1.0) == 0.0) ? (string)(int)$num : number_format($num, 1, ',', '.');
 };
+
+$moedaModel = new \App\Models\MoedaConfigModel();
+$moedaMeta = $moedaModel->getMoedaByCodigo($meta->moeda_codigo ?? 'BRL') ?? $moedaModel->getDefaultMoeda();
+$todasMoedas = $moedaModel->getAllMoedas(true);
+
+$codMoedaMeta = !empty($moedaMeta->codigo) ? strtoupper($moedaMeta->codigo) : 'BRL';
+$isCryptoMeta = ($codMoedaMeta !== 'BRL');
+$simboloMoedaMeta = $moedaMeta->simbolo ?? ($isCryptoMeta ? $codMoedaMeta : 'R$');
+$cotacaoMoedaMeta = (float)($moedaMeta->cotacao_brl ?? 1.0);
+
+$fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoMeta) {
+    $num = (float)$val;
+    $plus = ($showPlus && $num > 0) ? '+' : '';
+    if (!$isCryptoMeta) {
+        return $plus . 'R$ ' . number_format($num, 2, ',', '.');
+    }
+    if ($num == 0.0) {
+        return '0,00000000 ' . $codMoedaMeta;
+    }
+    return $plus . number_format($num, 8, ',', '.') . ' ' . $codMoedaMeta;
+};
 ?>
 
 <style>
@@ -320,8 +341,8 @@ $fmtScore = function($v) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
-  padding: 0.25rem 0.15rem;
+  gap: 0.15rem;
+  padding: 0.2rem 0.1rem;
   font-size: 0.8rem;
   font-weight: 700;
   transition: all 0.2s ease;
@@ -329,7 +350,15 @@ $fmtScore = function($v) {
 }
 
 .slot-date {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.slot-time {
+  font-size: 0.65rem;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.01em;
@@ -337,7 +366,7 @@ $fmtScore = function($v) {
 }
 
 .slot-symbol {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -696,7 +725,7 @@ $fmtScore = function($v) {
             <small style="font-size: 0.85rem; color: #ffffff; font-weight: 600;">(<?= date('d/m/Y', strtotime($dataRefStr)) ?><?= $isHoje ? ' - Hoje' : '' ?>)</small>
           </h2>
           <div style="font-size: 0.85rem; color: #ffffff; margin-top: 0.25rem;">
-            Meta Padrão: <?= $alvoApostas ?> apostas de R$ <?= number_format($stakePadrao, 2, ',', '.') ?> @ <?= number_format($oddAlvo, 2) ?>
+            Meta Padrão: <?= $alvoApostas ?> apostas de <?= $fmtValorMeta($stakePadrao) ?><?= ($isCryptoMeta && $cotacaoMoedaMeta > 0 ? ' (~ R$ ' . number_format($stakePadrao * $cotacaoMoedaMeta, 2, ',', '.') . ')' : '') ?> @ <?= number_format($oddAlvo, 2) ?>
           </div>
         </div>
 
@@ -737,7 +766,10 @@ $fmtScore = function($v) {
         <div class="metric-box">
           <div class="metric-label">Lucro Líquido</div>
           <div class="metric-val <?= $lucroReal > 0 ? 'val-green' : ($lucroReal < 0 ? 'val-red' : '') ?>">
-            <?= ($lucroReal > 0 ? '+' : '') ?>R$ <?= number_format($lucroReal, 2, ',', '.') ?>
+            <?= $fmtValorMeta($lucroReal, true) ?>
+            <?php if ($isCryptoMeta && $cotacaoMoedaMeta > 0): ?>
+              <div style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">~ R$ <?= number_format($lucroReal * $cotacaoMoedaMeta, 2, ',', '.') ?></div>
+            <?php endif; ?>
           </div>
         </div>
         <div class="metric-box">
@@ -775,7 +807,7 @@ $fmtScore = function($v) {
       <!-- Barra de Progresso de Lucro -->
       <div class="progress-group">
         <div class="progress-header">
-          <span>Progresso da Meta Financeira (Alvo: +R$ <?= number_format($lucroAlvo, 2, ',', '.') ?>)</span>
+          <span>Progresso da Meta Financeira (Alvo: <?= $fmtValorMeta($lucroAlvo, true) ?><?= ($isCryptoMeta && $cotacaoMoedaMeta > 0 ? ' ~ R$ ' . number_format($lucroAlvo * $cotacaoMoedaMeta, 2, ',', '.') : '') ?>)</span>
           <span style="font-weight: 700; color: white;"><?= number_format($progLucro, 1) ?>%</span>
         </div>
         <div class="progress-bar-bg">
@@ -874,6 +906,7 @@ $fmtScore = function($v) {
               $slotClass = 'slot-empty';
               $slotIcon = ($i + 1);
               $slotDate = '';
+              $slotTime = '';
               $slotTitle = "Slot #".($i+1)." vazio";
 
               if ($ap) {
@@ -883,38 +916,41 @@ $fmtScore = function($v) {
                           $dt = new \DateTime($rawDate, new \DateTimeZone('UTC'));
                           $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
                           $slotDate = $dt->format('d/m');
+                          $slotTime = $dt->format('H:i');
                       } catch (\Throwable $e) {
                           $slotDate = date('d/m', strtotime($rawDate));
+                          $slotTime = date('H:i', strtotime($rawDate));
                       }
                   }
 
                   $st = $ap->status;
                   $timesJogo = (!empty($ap->time_casa) && !empty($ap->time_fora)) ? "{$ap->time_casa} x {$ap->time_fora}" : "Jogo #{$ap->id}";
+                  $dataHoraTxt = !empty($slotTime) ? "{$slotDate} às {$slotTime}" : $slotDate;
                   if (in_array($st, ['Ganha', 'Meio Ganha'])) {
                       $slotClass = 'slot-green';
                       $slotIcon = '✓';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} ({$st})";
                   } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⚪';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Reembolso / Push)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Reembolso / Push)";
                   } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
                       $slotClass = 'slot-red';
                       $slotIcon = '✕';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} ({$st})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} ({$st})";
                   } elseif ($st === 'Cashout') {
                       $slotClass = 'slot-cashout';
                       $slotIcon = '💰';
                       $valCash = !empty($ap->cash_out) ? 'R$ ' . number_format((float)$ap->cash_out, 2, ',', '.') : 'Encerrada';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} - Cashout ({$valCash})";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} - Cashout ({$valCash})";
                   } elseif (in_array(strtolower($st), ['cancelada'])) {
                       $slotClass = 'slot-push';
                       $slotIcon = '⊘';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Cancelada / Slot Preservado)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Cancelada / Slot Preservado)";
                   } else {
                       $slotClass = 'slot-pending';
                       $slotIcon = '⏳';
-                      $slotTitle = "#{$ap->id} [{$slotDate}]: {$timesJogo} (Pendente)";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} (Pendente)";
                   }
               }
         ?>
@@ -923,6 +959,9 @@ $fmtScore = function($v) {
               <span class="slot-date"><?= $slotDate ?></span>
             <?php endif; ?>
             <span class="slot-symbol"><?= $slotIcon ?></span>
+            <?php if (!empty($slotTime)): ?>
+              <span class="slot-time"><?= $slotTime ?></span>
+            <?php endif; ?>
           </div>
         <?php endfor; ?>
       </div>
@@ -944,7 +983,13 @@ $fmtScore = function($v) {
             </span>
           </div>
           <div class="metric-val <?= ($ciclo['lucro_liquido'] ?? 0) > 0 ? 'val-green' : (($ciclo['lucro_liquido'] ?? 0) < 0 ? 'val-red' : '') ?>">
-            <?= (($ciclo['lucro_liquido'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($ciclo['lucro_liquido'] ?? 0, 2, ',', '.') ?>
+            <?= $fmtValorMeta($ciclo['lucro_liquido'] ?? 0, true) ?>
+            <?php if ($isCryptoMeta && $cotacaoMoedaMeta > 0): ?>
+              <div style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">~ R$ <?= number_format(((float)($ciclo['lucro_liquido'] ?? 0)) * $cotacaoMoedaMeta, 2, ',', '.') ?></div>
+            <?php endif; ?>
+            <?php if ($isFechadoCiclo && ($ciclo['lucro_liquido'] ?? 0) > 0): ?>
+              <span style="display: inline-block; margin-top: 4px; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; font-size: 0.68rem; color: #34d399; font-weight: 700;">💰 Saque Disponível</span>
+            <?php endif; ?>
           </div>
         </div>
         <div class="metric-box">
@@ -974,15 +1019,15 @@ $fmtScore = function($v) {
         </div>
         <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
           <div>
-            Meta de Volume (<?= ($ciclo['tamanho_ciclo'] ?? 10) ?>x): <strong style="color: #60a5fa;">R$ <?= number_format(($ciclo['tamanho_ciclo'] ?? 10) * $stakePadrao, 2, ',', '.') ?></strong>
-            <small style="opacity: 0.85; font-size: 0.75rem;">(<?= ($ciclo['tamanho_ciclo'] ?? 10) ?> × R$ <?= number_format($stakePadrao, 2, ',', '.') ?>)</small>
+            Meta de Volume (<?= ($ciclo['tamanho_ciclo'] ?? 10) ?>x): <strong style="color: #60a5fa;"><?= $fmtValorMeta(($ciclo['tamanho_ciclo'] ?? 10) * $stakePadrao) ?></strong>
+            <small style="opacity: 0.85; font-size: 0.75rem;">(<?= ($ciclo['tamanho_ciclo'] ?? 10) ?> × <?= $fmtValorMeta($stakePadrao) ?>)</small>
           </div>
           <div>
-            Meta de Lucro: <strong style="color: #34d399;">+R$ <?= number_format($ciclo['lucro_alvo'] ?? 7.50, 2, ',', '.') ?></strong>
+            Meta de Lucro: <strong style="color: #34d399;"><?= $fmtValorMeta($ciclo['lucro_alvo'] ?? 7.50, true) ?></strong>
           </div>
           <div>
             Lucro Atual: <strong style="color: <?= ($ciclo['lucro_liquido'] ?? 0) > 0 ? '#10b981' : (($ciclo['lucro_liquido'] ?? 0) < 0 ? '#ef4444' : '#cbd5e1') ?>;">
-              <?= (($ciclo['lucro_liquido'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($ciclo['lucro_liquido'] ?? 0, 2, ',', '.') ?>
+              <?= $fmtValorMeta($ciclo['lucro_liquido'] ?? 0, true) ?>
             </strong>
             <?php 
               $alvoLucro = (float)($ciclo['lucro_alvo'] ?? 7.50);
@@ -992,6 +1037,38 @@ $fmtScore = function($v) {
           </div>
         </div>
       </div>
+
+      <?php if ($isFechadoCiclo && ($ciclo['lucro_liquido'] ?? 0) > 0): ?>
+        <?php 
+          $cLucroVal = (float)($ciclo['lucro_liquido'] ?? 0);
+          $cLiqData  = $moedaModel->calcularValorLiquidoBrl($cLucroVal, $meta->moeda_codigo ?? 'BRL');
+          $valBrlSacar = $cLiqData['lucro_liquido_brl'] ?? ($cLucroVal * $cotacaoMoedaMeta);
+        ?>
+        <div style="margin-top: 0.85rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(16, 185, 129, 0.25); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              💰
+            </div>
+            <div>
+              <div style="font-weight: 700; color: #34d399; font-size: 0.95rem;">
+                Sangria de Lucro Recomendada (Ciclo #<?= $numCicloAtual ?>)
+              </div>
+              <div style="font-size: 0.8rem; color: #cbd5e1;">
+                Ciclo finalizado no verde. Saque o lucro para sua conta e mantenha sua banca base de giro na Stake.
+              </div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 1.25rem; font-weight: 800; color: #34d399;">
+              R$ <?= number_format($valBrlSacar, 2, ',', '.') ?>
+              <span style="font-size: 0.8rem; color: #94a3b8; font-weight: normal;">(<?= $fmtValorMeta($cLucroVal, true) ?>)</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #10b981; font-weight: 600;">
+              ✓ Pronto para saque via PIX
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
 
     </div>
 
@@ -1007,7 +1084,7 @@ $fmtScore = function($v) {
         </button>
         <button type="button" class="history-tab-btn <?= $tabAtiva === 'ciclos' ? 'active' : '' ?>" id="tabBtnCiclos" onclick="switchHistoryTab('ciclos')">
           <span>🔄 Ciclos Fechados</span>
-          <small style="color: #ffffff; opacity: 0.9;">(Blocos Fixos de <?= $alvoApostas ?>)</small>
+          <small style="color: #ffffff; opacity: 0.9;">(<?= count($historicoC) ?> Ciclos · <?= htmlspecialchars($textoPeriodo) ?>)</small>
         </button>
       </div>
 
@@ -1024,7 +1101,7 @@ $fmtScore = function($v) {
             <i class="fas fa-calendar-alt" style="color: #38bdf8;"></i> Período:
           </label>
 
-          <select id="selectFiltroPreset" class="filter-select-preset" onchange="aplicarPresetHistorico(this.value)" title="Atalho de Período">
+          <select id="selectFiltroPreset" name="preset" class="filter-select-preset" onchange="aplicarPresetHistorico(this.value)" title="Atalho de Período">
             <option value="custom" <?= $presetAtivo === 'custom' ? 'selected' : '' ?>>📅 Personalizado</option>
             <option value="today" <?= $presetAtivo === 'today' ? 'selected' : '' ?>>⚡ Hoje</option>
             <option value="yesterday" <?= $presetAtivo === 'yesterday' ? 'selected' : '' ?>>⏪ Ontem</option>
@@ -1076,9 +1153,10 @@ $fmtScore = function($v) {
             <th>Reembolsos</th>
             <th>Reds</th>
             <th>Odd Média</th>
-            <th>Total Investido</th>
-            <th>Lucro Líquido</th>
+            <th>Total Investido (<?= esc($codMoedaMeta) ?>)</th>
+            <th>Lucro Líquido (<?= esc($codMoedaMeta) ?>)</th>
             <th>ROI</th>
+            <th>Líquido em Reais (R$)</th>
             <th>Status do Dia</th>
             <th>Ações</th>
           </tr>
@@ -1125,12 +1203,19 @@ $fmtScore = function($v) {
                 <td style="color: #ffffff; font-weight: 600;"><?= $fmtScore($h['pushes_count'] ?? 0) ?></td>
                 <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($h['reds_count'] ?? 0) ?></td>
                 <td><?= number_format((float)($h['odd_media_real'] ?? 0), 2) ?></td>
-                <td>R$ <?= number_format((float)($h['total_apostado'] ?? 0), 2, ',', '.') ?></td>
+                <td><?= $fmtValorMeta((float)($h['total_apostado'] ?? 0)) ?></td>
                 <td style="font-weight: 700;" class="<?= $hLucro > 0 ? 'val-green' : ($hLucro < 0 ? 'val-red' : '') ?>">
-                  <?= ($hLucro > 0 ? '+' : '') ?>R$ <?= number_format($hLucro, 2, ',', '.') ?>
+                  <?= $fmtValorMeta($hLucro, true) ?>
                 </td>
                 <td style="font-weight: 700;" class="<?= $hRoi > 0 ? 'val-green' : ($hRoi < 0 ? 'val-red' : '') ?>">
                   <?= ($hRoi > 0 ? '+' : '') ?><?= number_format($hRoi, 1, ',', '.') ?>%
+                </td>
+                <?php $dLiq = $moedaModel->calcularValorLiquidoBrl($hLucro, $meta->moeda_codigo ?? 'BRL'); ?>
+                <td style="font-weight: 700;" class="<?= ($dLiq['lucro_liquido_brl'] ?? 0) > 0 ? 'val-green' : (($dLiq['lucro_liquido_brl'] ?? 0) < 0 ? 'val-red' : '') ?>">
+                  <?= (($dLiq['lucro_liquido_brl'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($dLiq['lucro_liquido_brl'] ?? 0, 2, ',', '.') ?>
+                  <?php if (($dLiq['taxa_descontada_brl'] ?? 0) > 0): ?>
+                    <div style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">-R$ <?= number_format($dLiq['taxa_descontada_brl'], 2, ',', '.') ?> taxas</div>
+                  <?php endif; ?>
                 </td>
                 <td>
                   <?php if ($hSt === 'META_BATIDA'): ?>
@@ -1171,18 +1256,25 @@ $fmtScore = function($v) {
           ?>
           <tfoot>
             <tr class="history-table-total-row">
-              <td><strong>TOTAL</strong></td>
-              <td><strong><?= $totCadastradas ?></strong></td>
-              <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totGreens) ?></td>
+              <td><strong>TOTAL (<?= count($historico) ?> Dias)</strong></td>
+              <td><strong><?= $totCadastradas ?> apostas</strong></td>
+              <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totGreens) ?> greens</td>
               <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totPushes) ?></td>
-              <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totReds) ?></td>
+              <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totReds) ?> reds</td>
               <td><strong><?= $totOddMedia > 0 ? number_format($totOddMedia, 2) : '-' ?></strong></td>
-              <td><strong>R$ <?= number_format($totInvestido, 2, ',', '.') ?></strong></td>
+              <td><strong><?= $fmtValorMeta($totInvestido) ?></strong></td>
               <td style="font-weight: 700;" class="<?= $totLucro > 0 ? 'val-green' : ($totLucro < 0 ? 'val-red' : '') ?>">
-                <?= ($totLucro > 0 ? '+' : '') ?>R$ <?= number_format($totLucro, 2, ',', '.') ?>
+                <?= $fmtValorMeta($totLucro, true) ?>
               </td>
               <td style="font-weight: 700;" class="<?= $totRoi > 0 ? 'val-green' : ($totRoi < 0 ? 'val-red' : '') ?>">
                 <?= ($totRoi > 0 ? '+' : '') ?><?= number_format($totRoi, 1, ',', '.') ?>%
+              </td>
+              <?php $totDLiq = $moedaModel->calcularValorLiquidoBrl($totLucro, $meta->moeda_codigo ?? 'BRL'); ?>
+              <td style="font-weight: 700;" class="<?= ($totDLiq['lucro_liquido_brl'] ?? 0) > 0 ? 'val-green' : (($totDLiq['lucro_liquido_brl'] ?? 0) < 0 ? 'val-red' : '') ?>">
+                <?= (($totDLiq['lucro_liquido_brl'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($totDLiq['lucro_liquido_brl'] ?? 0, 2, ',', '.') ?>
+                <?php if (($totDLiq['taxa_descontada_brl'] ?? 0) > 0): ?>
+                  <div style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">-R$ <?= number_format($totDLiq['taxa_descontada_brl'], 2, ',', '.') ?> taxas</div>
+                <?php endif; ?>
               </td>
               <td>
                 <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.72rem; padding: 0.25rem 0.6rem;">
@@ -1220,8 +1312,9 @@ $fmtScore = function($v) {
               <th>Reembolsos</th>
               <th>Reds</th>
               <th>Cashouts</th>
-              <th>Lucro Líquido</th>
+              <th>Lucro Líquido (<?= esc($codMoedaMeta) ?>)</th>
               <th>ROI</th>
+              <th>Líquido em Reais (R$)</th>
               <th>Status do Ciclo</th>
               <th>Ações</th>
             </tr>
@@ -1269,10 +1362,17 @@ $fmtScore = function($v) {
                   <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($hc['reds'] ?? 0) ?></td>
                   <td style="color: #c084fc; font-weight: 600;"><?= $hc['cashouts'] ?></td>
                   <td style="font-weight: 700;" class="<?= $cLucro > 0 ? 'val-green' : ($cLucro < 0 ? 'val-red' : '') ?>">
-                    <?= ($cLucro > 0 ? '+' : '') ?>R$ <?= number_format($cLucro, 2, ',', '.') ?>
+                    <?= $fmtValorMeta($cLucro, true) ?>
                   </td>
                   <td style="font-weight: 700;" class="<?= $cRoi > 0 ? 'val-green' : ($cRoi < 0 ? 'val-red' : '') ?>">
                     <?= ($cRoi > 0 ? '+' : '') ?><?= number_format($cRoi, 1, ',', '.') ?>%
+                  </td>
+                  <?php $cLiq = $moedaModel->calcularValorLiquidoBrl($cLucro, $meta->moeda_codigo ?? 'BRL'); ?>
+                  <td style="font-weight: 700;" class="<?= ($cLiq['lucro_liquido_brl'] ?? 0) > 0 ? 'val-green' : (($cLiq['lucro_liquido_brl'] ?? 0) < 0 ? 'val-red' : '') ?>">
+                    <?= (($cLiq['lucro_liquido_brl'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($cLiq['lucro_liquido_brl'] ?? 0, 2, ',', '.') ?>
+                    <?php if (($cLiq['taxa_descontada_brl'] ?? 0) > 0): ?>
+                      <div style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">-R$ <?= number_format($cLiq['taxa_descontada_brl'], 2, ',', '.') ?> taxas</div>
+                    <?php endif; ?>
                   </td>
                   <td>
                     <?php if ($cSt === 'META_BATIDA'): ?>
@@ -1313,16 +1413,23 @@ $fmtScore = function($v) {
               <tr class="history-table-total-row">
                 <td><strong>TOTAL (<?= count($historicoC) ?> Ciclos)</strong></td>
                 <td>-</td>
-                <td><strong><?= $totCApostas ?></strong></td>
-                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?></td>
+                <td><strong><?= $totCApostas ?> apostas</strong></td>
+                <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?> greens</td>
                 <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totCPushes) ?></td>
-                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?></td>
+                <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?> reds</td>
                 <td style="color: #c084fc; font-weight: 600;"><?= $totCCashouts ?></td>
                 <td style="font-weight: 700;" class="<?= $totCLucro > 0 ? 'val-green' : ($totCLucro < 0 ? 'val-red' : '') ?>">
-                  <?= ($totCLucro > 0 ? '+' : '') ?>R$ <?= number_format($totCLucro, 2, ',', '.') ?>
+                  <?= $fmtValorMeta($totCLucro, true) ?>
                 </td>
                 <td style="font-weight: 700;" class="<?= $totCRoi > 0 ? 'val-green' : ($totCRoi < 0 ? 'val-red' : '') ?>">
                   <?= ($totCRoi > 0 ? '+' : '') ?><?= number_format($totCRoi, 1, ',', '.') ?>%
+                </td>
+                <?php $totCLiq = $moedaModel->calcularValorLiquidoBrl($totCLucro, $meta->moeda_codigo ?? 'BRL'); ?>
+                <td style="font-weight: 700;" class="<?= ($totCLiq['lucro_liquido_brl'] ?? 0) > 0 ? 'val-green' : (($totCLiq['lucro_liquido_brl'] ?? 0) < 0 ? 'val-red' : '') ?>">
+                  <?= (($totCLiq['lucro_liquido_brl'] ?? 0) > 0 ? '+' : '') ?>R$ <?= number_format($totCLiq['lucro_liquido_brl'] ?? 0, 2, ',', '.') ?>
+                  <?php if (($totCLiq['taxa_descontada_brl'] ?? 0) > 0): ?>
+                    <div style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">-R$ <?= number_format($totCLiq['taxa_descontada_brl'], 2, ',', '.') ?> taxas</div>
+                  <?php endif; ?>
                 </td>
                 <td>
                   <span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.72rem; padding: 0.25rem 0.6rem;">
@@ -1356,16 +1463,41 @@ $fmtScore = function($v) {
 
       <div class="form-row-2">
         <div class="form-group">
-          <label>Stake Padrão por Aposta (R$)</label>
-          <input type="number" step="0.01" name="stake_padrao" id="inputStakePadrao" class="form-control-meta" value="<?= $stakePadrao ?>" required>
-          <small style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem; display: block;">
-            💡 Altera proporcionalmente a Meta de Lucro, Stop Loss e o Volume do Ciclo.
-          </small>
+          <label>Moeda Operacional da Meta</label>
+          <select name="moeda_codigo" id="selectMoedaMeta" class="form-control-meta" style="background: #1e293b; color: #ffffff;" onchange="aoTrocarMoedaMeta()">
+            <?php foreach ($todasMoedas as $mOpt): ?>
+              <option value="<?= esc($mOpt->codigo) ?>" data-cotacao="<?= esc($mOpt->cotacao_brl) ?>" data-simbolo="<?= esc($mOpt->simbolo) ?>" data-casas="<?= esc($mOpt->casas_decimais) ?>" data-tipo="<?= esc($mOpt->tipo) ?>" <?= ($meta->moeda_codigo ?? 'BRL') === $mOpt->codigo ? 'selected' : '' ?>>
+                <?= esc($mOpt->simbolo) ?> - <?= esc($mOpt->nome) ?> (<?= esc($mOpt->codigo) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
         <div class="form-group">
-          <label>Total de Apostas Alvo (Ciclo)</label>
-          <input type="number" name="total_apostas_alvo" class="form-control-meta" value="<?= $alvoApostas ?>" required>
+          <label id="labelStakePadrao">Stake Padrão por Aposta (<span id="simboloMoedaMeta"><?= esc($moedaMeta->simbolo ?? 'R$') ?></span>)</label>
+          <input type="number" step="0.00000001" name="stake_padrao" id="inputStakePadrao" class="form-control-meta" value="<?= $stakePadrao ?>" oninput="aoDigitarStakeMoeda()" required>
+          <small id="helpStakePadrao" style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem; display: block;">
+            💡 Suporta frações de até 8 casas para criptomoedas (ex: 0.05 LTC, 0.0001 BTC).
+          </small>
         </div>
+      </div>
+
+      <!-- CONVERSOR DINÂMICO DE STAKE EM REAIS (R$) -->
+      <div id="containerConversorBrl" style="background: rgba(15, 23, 42, 0.65); padding: 0.85rem; border-radius: 8px; border: 1px dashed rgba(56, 189, 248, 0.4); margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+          <label style="margin: 0; font-size: 0.84rem; color: #38bdf8; font-weight: 600; display: flex; align-items: center; gap: 0.35rem;">
+            <span>💱 Informar Stake em Real (R$)</span>
+          </label>
+          <span id="badgeCotacaoMoeda" style="font-size: 0.75rem; color: #94a3b8; background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+            Cotação: 1 <?= esc($meta->moeda_codigo ?? 'BRL') ?> = R$ <?= number_format($moedaMeta->cotacao_brl ?? 1.0, 2, ',', '.') ?>
+          </span>
+        </div>
+        <div style="position: relative;">
+          <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.88rem; font-weight: 600;">R$</span>
+          <input type="number" step="0.01" id="inputStakeBrlConverter" class="form-control-meta" style="padding-left: 36px;" placeholder="Ex: 100,00" oninput="aoDigitarStakeBrl()">
+        </div>
+        <small style="font-size: 0.72rem; color: #94a3b8; display: block; margin-top: 0.3rem;">
+          💡 Digite o valor que deseja apostar em Reais (ex: 100) para calcular automaticamente a fração correspondente na moeda acima.
+        </small>
       </div>
 
       <div class="form-row-2">
@@ -1374,8 +1506,8 @@ $fmtScore = function($v) {
           <input type="number" step="0.01" name="odd_media_alvo" class="form-control-meta" value="<?= $oddAlvo ?>" required>
         </div>
         <div class="form-group">
-          <label>Meta de Lucro Líquido (R$)</label>
-          <input type="number" step="0.01" name="lucro_alvo" id="inputLucroAlvo" class="form-control-meta" value="<?= $lucroAlvo ?>" required>
+          <label id="labelLucroAlvo">Meta de Lucro Líquido (<span id="simboloLucroMeta"><?= esc($simboloMoedaMeta) ?></span>)</label>
+          <input type="number" step="any" name="lucro_alvo" id="inputLucroAlvo" class="form-control-meta" value="<?= (float)$lucroAlvo ?>" required>
         </div>
       </div>
 
@@ -1396,8 +1528,8 @@ $fmtScore = function($v) {
           <input type="number" name="max_reds" class="form-control-meta" value="<?= $maxR ?>" required>
         </div>
         <div class="form-group">
-          <label>Stop Loss Diário (R$)</label>
-          <input type="number" step="0.01" name="stop_loss_diario" id="inputStopLoss" class="form-control-meta" value="<?= $stopLoss ?>" required>
+          <label id="labelStopLoss">Stop Loss Diário (<span id="simboloStopMeta"><?= esc($simboloMoedaMeta) ?></span>)</label>
+          <input type="number" step="any" name="stop_loss_diario" id="inputStopLoss" class="form-control-meta" value="<?= (float)$stopLoss ?>" required>
         </div>
       </div>
 
@@ -1416,6 +1548,117 @@ let baseStake = <?= $stakePadrao > 0 ? $stakePadrao : 10.0 ?>;
 let baseLucroAlvo = <?= $lucroAlvo > 0 ? $lucroAlvo : 7.50 ?>;
 let baseStopLoss = <?= $stopLoss != 0 ? $stopLoss : -30.00 ?>;
 
+function getMoedaMetaSelecionada() {
+  const sel = document.getElementById('selectMoedaMeta');
+  if (!sel) return { codigo: 'BRL', cotacao: 1.0, simbolo: 'R$', casas: 2, tipo: 'FIAT' };
+  const opt = sel.options[sel.selectedIndex];
+  return {
+    codigo: opt.value,
+    cotacao: parseFloat(opt.getAttribute('data-cotacao') || '1.0'),
+    simbolo: opt.getAttribute('data-simbolo') || 'R$',
+    casas: parseInt(opt.getAttribute('data-casas') || '2', 10),
+    tipo: opt.getAttribute('data-tipo') || 'FIAT'
+  };
+}
+
+function atualizarConversorStake(sincronizarBrlInicial = false) {
+  const m = getMoedaMetaSelecionada();
+  const badge = document.getElementById('badgeCotacaoMoeda');
+  const simboloLabel = document.getElementById('simboloMoedaMeta');
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputBrl = document.getElementById('inputStakeBrlConverter');
+
+  if (simboloLabel) simboloLabel.textContent = m.simbolo;
+  const simboloLucro = document.getElementById('simboloLucroMeta');
+  const simboloStop = document.getElementById('simboloStopMeta');
+  if (simboloLucro) simboloLucro.textContent = m.simbolo;
+  if (simboloStop) simboloStop.textContent = m.simbolo;
+
+  if (badge) {
+    if (m.tipo === 'FIAT' || m.codigo === 'BRL') {
+      badge.textContent = 'Moeda Fiduciária Base (1:1)';
+    } else {
+      const cotFmt = m.cotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      badge.textContent = `Cotação: 1 ${m.codigo} = R$ ${cotFmt}`;
+    }
+  }
+
+  if (sincronizarBrlInicial && inputStake && inputBrl) {
+    const valStake = parseFloat(inputStake.value || '0');
+    if (valStake > 0 && m.cotacao > 0) {
+      inputBrl.value = (valStake * m.cotacao).toFixed(2);
+    }
+  }
+}
+
+function recalcularMetasProporcionais(novaStake) {
+  const inputLucro = document.getElementById('inputLucroAlvo');
+  const inputStop  = document.getElementById('inputStopLoss');
+  if (inputLucro && inputStop && !isNaN(novaStake) && novaStake > 0 && baseStake > 0) {
+    const ratio = novaStake / baseStake;
+    inputLucro.value = (Math.round((baseLucroAlvo * ratio) * 100) / 100).toFixed(2);
+    inputStop.value = (Math.round((baseStopLoss * ratio) * 100) / 100).toFixed(2);
+  }
+}
+
+function aoDigitarStakeBrl() {
+  const m = getMoedaMetaSelecionada();
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputBrl = document.getElementById('inputStakeBrlConverter');
+  if (!inputStake || !inputBrl) return;
+
+  const rawVal = inputBrl.value.trim();
+  if (rawVal === '') {
+    inputStake.value = '';
+    return;
+  }
+
+  const valBrl = parseFloat(rawVal);
+  if (!isNaN(valBrl) && valBrl > 0 && m.cotacao > 0) {
+    const casas = m.casas || 8;
+    const stakeCalculada = (valBrl / m.cotacao);
+    inputStake.value = parseFloat(stakeCalculada.toFixed(casas));
+    recalcularMetasProporcionais(stakeCalculada);
+  }
+}
+
+function aoDigitarStakeMoeda() {
+  // Se o foco estiver no campo de Reais, não sobrescreve o que o usuário está digitando!
+  if (document.activeElement === document.getElementById('inputStakeBrlConverter')) {
+    return;
+  }
+
+  const m = getMoedaMetaSelecionada();
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputBrl = document.getElementById('inputStakeBrlConverter');
+  if (!inputStake || !inputBrl) return;
+
+  const rawVal = inputStake.value.trim();
+  if (rawVal === '') {
+    inputBrl.value = '';
+    return;
+  }
+
+  const valStake = parseFloat(rawVal);
+  if (!isNaN(valStake) && valStake > 0 && m.cotacao > 0) {
+    inputBrl.value = (valStake * m.cotacao).toFixed(2);
+    recalcularMetasProporcionais(valStake);
+  }
+}
+
+function aoTrocarMoedaMeta() {
+  const inputStake = document.getElementById('inputStakePadrao');
+  const inputBrl = document.getElementById('inputStakeBrlConverter');
+  atualizarConversorStake(false);
+
+  // Se já houver valor no conversor em Reais, recalcula a stake na moeda selecionada
+  if (inputBrl && parseFloat(inputBrl.value || '0') > 0) {
+    aoDigitarStakeBrl();
+  } else if (inputStake && parseFloat(inputStake.value || '0') > 0) {
+    aoDigitarStakeMoeda();
+  }
+}
+
 function abrirModalConfig() {
   document.getElementById('modalConfig').classList.add('active');
   const inputStake = document.getElementById('inputStakePadrao');
@@ -1426,6 +1669,7 @@ function abrirModalConfig() {
     baseLucroAlvo = parseFloat(inputLucro.value) || 7.50;
     baseStopLoss = parseFloat(inputStop.value) || -30.00;
   }
+  atualizarConversorStake(true);
 }
 
 document.addEventListener('DOMContentLoaded', function() {

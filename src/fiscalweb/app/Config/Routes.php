@@ -39,6 +39,13 @@ $routes->get('/', 'Home::index', ['as'=>'home']);
 $routes->post('/', 'Home::index', ['as'=>'home']);
 $routes->get('/debugFunctionalities', 'Home::debugFunctionalities', ['as'=>'debugFunctionalities']);
 
+// 🤖 Status Report Inteligente com IA Gemini
+$routes->get('/statusReportIa/sistemas', 'StatusReportController::getSistemas', ['as'=>'statusReportIa.sistemas']);
+$routes->post('/statusReportIa/gerar', 'StatusReportController::gerar', ['as'=>'statusReportIa.gerar']);
+$routes->get('/statusReportIa/gerar', 'StatusReportController::gerar', ['as'=>'statusReportIa.gerarGet']);
+$routes->post('/statusReportIa/exportarDocx', 'StatusReportController::exportarDocx', ['as'=>'statusReportIa.exportarDocx']);
+$routes->post('/statusReportIa/exportarTxt', 'StatusReportController::exportarTxt', ['as'=>'statusReportIa.exportarTxt']);
+
 
 
 //Perfil

@@ -14,6 +14,9 @@ class ApostaModel extends Model
     protected $protectFields    = true;
     protected $allowedFields    = [
         'usuario_id',
+        'moeda_codigo',
+        'cotacao_brl_snapshot',
+        'taxa_movimentacao_estimada_brl',
         'fixture_id',
         'time_casa',
         'time_fora',

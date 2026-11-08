@@ -342,9 +342,11 @@ def consultar_radar_ah(fixture_id):
             {
                 "palpite_str": c["palpite_str"],
                 "odd": float(c["odd"]),
+                "bookmaker": c.get("bookmaker") or c.get("source") or "Betano",
                 "ev_percent": float(c.get("eval", {}).get("ev_percent", 0.0)),
                 "odd_justa": float(c.get("eval", {}).get("odd_justa", 0.0)),
-                "prob_eff": float(c.get("eval", {}).get("prob_eff", 0.0))
+                "prob_eff": float(c.get("eval", {}).get("prob_eff", 0.0)),
+                "market_comparison": c.get("market_comparison", {})
             }
             for c in approved_cands
         ],
@@ -669,12 +671,22 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
             f"Motivo: As oscilações do mercado indicam maior consistência e proteção na nova linha."
         )
     elif odd_mudou:
-        tipo_mudanca = "odd"
-        sentido = "subiu" if final_odd > old_odd else "derreteu"
-        explicacao = (
-            f"⚡ Cotação atualizada na casa {bm_name} ({agora_brt}): "
-            f"A linha recomendada permanece '{new_suggestion}', mas a cotação {sentido} de @ {old_odd:.2f} para @ {final_odd:.2f}."
-        )
+        diff_val = round(final_odd - old_odd, 2)
+        pct_mudanca = round(((diff_val / old_odd) * 100.0), 1) if old_odd > 0 else 0.0
+        if old_odd > 1.0 and pct_mudanca > 5.0 and diff_val >= 0.02:
+            tipo_mudanca = "alerta_odd_inflada"
+            explicacao = (
+                f"⚠️ [ALERTA DE RISCO - ARMADILHA DA ODD INFLADA] ({agora_brt}): "
+                f"A cotação de '{new_suggestion}' subiu {pct_mudanca:+.1f}% (de @ {old_odd:.2f} para @ {final_odd:.2f}). "
+                f"Essa elevação reflete descarte ou desconfiança do mercado na equipe. Sugere-se cancelamento ou Cash Out preventivo da aposta."
+            )
+        else:
+            tipo_mudanca = "odd"
+            sentido = "subiu" if final_odd > old_odd else "derreteu"
+            explicacao = (
+                f"⚡ Cotação atualizada na casa {bm_name} ({agora_brt}): "
+                f"A linha recomendada permanece '{new_suggestion}', mas a cotação {sentido} de @ {old_odd:.2f} para @ {final_odd:.2f}."
+            )
     else:
         tipo_mudanca = "inalterado"
         explicacao = (
@@ -1015,29 +1027,9 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
         odd_justa_cust = float(ev_cust.get("odd_justa", 0.0))
         ev_perc_cust = float(ev_cust.get("ev_percent", 0.0))
         odd_min_nec = max(1.45, round(odd_justa_cust * 1.05, 2))
-
-        if p_eff_cust >= 55.0 and ev_perc_cust >= 3.0 and 1.45 <= odd_float <= 2.30:
-            val_ap = float(aposta_alvo.get("valor_aposta") or 10.0) if aposta_alvo else 10.0
-            novo_ganho = round(val_ap * odd_float, 2)
-            cursor.close()
-            conn.close()
-            return {
-                "success": True,
-                "aprovado": True,
-                "fixture_id": fixture_id,
-                "aposta_id": aposta_id,
-                "linha_oficial": palpite_fmt_c,
-                "odd": odd_float,
-                "odd_justa": odd_justa_cust,
-                "ev_percent": ev_perc_cust,
-                "prob_efetiva": p_eff_cust,
-                "ganhos_potenciais_novos": novo_ganho,
-                "explicacao": f"🎯 Par ({palpite_fmt_c} @ {odd_float:.2f}) APROVADO no Gatekeeper (+EV {ev_perc_cust:+.1f}% | Odd Justa {odd_justa_cust:.2f} | Cobertura {p_eff_cust:.1f}%).",
-                "linhas_aprovadas_disponiveis": [palpite_fmt_c],
-                "linhas_betano_todas": [l["palpite_str"] for l in betano_lines],
-                "linhas_referencia": ref_lines,
-                "oportunidades_outras_casas": outras_casas_aprovadas
-            }
+        # NOTA DE ARQUITETURA: A aprovação de qualquer linha customizada DEVE obrigatoriamente
+        # constar em `approved_cands` (validada pelo Gatekeeper oficial). É proibido aprovar
+        # linhas agressivas (-1.0 AH, etc.) apenas por Poisson bruto fora das travas do Gatekeeper.
 
     # 2. Se não está aprovada, verificar justificativa
     cand_testado = find_matching_ah_candidate(eval_lines, linha_alvo, home_team, away_team)

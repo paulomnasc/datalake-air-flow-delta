@@ -137,3 +137,27 @@ A diferença fundamental entre uma corretora (como a Binance) e uma carteira nã
    - O saldo chega na Binance limpo e sem marcação de cassino.
    - Converta para Reais no par `LTC/BRL`.
    - Realize o saque via **PIX** para sua conta bancária no Brasil. O valor cai em segundos na sua conta.
+
+---
+
+## 8. Instruções Oficiais de Saque da Stake (*Diretrizes do Suporte*)
+
+Abaixo estão os requisitos formais e alertas de segurança fornecidos pelo suporte oficial da Stake para o procedimento de saque:
+
+### 8.1. Requisito Prévio: Carteira Externa
+- Para efetuar saques na plataforma, é **mandatório possuir uma carteira externa** (*external wallet*) que suporte transações com a criptomoeda escolhida (conforme o modelo de carteira não-custodial detalhado nas Seções 5 e 7).
+
+### 8.2. Link Direto e Atalho Rápido para Saque em Litecoin (LTC)
+- **Link Direto Pronto (LTC):**
+  [`https://stake.com/?tab=withdraw&currency=ltc&modal=wallet`](https://stake.com/?tab=withdraw&currency=ltc&modal=wallet)
+- **Atalho Integrado no Remote Browser:** Este link já está embutido na barra de atalhos rápidos do terminal seguro (`/terminal/stake`) como o botão **"Saque Stake"**. Ao clicar, o modal da carteira abre diretamente na aba de retirada em LTC.
+
+### 8.3. Preenchimento do Endereço de Destino
+- No **primeiro campo** do formulário de saque da Stake, insira o **endereço público da sua carteira** de destino (copiado a partir da opção *"Receber / Receive"* no seu aplicativo de carteira pessoal).
+
+### 8.4. Regra Crítica: "Moedas Puras" (*Pure Coins Only*) e Redes Compatíveis ⚠️
+- **Atenção Máxima à Compatibilidade de Redes:** A Stake exige formalmente que você envie estritamente moedas puras para o endereço correspondente. Transações enviadas para redes incompatíveis resultam em **perda permanente e irreversível dos fundos na blockchain**:
+  - ❌ **NUNCA** envie **LTC** para um endereço de **BTC**.
+  - ❌ **NUNCA** envie **BCH** para um endereço de **BTC**.
+  - ❌ **NUNCA** misture redes diferentes (ex: enviar tokens BEP-20 para rede nativa LTC).
+- **Dupla Checagem Obrigatória (*Double-Check*):** Antes de clicar no botão final de confirmação de envio dos fundos, confira atentamente os primeiros 4 e os últimos 4 caracteres do endereço de destino colado.

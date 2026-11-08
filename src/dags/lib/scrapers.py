@@ -1236,6 +1236,208 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         return None
 
 
+# Mapeamento canônico de league_id (API-Sports) -> slugs de competição no Futbol24
+_FUTBOL24_LEAGUE_SLUGS = {
+    71: ['national/Brazil/Serie-A/2026'],
+    72: ['national/Brazil/Serie-B/2026'],
+    73: ['national/Brazil/Copa-do-Brasil/2026'],
+    39: ['national/England/Premier-League/2026-2027', 'national/England/Premier-League/2025-2026'],
+    140: ['national/Spain/Primera-Division/2026-2027', 'national/Spain/Primera-Division/2025-2026'],
+    143: ['national/Spain/Copa-del-Rey/2026-2027/Round-1', 'national/Spain/Copa-del-Rey/2026-2027'],
+    135: ['national/Italy/Serie-A/2026-2027', 'national/Italy/Serie-A/2025-2026'],
+    137: ['national/Italy/Coppa-Italia/2026-2027', 'national/Italy/Coppa-Italia/2025-2026'],
+    78: ['national/Germany/Bundesliga/2026-2027', 'national/Germany/Bundesliga/2025-2026'],
+    81: ['national/Germany/DFB-Pokal/2026-2027', 'national/Germany/DFB-Pokal/2025-2026'],
+    61: ['national/France/Ligue-1/2026-2027', 'national/France/Ligue-1/2025-2026'],
+    66: ['national/France/Coupe-de-France/2026-2027', 'national/France/Coupe-de-France/2025-2026'],
+    2: ['international/Europe/Champions-League/2026-2027', 'international/Europe/Champions-League/2025-2026'],
+    3: ['international/Europe/Europa-League/2026-2027', 'international/Europe/Europa-League/2025-2026'],
+    13: ['international/South-America/Copa-Libertadores/2026'],
+    11: ['international/South-America/Copa-Sudamericana/2026'],
+    262: ['national/Mexico/Primera-Division/2026-2027', 'national/Mexico/Liga-MX/2025-2026'],
+    1028: ['international/CONCACAF/Central-American-Cup/2026'],
+    16: ['international/CONCACAF/Champions-Cup/2026'],
+    113: ['national/Sweden/Allsvenskan/2026'],
+    103: ['national/Norway/Eliteserien/2026'],
+    94: ['national/Portugal/Primeira-Liga/2026-2027', 'national/Portugal/Primeira-Liga/2025-2026'],
+    88: ['national/Netherlands/Eredivisie/2026-2027', 'national/Netherlands/Eredivisie/2025-2026'],
+    128: ['national/Argentina/Primera-Division/2026'],
+    130: ['national/Argentina/Copa-Argentina/2026'],
+    283: ['national/Romania/Liga-I/2026-2027'],
+    286: ['national/Serbia/Superliga/2026-2027'],
+    244: ['national/Finland/Veikkausliiga/2026'],
+    281: ['national/Peru/Liga-1/2026'],
+    242: ['national/Ecuador/Campeonato-Serie-A/2026'],
+    917: ['national/Ecuador/Copa-Ecuador/2026'],
+    268: ['national/Uruguay/Primera-Division/2026'],
+    265: ['national/Chile/Primera-Division/2026'],
+    267: ['national/Chile/Copa-Chile/2026'],
+    239: ['national/Colombia/Primera-A/2026'],
+    344: ['national/Bolivia/Liga-de-Futbol-Prof/2026'],
+    307: ['national/Saudi-Arabia/Saudi-Professional-League/2026-2027'],
+    203: ['national/Turkiye/Super-Lig/2026-2027'],
+    207: ['national/Switzerland/Super-League/2026-2027'],
+    144: ['national/Belgium/Jupiler-Pro-League/2026-2027'],
+    119: ['national/Denmark/Superligaen/2026-2027'],
+    218: ['national/Austria/Bundesliga/2026-2027'],
+    197: ['national/Greece/Super-League/2026-2027'],
+    179: ['national/Scotland/Premiership/2026-2027'],
+    106: ['national/Poland/Ekstraklasa/2026-2027'],
+    345: ['national/Czech-Rep/1-Liga/2026-2027'],
+    253: ['national/United-States/MLS/2026'],
+    479: ['national/Canada/Canadian-Premier-League/2026'],
+    259: ['national/Canada/Canadian-Championship/2026'],
+}
+
+_RE_F24_MATCH_SLUG = re.compile(r'(?:match|jogo)?/?(202\d/\d{2}/\d{2}/[^\s\"\'<>]+/vs/[^\s\"\'<>]+)')
+_RE_F24_FIXTURES_LINK = re.compile(r'\"(/(?:national|international)/[^\"]+/fixtures)\"')
+_RE_F24_REFEREE = re.compile(r'(?:Árbitro|Arbitro|Referee)\s*:\s*<strong[^>]*>\s*([^<\n\r]+?)\s*</strong>', re.IGNORECASE)
+
+
+def _norm_f24_tokens(name: str) -> set:
+    if not name:
+        return set()
+    import unicodedata
+    s = ''.join(c for c in unicodedata.normalize('NFD', str(name)) if unicodedata.category(c) != 'Mn').lower()
+    s = re.sub(r'[^a-z0-9]+', ' ', s)
+    stop = {
+        'fc', 'cf', 'cd', 'ca', 'ud', 'sd', 'rc', 'rcd', 'sc', 'ec', 'ac', 'as', 'us', 'ssc',
+        'club', 'clube', 'deportivo', 'atletico', 'atl', 'real', 'sporting', 'de', 'da', 'do',
+        'la', 'el', 'los', 'las', 'esp', 'col', 'ksa', 'pr', 'sp', 'rj', 'mg', 'rs', 'ba', 'go',
+        'al', 'pe', 'ce', 'sc', 'mt', 'pa', 'ff', 'if', 'bk', 'aif', 'is', 'fk', 'sk'
+    }
+    tokens = {t for t in s.split() if len(t) >= 3 and t not in stop}
+    if not tokens:
+        tokens = {t for t in s.split() if len(t) >= 2}
+    return tokens
+
+
+def _match_slug_teams(slug: str, home_team: str, away_team: str) -> bool:
+    if '/vs/' not in slug:
+        return False
+    tail = slug.split('/vs/')
+    if len(tail) != 2:
+        return False
+    slug_h = tail[0].split('/')[-1]
+    slug_a = tail[1].split('/')[0]
+
+    h_tok = _norm_f24_tokens(home_team)
+    a_tok = _norm_f24_tokens(away_team)
+    sh_tok = _norm_f24_tokens(slug_h)
+    sa_tok = _norm_f24_tokens(slug_a)
+
+    if not h_tok or not a_tok or not sh_tok or not sa_tok:
+        return False
+
+    def _side_matches(t1: set, t2: set) -> bool:
+        if t1 & t2:
+            return True
+        for w1 in t1:
+            for w2 in t2:
+                if len(w1) >= 4 and len(w2) >= 4 and (w1 in w2 or w2 in w1):
+                    return True
+        return False
+
+    return _side_matches(h_tok, sh_tok) and _side_matches(a_tok, sa_tok)
+
+
+def scrape_futbol24_referees_for_fixtures(fixtures: List[Dict[str, Any]]) -> Dict[int, str]:
+    """
+    Fallback ultra-leve via HTTP direto (requests.Session + Regex puro, sem BeautifulSoup/Playwright/FlareSolverr)
+    para enriquecer árbitros já publicados no Futbol24 quando a API-Sports retorna referee=None.
+    Retorna dicionário {fixture_id: referee_name}.
+    """
+    enriched_refs: Dict[int, str] = {}
+    if not fixtures:
+        return enriched_refs
+
+    by_league: Dict[int, List[Dict[str, Any]]] = {}
+    for fix in fixtures:
+        fid = fix.get('fixture_id')
+        lid = fix.get('league_id')
+        h_name = (fix.get('home_team') or '').strip()
+        a_name = (fix.get('away_team') or '').strip()
+        if not fid or not lid or not h_name or not a_name:
+            continue
+        try:
+            lid_int = int(lid)
+        except (ValueError, TypeError):
+            continue
+        by_league.setdefault(lid_int, []).append(fix)
+
+    if not by_league:
+        return enriched_refs
+
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+    })
+
+    for lid_int, lg_fixtures in by_league.items():
+        comp_slugs = _FUTBOL24_LEAGUE_SLUGS.get(lid_int, [])
+        if not comp_slugs:
+            continue
+
+        discovered_match_slugs: List[str] = []
+        visited_urls = set()
+
+        for c_slug in comp_slugs:
+            for suffix in ['/fixtures', '/']:
+                url = f"https://www.futbol24.com/{c_slug.strip('/')}{suffix}"
+                if url in visited_urls:
+                    continue
+                visited_urls.add(url)
+                try:
+                    resp = session.get(url, timeout=6)
+                    if resp.status_code != 200 or not resp.text:
+                        continue
+                    discovered_match_slugs.extend(_RE_F24_MATCH_SLUG.findall(resp.text))
+                    sub_fix_links = _RE_F24_FIXTURES_LINK.findall(resp.text)
+                    for sub_link in sub_fix_links[:2]:
+                        sub_url = f"https://www.futbol24.com{sub_link}"
+                        if sub_url not in visited_urls:
+                            visited_urls.add(sub_url)
+                            r_sub = session.get(sub_url, timeout=6)
+                            if r_sub.status_code == 200 and r_sub.text:
+                                discovered_match_slugs.extend(_RE_F24_MATCH_SLUG.findall(r_sub.text))
+                except Exception as exc_comp:
+                    log.debug(f"[FUTBOL24-REF] Aviso ao ler competição {url}: {exc_comp}")
+
+        unique_slugs = list(dict.fromkeys(discovered_match_slugs))
+        if not unique_slugs:
+            continue
+
+        for fix in lg_fixtures:
+            fid = int(fix['fixture_id'])
+            h_team = fix.get('home_team', '')
+            a_team = fix.get('away_team', '')
+            matched_slug = None
+            for m_slug in unique_slugs:
+                if _match_slug_teams(m_slug, h_team, a_team):
+                    matched_slug = m_slug
+                    break
+
+            if not matched_slug:
+                continue
+
+            match_url = f"https://www.futbol24.com/pt/jogo/{matched_slug}"
+            try:
+                r_match = session.get(match_url, timeout=6)
+                if r_match.status_code == 200 and r_match.text:
+                    m_ref = _RE_F24_REFEREE.search(r_match.text)
+                    if m_ref:
+                        ref_name = m_ref.group(1).split(',')[0].strip()
+                        if ref_name and len(ref_name) >= 3:
+                            enriched_refs[fid] = ref_name
+            except Exception as exc_m:
+                log.debug(f"[FUTBOL24-REF] Aviso ao consultar jogo {match_url}: {exc_m}")
+
+    session.close()
+    return enriched_refs
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA & FUTBOL24 ===")

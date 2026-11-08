@@ -105,7 +105,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
 
     agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     total_apostas = len(novas_apostas)
-    subject = f"🟨 [Apostas Cartões] {total_apostas} Nova(s) Aposta(s) Criada(s)! - {agora_str}"
+    subject = f"🟨 [Sugestões Cartões] {total_apostas} Nova(s) Sugestão(ões)! - {agora_str}"
 
     rows_html = ""
     for aposta in novas_apostas:
@@ -143,7 +143,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         </div>
         
         <div style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 15px;">
-            <strong>🚀 NOVAS APOSTAS GERADAS!</strong> Foram identificadas e cadastradas <strong>{total_apostas}</strong> nova(s) aposta(s) no mercado de Total de Cartões (Estratégia Under).
+            <strong>💡 NOVAS SUGESTÕES GERADAS!</strong> Foram identificadas <strong>{total_apostas}</strong> nova(s) sugestão(ões) no mercado de Total de Cartões (Estratégia Under).
         </div>
 
         <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 13px; margin-bottom: 20px;">
@@ -204,29 +204,20 @@ from db_config import get_db_connection
 
 def get_all_user_ids(cursor):
     """
-    Retorna lista de IDs contendo exclusivamente o usuário 'paulomnasc'.
+    Retorna lista de IDs de usuários elegíveis para receber apostas automatizadas:
+    - Usuários com créditos suficientes (grok_credits >= 0.5)
+    - Usuários com assinatura ativa (status_assinatura = 'active')
+    - Administrador Paulo (id = 558)
     """
     cursor.execute("""
         SELECT id FROM usuario 
-        WHERE email LIKE '%paulomnasc%' OR nome LIKE '%paulomnasc%' OR id = 558
+        WHERE (grok_credits >= 0.5 OR status_assinatura = 'active' OR id = 558)
         ORDER BY id ASC
-        LIMIT 1
     """)
     rows = cursor.fetchall()
     if rows:
         return [r['id'] for r in rows]
-    
-    cursor.execute("SELECT id FROM usuario ORDER BY id ASC LIMIT 1")
-    first_user = cursor.fetchone()
-    if first_user:
-        return [first_user['id']]
-
-    print("ℹ️ Criando usuário paulomnasc no sistema para vinculação de apostas...")
-    cursor.execute("""
-        INSERT INTO usuario (nome, email, senha, email_confirmado, criado_em)
-        VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
-    """)
-    return [cursor.lastrowid]
+    return [558]
 # Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
 
@@ -280,10 +271,8 @@ def extract_all_cards_suggestions(prediction_text: str):
         if cand_u not in candidates:
             candidates.append(cand_u)
 
-    # Linhas padrão de Under avaliadas no Gatekeeper (Under 4.5 a 8.5)
+    # Linhas padrão de Under avaliadas no Gatekeeper (Exclusivamente Under 6.5 a 8.5)
     standard_lines = [
-        (False, 4.5),
-        (False, 5.5),
         (False, 6.5),
         (False, 7.5),
         (False, 8.5)
@@ -300,11 +289,7 @@ def extract_all_cards_suggestions(prediction_text: str):
         prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
         odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-        if abs(line_val - 4.5) < 0.01:
-            status_gk = 'APROVADO' if (exp_cards <= 3.50 and prob_poisson >= 60.0) else 'NO_BET'
-        elif abs(line_val - 5.5) < 0.01:
-            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob_poisson >= 60.0) else 'NO_BET'
-        elif line_val >= 6.49:
+        if line_val >= 6.49:
             status_gk = 'APROVADO' if (exp_cards <= (line_val - 1.00) and prob_poisson >= 60.0) else 'NO_BET'
         else:
             status_gk = 'NO_BET'
@@ -445,27 +430,10 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_duplicadas += len(user_ids)
             continue
 
-        # Helper para remover apostas pendentes/não-confirmadas caso a partida não passe mais no crivo do Gatekeeper
+        # Helper para preservar apostas existentes sem exclusão/cancelamento automático via DAG
         def cancelar_apostas_pendentes_existentes(motivo):
-            nonlocal apostas_canceladas
-            for uid in user_ids:
-                cursor.execute("""
-                    SELECT a.id, a.confirmada,
-                           (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-                    FROM apostas a 
-                    WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões' AND a.status IN ('Pendente', 'Cancelada')
-                """, (fixture_id, uid))
-                rows_p = cursor.fetchall()
-                for r_p in rows_p:
-                    tem_deb = (int(r_p.get('tem_debito') or 0) > 0)
-                    is_conf = (int(r_p.get('confirmada') or 0) == 1) or tem_deb
-                    if is_conf:
-                        print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{r_p['id']} possui confirmação do usuário ou débito efetuado. Remoção via Gatekeeper ignorada.")
-                        continue
-
-                    cursor.execute("DELETE FROM apostas WHERE id = %s", (r_p['id'],))
-                    apostas_canceladas += 1
-                    print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
+            # Preserva apostas existentes sem exclusão ou cancelamento automático via DAG
+            return
 
         if not is_allowed_league(league_id, league_name, fixture_date):
             print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
@@ -523,17 +491,27 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_abstencao += 1
             continue
 
-        # Checa se já existe aposta ativa de cartões para esta partida no banco
+        # Checa se já existe aposta ativa ou cancelada pelo usuário de cartões para esta partida no banco
         cursor.execute("""
-            SELECT id FROM apostas 
+            SELECT id, palpite, confirmada, status, status_gatekeeper, resultado_detalhado FROM apostas 
             WHERE fixture_id = %s 
               AND (mercado = 'Total de Cartões' OR mercado LIKE '%%Cartõ%%')
-              AND status NOT IN ('Não Confirmada', 'Cancelada')
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
         """, (fixture_id,))
         ja_tem_aposta = cursor.fetchone()
 
-        if ja_tem_aposta:
+        # Se a aposta existente foi cancelada pelo usuário, preserva o cancelamento e ignora nova candidatura
+        if ja_tem_aposta and ja_tem_aposta.get('status') == 'Cancelada':
+            is_user_cancel = (
+                ja_tem_aposta.get('status_gatekeeper') == 'CANCELADA_USUARIO' or
+                'cancelada pelo usuário' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower() or
+                'indisponível' in str(ja_tem_aposta.get('resultado_detalhado') or '').lower()
+            )
+            if is_user_cancel:
+                print(f"🛑 [Trava Cancelamento Usuário Cartões] Partida #{fixture_id} possui aposta #{ja_tem_aposta['id']} cancelada manualmente pelo usuário. Ignorando nova candidatura.")
+                continue
+
+        if ja_tem_aposta and ja_tem_aposta.get('status') not in ('Não Confirmada', 'Cancelada'):
             # Já existe aposta ativa: sincroniza imediatamente (não consome nova vaga diária)
             c_cnt, u_cnt = sync_fixture_and_bet_cards(
                 cursor=cursor,
@@ -670,7 +648,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     if apostas_criadas > 0:
         recipient = os.environ.get("CART_BETS_EMAIL_RECIPIENT", "paulomnasc@gmail.com")
-        send_created_bets_email(novas_apostas_detalhes, recipient=recipient)
+        # send_created_bets_email(novas_apostas_detalhes, recipient=recipient)
 
     conn.close()
 

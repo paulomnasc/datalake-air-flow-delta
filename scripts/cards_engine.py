@@ -767,8 +767,8 @@ def evaluate_best_card_under_line(
     # Probabilidade de Over 4.5 como referência de over_cards_probability
     over_cards_prob = round(100.0 - under_probs.get(4.5, 50.0), 2)
 
-    # Linhas Canônicas Autorizadas sob Margem Estrita de Segurança
-    standard_lines = [4.5, 5.5, 6.5, 7.5, 8.5]
+    # Restrição Canônica Exclusiva: Apenas Under 6.5, Under 7.5 ou maiores (Linhas Under 5.5 e inferiores descontinuadas)
+    standard_lines = [6.5, 7.5, 8.5]
     candidates = []
 
     friction_mult = u5j_friction_info.get('friction_mult', 1.0) if u5j_friction_info else 1.0
@@ -832,12 +832,12 @@ def evaluate_best_card_under_line(
         return None, [], pred_text, over_cards_prob
 
     for line_val in standard_lines:
+        # Veto mandatório a linhas inferiores a 6.5 por volatilidade estatística e armadilha de mercado
+        if line_val < 6.49:
+            continue
+
         # Trava de Piso do Árbitro Confirmado por Linha:
-        if line_val <= 4.51 and referee_cards_avg and float(referee_cards_avg) >= 4.20:
-            continue
-        elif line_val <= 5.51 and referee_cards_avg and float(referee_cards_avg) >= 5.20:
-            continue
-        elif line_val >= 6.49 and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
+        if line_val >= 6.49 and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
             continue
 
         prob = under_probs.get(line_val, 0.0)
@@ -846,11 +846,7 @@ def evaluate_best_card_under_line(
 
         # Crivo de status estrito do Gatekeeper com margem mínima de 1.0 cartão por linha
         max_xc_allowed = line_val - 1.00
-        if line_val <= 4.51:
-            status_gk = 'APROVADO' if (exp_cards <= 3.50 and prob >= 60.0) else 'NO_BET'
-        elif line_val <= 5.51:
-            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
-        elif line_val >= 6.49:
+        if line_val >= 6.49:
             status_gk = 'APROVADO' if (exp_cards <= max_xc_allowed and prob >= 60.0) else 'NO_BET'
         else:
             status_gk = 'NO_BET'
@@ -892,8 +888,8 @@ def evaluate_best_card_under_line(
             else:
                 continue
 
-        # Piso de odd viável: >= 1.50 para Under 4.5/5.5 e >= 1.40 para Under 6.5+
-        min_odd_req = 1.40 if line_val >= 6.49 else 1.50
+        # Piso de odd viável: >= 1.50 para Under 6.5+ (evita cotas deprimidas)
+        min_odd_req = 1.50
         if real_odd < min_odd_req:
             continue
 
@@ -936,7 +932,7 @@ def evaluate_best_card_under_line(
             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
             reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas de Under bloqueadas. Abstenção mandatória."
         else:
-            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 4.5 a 8.5 com odd viável). Abstenção mandatória."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu aos limiares do Gatekeeper (Under 6.5, 7.5 ou 8.5 com odd viável). Abstenção mandatória."
         pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob
@@ -978,23 +974,31 @@ def sync_fixture_and_bet_cards(
         bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
         gk_detalhado = selected_cand.get('gatekeeper_reason')
 
+        # Consulta a moeda padrão ativa no sistema para criação de apostas (Regra Multi-Moedas)
+        cursor.execute("SELECT codigo, cotacao_brl, casas_decimais FROM moedas_config WHERE is_default = 1 AND ativo = 1 LIMIT 1")
+        m_def = cursor.fetchone()
+        moeda_padrao_cod = m_def['codigo'] if m_def else 'BRL'
+        cotacao_brl_padrao = float(m_def['cotacao_brl']) if m_def else 1.0
+        casas_dec_padrao = int(m_def['casas_decimais']) if m_def else 2
+
         for uid in user_ids:
             # Consulta stake ativa parametrizada do usuário em metas_diarias_config
             cursor.execute("""
-                SELECT stake_padrao 
+                SELECT stake_padrao, moeda_codigo 
                 FROM metas_diarias_config 
                 WHERE usuario_id = %s AND is_ativa = 1 
                 ORDER BY id DESC LIMIT 1
             """, (uid,))
             meta_row = cursor.fetchone()
+            user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
             user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
             if user_stake <= 0.0:
                 user_stake = 10.00
             valor_aposta = user_stake
-            ganhos_potenciais = round(valor_aposta * odd_val, 2)
+            ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
             cursor.execute("""
-                SELECT a.id, a.palpite, a.confirmada, a.status,
+                SELECT a.id, a.palpite, a.confirmada, a.status, a.status_gatekeeper, a.resultado_detalhado,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
                 FROM apostas a
                 WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões'
@@ -1007,6 +1011,18 @@ def sync_fixture_and_bet_cards(
                 if is_conf:
                     has_confirmed_bet = True
                     print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} possui débito em conta corrente ou confirmação mantida intacta.")
+                    continue
+
+                # Preservação mandatória de cancelamento manual pelo usuário (Regra de Salvaguarda)
+                was_canceled_by_user = (
+                    ja_existe.get('status') == 'Cancelada' and (
+                        ja_existe.get('status_gatekeeper') == 'CANCELADA_USUARIO' or
+                        'cancelada pelo usuário' in str(ja_existe.get('resultado_detalhado') or '').lower() or
+                        'indisponível' in str(ja_existe.get('resultado_detalhado') or '').lower()
+                    )
+                )
+                if was_canceled_by_user:
+                    print(f"🛑 [Aposta Cartões Cancelada pelo Usuário Mantida #{uid}] ID #{ja_existe['id']}: cancelamento manual preservado. Reativação bloqueada.")
                     continue
 
                 if ja_existe.get('status') in ('Pendente', 'Cancelada'):
@@ -1029,24 +1045,38 @@ def sync_fixture_and_bet_cards(
                     updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:
+                # Validação de saldo de créditos para usuários comuns (isento admin 558 ou assinatura ativa)
+                cursor.execute("SELECT grok_credits, status_assinatura FROM usuario WHERE id = %s", (uid,))
+                u_info = cursor.fetchone()
+                u_cred = float(u_info.get('grok_credits') or 0.0) if u_info else 0.0
+                u_st = u_info.get('status_assinatura') if u_info else ''
+                if uid != 558 and u_st != 'active' and u_cred < 0.5:
+                    print(f"⚠️ [Saldo Insuficiente User #{uid}] Créditos insuficientes ({u_cred} < 0.5). Aposta de cartões não criada.")
+                    continue
+
                 cursor.execute("""
                     INSERT INTO apostas (
-                        usuario_id, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
+                        usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
                         odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
                         valor_aposta, ganhos_potenciais, status, confirmada, resultado_detalhado, data_hora_jogo, criado_em, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
                         %s, %s, %s, 'APROVADO',
                         %s, %s, 'Pendente', 0, %s, %s, NOW(), NOW()
                     )
                 """, (
-                    uid, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
+                    uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc,
                     valor_aposta, ganhos_potenciais, gk_detalhado, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
                 created_count += 1
                 print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name})")
+
+                # Debita 0.5 crédito do usuário pela aposta gerada
+                if uid != 558 and u_st != 'active':
+                    cursor.execute("UPDATE usuario SET grok_credits = GREATEST(0.0, grok_credits - 0.5) WHERE id = %s", (uid,))
+                    print(f"🪙 [Crédito Debitado User #{uid}] -0.5 crédito | Aposta #{aposta_id} (Novo saldo: {max(0.0, u_cred - 0.5):.2f})")
 
     # Sincroniza fixtures_trends com o texto de predição estruturado (se não houver aposta confirmada conflitante)
     if not has_confirmed_bet and prediction_text:
@@ -1101,12 +1131,19 @@ def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
 
         if fid and is_unassigned:
             cursor.execute("""
-                SELECT referee_name, referee_api_checked_at 
+                SELECT referee_name, referee_api_checked_at, home_team, away_team, league_id
                 FROM fixtures_trends 
                 WHERE fixture_id = %s
             """, (fid,))
             row_chk = cursor.fetchone()
             if row_chk:
+                if not fix.get('home_team') and row_chk.get('home_team'):
+                    fix['home_team'] = row_chk.get('home_team')
+                if not fix.get('away_team') and row_chk.get('away_team'):
+                    fix['away_team'] = row_chk.get('away_team')
+                if not fix.get('league_id') and row_chk.get('league_id'):
+                    fix['league_id'] = row_chk.get('league_id')
+
                 db_ref = (row_chk.get('referee_name') or '').strip()
                 db_ref_low = db_ref.lower()
                 if db_ref and not any(un in db_ref_low for un in [
@@ -1200,5 +1237,42 @@ def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
                 conn.commit()
         except Exception as err:
             print(f"⚠️ [Enriquecimento Árbitro] Erro ao consultar API-Sports para lote {chunk}: {err}")
+
+    # Fallback sistêmico ultra-leve via Futbol24 (HTTP direto + Regex, sem navegador) para partidas ainda sem árbitro na API-Sports
+    candidate_set = set(candidate_ids)
+    still_missing = [
+        fix for fix in target_fixtures
+        if fix.get('fixture_id') in candidate_set and fix.get('fixture_id') not in enriched
+    ]
+    if still_missing:
+        try:
+            dags_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/dags'))
+            if os.path.exists(dags_path) and dags_path not in sys.path:
+                sys.path.insert(0, dags_path)
+            from lib.scrapers import scrape_futbol24_referees_for_fixtures
+            f24_refs = scrape_futbol24_referees_for_fixtures(still_missing)
+            for fid, ref_name in (f24_refs or {}).items():
+                if ref_name and ref_name.strip():
+                    try:
+                        cursor.execute("""
+                            INSERT IGNORE INTO referee_stats (
+                                name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level, updated_at
+                            ) VALUES (%s, 4.20, 0.20, 24.00, 50, 'Moderado', NOW())
+                        """, (ref_name,))
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                referee_name = %s,
+                                referee_api_checked_at = NOW(),
+                                updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (ref_name, fid))
+                        enriched[fid] = ref_name
+                        print(f"✅ [Árbitro Enriquecido via Futbol24] Fixture #{fid} -> Árbitro oficial atribuído: '{ref_name}'")
+                    except Exception as err_f24_db:
+                        print(f"⚠️ [Árbitro Enriquecido via Futbol24] Erro de banco (UPDATE fixtures_trends / INSERT referee_stats) para fixture #{fid} ('{ref_name}'): {err_f24_db}")
+            if f24_refs and conn and hasattr(conn, 'commit'):
+                conn.commit()
+        except Exception as e_f24_ref:
+            print(f"⚠️ [Enriquecimento Árbitro Futbol24] Aviso ao consultar fallback Futbol24: {e_f24_ref}")
 
     return enriched

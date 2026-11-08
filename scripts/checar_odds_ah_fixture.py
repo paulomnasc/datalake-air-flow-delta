@@ -342,9 +342,11 @@ def consultar_radar_ah(fixture_id):
             {
                 "palpite_str": c["palpite_str"],
                 "odd": float(c["odd"]),
+                "bookmaker": c.get("bookmaker") or c.get("source") or "Betano",
                 "ev_percent": float(c.get("eval", {}).get("ev_percent", 0.0)),
                 "odd_justa": float(c.get("eval", {}).get("odd_justa", 0.0)),
-                "prob_eff": float(c.get("eval", {}).get("prob_eff", 0.0))
+                "prob_eff": float(c.get("eval", {}).get("prob_eff", 0.0)),
+                "market_comparison": c.get("market_comparison", {})
             }
             for c in approved_cands
         ],

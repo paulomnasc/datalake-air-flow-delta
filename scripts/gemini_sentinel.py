@@ -1304,23 +1304,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
 
     print(f"⚠️ [Distorção de Linha AH Detectada] {home_team} vs {away_team}: {motivo_distorcao}")
 
-    # Tratamento 1: Aposta Já Confirmada com Dinheiro Real
-    if is_confirmada:
-        tit_alerta = f"⚠️ Alerta de Mercado: Linha desfavorável em {home_team} vs {away_team}"
-        par_alerta = (
-            f"{home_team} x {away_team}: {motivo_distorcao} Sua aposta #{item['aposta_id']} ({palpite_atual} @ {odd_abertura:.2f}) "
-            f"já foi confirmada anteriormente. Por segurança, a aposta foi mantida intacta. "
-            f"Avalie a conveniência de cashout ou cobertura na sua casa de apostas."
-        )
-        return {
-            'bloquear_sinal_verde': True,
-            'alerta_risco': True,
-            'titulo_alerta': tit_alerta,
-            'parecer_alerta': par_alerta,
-            'linha_recalibrada': False
-        }
-
-    # Tratamento 2: Aposta Pendente (Não Confirmada) -> Reavaliação Oficial no Gatekeeper
+    # Reavaliação Oficial no Gatekeeper (Apostas Pendentes ou Confirmadas com Reset Tático por Súmula)
     try:
         cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
         fix_dict = cursor.fetchone()
@@ -1344,47 +1328,141 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         if status_gk == 'APROVADO' and best_cand:
             novo_palpite = best_cand.get('palpite_str') or best_cand.get('palpite') or palpite_sug
             nova_odd = float(best_cand['odd'])
+            casa_nome = best_cand.get('bookmaker') or best_cand.get('source') or 'Betano'
+            odd_justa = float(best_cand.get('odd_justa', 1.80))
+            prob_poisson = float(best_cand.get('probabilidade', best_cand.get('eval', {}).get('prob_eff', 60.0)))
+            ev_perc = float(best_cand.get('ev', best_cand.get('eval', {}).get('ev_percent', 5.0)))
+            destaque_val = 2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1
 
-            # Atualiza no banco sincronizando card e aposta
-            sync_fixture_and_bet_handicap(
-                cursor=cursor,
-                fixture_id=fixture_id,
-                home_team=home_team,
-                away_team=away_team,
-                fixture_date=item.get('fixture_date'),
-                selected_palpite=novo_palpite,
-                odd_val=nova_odd,
-                odd_justa=float(best_cand.get('odd_justa', 1.80)),
-                prob_poisson=float(best_cand.get('probabilidade', 60.0)),
-                ev_perc=float(best_cand.get('ev', 5.0)),
-                detalhe_calculo=reasoning_gk,
-                user_ids=user_ids,
-                confirmada_val=0,
-                destaque_val=2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1,
-                best_cand=best_cand
-            )
-            cursor.connection.commit()
+            if is_confirmada:
+                # Aposta já confirmada no bilhete com débito prévio:
+                # Troca dinamicamente o palpite e a cotação mantendo confirmada=1 e preservando o saldo
+                cursor.execute("""
+                    UPDATE apostas
+                    SET palpite = %s,
+                        odd = %s,
+                        casa_de_aposta = %s,
+                        odd_justa = %s,
+                        probabilidade_poisson = %s,
+                        ev_percentual = %s,
+                        status_gatekeeper = 'APROVADO',
+                        gatekeeper_category = 'Reset Tático por Súmula',
+                        destaque = %s,
+                        resultado_detalhado = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (
+                    novo_palpite, nova_odd, casa_nome, odd_justa, prob_poisson, ev_perc,
+                    destaque_val, reasoning_gk, item['aposta_id']
+                ))
 
-            print(f"🎯 [Gatekeeper Recalibrado com Sucesso] Aposta #{item['aposta_id']} ajustada para '{novo_palpite}' (@ {nova_odd:.2f})")
+                cursor.execute("""
+                    UPDATE fixtures_trends
+                    SET ah_suggestion = %s,
+                        ah_confidence = %s,
+                        gatekeeper_category = 'Reset Tático por Súmula',
+                        ah_reasoning = %s,
+                        updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (novo_palpite, confianca, reasoning_gk, fixture_id))
 
-            return {
-                'bloquear_sinal_verde': False,
-                'alerta_risco': False,
-                'linha_recalibrada': True,
-                'novo_palpite': novo_palpite,
-                'nova_odd': nova_odd,
-                'novo_reasoning': reasoning_gk,
-                'motivo_recalibragem': motivo_distorcao
-            }
+                # Registra auditoria no ciclo de vida
+                try:
+                    try:
+                        from aposta_lifecycle_logger import log_aposta_lifecycle_event
+                    except ImportError:
+                        from scripts.aposta_lifecycle_logger import log_aposta_lifecycle_event
+                    log_aposta_lifecycle_event(
+                        cursor=cursor,
+                        aposta_id=item['aposta_id'],
+                        fixture_id=fixture_id,
+                        usuario_id=item.get('usuario_id'),
+                        status_anterior=item.get('status', 'Pendente'),
+                        status_novo=item.get('status', 'Pendente'),
+                        motivo_categoria='LINHA_TROCADA_SINISTRO_SUMULA',
+                        motivo_detalhado=f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+                    )
+                except Exception as e_lf:
+                    print(f"⚠️ [Lifecycle Logger] Falha ao registrar troca de linha: {e_lf}")
+
+                # Dispara notificação no Sininho do usuário
+                tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
+                msg_notif = (
+                    f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
+                    f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
+                    f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                )
+                lnk_notif = f"/apostas?fixture_id={fixture_id}"
+                for uid in user_ids:
+                    try:
+                        try:
+                            from asian_handicap_engine import registrar_notificacao_usuario
+                        except ImportError:
+                            from scripts.asian_handicap_engine import registrar_notificacao_usuario
+                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, 'LINHA_TROCADA_SUMULA', tit_notif, msg_notif, lnk_notif)
+                    except Exception as e_ntf:
+                        print(f"⚠️ [Notificação Troca Linha] Falha ao enviar para #{uid}: {e_ntf}")
+
+                cursor.connection.commit()
+                print(f"🎯 [Sentinela - Troca Dinâmica em Aposta Confirmada #{item['aposta_id']}] Substituída de '{palpite_atual}' para '{novo_palpite}' (@ {nova_odd:.2f} {casa_nome})")
+
+                return {
+                    'bloquear_sinal_verde': False,
+                    'alerta_risco': False,
+                    'linha_recalibrada': True,
+                    'novo_palpite': novo_palpite,
+                    'nova_odd': nova_odd,
+                    'novo_reasoning': reasoning_gk,
+                    'motivo_recalibragem': motivo_distorcao
+                }
+            else:
+                # Aposta não confirmada -> Sincronização padrão
+                sync_fixture_and_bet_handicap(
+                    cursor=cursor,
+                    fixture_id=fixture_id,
+                    home_team=home_team,
+                    away_team=away_team,
+                    fixture_date=item.get('fixture_date'),
+                    selected_palpite=novo_palpite,
+                    odd_val=nova_odd,
+                    odd_justa=odd_justa,
+                    prob_poisson=prob_poisson,
+                    ev_perc=ev_perc,
+                    detalhe_calculo=reasoning_gk,
+                    user_ids=user_ids,
+                    confirmada_val=0,
+                    destaque_val=destaque_val,
+                    best_cand=best_cand
+                )
+                cursor.connection.commit()
+
+                print(f"🎯 [Gatekeeper Recalibrado com Sucesso] Aposta #{item['aposta_id']} ajustada para '{novo_palpite}' (@ {nova_odd:.2f} {casa_nome})")
+
+                return {
+                    'bloquear_sinal_verde': False,
+                    'alerta_risco': False,
+                    'linha_recalibrada': True,
+                    'novo_palpite': novo_palpite,
+                    'nova_odd': nova_odd,
+                    'novo_reasoning': reasoning_gk,
+                    'motivo_recalibragem': motivo_distorcao
+                }
         else:
             # Gatekeeper reprovou todas as linhas disponíveis no mercado atual
             print(f"🛑 [Gatekeeper Reprovou Linhas Vivas] {home_team} vs {away_team}: nenhuma linha aprovada no mercado atual.")
             tit_alerta = f"⚠️ Alerta: Distorção de Linha AH em {home_team} vs {away_team}"
-            par_alerta = (
-                f"{home_team} x {away_team}: {motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo na Betano "
-                f"e reprovou novas entradas por ausência de valor seguro (+EV). "
-                f"Recomendado NÃO apostar nesta partida."
-            )
+            if is_confirmada:
+                par_alerta = (
+                    f"{home_team} x {away_team}: {motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo no mercado "
+                    f"e reprovou novas entradas por ausência de valor seguro (+EV). Sua aposta #{item['aposta_id']} ({palpite_atual} @ {odd_abertura:.2f}) "
+                    f"já foi confirmada anteriormente. Por segurança matemática, avalie a conveniência de cashout ou cobertura."
+                )
+            else:
+                par_alerta = (
+                    f"{home_team} x {away_team}: {motivo_distorcao} O Gatekeeper reavaliou todas as linhas de handicap ao vivo no mercado "
+                    f"e reprovou novas entradas por ausência de valor seguro (+EV). "
+                    f"Recomendado NÃO apostar nesta partida."
+                )
             return {
                 'bloquear_sinal_verde': True,
                 'alerta_risco': True,

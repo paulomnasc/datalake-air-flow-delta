@@ -838,6 +838,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                     'time_fora': away_team,
                     'palpite': selected_palpite,
                     'odd': odd_val,
+                    'casa_de_aposta': (best_cand.get('bookmaker') or best_cand.get('source') or 'Betano'),
                     'valor_aposta': valor_aposta,
                     'ganhos_potenciais': ganhos_potenciais,
                     'data_hora_jogo': fixture_date
@@ -926,11 +927,13 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                         'time_fora': cand['away_team'],
                         'palpite': cand['selected_palpite'],
                         'odd': cand['odd_val'],
+                        'casa_de_aposta': (cand['best_cand'].get('bookmaker') or cand['best_cand'].get('source') or 'Betano'),
                         'valor_aposta': cand['valor_aposta'],
                         'ganhos_potenciais': cand['ganhos_potenciais'],
                         'data_hora_jogo': cand['fixture_date']
                     })
-                print(f"🟢 [Top 10 AH Aposta Criada] #{cand['fixture_id']} {cand['home_team']} vs {cand['away_team']} | {cand['selected_palpite']} @ {cand['odd_val']} | EV: +{cand['ev_perc']:.1f}%")
+                bm_name_log = cand['best_cand'].get('bookmaker') or cand['best_cand'].get('source') or 'Betano'
+                print(f"🟢 [Top 10 AH Aposta Criada] #{cand['fixture_id']} {cand['home_team']} vs {cand['away_team']} | {cand['selected_palpite']} @ {cand['odd_val']} ({bm_name_log}) | EV: +{cand['ev_perc']:.1f}%")
 
             for cand in cands_excedentes:
                 h_tid = cand['fix'].get('home_team_id')

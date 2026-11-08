@@ -256,8 +256,8 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                                 ?>
                                 <div style="background: <?= $cardBg ?>; border: <?= $cardBorder ?>; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 44px; transition: transform 0.15s ease;" title="<?= htmlspecialchars($fullReason) ?>">
                                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                                        <span style="font-size: 0.75rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 6px;">
-                                            <?= htmlspecialchars($teamName . ' ' . $lineVal) ?>
+                                        <span style="font-size: 0.80rem; color: #f1f5f9; font-weight: 700; font-family: monospace;">
+                                            <?= htmlspecialchars($lineVal) ?>
                                         </span>
                                         <span style="font-size: 0.88rem; font-weight: 800; font-family: monospace; color: <?= $oddColor ?>;">
                                             <?= $oddVal ?>

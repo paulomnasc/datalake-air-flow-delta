@@ -510,7 +510,7 @@ if (!function_exists('renderStructuredMotivation')) {
                             $icon = $isAprov ? '🟢' : '❌';
                             
                             $auditTableHtml .= '<div style="background: ' . $bg . '; border: ' . $border . '; border-radius: 8px; padding: 6px 10px; min-height: 44px;" title="' . htmlspecialchars($fReason) . '">';
-                            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.74rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' . htmlspecialchars($tName . ' ' . $lVal) . '</span><span style="font-size: 0.86rem; font-weight: 800; font-family: monospace; color: ' . $color . ';">' . $oVal . '</span></div>';
+                            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.80rem; color: #f1f5f9; font-weight: 700; font-family: monospace;">' . htmlspecialchars($lVal) . '</span><span style="font-size: 0.86rem; font-weight: 800; font-family: monospace; color: ' . $color . ';">' . $oVal . '</span></div>';
                             $auditTableHtml .= '<div style="margin-top: 2px;"><span style="font-size: 0.60rem; font-weight: 600; color: ' . $badgeColor . '; background: ' . $badgeBg . '; border: 1px solid ' . $badgeBorder . '; padding: 0 4px; border-radius: 4px;">' . $icon . ' ' . htmlspecialchars($sReason) . '</span></div>';
                             $auditTableHtml .= '</div>';
                         } else {

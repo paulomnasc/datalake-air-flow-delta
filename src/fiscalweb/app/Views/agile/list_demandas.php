@@ -154,6 +154,10 @@ require VIEWPATH.'/header.php';
 <script>
 $(document).ready(function() {
     $('#demandas-table').DataTable({
+        order: [[3, 'asc']],
+        columnDefs: [
+            { targets: 5, orderable: false }
+        ],
         language: {
             "sEmptyTable": "Nenhum registro encontrado",
             "sInfo": "Mostrando de _START_ até _END_ de _TOTAL_ registros",

@@ -125,7 +125,10 @@ class AgileController extends BaseController
             $builder->where('agile_demandas.status', $status_selecionado);
         }
 
-        $demandas = $builder->orderBy('agile_demandas.criado_em', 'DESC')->findAll();
+        $demandas = $builder
+            ->orderBy('agile_demandas.status', 'ASC')
+            ->orderBy('agile_demandas.criado_em', 'DESC')
+            ->findAll();
 
         return view('agile/list_demandas', [
             'demandas' => $demandas,

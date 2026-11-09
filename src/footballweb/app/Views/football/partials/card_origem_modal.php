@@ -121,30 +121,36 @@ if (!function_exists('simplifyRejectionReasonModal')) {
     }
 }
 
-if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
-    function renderHandicapAuditTableInsideMotivation($rawMotivation, $fix, $aposta = null) {
-        if (empty($rawMotivation)) return '';
+if (!function_exists('renderHandicapAuditTableModal')) {
+    function renderHandicapAuditTableModal($fix, $aposta = null) {
+        $rawAuditText = '';
+        $sources = [
+            $fix->ah_reasoning ?? '',
+            $aposta->resultado_detalhado ?? ''
+        ];
 
-        // Se não contiver o bloco de linhas auditadas, retorna o texto preservando quebras de linha
-        if (!preg_match('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:/u', $rawMotivation)) {
-            return nl2br(htmlspecialchars($rawMotivation));
+        foreach ($sources as $fullSource) {
+            if (empty($fullSource)) continue;
+            if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
+                $rawAuditText = $mAud[1];
+                break;
+            } elseif (preg_match('/📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*/u', $fullSource, $mAud)) {
+                $rawAuditText = $mAud[0];
+                break;
+            }
         }
 
-        $parts = preg_split('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:/u', $rawMotivation);
-        $tacticalText = trim($parts[0] ?? '');
-        $linesBlock = $parts[1] ?? '';
+        $homeTeam = $fix->home_team ?? 'Mandante';
+        $awayTeam = $fix->away_team ?? 'Visitante';
 
-        $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
-        preg_match_all($pattern, $linesBlock, $matches, PREG_SET_ORDER);
-
-        if (empty($matches)) {
-            return nl2br(htmlspecialchars($rawMotivation));
+        $matches = [];
+        if (!empty($rawAuditText)) {
+            $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
+            preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
         }
 
         // Agrupar linhas em pares (Mandante x Visitante) no padrão 1win
-        $pairs = array_chunk($matches, 2);
-        $homeTeam = $fix->home_team ?? 'Mandante';
-        $awayTeam = $fix->away_team ?? 'Visitante';
+        $pairs = !empty($matches) ? array_chunk($matches, 2) : [];
 
         // Detecção de aposta aprovada / Radar de Oportunidade
         $approvedLineInBet = null;
@@ -163,7 +169,7 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
 
         // Verifica se a linha aprovada já consta na lista da Betano
         $foundInAudit = false;
-        if ($approvedLineInBet) {
+        if ($approvedLineInBet && !empty($pairs)) {
             foreach ($pairs as &$p) {
                 foreach ($p as &$mItem) {
                     if ($mItem && stripos($mItem[2], $approvedLineInBet['team']) !== false && floatval($mItem[3]) == floatval($approvedLineInBet['line'])) {
@@ -205,21 +211,49 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                 $radarPair = $isHome ? [$appCell, $oppCell] : [$oppCell, $appCell];
                 array_unshift($pairs, $radarPair);
             }
+        } elseif ($approvedLineInBet && empty($pairs)) {
+            // Caso em que só temos a linha da aposta aprovada gravada
+            $isHome = (stripos($homeTeam, $approvedLineInBet['team']) !== false || stripos($approvedLineInBet['team'], $homeTeam) !== false);
+            $oppTeam = $isHome ? $awayTeam : $homeTeam;
+            $oppVal = -floatval($approvedLineInBet['line']);
+            $oppLine = ($oppVal > 0 ? '+' : '') . $oppVal;
+            if ($oppVal == 0.0) $oppLine = '0.0';
+
+            $appCell = [
+                0 => '',
+                1 => '🟢 [APROVADA]',
+                2 => $approvedLineInBet['team'],
+                3 => $approvedLineInBet['line'],
+                4 => number_format($approvedLineInBet['odd'], 2),
+                5 => $approvedLineInBet['reason']
+            ];
+            $oppCell = [
+                0 => '',
+                1 => '❌ [REPROVADA]',
+                2 => $oppTeam,
+                3 => $oppLine,
+                4 => '--',
+                5 => 'Linha inversa de cobertura no adversário'
+            ];
+
+            $radarPair = $isHome ? [$appCell, $oppCell] : [$oppCell, $appCell];
+            $pairs = [$radarPair];
+        }
+
+        if (empty($pairs)) {
+            return '<div style="background: rgba(15, 23, 42, 0.75); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 25px; text-align: center; color: #94a3b8; font-size: 0.78rem;">
+                <i class="bi bi-sliders mb-2 d-block" style="font-size: 1.5rem; color: #64748b;"></i>
+                Nenhuma linha de Handicap Asiático auditada registrada para esta partida no momento da análise.
+            </div>';
         }
 
         ob_start();
         ?>
-        <?php if (!empty($tacticalText)): ?>
-            <div style="margin-bottom: 12px; line-height: 1.5; white-space: pre-line;">
-                <?= htmlspecialchars($tacticalText) ?>
-            </div>
-        <?php endif; ?>
-
         <!-- Tabela Estilo 1win Bet para Handicap Asiático -->
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 12px; margin-top: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">
-                <span style="font-weight: 700; color: #f8fafc; font-size: 0.82rem; display: flex; align-items: center; gap: 6px;">
-                    <i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)
+        <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 10px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;">
+                    <i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Auditadas pelo Gatekeeper
                 </span>
                 <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem; font-weight: 600;">
                     Auditoria Gatekeeper
@@ -227,13 +261,13 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
             </div>
 
             <!-- Nomes dos Times (Cabeçalho de Colunas 1win) -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.75rem; font-weight: 700; color: #94a3b8;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;">
                 <div style="text-align: left;">🏠 <?= htmlspecialchars($homeTeam) ?></div>
                 <div style="text-align: right;">✈️ <?= htmlspecialchars($awayTeam) ?></div>
             </div>
 
-            <!-- Linhas de Cotação (Pares 1win) -->
-            <div style="display: flex; flex-direction: column; gap: 6px;">
+            <!-- Linhas de Cotação (Pares 1win) com Scrollbar Lateral -->
+            <div class="ah-lines-scroll" style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; padding-right: 6px;">
                 <?php foreach ($pairs as $pair): ?>
                     <?php 
                         $itemH = $pair[0] ?? null;
@@ -287,7 +321,7 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                                 <div style="background: <?= $cardBg ?>; border: <?= $cardBorder ?>; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 44px; transition: transform 0.15s ease;" title="<?= htmlspecialchars($fullReason) ?>">
                                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                                         <span style="font-size: 0.80rem; color: #f1f5f9; font-weight: 700; font-family: monospace;">
-                                            <?= htmlspecialchars($lineVal) ?>
+                                             <?= htmlspecialchars($lineVal) ?>
                                         </span>
                                         <span style="font-size: 0.88rem; font-weight: 800; font-family: monospace; color: <?= $oddColor ?>;">
                                             <?= $oddVal ?>
@@ -403,6 +437,53 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
     .card-origem-modal-wrapper .prob-bar-fill.high { background: linear-gradient(90deg, #10b981, #059669); }
     .card-origem-modal-wrapper .prob-bar-fill.safe { background: linear-gradient(90deg, #38bdf8, #0284c7); }
     .card-origem-modal-wrapper .prob-bar-fill.risky { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .card-origem-modal-wrapper .match-detail-nav-tabs {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      gap: 6px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link {
+      color: #94a3b8;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link:hover {
+      color: #f1f5f9;
+      background: rgba(51, 65, 85, 0.8);
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link.active {
+      color: #38bdf8;
+      background: rgba(15, 23, 42, 0.95);
+      border-color: rgba(56, 189, 248, 0.4) rgba(56, 189, 248, 0.4) transparent rgba(56, 189, 248, 0.4);
+      border-bottom: 2px solid #38bdf8;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll {
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 4px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35);
+      border-radius: 4px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.6);
+    }
   </style>
 
   <!-- Cabeçalho da Partida -->
@@ -634,13 +715,40 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
         </div>
       <?php endif; ?>
 
-      <!-- Linha do Tempo U5J -->
-      <?= renderU5JTimelineTableModal($u5j_data, $fix) ?>
+      <!-- Contêiner de Abas: U5J vs Linhas AH do Gatekeeper -->
+      <ul class="nav nav-tabs match-detail-nav-tabs" id="matchDetailTabs-<?= $fixtureId ?>" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-u5j-btn-<?= $fixtureId ?>" data-bs-toggle="tab" data-bs-target="#tab-u5j-pane-<?= $fixtureId ?>" type="button" role="tab" aria-controls="tab-u5j-pane-<?= $fixtureId ?>" aria-selected="true">
+            <i class="bi bi-clock-history me-1 text-warning"></i> Linha do Tempo Recente (U5J)
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-ah-lines-btn-<?= $fixtureId ?>" data-bs-toggle="tab" data-bs-target="#tab-ah-lines-pane-<?= $fixtureId ?>" type="button" role="tab" aria-controls="tab-ah-lines-pane-<?= $fixtureId ?>" aria-selected="false">
+            <i class="bi bi-sliders me-1 text-info"></i> Linhas AH (Gatekeeper)
+          </button>
+        </li>
+      </ul>
 
-      <?php if (!empty($motivation)): ?>
+      <div class="tab-content" id="matchDetailTabContent-<?= $fixtureId ?>">
+        <div class="tab-pane fade show active" id="tab-u5j-pane-<?= $fixtureId ?>" role="tabpanel" aria-labelledby="tab-u5j-btn-<?= $fixtureId ?>">
+          <?= renderU5JTimelineTableModal($u5j_data, $fix) ?>
+        </div>
+        <div class="tab-pane fade" id="tab-ah-lines-pane-<?= $fixtureId ?>" role="tabpanel" aria-labelledby="tab-ah-lines-btn-<?= $fixtureId ?>">
+          <?= renderHandicapAuditTableModal($fix, $aposta ?? null) ?>
+        </div>
+      </div>
+
+      <?php 
+        $cleanMotivation = $motivation;
+        if (!empty($cleanMotivation)) {
+            $cleanMotivation = preg_replace('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[\s\S]*$/u', '', $cleanMotivation);
+            $cleanMotivation = trim($cleanMotivation);
+        }
+      ?>
+      <?php if (!empty($cleanMotivation)): ?>
         <div class="p-2.5 mt-2 rounded-2" style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.74rem; color: #cbd5e1; line-height: 1.4;">
           <strong class="text-info d-block mb-1"><i class="bi bi-lightbulb-fill me-1"></i> Motivação Tática da Seleção:</strong>
-          <div><?= renderHandicapAuditTableInsideMotivation($motivation, $fix, $aposta ?? null) ?></div>
+          <div style="white-space: pre-line;"><?= htmlspecialchars($cleanMotivation) ?></div>
         </div>
       <?php endif; ?>
     </div>
@@ -737,5 +845,36 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <?php endif; ?>
     </div>
   <?php endif; ?>
+
+  <script>
+    (function() {
+      var fixtureTabs = document.querySelectorAll('#matchDetailTabs-<?= $fixtureId ?> [data-bs-toggle="tab"]');
+      fixtureTabs.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var targetSelector = this.getAttribute('data-bs-target');
+          if (!targetSelector) return;
+          var tabContainer = document.getElementById('matchDetailTabContent-<?= $fixtureId ?>');
+          if (!tabContainer) return;
+
+          fixtureTabs.forEach(function(b) {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+          });
+          this.classList.add('active');
+          this.setAttribute('aria-selected', 'true');
+
+          var panes = tabContainer.querySelectorAll('.tab-pane');
+          panes.forEach(function(p) {
+            p.classList.remove('show', 'active');
+          });
+          var activePane = tabContainer.querySelector(targetSelector);
+          if (activePane) {
+            activePane.classList.add('show', 'active');
+          }
+        });
+      });
+    })();
+  </script>
 </div>
 

@@ -6170,7 +6170,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     if (!html) {
       html = `
         <div class="text-white-50 py-1" style="font-size: 0.72rem;">
-          <i class="bi bi-info-circle me-1"></i> No momento, todas as linhas de mercado ativas estão com margem de valor reduzida ou retidas pelo filtro de momento.
+          <i class="bi bi-info-circle me-1 text-warning"></i> ⚠️ Nenhuma linha alternativa aprovada pelo Gatekeeper: as cotações ativas não atingem o piso operacional seguro ou as linhas alternativas estão bloqueadas por travas de campo/mando. Recomendação da banca: Abstenção (NO_BET).
         </div>
       `;
     }

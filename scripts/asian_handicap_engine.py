@@ -3193,6 +3193,8 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
         elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"
+        elif is_away and c_line == -0.25:
+            motivo = "Reprovada: Apoiar visitante em -0.25 AH exige mandante fragilizado ou em crise no U5J (risco de mando desfavorável)"
         else:
             motivo = "Reprovada pelo Gatekeeper por margem de valor esperado insuficiente ou gestão de risco"
 

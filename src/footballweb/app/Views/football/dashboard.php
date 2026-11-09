@@ -761,6 +761,8 @@ $leagueMap = [
     106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
     345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
     501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+    233  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
+    714  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
 
     // Competições Internacionais -> INTERNACIONAL
     1    => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
@@ -820,6 +822,9 @@ if (!function_exists('formatLeagueDisplayName')) {
 
         if ($lId === 39) return 'Premier League (Inglaterra)';
         if ($lId === 40) return 'Championship (Inglaterra)';
+
+        if ($lId === 233) return 'Premier League (Egito)';
+        if ($lId === 714) return 'Copa (Egito)';
 
         // Fallbacks por nome de liga caso o ID não seja um dos acima
         if (strpos($lLower, 'copa do brasil') !== false || strpos($lLower, 'copa brasil') !== false) {
@@ -992,6 +997,9 @@ if (!function_exists('resolveLeagueCountryAndFlag')) {
         }
         if (strpos($lNameLower, 'tcheca') !== false || strpos($lNameLower, 'czech') !== false) {
             return ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'egito') !== false || strpos($lNameLower, 'egypt') !== false) {
+            return ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false];
         }
 
         // Fallback default: INTERNACIONAL se não houver país identificado

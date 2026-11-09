@@ -70,8 +70,11 @@ ALLOWED_LEAGUES = {
     ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)"
-    ## 18: "AFC Champions League Two (Asia)"
+    17: "AFC Champions League (Asia)",
+    ## 18: "AFC Champions League Two (Asia)",
+    # Egito
+    233: "Premier League (Egito)",
+    714: "Copa (Egito)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
@@ -102,7 +105,8 @@ ALLOWED_LEAGUE_NAMES = [
     'veikkausliiga', 'ekstraklasa', 'czech first league',
     'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
-    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional'
+    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional',
+    'premier league (egito)', 'copa (egito)', 'egypt premier league', 'egypt cup', 'copa do egito'
 ]
 
 
@@ -353,7 +357,11 @@ TIER_1_ELITE_CLUBS = {
     # China (Super League)
     836: "SHANGHAI SIPG",
     833: "Shanghai Shenhua",
-    844: "Shandong Luneng"
+    844: "Shandong Luneng",
+
+    # Egito (Premier League - Gigantes do Cairo / África)
+    1577: "Al Ahly",
+    1040: "Zamalek SC"
 }
 
 
@@ -435,6 +443,9 @@ TIER_1_NAME_TO_ID = {
     "the strongest": 3711, "strongest": 3711,
     "jorge wilstermann": 3705, "wilstermann": 3705,
     "oriente petrolero": 3707, "blooming": 3701,
+    # Egito
+    "al ahly": 1577, "al-ahly": 1577, "al ahly cairo": 1577,
+    "zamalek": 1040, "zamalek sc": 1040,
 }
 
 # Cache em memória para consulta instantânea O(1) de seleções do Mundial

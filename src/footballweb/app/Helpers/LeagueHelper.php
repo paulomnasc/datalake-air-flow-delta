@@ -88,6 +88,8 @@ class LeagueHelper
         106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
         345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
         501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+        233  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
+        714  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
         // Competições Internacionais
         1    => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
         2    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
@@ -208,6 +210,9 @@ class LeagueHelper
         }
         if (strpos($lNameLower, 'méxico') !== false || strpos($lNameLower, 'mexico') !== false || strpos($lNameLower, 'liga mx') !== false) {
             return ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'egito') !== false || strpos($lNameLower, 'egypt') !== false) {
+            return ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false];
         }
 
         return ['country' => 'Outro', 'flag' => '🌐', 'popular' => false];
@@ -348,7 +353,10 @@ class LeagueHelper
             2295 => "Cruz Azul",
             2286 => "U.N.A.M. - Pumas",
             2281 => "Toluca",
-            2292 => "CF Pachuca"
+            2292 => "CF Pachuca",
+            // Egito
+            1577 => "Al Ahly",
+            1040 => "Zamalek SC"
         ];
 
         // 1. Validação por ID oficial (100% determinística)

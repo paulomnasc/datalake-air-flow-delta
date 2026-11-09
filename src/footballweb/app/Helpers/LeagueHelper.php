@@ -87,6 +87,8 @@ class LeagueHelper
         197  => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
         106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
         345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
+        250  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+        252  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
         501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
         233  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
         714  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],

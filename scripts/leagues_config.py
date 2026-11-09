@@ -52,7 +52,10 @@ ALLOWED_LEAGUES = {
     239: "Primera Division (Colombia)",
     344: "Primera Division (Bolivia)",
     964: "Copa de la Division Profesional (Bolivia)",
-    ## 501: "Copa Paraguay (Paraguai)",
+    # Paraguai
+    250: "Division Profesional - Apertura (Paraguai)",
+    252: "Division Profesional - Clausura (Paraguai)",
+    501: "Copa Paraguay (Paraguai)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
     203: "Super Lig (Turquia)",
@@ -106,7 +109,8 @@ ALLOWED_LEAGUE_NAMES = [
     'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
     'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional',
-    'premier league (egito)', 'copa (egito)', 'egypt premier league', 'egypt cup', 'copa do egito'
+    'premier league (egito)', 'copa (egito)', 'egypt premier league', 'egypt cup', 'copa do egito',
+    'clausura (paraguai)', 'apertura (paraguai)', 'copa paraguay'
 ]
 
 

@@ -760,6 +760,8 @@ $leagueMap = [
     197  => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
     106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
     345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
+    250  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+    252  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
     501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
     233  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
     714  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
@@ -806,6 +808,8 @@ if (!function_exists('formatLeagueDisplayName')) {
         if ($lId === 265) return 'Primera División (Chile)';
         if ($lId === 268) return 'Primera División (Uruguai)';
         if ($lId === 281) return 'Primera División (Peru)';
+        if ($lId === 250) return 'Primera División - Apertura (Paraguai)';
+        if ($lId === 252) return 'Primera División - Clausura (Paraguai)';
         if ($lId === 501) return 'Copa Paraguay';
         if ($lId === 128) return 'Liga Profesional Argentina';
         if ($lId === 129) return 'Primera Nacional (Argentina)';

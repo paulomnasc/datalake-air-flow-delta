@@ -845,6 +845,8 @@ def evaluate_and_select_best_ah_candidate(
     mkt_fair_odd = 0.0
     team_penalizado = str((desfalques_criticos or {}).get('time_desfalcado') or '').lower() if desfalques_criticos else ''
     is_cand_benefited_by_lineup = False
+    cand_trend = "CURVA_ESTAVEL"
+    opp_trend = "CURVA_ESTAVEL"
 
     h_rank_val = 0
     a_rank_val = 0
@@ -950,6 +952,11 @@ def evaluate_and_select_best_ah_candidate(
         cand_pts_eff = compute_team_u5j_efficiency(cand_l5)
         opp_pts_eff = compute_team_u5j_efficiency(opp_l5)
 
+        cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
+        opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
+        cand_trend = (cand_l5 or {}).get('trend') or cand_trend_info.get("trend", "CURVA_ESTAVEL")
+        opp_trend = (opp_l5 or {}).get('trend') or opp_trend_info.get("trend", "CURVA_ESTAVEL")
+
         is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
         is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
 
@@ -957,6 +964,17 @@ def evaluate_and_select_best_ah_candidate(
         is_super_dominant_tier1 = (
             is_tier1 and cand_pts_eff >= 24.0 and opp_pts_eff <= 5.0 and
             cand_odd <= 1.35 and cand_xg_diff >= 2.0
+        )
+
+        # Condição Sistêmica: Mandante Falso Azarão com Dominância Relativa >= +30% no U5J (Quase Premium Invertido)
+        has_30pct_u5j_dominance = (cand_pts_eff >= (opp_pts_eff * 1.30)) if opp_pts_eff > 0 else (cand_pts_eff >= 8.0)
+        is_cand_false_dog_dominant = (
+            not c_is_away and
+            (cand_odd > opp_odd or cand_odd >= 2.40) and
+            cand_pts_eff >= 8.0 and
+            has_30pct_u5j_dominance and
+            cand_trend != "CURVA_DESCENDENTE" and
+            cand_xg_diff >= 0.0
         )
 
         # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -0.75 AH
@@ -969,10 +987,11 @@ def evaluate_and_select_best_ah_candidate(
         # (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5) com cotações espremidas (1.50 a 1.75)
         # gera expectativa matemática negativa (-25.3% ROI).
         # O Gatekeeper passa a operar com FOCO ESTRITO EM FAVORITOS (-AH) e DNB (0.0 AH).
-        # Exceção Soberana: Reset Tático por Súmula Oficial (habilita linhas de cobertura +0.25 e +0.50)
+        # Exceção Soberana 1: Reset Tático por Súmula Oficial (habilita linhas de cobertura +0.25 e +0.50)
+        # Exceção Soberana 2: Falso Azarão Mandante com Dominância Relativa >= 30% no U5J (Quase Premium Invertido)
         # =========================================================================
         if c_line > 0.0:
-            if not (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)):
+            if not ((is_cand_benefited_by_lineup or is_cand_false_dog_dominant) and c_line in (0.25, 0.50)):
                 continue
 
         # =========================================================================
@@ -985,13 +1004,6 @@ def evaluate_and_select_best_ah_candidate(
         if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75)):
             continue
 
-        cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
-        opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
-        cand_trend = (cand_l5 or {}).get('trend') or cand_trend_info.get("trend", "CURVA_ESTAVEL")
-        opp_trend = (opp_l5 or {}).get('trend') or opp_trend_info.get("trend", "CURVA_ESTAVEL")
-
-        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
-        is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
         u5j_diff = abs(cand_pts_eff - opp_pts_eff)
         opp_ratio = (cand_odd / opp_odd) if opp_odd > 0 else 1.0
         cand_ratio = (opp_odd / cand_odd) if cand_odd > 0 else 1.0
@@ -1098,9 +1110,10 @@ def evaluate_and_select_best_ah_candidate(
         # PRISMA QUASE PREMIUM - V2 (ALINHAMENTO DE MERCADO 1X2 E TETO DE COTAÇÃO):
         # O mercado internacional de 1X2 precifica a liquidez profissional das equipes.
         # Se a cotação 1X2 da equipe for de azarão evidente (cand_odd > 2.40),
-        # é expressamente PROIBIDO apoiar essa equipe em linhas de favoritismo ou DNB (c_line <= 0.0).
+        # é expressamente PROIBIDO apoiar essa equipe em linhas de favoritismo ou DNB (c_line <= 0.0),
+        # exceto se qualificada como Falso Azarão Mandante com dominância >= 30% no U5J na linha 0.0 AH.
         # =========================================================================
-        if cand_odd > 2.40 and c_line <= 0.0 and not is_super_fav_crushed:
+        if cand_odd > 2.40 and c_line <= 0.0 and not is_super_fav_crushed and not (is_cand_false_dog_dominant and c_line == 0.0):
             if not is_cand_benefited_by_lineup:
                 continue
 
@@ -1187,7 +1200,7 @@ def evaluate_and_select_best_ah_candidate(
         is_cand_fav = (cand_odd < opp_odd)
         is_cand_underdog = (cand_odd > opp_odd and (cand_odd - opp_odd) >= 0.20)
         if c_line == 0.0:
-            if not is_cand_benefited_by_lineup:
+            if not (is_cand_benefited_by_lineup or is_cand_false_dog_dominant):
                 if c_is_away and cand_odd >= opp_odd:
                     continue
                 if not c_is_away and (cand_odd - opp_odd) >= 0.25:
@@ -1381,7 +1394,7 @@ def evaluate_and_select_best_ah_candidate(
             # Parâmetros Canônicos Comprovados da Época de Ouro:
             required_prob = 55.0  # Retorno ao piso histórico que viabiliza o meio-reembolso
             required_ev = 5.0     # Retorno ao limiar canônico de Valor Esperado Positivo (+EV)
-        elif c_line in standard_allowed_lines or (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)):
+        elif c_line in standard_allowed_lines or ((is_cand_benefited_by_lineup or is_cand_false_dog_dominant) and c_line in (0.25, 0.50)):
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
                 continue
@@ -1409,7 +1422,7 @@ def evaluate_and_select_best_ah_candidate(
                     )
                     if not (has_crushed_home or has_standing_dominance or is_cand_benefited_by_lineup):
                         continue
-                required_prob = 50.0 if is_cand_benefited_by_lineup else min_prob
+                required_prob = 50.0 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
             if is_cand_fav and c_line > 0.0 and not is_cand_benefited_by_lineup:
                 continue
@@ -1424,8 +1437,8 @@ def evaluate_and_select_best_ah_candidate(
             continue
 
         # Faixa de odd segura operacional: piso mínimo de 1.50 para Apostas Premium e 1.60 para as demais
-        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if is_super_dominant_tier1 else 1.60)
-        max_op_odd = 2.75 if is_cand_benefited_by_lineup else 2.55
+        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.60)
+        max_op_odd = 2.75 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else 2.55
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 
@@ -1452,8 +1465,8 @@ def evaluate_and_select_best_ah_candidate(
                 mkt_fair_odd = (1.0 / p_justa_c) if p_justa_c > 0 else 99.0
 
             # Se a cotação real da casa for menor que a odd justa de mercado, a aposta não tem margem (+EV negativo)
-            # Exceção Estrutural: Visitante com Superioridade de Fundamentos comprovada ou Beneficiado por Súmula
-            if not (is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup):
+            # Exceção Estrutural: Visitante com Superioridade de Fundamentos comprovada, Beneficiado por Súmula ou Falso Azarão Dominante
+            if not (is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup or is_cand_false_dog_dominant):
                 if mkt_fair_odd > 0.0 and c_odd < mkt_fair_odd:
                     continue
 
@@ -1468,13 +1481,13 @@ def evaluate_and_select_best_ah_candidate(
         # A casa de apostas precifica o 1X2 com altíssima eficiência de mercado.
         # Se a probabilidade pura de vitória estimada por Poisson divergir mais de 18 pontos percentuais
         # da probabilidade implícita justa do mercado 1X2, rejeita a entrada por distorção de Poisson.
-        # Em cenários de Distorção de Banca / Momentum Surge comprovada, a tolerância máxima é de 25.0 pp.
+        # Em cenários de Distorção de Banca / Momentum Surge / Falso Azarão Dominante, a tolerância é ampliada.
         if cand_odd > 0 and opp_odd > 0:
             inv_cand = 1.0 / cand_odd
             inv_opp = 1.0 / opp_odd
             market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
             p_pure_win = sum(p for (x, y), p in poisson_matrix.items() if (y > x if c_is_away else x > y)) * 100.0
-            max_divergence = 30.0 if (cand_is_better_performance or is_away_momentum_surge or is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup) else 18.0
+            max_divergence = 45.0 if is_cand_false_dog_dominant else (30.0 if (cand_is_better_performance or is_away_momentum_surge or is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup) else 18.0)
             if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
 
@@ -1494,6 +1507,7 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_super_dominant_tier1'] = is_super_dominant_tier1
+            cand_copy['is_false_dog_dominant'] = is_cand_false_dog_dominant
             if is_cand_benefited_by_lineup:
                 cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
                 cand_copy['tier'] = BetTier.QUASE_PREMIUM
@@ -1504,6 +1518,11 @@ def evaluate_and_select_best_ah_candidate(
                 cand_copy['is_premium'] = True
                 cand_copy['tier'] = BetTier.PREMIUM
                 cand_copy['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
+            elif is_cand_false_dog_dominant and c_line in (0.0, 0.25, 0.50):
+                cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
+                cand_copy['tier'] = BetTier.QUASE_PREMIUM
+                cand_copy['gatekeeper_category'] = 'Quase Premium'
+                cand_copy['is_momentum_surge'] = True
             elif c_line in (-0.25, 0.0):
                 # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0 e dominância mínima de +30% sobre o adversário) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
                 has_30pct_dominance = (cand_pts_eff >= opp_pts_eff * 1.30)
@@ -1539,6 +1558,21 @@ def evaluate_and_select_best_ah_candidate(
         if plus50_pick:
             return plus50_pick, approved
         dnb_pick = next((c for c in lineup_reversal_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
+        if dnb_pick:
+            return dnb_pick, approved
+
+    # Prioridade Soberana na Modalidade Falso Azarão Mandante (Quase Premium Invertido):
+    # Em operações de assimetria de mercado com dominância U5J >= 30%, prioriza sempre +0.50 AH (Dupla Chance)
+    # se tiver +EV; em seguida +0.25 AH e compulsoriamente 0.0 AH (DNB)
+    false_dog_picks = [c for c in approved if c.get('is_false_dog_dominant')]
+    if false_dog_picks:
+        plus50_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0) - 0.50) < 0.01), None)
+        if plus50_pick:
+            return plus50_pick, approved
+        plus25_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0) - 0.25) < 0.01), None)
+        if plus25_pick:
+            return plus25_pick, approved
+        dnb_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
         if dnb_pick:
             return dnb_pick, approved
 
@@ -3178,7 +3212,7 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         elif c_line < -0.75:
             motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
         elif c_line in (0.25, 0.5):
-            motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de desfalques importantes ou time reserva na súmula oficial"
+            motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de dominância >= 30% no U5J do mandante ou desfalques importantes na súmula"
         elif c_line > 0.0:
             motivo = "Reprovada: Linhas positivas esticadas (+AH > +0.5) são bloqueadas por expectativa matemática negativa histórica"
         elif is_away and c_line < -0.25:

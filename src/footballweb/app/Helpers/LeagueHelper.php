@@ -72,8 +72,10 @@ class LeagueHelper
         242  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
         917  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
         268  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
+        930  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
         265  => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
         239  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
+        241  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
         169  => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
         292  => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
         98   => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
@@ -330,6 +332,7 @@ class LeagueHelper
             1139 => "Santa Fe",
             1135 => "Junior",
             1138 => "America de Cali",
+            1136 => "Once Caldas",
             // Chile
             2315 => "Colo Colo",
             2323 => "Universidad de Chile",

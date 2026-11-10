@@ -745,8 +745,10 @@ $leagueMap = [
     242  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
     917  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
     268  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
+    930  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
     265  => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
     239  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
+    241  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
     169  => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
     292  => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
     98   => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
@@ -805,8 +807,10 @@ if (!function_exists('formatLeagueDisplayName')) {
 
         if ($lId === 242 || $lId === 917) return 'Liga Pro (Equador)';
         if ($lId === 239) return 'Primera A (Colômbia)';
+        if ($lId === 241) return 'Copa (Colômbia)';
         if ($lId === 265) return 'Primera División (Chile)';
         if ($lId === 268) return 'Primera División (Uruguai)';
+        if ($lId === 930) return 'Copa (Uruguai)';
         if ($lId === 281) return 'Primera División (Peru)';
         if ($lId === 250) return 'Primera División - Apertura (Paraguai)';
         if ($lId === 252) return 'Primera División - Clausura (Paraguai)';

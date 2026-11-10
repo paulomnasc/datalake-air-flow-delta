@@ -47,9 +47,11 @@ ALLOWED_LEAGUES = {
     242: "Liga Pro (Equador)",
     917: "Copa Ecuador (Equador)",
     268: "Primera Division (Uruguai)",
+    930: "Copa (Uruguai)",
     265: "Primera Division (Chile)",
     267: "Copa Chile (Chile)",
     239: "Primera Division (Colombia)",
+    241: "Copa (Colombia)",
     344: "Primera Division (Bolivia)",
     964: "Copa de la Division Profesional (Bolivia)",
     # Paraguai
@@ -110,7 +112,9 @@ ALLOWED_LEAGUE_NAMES = [
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
     'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional',
     'premier league (egito)', 'copa (egito)', 'egypt premier league', 'egypt cup', 'copa do egito',
-    'clausura (paraguai)', 'apertura (paraguai)', 'copa paraguay'
+    'clausura (paraguai)', 'apertura (paraguai)', 'copa paraguay',
+    'copa (colômbia)', 'copa (colombia)', 'copa colombia', 'copa betplay', 'copa betplay dimayor',
+    'copa uruguay', 'copa uruguai', 'copa (uruguai)', 'copa (uruguay)'
 ]
 
 
@@ -308,6 +312,7 @@ TIER_1_ELITE_CLUBS = {
     1139: "Santa Fe",
     1135: "Junior",
     1138: "America de Cali",
+    1136: "Once Caldas",
 
     # Chile (Primera Division - Os Três Grandes)
     2315: "Colo Colo",
@@ -414,6 +419,10 @@ TIER_1_NAME_TO_ID = {
     "san lorenzo": 460,
     "penarol": 2348, "peñarol": 2348,
     "club nacional": 2356, "nacional montevideo": 2356,
+    # Colômbia
+    "atletico nacional": 1137, "atlético nacional": 1137,
+    "america de cali": 1138, "américa de cali": 1138,
+    "once caldas": 1136, "millonarios": 1125, "santa fe": 1139, "junior": 1135,
     # Seleções Nacionais (Top Mundial / Copa do Mundo 2026)
     "espanha": 9, "spain": 9,
     "argentina": 26,

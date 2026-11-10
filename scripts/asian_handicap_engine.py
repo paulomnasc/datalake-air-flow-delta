@@ -2601,7 +2601,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             team_opp = away_team
         return (
             f"🟢 Vitória do {team_fav}: Você GANHA 100% da simulação de aposta (Lucro Total).\n"
-            f"⚪ Empate: Simulação de Aposta ANULADA (100% Reembolso).\n"
+            f"⚪ Empate: Simulação de Aposta ANULADA (100% Reembolso) — Equivale ao mercado 'Draw No Bet' (Empate Anula a Aposta).\n"
             f"🔴 Vitória do {team_opp}: Simulação de Aposta PERDIDA."
         )
     elif "+0.5" in sug_str:

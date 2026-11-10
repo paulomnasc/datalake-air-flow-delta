@@ -696,7 +696,14 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
           <i class="bi bi-shield-shaded text-success fs-5"></i>
           <div>
             <strong class="text-white d-block" style="font-size: 0.88rem;">Handicap Asiático Recomendado</strong>
-            <span class="text-success small fw-semibold">🎯 Sugestão: <?= htmlspecialchars($sugestaoExibida) ?></span>
+            <div class="d-flex align-items-center gap-2 flex-wrap mt-0.5">
+              <span class="text-success small fw-semibold">🎯 Sugestão: <?= htmlspecialchars($sugestaoExibida) ?></span>
+              <?php if (preg_match('/(0\.0|\b0\b)\s*ah/i', $sugestaoExibida)): ?>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-size: 0.70rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;" title="Linha 0.0 AH equivale a Empate Anula a Aposta">
+                  <i class="bi bi-info-circle-fill me-1"></i>Equivale a "Draw No Bet" (Empate Anula)
+                </span>
+              <?php endif; ?>
+            </div>
           </div>
         </div>
         <?php if (!empty($categoriaExibida)): ?>

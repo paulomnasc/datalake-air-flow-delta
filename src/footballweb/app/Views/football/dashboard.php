@@ -3904,6 +3904,11 @@ if (!function_exists('getBetDecisionTree')) {
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
                                                 <i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>: <?= htmlspecialchars($fix->ah_suggestion) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
+                                            <?php if (preg_match('/(0\.0|\b0\b)\s*ah/i', $fix->ah_suggestion ?? '')): ?>
+                                                <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-size: 0.70rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Linha 0.0 AH equivale a Empate Anula a Aposta (Draw No Bet)">
+                                                    <i class="bi bi-info-circle-fill"></i> Draw No Bet (DNB)
+                                                </span>
+                                            <?php endif; ?>
                                             <?php if ($has_discrepancy): ?>
                                                 <span class="badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 0.72rem; font-weight: 700; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="<?= lang('App.underdog_value_title') ?>">
                                                     <i class="bi bi-gem"></i> <?= lang('App.underdog_value_badge') ?>
@@ -4115,6 +4120,11 @@ if (!function_exists('getBetDecisionTree')) {
                                                         <span class="badge badge-ah-sug-<?= $fix->fixture_id ?>" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
                                                             🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
                                                         </span>
+                                                        <?php if (preg_match('/(0\.0|\b0\b)\s*ah/i', $fix->ah_suggestion ?? '')): ?>
+                                                            <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Equivale a Empate Anula a Aposta (Draw No Bet / DNB)">
+                                                                <i class="bi bi-info-circle-fill"></i> Equivale a "Draw No Bet" (Empate Anula)
+                                                            </span>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
 

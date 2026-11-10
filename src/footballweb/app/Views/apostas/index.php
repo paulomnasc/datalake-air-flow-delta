@@ -1743,6 +1743,11 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
                 <div class="palpite-name">
                   <?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?>
+                  <?php if (!$isAbstencaoBloqueada && preg_match('/(0\.0|\b0\b)\s*ah/i', $aposta->palpite ?? '')): ?>
+                    <div class="mt-1" style="font-size: 0.72rem; color: #38bdf8; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(56, 189, 248, 0.12); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                      <i class="bi bi-info-circle-fill"></i> Equivale a "Draw No Bet" (Empate Anula a Aposta)
+                    </div>
+                  <?php endif; ?>
                   <?php if ($isAbstencaoBloqueada && !empty($aposta->palpite) && stripos($aposta->palpite, 'Sem Entrada') === false): ?>
                     <div style="font-size: 0.74rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">
                       Palpite aprovado prévio: <span style="text-decoration: line-through; color: #f87171; font-weight: 600;"><?= htmlspecialchars($aposta->palpite) ?></span>

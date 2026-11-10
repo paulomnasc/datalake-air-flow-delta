@@ -225,7 +225,7 @@ return [
     'bet_on_home_new_tab'           => 'Odd Mandante',
     'bet_on_draw_new_tab'           => 'Odd Empate',
     'bet_on_away_new_tab'           => 'Odd Visitante',
-    'nl_exp_00'                     => "🟢 Vitória do %s: Ganha 100%% da simulação de aposta (Lucro Total).\n⚪ Empate: Simulação de Aposta ANULADA (100%% Reembolso).\n🔴 Vitória do %s: Simulação de Aposta PERDIDA.",
+    'nl_exp_00'                     => "🟢 Vitória do %s: Ganha 100%% da simulação de aposta (Lucro Total).\n⚪ Empate: Simulação de Aposta ANULADA (100%% Reembolso) — Equivale ao mercado \"Draw No Bet\" (Empate Anula a Aposta).\n🔴 Vitória do %s: Simulação de Aposta PERDIDA.",
     'nl_exp_minus025'               => "🟢 Vitória do %s: Ganha 100%% da simulação de aposta.\n🟡 Empate: PERDE 50%% e recupera 50%%.\n🔴 Vitória do %s: Simulação de Aposta PERDIDA.",
     'nl_exp_plus025'                => "🟢 Vitória do %s: Ganha 100%% da simulação de aposta.\n🟢 Empate: Ganha 50%% do Lucro + 100%% da simulação de aposta de volta.\n🔴 Vitória do %s: Simulação de Aposta PERDIDA.",
     'nl_exp_plus150'                => "🟢 Vitória do %s, Empate ou Derrota por até 1 gol: Ganha 100%% da simulação de aposta.\n🔴 Derrota por 2 ou mais gols: Simulação de Aposta PERDIDA.",

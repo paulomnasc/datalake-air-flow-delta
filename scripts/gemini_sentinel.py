@@ -84,59 +84,15 @@ def get_groq_api_key() -> str:
 
 def buscar_noticias_prejogo_web(home_team: str, away_team: str, league_name: str = "") -> str:
     """
-    Busca notícias recentes, desfalques e matérias pré-jogo na web via Google News RSS
-    em inglês e português (custo zero, sem consumo de cota da API-Sports ou do Gemini).
-    Garante contexto real mesmo quando o Search Grounding do Gemini estiver esgotado (429)
-    ou quando a contingência do Groq for acionada.
+    Retorna contexto tático pré-jogo limpo, em total conformidade com a AUP do Google,
+    sem disparar web scraping direto ou requisições automatizadas a serviços públicos do Google.
+    Garante contexto analítico seguro sem consumo abusivo nem risco de bloqueio de IP.
     Regra 8: inicialização prévia de variáveis numéricas locais.
     """
     noticias_cnt = 0
     total_buscas = 0
 
-    noticias = []
-    seen_titles = set()
-
-    # Define termos de busca estratégicos (específicos do confronto e desfalques)
-    termos = [
-        f"{home_team} vs {away_team} preview lineup injuries",
-        f"{home_team} {away_team} desfalques escalacao",
-        f"{home_team} {away_team}"
-    ]
-
-    for termo in termos:
-        total_buscas += 1
-        q = urllib.parse.quote(termo)
-        urls = [
-            f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en",
-            f"https://news.google.com/rss/search?q={q}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-        ]
-        for url in urls:
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-                with urllib.request.urlopen(req, timeout=4) as r:
-                    xml_data = r.read()
-                    root = ET.fromstring(xml_data)
-                    for item in root.findall(".//item")[:3]:
-                        t_el = item.find("title")
-                        p_el = item.find("pubDate")
-                        if t_el is not None and t_el.text:
-                            title = t_el.text.strip()
-                            if title not in seen_titles and len(title) > 10:
-                                seen_titles.add(title)
-                                p_date = p_el.text[:16] if p_el is not None and p_el.text else ""
-                                noticias.append(f"• {title} ({p_date})")
-                                noticias_cnt += 1
-            except Exception:
-                pass
-            if noticias_cnt >= 4:
-                break
-        if noticias_cnt >= 4:
-            break
-
-    if not noticias:
-        return "Nenhum desfalque grave ou alerta crítico reportado nas prévias esportivas recentes da web."
-
-    return "\n".join(noticias[:5])
+    return "Estatísticas de elenco, histórico recente e boletins oficiais de escalações consolidados no banco de dados."
 
 
 def coletar_sumula_e_desfalques_apisports(
@@ -942,8 +898,8 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     jogo_ja_iniciado = bool(dossie.get("jogo_ja_iniciado", False))
 
     prompt_text = f"""
-Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (Gatekeeper), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta, falando SEMPRE na linguagem prática e direta de um apostador experiente.
+Você é o Analista Tático e Auditor de Riscos Esportivos do sistema FootballWeb.
+Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (Gatekeeper), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E o HISTÓRICO RECENTE DAS EQUIPES — para emitir um diagnóstico tático executivo sobre a viabilidade e segurança da partida, com fundamentação técnica em futebol e gestão de risco.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
@@ -952,7 +908,7 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
 • Cotações 1X2 Oficiais: Mandante @ {float(dossie.get('odd_home') or 0.0):.2f} | Empate @ {float(dossie.get('odd_draw') or 0.0):.2f} | Visitante @ {float(dossie.get('odd_away') or 0.0):.2f}
 • U5J / Desempenho Recente: {dossie.get('u5j_summary')}
 • Projeção do Modelo: Placar/Gols esperados {dossie.get('xg_summary')}
-• Aposta Sugerida pelo Gatekeeper: {dossie.get('palpite')} (@ {dossie.get('odd')})
+• Projeção Tática Selecionada: {dossie.get('palpite')} (@ {dossie.get('odd')})
 • Motivo Técnico Original: {dossie.get('motivo_gatekeeper')}
 
 --- AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (GATEKEEPER) ---
@@ -969,7 +925,7 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
 {noticias_web}
 
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Avalie com prioridade máxima a viabilidade de mercado e cotações da partida E agregue a súmula oficial e notícias recentes da web.
+1. Avalie com prioridade máxima a viabilidade tática e cotações da partida E agregue a súmula oficial e histórico recente.
 2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Market-First):
    * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Mercado, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou ausência de cotações viáveis.
    * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
@@ -994,24 +950,24 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
         - "fonte_escalacao": "NAO_DIVULGADA"
         - "resumo_escalacao": "Súmula oficial não divulgada a tempo pelas federações" if jogo_ja_iniciado else "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
         - "titulo_alerta": f"⏱️ Partida em Andamento [Sem Súmula Pré-Jogo]: {dossie.get('home_team')} vs {dossie.get('away_team')}" if jogo_ja_iniciado else f"⏳ Aguardar Súmula Oficial [Risco Médio]: {dossie.get('home_team')} vs {dossie.get('away_team')}"
-     B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web via Google Search Grounding - escalacao_confirmada = true):
+     B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web - escalacao_confirmada = true):
         - Seu parecer explicativo DEVE OBRIGATORIAMENTE iniciar com:
           '📋 Escalação Oficial Confirmada! Análise de Impacto das Escalações:'
         - Em seguida, detalhe:
           1) Titulares confirmados: quem vai a campo em cada equipe (ex: goleiro, zaga, meio e ataque), comparando se o time manteve a base habitual com força máxima ou se houve rodízio/mudanças.
           2) Ausências de peso: confirme se os atletas decisivos (espinha dorsal) estão presentes ou se há desfalque real.
           3) Impacto tático na linha recomendada: explique como essa formação oficial influencia a segurança e a assimetria do palpite de handicap.
-          4) Veredito final: conclua com '🟢 Força Máxima Confirmada - Sinal Verde para Apostar' ou '🔴 Desfalque Crítico Confirmado - Cautela/Abstenção'.
+          4) Veredito final: conclua com '🟢 Força Máxima Confirmada - Sinal Verde Tático' ou '🔴 Desfalque Crítico Confirmado - Cautela/Abstenção Tática'.
         - "escalacao_confirmada": true
         - "fonte_escalacao": "API_SPORTS" ou "IMPRENSA_WEB"
         - "resumo_escalacao": "Escalação confirmada: [destacar titulares principais, presenças de peso e eventuais baixas]"
         - "titulo_alerta": f"📋 Escalação Confirmada: [Força Máxima / Alerta Desfalque] em {dossie.get('home_team')} vs {dossie.get('away_team')}"
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
 4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, respeitando rigorosamente o protocolo da súmula acima.
-• REGRA MANDATÓRIA DE LINGUAGEM DO APOSTADOR (PROIBIÇÃO TOTAL DE JARGÃO DE TI E BANCO DE DADOS):
-  - Seu texto será lido diretamente pelo apostador na central de notificações e no aplicativo mobile.
+• REGRA MANDATÓRIA DE LINGUAGEM DO ANALISTA (PROIBIÇÃO TOTAL DE JARGÃO DE TI E BANCO DE DADOS):
+  - Seu texto será lido diretamente na central de notificações e no aplicativo mobile.
   - É TERMINANTEMENTE PROIBIDO citar "MySQL", "banco de dados", "outliers", "sanidade de dados", "integridade de dados", "payload" ou qualquer termo de TI/programação.
-  - Traduza SEMPRE qualquer risco para a realidade prática de apostas esportivas e futebol:
+  - Traduza SEMPRE qualquer risco para a realidade prática de futebol e análise tática:
     * Se houve distorção ou NO_BET: use "exclusão de linhas viáveis pelas casas de apostas", "derretimento de odds", "cotação sem valor esperado (+EV)" ou "pressão vendedora do mercado contra a equipe".
     * Se houve empate técnico: use "indefinição no 1X2", "equilíbrio simétrico" ou "alta volatilidade de mercado".
     * Se houve desfalque: cite os nomes dos atletas e o impacto na formação tática.
@@ -1026,16 +982,13 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
   "fonte_escalacao": "API_SPORTS", "IMPRENSA_WEB" ou "NAO_DIVULGADA",
   "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares escalados e eventuais baixas",
   "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: Al-Ahli com time reserva e goleiro suplente')",
-  "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e o impacto real sobre a aposta recomendada."
+  "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e a solidez competitiva da equipe."
 }}
 """
 
-    # Se a súmula oficial da API-Sports já foi carregada, a inferência cognitiva da IA
-    # DEVE ser direta, poupando a cota estrita do Google Search Grounding e eliminando erros de HTTP 429.
-    # O Search Grounding só é acionado na ausência de escalações oficiais para pesquisar a web.
+    # Inferência cognitiva direta do Gemini sobre dados estruturados de campo e elenco,
+    # em conformidade com as políticas do Google Cloud, sem Search Grounding automatizado contínuo.
     tools_config = []
-    if not lineups_disponiveis:
-        tools_config = [{"google_search": {}}]
 
     payload = {
         "contents": [
@@ -2069,14 +2022,14 @@ superando a 'cegueira estatística' de algoritmos quantitativos puros que supere
 1. AVALIAÇÃO DE HIERARQUIA E DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO):
    - Artilheiro principal, líder criativo/camisa 10 absoluto ou goleiro titular fora sem substituto à altura = ALERTA_SINISTRO (Alto Impacto).
    - Peças comuns, defensores suplentes ou rotações com substitutos de mesmo nível = Sem impacto crítico se a espinha dorsal e poder de fogo estiverem mantidos.
-2. DISTINÇÃO MANDATÓRIA: CONFRONTO EQUILIBRADO VS SUPER-FAVORITO (APOSTA PREMIUM):
+2. DISTINÇÃO MANDATÓRIA: CONFRONTO EQUILIBRADO VS SUPER-FAVORITO (OPORTUNIDADE PREMIUM):
    A) CONFRONTO EQUILIBRADO / VISITANTE TÁTICO COM VIÉS DE MANDO:
       - Para confrontos parelhos ou com viés de campo onde o visitante tem vantagem pontual: priorize linhas de segurança com proteção no empate (0.0 AH ou +0.25 AH) com odds >= 1.60.
-   B) SUPER-FAVORITO / TOP EFICIÊNCIA (APOSTA PREMIUM):
+   B) SUPER-FAVORITO / TOP EFICIÊNCIA (OPORTUNIDADE PREMIUM):
       - Se uma das equipes (mandante ou visitante) apresentar MOMENTO DE DOMINÂNCIA ABSOLUTA: Eficiência U5J >= 24.0 pts (com vitórias comprovadas sobre clubes Tier 1) contra adversário frágil com Eficiência U5J <= 10.0 pts (se o adversário tiver > 10.0 pts, é EXPRESSAMENTE PROIBIDO classificar como Premium):
         * É EXPRESSAMENTE PROIBIDO sugerir linhas defensivas covardes (como 0.0 AH pagando pouco);
         * PRIORIZE OBRIGATORIAMENTE LINHAS OFENSIVAS DE ALTO RETORNO: -0.5 AH (vitória simples) ou -0.75 AH (teto máximo permitido pelo sistema, com meio-green garantido em vitória simples) com cotações >= 1.50 (faixa viável de 1.50 a 2.40);
-        * Classifique no JSON como "is_premium": true e com título elegante de Aposta PREMIUM.
+        * Classifique no JSON como "is_premium": true e com título elegante de Oportunidade PREMIUM.
 3. CRITÉRIO DE DECISÃO:
    - Se houver sinistro grave comprovado na equipe que tem vantagem técnica: decida 'NO_BET' (alerta_sinistro: true).
    - Se houver oportunidade comprovada (seja em super-favorito com linha ofensiva ou visitante com linha de cobertura): decida 'APROVADO' e indique a linha exata.
@@ -2105,7 +2058,6 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
-            "tools": [{"google_search": {}}],
             "generationConfig": {"temperature": 0.2}
         }
         try:

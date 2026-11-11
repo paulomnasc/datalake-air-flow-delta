@@ -1505,10 +1505,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
           $sentinelaStatus = $aposta->auditoria_ia_status ?? '';
 
           // Estado 1: Súmula Realmente Pendente (Aposta Premium/Quase Premium aguardando súmula oficial e notificação)
-          $isLineupPending = ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $nowEpoch = time();
+          $isFinishedOrPast = ($gameEpoch > 0 && $gameEpoch <= $nowEpoch) || in_array(strtoupper($aposta->status ?? ''), ['GANHA', 'MEIO GANHA', 'PERDIDA', 'MEIO PERDIDA', 'ANULADA', 'CASHOUT']);
+          $isLineupPending = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Estado 3: Súmula Notificada com Alerta de Risco
-          $isLineupRiskAlert = ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $isLineupRiskAlert = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Bloqueio rígido de confirmação de governança: apenas enquanto a súmula estiver pendente
           $isLockedByLineup = $isLineupPending;
@@ -3628,7 +3630,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
       let withoutCancelledMatch = true;
       if (withoutCancelledVal === '1') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD') && !cardStatusUpper.includes('ANULAD');
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
       }
 
       let futureGamesMatch = true;
@@ -3659,7 +3661,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
         statusMatch = true;
       } else if (status === 'concluidas') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        statusMatch = (cardStatusUpper === 'GANHA' || cardStatusUpper === 'MEIO GANHA' || cardStatusUpper === 'PERDIDA' || cardStatusUpper === 'MEIO PERDIDA' || cardStatusUpper === 'CASHOUT');
+        statusMatch = (cardStatusUpper === 'GANHA' || cardStatusUpper === 'MEIO GANHA' || cardStatusUpper === 'PERDIDA' || cardStatusUpper === 'MEIO PERDIDA' || cardStatusUpper === 'CASHOUT' || cardStatusUpper === 'ANULADA');
       } else if (status === 'Pendente') {
         const cardStatusUpper = cardStatus.toUpperCase();
         statusMatch = (cardStatusUpper === 'PENDENTE' || cardStatusUpper.includes('CONFIRMADA'));

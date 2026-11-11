@@ -30,7 +30,6 @@ ALLOWED_LEAGUES = {
     9: "Copa America (America do Sul)",
     772: "Leagues Cup (America)",
     262: "Liga MX (Mexico)",
-    1028: "CONCACAF Central American Cup (CONCACAF)",
     16: "CONCACAF Champions Cup (CONCACAF)",
     113: "Allsvenskan (Suecia)",
     103: "Eliteserien (Noruega)",
@@ -40,24 +39,8 @@ ALLOWED_LEAGUES = {
     130: "Copa Argentina (Argentina)",
     ## 98: "J1 League (Japao)",
     ## 292: "K League 1 (Coreia do Sul)",
-    283: "Liga I (Romenia)",
-    286: "Super Liga (Servia)",
-    244: "Veikkausliiga (Finlandia)",
-    281: "Primera Division (Peru)",
-    242: "Liga Pro (Equador)",
-    917: "Copa Ecuador (Equador)",
-    268: "Primera Division (Uruguai)",
-    930: "Copa (Uruguai)",
     265: "Primera Division (Chile)",
-    267: "Copa Chile (Chile)",
     239: "Primera Division (Colombia)",
-    241: "Copa (Colombia)",
-    344: "Primera Division (Bolivia)",
-    964: "Copa de la Division Profesional (Bolivia)",
-    # Paraguai
-    250: "Division Profesional - Apertura (Paraguai)",
-    252: "Division Profesional - Clausura (Paraguai)",
-    501: "Copa Paraguay (Paraguai)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
     203: "Super Lig (Turquia)",
@@ -70,16 +53,10 @@ ALLOWED_LEAGUES = {
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
     253: "Major League Soccer (EUA)",
-    479: "Canadian Premier League (Canada)",
-    259: "Canadian Championship (Canada)",
     ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)",
-    ## 18: "AFC Champions League Two (Asia)",
-    # Egito
-    233: "Premier League (Egito)",
-    714: "Copa (Egito)"
+    17: "AFC Champions League (Asia)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
@@ -98,7 +75,7 @@ ALLOWED_LEAGUE_NAMES = [
     'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership', 'scottish premiership',
-    'liga profesional', 'primera division', 'copa argentina', 'copa chile',
+    'liga profesional', 'primera division', 'copa argentina',
     'super league 1', 'super league', 'superliga',
     'champions league', 'europa league',
     'libertadores', 'copa sudamericana', 'sudamericana', 'recopa',
@@ -107,14 +84,9 @@ ALLOWED_LEAGUE_NAMES = [
     'allsvenskan', 'eliteserien',
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
-    'veikkausliiga', 'ekstraklasa', 'czech first league',
-    'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
-    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional',
-    'premier league (egito)', 'copa (egito)', 'egypt premier league', 'egypt cup', 'copa do egito',
-    'clausura (paraguai)', 'apertura (paraguai)', 'copa paraguay',
-    'copa (colômbia)', 'copa (colombia)', 'copa colombia', 'copa betplay', 'copa betplay dimayor',
-    'copa uruguay', 'copa uruguai', 'copa (uruguai)', 'copa (uruguay)'
+    'ekstraklasa', 'czech first league',
+    'mls', 'major league soccer',
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
 ]
 
 

@@ -1190,6 +1190,61 @@ if (!function_exists('getBetDecisionTree')) {
     }
 }
 
+if (!function_exists('getTeamRankBadgeStyle')) {
+    function getTeamRankBadgeStyle($rank, $leagueId = null) {
+        $rankInt = (int)$rank;
+        if ($rankInt <= 0) {
+            return [
+                'css' => 'font-size: 0.68rem; background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; margin-left: 6px;',
+                'tier_label' => 'Posição não informada',
+                'tier' => 'unknown'
+            ];
+        }
+
+        $knownSizes = [
+            253 => 15, // MLS (conferência)
+            113 => 16, // Allsvenskan
+            103 => 16, // Eliteserien
+            265 => 16, // Chile
+            244 => 12, // Finlândia
+            292 => 12, // K League
+            479 => 8,  // CPL
+            78  => 18, // Bundesliga
+            61  => 18, // Ligue 1
+            88  => 18, // Eredivisie
+            94  => 18, // Portugal
+            128 => 15, // Argentina (zona)
+            307 => 18, // Saudi
+            262 => 18, // Liga MX
+        ];
+
+        $totalTeams = $knownSizes[(int)$leagueId] ?? 20;
+        $topThird = ceil($totalTeams / 3.0);
+        $midThird = ceil((2.0 * $totalTeams) / 3.0);
+
+        if ($rankInt <= $topThird) {
+            return [
+                'css' => 'font-size: 0.68rem; background-color: rgba(16, 185, 129, 0.22); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.55); font-weight: 700; margin-left: 6px;',
+                'tier_label' => 'Terço Superior (Topo da Tabela)',
+                'tier' => 'top'
+            ];
+        } elseif ($rankInt <= $midThird) {
+            return [
+                'css' => 'font-size: 0.68rem; background-color: rgba(245, 158, 11, 0.20); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.55); font-weight: 700; margin-left: 6px;',
+                'tier_label' => 'Terço Intermediário (Meio de Tabela)',
+                'tier' => 'mid'
+            ];
+        } else {
+            return [
+                'css' => 'font-size: 0.68rem; background-color: rgba(239, 68, 68, 0.22); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: 700; margin-left: 6px;',
+                'tier_label' => 'Terço Inferior (Parte Baixa da Tabela)',
+                'tier' => 'bottom'
+            ];
+        }
+    }
+}
+
+
 ?>
 
 <style>
@@ -1540,6 +1595,33 @@ if (!function_exists('getBetDecisionTree')) {
     input:checked + .bet-slider:before {
         background-color: #f47c20;
         transform: translateX(22px);
+    }
+
+    #onlySinalVerdeToggle:checked + .bet-slider {
+        background-color: rgba(16, 185, 129, 0.25);
+        border-color: #10b981;
+    }
+
+    #onlySinalVerdeToggle:checked + .bet-slider:before {
+        background-color: #10b981;
+    }
+
+    #onlyHasBetToggle:checked + .bet-slider {
+        background-color: rgba(192, 132, 252, 0.25);
+        border-color: #c084fc;
+    }
+
+    #onlyHasBetToggle:checked + .bet-slider:before {
+        background-color: #c084fc;
+    }
+
+    #onlyResenhaToggle:checked + .bet-slider {
+        background-color: rgba(0, 230, 118, 0.25);
+        border-color: #00e676;
+    }
+
+    #onlyResenhaToggle:checked + .bet-slider:before {
+        background-color: #00e676;
     }
 
     .bet-slider.round {
@@ -2827,6 +2909,18 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($showPostponed) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.35);" title="Exibir apenas partidas com apostas aprovadas pelo modelo (Sinal Verde em Handicap ou Cartões)">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #10b981; font-weight: 700;">
+                                        🟢 Sinal Verde
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlySinalVerdeToggle" name="only_sinal_verde" value="1" onchange="toggleSinalVerdeFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlySinalVerdeToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
+                                        <?= lang('App.no') ?>
+                                    </span>
+                                </div>
                                  <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem simulações de apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 <?= lang('App.with_bets') ?>
@@ -3180,8 +3274,13 @@ if (!function_exists('getBetDecisionTree')) {
                                  $u5j_data_pre = json_decode($mU5Pre[1], true);
                              }
                              $t1Info = getTier1DominanceInfo($fix, $u5j_data_pre, $destaqueFixtureIds ?? []);
+
+                             // Avaliação de Sinal Verde (Aposta Aprovada pelo Modelo em Handicap ou Cartões)
+                             $isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
+                             $isCardUnderApproved = (($class === 'safe' || $class === 'high') && !empty($fix->prediction_text) && strpos($fix->prediction_text, 'NO_BET') === false && !preg_match('/(não recomendada|absten)/i', $fix->prediction_text));
+                             $hasSinalVerde = ($isCardAhApproved || $isCardUnderApproved);
                              ?>
-                             <div class="bet-card <?= $t1Info['is_dominant'] ? 'bet-card-destaque' : '' ?>" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-destaque="<?= $t1Info['is_dominant'] ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card <?= $t1Info['is_dominant'] ? 'bet-card-destaque' : '' ?>" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-has-sinal-verde="<?= $hasSinalVerde ? '1' : '0' ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-destaque="<?= $t1Info['is_dominant'] ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -3219,12 +3318,11 @@ if (!function_exists('getBetDecisionTree')) {
                                                 $isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
                                                 $isCardPremium = $isCardAhApproved && (
                                                     (!empty($fix->destaque) && (int)$fix->destaque === 2) || 
-                                                    (($fix->gatekeeper_category ?? '') === 'Oportunidade PREMIUM (+EV Alavancado)')
+                                                    (stripos($fix->gatekeeper_category ?? '', 'PREMIUM') !== false && stripos($fix->gatekeeper_category ?? '', 'QUASE') === false)
                                                 );
                                                 $isCardQuasePremium = $isCardAhApproved && !$isCardPremium && (
-                                                    (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
                                                     (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
-                                                    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion)
+                                                    (stripos($fix->gatekeeper_category ?? '', 'Quase Premium') !== false)
                                                 );
                                             ?>
                                             <?php if ($isCardPremium): ?>
@@ -3361,7 +3459,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) ?>">#<?= $fix->home_rank ?></span><?php endif; ?><?php if ($t1Info['is_home']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_home_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><?php $rStyleH = getTeamRankBadgeStyle($fix->home_rank, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleH['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) . ' • ' . $rStyleH['tier_label'] ?>">#<?= $fix->home_rank ?></span><?php endif; ?><?php if ($t1Info['is_home']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_home_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
@@ -3462,7 +3560,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) ?>">#<?= $fix->away_rank ?></span><?php endif; ?><?php if ($t1Info['is_away']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_away_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><?php $rStyleA = getTeamRankBadgeStyle($fix->away_rank, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleA['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) . ' • ' . $rStyleA['tier_label'] ?>">#<?= $fix->away_rank ?></span><?php endif; ?><?php if ($t1Info['is_away']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_away_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>
@@ -4910,8 +5008,19 @@ if (!function_exists('getBetDecisionTree')) {
 
     let currentShowFinishedFilter = <?= $showFinished ? 'true' : 'false' ?>;
     let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
+    let currentOnlySinalVerdeFilter = false;
     let currentOnlyHasBetFilter = false;
     let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
+
+    function toggleSinalVerdeFilter(checkbox) {
+        currentOnlySinalVerdeFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlySinalVerdeToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlySinalVerdeFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlySinalVerdeFilter ? '#10b981' : '#8a99a8';
+        }
+        applyFilters();
+    }
 
     function toggleShowFinishedFilter(checkbox) {
         currentShowFinishedFilter = checkbox.checked;
@@ -4971,6 +5080,7 @@ if (!function_exists('getBetDecisionTree')) {
             const isPostponed = card.getAttribute('data-is-postponed') === '1';
             const hasResenha = card.getAttribute('data-has-resenha') === '1';
             const isDestaque = card.getAttribute('data-is-destaque') === '1';
+            const hasSinalVerde = card.getAttribute('data-has-sinal-verde') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || (isLive && !isFinished));
@@ -4979,8 +5089,9 @@ if (!function_exists('getBetDecisionTree')) {
             const matchFinished = (currentShowFinishedFilter || !isFinished);
             const matchPostponed = (currentShowPostponedFilter || !isPostponed);
             const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
+            const matchSinalVerde = (!currentOnlySinalVerdeFilter || hasSinalVerde);
             
-            if (matchLeague && matchTab && matchText && matchHasBet && matchFinished && matchPostponed && matchResenha) {
+            if (matchLeague && matchTab && matchText && matchHasBet && matchFinished && matchPostponed && matchResenha && matchSinalVerde) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {

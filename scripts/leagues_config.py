@@ -40,6 +40,7 @@ ALLOWED_LEAGUES = {
     ## 98: "J1 League (Japao)",
     ## 292: "K League 1 (Coreia do Sul)",
     265: "Primera Division (Chile)",
+    268: "Primera Division (Uruguai)",
     239: "Primera Division (Colombia)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",

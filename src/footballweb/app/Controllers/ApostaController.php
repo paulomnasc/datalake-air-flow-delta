@@ -348,6 +348,17 @@ class ApostaController extends BaseController
             $statusGatekeeper = 'ALERTA_RISCO_OVER';
         }
 
+        if ($statusGatekeeper === 'NO_BET') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'NO_BET',
+                    'message'              => "🚫 Alerta de Risco Gatekeeper (NO_BET):\n" . $gatekeeperMsg . "\n\nEsta simulação de aposta foi rejeitada pela gestão de risco porque a Odd informada ({$odd}) é desfavorável frente à linha ou projeta expectativa matemática de perda para a banca no longo prazo.\n\nDeseja registrar e assumir o risco da aposta mesmo assim?"
+                ]);
+            }
+        }
 
         // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();
@@ -954,6 +965,17 @@ class ApostaController extends BaseController
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
         }
 
+        if ($eval['statusGatekeeper'] === 'NO_BET') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'NO_BET',
+                    'message'              => "🚫 Alerta de Risco Gatekeeper (NO_BET):\n" . $eval['gatekeeperMsg'] . "\n\nEsta alteração foi rejeitada pela gestão de risco porque a Odd informada ({$odd}) é desfavorável frente à linha ou projeta expectativa matemática de perda para a banca no longo prazo.\n\nDeseja confirmar a alteração e assumir o risco mesmo assim?"
+                ]);
+            }
+        }
 
         $dataUpdate = [
             'fixture_id'            => $eval['fixtureId'],
@@ -3782,6 +3804,62 @@ class ApostaController extends BaseController
         }
 
         return $this->response->setJSON($result);
+    }
+
+    /**
+     * Endpoint AJAX para validação instantânea no modal de Nova Aposta
+     * Avalia linha AH e odd em tempo real contra o Gatekeeper.
+     */
+    public function avaliarGatekeeperInstantaneo()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Autenticação necessária.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
+        $timeCasa  = trim($this->request->getPost('time_casa') ?? '');
+        $timeFora  = trim($this->request->getPost('time_fora') ?? '');
+        $mercado   = trim($this->request->getPost('mercado') ?? 'Handicap Asiático');
+        $palpite   = trim($this->request->getPost('palpite') ?? '');
+        $odd       = (float)str_replace(',', '.', (string)($this->request->getPost('odd') ?? '0'));
+
+        if ($odd <= 1.0 || empty($palpite)) {
+            return $this->response->setJSON([
+                'success'          => true,
+                'statusGatekeeper' => 'AGUARDANDO',
+                'gatekeeperMsg'    => 'Informe o palpite e uma odd válida (> 1.00).'
+            ]);
+        }
+
+        if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
+            $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
+            if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
+                return $this->response->setJSON([
+                    'success'          => true,
+                    'statusGatekeeper' => 'NO_BET',
+                    'gatekeeperMsg'    => '🔒 Trava de Segurança da Banca: Linhas além de -0.75 AH estão bloqueadas.',
+                    'oddJusta'         => null,
+                    'evPercentual'     => null
+                ]);
+            }
+        }
+
+        $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
+
+        return $this->response->setJSON([
+            'success'            => true,
+            'statusGatekeeper'   => $eval['statusGatekeeper'],
+            'gatekeeperCategory' => $eval['gatekeeperCategory'] ?? null,
+            'gatekeeperMsg'      => $eval['gatekeeperMsg'] ?? '',
+            'oddJusta'           => $eval['oddJusta'] ?? null,
+            'evPercentual'       => $eval['evPercentual'] ?? null,
+            'probPoisson'        => $eval['probPoisson'] ?? null,
+            'destaque'           => $eval['destaque'] ?? 0
+        ]);
     }
 
     /**

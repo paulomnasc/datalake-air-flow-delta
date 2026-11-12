@@ -2362,7 +2362,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
                 </span>
               </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation(); triggerGatekeeperLiveCheck();" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
           </div>
@@ -2395,7 +2395,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
+              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos(); triggerGatekeeperLiveCheck();">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
@@ -2406,6 +2406,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="0,00">
             </div>
           </div>
+
+          <!-- Feedback Visual do Gatekeeper em Tempo Real (Validação de Odd e Linha) -->
+          <div id="gatekeeperLiveFeedback" class="mb-3" style="display: none;"></div>
 
           <div class="row">
             <div class="col-4 mb-3">
@@ -2964,6 +2967,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function selectFixtureOption(optData) {
@@ -2993,6 +2997,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     closeFixtureDropdown();
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function clearFixtureSelection() {
@@ -3048,6 +3053,107 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
     const editCashoutEl = document.getElementById('editCashoutInput');
     if (editCashoutEl) editCashoutEl.value = valRaw;
+  }
+
+  let gatekeeperLiveCheckTimer = null;
+  function triggerGatekeeperLiveCheck() {
+    clearTimeout(gatekeeperLiveCheckTimer);
+    gatekeeperLiveCheckTimer = setTimeout(runGatekeeperLiveCheck, 350);
+  }
+
+  function runGatekeeperLiveCheck() {
+    const feedbackEl = document.getElementById('gatekeeperLiveFeedback');
+    if (!feedbackEl) return;
+
+    const mercado = document.getElementById('mercadoInput')?.value || '';
+    const isHandicap = mercado.toLowerCase().includes('handicap');
+    const isCartoes = mercado.toLowerCase().includes('cartõ') || mercado.toLowerCase().includes('card');
+    const odd = parseFloat(document.getElementById('oddInput')?.value) || 0;
+    const palpite = document.getElementById('palpiteInput')?.value || '';
+    const timeCasa = document.getElementById('timeCasaInput')?.value || '';
+    const timeFora = document.getElementById('timeForaInput')?.value || '';
+    const fixtureId = document.getElementById('fixtureSelect')?.value || '';
+
+    if (!isHandicap && !isCartoes) {
+      feedbackEl.style.display = 'none';
+      return;
+    }
+
+    if (odd <= 1.0 || !palpite) {
+      feedbackEl.style.display = 'none';
+      return;
+    }
+
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = '<div class="d-flex align-items-center gap-2 text-muted small p-2 rounded" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);"><span class="spinner-border spinner-border-sm text-info"></span> Consultando validação do Gatekeeper...</div>';
+
+    const formData = new FormData();
+    formData.append('fixture_id', fixtureId);
+    formData.append('time_casa', timeCasa);
+    formData.append('time_fora', timeFora);
+    formData.append('mercado', mercado);
+    formData.append('palpite', palpite);
+    formData.append('odd', odd);
+
+    fetch('/apostas/avaliar-gatekeeper-instantaneo', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.success || data.statusGatekeeper === 'AGUARDANDO') {
+        feedbackEl.style.display = 'none';
+        return;
+      }
+
+      if (data.statusGatekeeper === 'APPROVED' || data.statusGatekeeper === 'APROVADO') {
+        const oddJustaFmt = data.oddJusta ? Number(data.oddJusta).toFixed(2) : '-';
+        const evFmt = data.evPercentual ? '+' + Number(data.evPercentual).toFixed(1) + '%' : '+EV';
+        const probFmt = data.probPoisson ? Number(data.probPoisson).toFixed(1) + '%' : '';
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; color: #a7f3d0; font-size: 0.8rem;">
+            <i class="bi bi-shield-check text-success fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #34d399;">Gatekeeper: Aprovado (+EV) | Cotação com Valor Matemático</strong>
+              <div class="text-white-50 mt-1" style="font-size: 0.75rem;">
+                Odd Informada: <strong>${odd.toFixed(2)}</strong> ≥ Odd Justa: <strong>${oddJustaFmt}</strong> | EV: <span class="text-success fw-bold">${evFmt}</span> ${probFmt ? ' | Prob. Modelo: ' + probFmt : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (data.statusGatekeeper === 'NO_BET') {
+        const msgClean = data.gatekeeperMsg || 'Entrada rejeitada pelo Gatekeeper da banca por ausência de valor esperado (+EV).';
+        const cat = data.gatekeeperCategory ? `[${data.gatekeeperCategory}] ` : '';
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; font-size: 0.8rem;">
+            <i class="bi bi-shield-slash text-danger fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #f87171;">🚫 Gatekeeper: Rejeitado (NO_BET) — Risco de Prejuízo na Banca</strong>
+              <div class="mt-1" style="font-size: 0.75rem; color: #fca5a5; line-height: 1.35;">
+                ${cat}${msgClean}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (data.statusGatekeeper === 'AVISO_RISCO_OVER') {
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fde68a; font-size: 0.8rem;">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #fbbf24;">⚠️ Gatekeeper: Aviso de Risco Over Cartões</strong>
+              <div class="mt-1" style="font-size: 0.75rem; color: #fef08a;">
+                ${data.gatekeeperMsg || 'Apostas em Over possuem alta volatilidade estatística.'}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        feedbackEl.style.display = 'none';
+      }
+    })
+    .catch(() => {
+      feedbackEl.style.display = 'none';
+    });
   }
 
   function updatePalpiteExplanation() {
@@ -3231,6 +3337,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function autofillFixture(selectEl) {
@@ -3252,6 +3359,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
     checkXgWarning();
+    triggerGatekeeperLiveCheck();
   }
 
   function checkXgWarning() {

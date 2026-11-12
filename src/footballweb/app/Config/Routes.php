@@ -86,6 +86,7 @@ $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::anal
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
 $routes->post('/apostas/reauditar-ia', 'ApostaController::reauditarIa', ['as' => 'apostas.reauditar_ia']);
 $routes->post('/apostas/validar-linha-ah', 'ApostaController::validarLinhaAh', ['as' => 'apostas.validar_linha_ah']);
+$routes->post('/apostas/avaliar-gatekeeper-instantaneo', 'ApostaController::avaliarGatekeeperInstantaneo', ['as' => 'apostas.avaliar_gatekeeper_instantaneo']);
 $routes->get('/apostas/radar-linhas-ah/(:num)', 'ApostaController::radarLinhasAh/$1', ['as' => 'apostas.radar_linhas_ah']);
 $routes->get('/apostas/timeline/(:num)', 'ApostaController::timeline/$1', ['as' => 'apostas.timeline']);
 $routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['as' => 'apostas.salvar_linha_ah']);

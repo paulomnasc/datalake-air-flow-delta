@@ -862,6 +862,134 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <div id="sidebar-notif-backdrop" class="sidebar-notif-backdrop" style="display: none;"></div>
     <?php endif; ?>
 
+    <!-- Script Marked.js para renderização de tabelas e formatação Markdown do Grok -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+    .grok-preview-body {
+        color: #e2e8f0;
+        font-size: 0.90rem;
+        line-height: 1.6;
+    }
+    .grok-preview-body h1, .grok-preview-body h2, .grok-preview-body h3, .grok-preview-body h4 {
+        color: #93c5fd;
+        margin-top: 1.1rem;
+        margin-bottom: 0.6rem;
+        font-weight: 700;
+    }
+    .grok-preview-body h3 {
+        font-size: 1.05rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        padding-bottom: 4px;
+        color: #67e8f9;
+    }
+    .grok-preview-body table {
+        width: 100%;
+        margin-top: 0.8rem;
+        margin-bottom: 1.2rem;
+        border-collapse: separate;
+        border-spacing: 0;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(15, 23, 42, 0.7);
+    }
+    .grok-preview-body th {
+        background: #1e293b;
+        color: #38bdf8;
+        padding: 9px 12px;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid rgba(56, 189, 248, 0.4);
+    }
+    .grok-preview-body td {
+        padding: 9px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 0.86rem;
+    }
+    .grok-preview-body tr:last-child td {
+        border-bottom: none;
+    }
+    .grok-preview-body tr:hover td {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .grok-preview-body ul, .grok-preview-body ol {
+        padding-left: 1.3rem;
+        margin-bottom: 0.8rem;
+    }
+    .grok-preview-body li {
+        margin-bottom: 0.35rem;
+    }
+    .grok-preview-body strong {
+        color: #f8fafc;
+    }
+    .grok-preview-body hr {
+        border-color: rgba(255, 255, 255, 0.15);
+        margin: 1.2rem 0;
+    }
+    .grok-tab-btn.active {
+        background: rgba(99, 102, 241, 0.35) !important;
+        border-color: rgba(99, 102, 241, 0.6) !important;
+        color: #ffffff !important;
+        font-weight: 600;
+    }
+    </style>
+
+    <!-- Modal de Análise de Escalação com Grok AI -->
+    <div class="modal fade" id="modalGrokAnaliseNotif" tabindex="-1" aria-labelledby="modalGrokAnaliseNotifLabel" aria-hidden="true" style="z-index: 10500;">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="background: #0f172a; color: #f1f5f9; border: 1px solid rgba(99, 102, 241, 0.35); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <div class="modal-header border-secondary" style="background: #1e1b4b;">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1">
+                        <i class="bi bi-robot fs-5 text-indigo"></i>
+                        <h5 class="modal-title mb-0" id="modalGrokAnaliseNotifLabel" style="font-size: 1rem; color: #a5b4fc;">
+                            <span id="grok-modal-title">Análise de Escalação Oficial com Grok AI</span>
+                        </h5>
+                        <span id="grok-cache-badge" class="badge bg-success ms-2" style="display: none; font-size: 0.70rem; padding: 4px 8px;">
+                            <i class="bi bi-lightning-charge-fill"></i> Cache MySQL
+                        </span>
+                        <span id="grok-live-badge" class="badge bg-primary ms-2" style="display: none; font-size: 0.70rem; padding: 4px 8px;">
+                            <i class="bi bi-globe"></i> Grok Cloud
+                        </span>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+                    <div id="grok-loading-state" class="text-center py-5" style="display: none;">
+                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="text-light fw-bold mb-1" style="font-size: 0.95rem;">🤖 O Grok AI está auditando a súmula oficial e os desfalques...</p>
+                        <p class="text-muted small">Avaliando formações, titulares mantidos e integridade da espinha dorsal</p>
+                    </div>
+                    <div id="grok-error-state" class="alert alert-danger" style="display: none;"></div>
+                    <div id="grok-content-area" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary">
+                            <div class="d-flex align-items-center gap-1" style="background: rgba(255,255,255,0.06); padding: 3px; border-radius: 6px;">
+                                <button type="button" id="tab-btn-grok-preview" class="btn btn-xs grok-tab-btn active px-3 py-1" style="border-radius: 5px; font-size: 0.78rem; border: 1px solid transparent; color: #cbd5e1;">
+                                    <i class="bi bi-eye text-info me-1"></i> Visualização Formatada
+                                </button>
+                                <button type="button" id="tab-btn-grok-raw" class="btn btn-xs grok-tab-btn px-3 py-1" style="border-radius: 5px; font-size: 0.78rem; border: 1px solid transparent; color: #cbd5e1;">
+                                    <i class="bi bi-code-slash text-secondary me-1"></i> Texto Puro (Markdown)
+                                </button>
+                            </div>
+                            <button type="button" id="btn-copiar-analise-grok" class="btn btn-sm btn-outline-light" style="font-size: 0.75rem;">
+                                <i class="bi bi-clipboard"></i> Copiar Análise
+                            </button>
+                        </div>
+                        <!-- Painel 1: Visualização Formatada (HTML via Marked) -->
+                        <div id="grok-pane-preview" class="grok-preview-body p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);"></div>
+                        <!-- Painel 2: Texto Puro (Markdown Original) -->
+                        <div id="grok-pane-raw" class="p-3 rounded" style="display: none; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.1); font-size: 0.83rem; line-height: 1.6; white-space: pre-wrap; color: #e2e8f0; font-family: monospace;"></div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary" style="background: #0f172a;">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mensagens de sucesso e erro centralizadas na tela -->
     <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
     <div id="error-message" class="alert alert-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
@@ -1168,6 +1296,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const unpinUrl = '<?= base_url('notificacoes/despinar') ?>';
         const deleteNotifUrl = '<?= base_url('notificacoes/excluir') ?>';
         const clearHistoryUrl = '<?= base_url('notificacoes/limpar-historico') ?>';
+        const analisarGrokUrl = '<?= base_url('notificacoes/analisar-grok') ?>';
 
         let popupsExibidos = new Set();
         try {
@@ -1253,6 +1382,111 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const d = document.createElement('div');
             d.textContent = str;
             return d.innerHTML;
+        }
+
+        function abrirModalAnaliseGrok(notifId, titulo, mensagem) {
+            const modalEl = document.getElementById('modalGrokAnaliseNotif');
+            if (!modalEl) return;
+
+            const titleEl = document.getElementById('grok-modal-title');
+            const loadingEl = document.getElementById('grok-loading-state');
+            const errorEl = document.getElementById('grok-error-state');
+            const contentArea = document.getElementById('grok-content-area');
+            const previewEl = document.getElementById('grok-pane-preview');
+            const rawEl = document.getElementById('grok-pane-raw');
+            const cacheBadge = document.getElementById('grok-cache-badge');
+            const liveBadge = document.getElementById('grok-live-badge');
+
+            if (titleEl) titleEl.textContent = '🤖 Grok AI: ' + titulo;
+            if (loadingEl) loadingEl.style.display = 'block';
+            if (errorEl) errorEl.style.display = 'none';
+            if (contentArea) contentArea.style.display = 'none';
+            if (cacheBadge) cacheBadge.style.display = 'none';
+            if (liveBadge) liveBadge.style.display = 'none';
+
+            ativarAbaGrok('preview');
+
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                const modalBs = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modalBs.show();
+            } else if (typeof $ !== 'undefined' && $(modalEl).modal) {
+                $(modalEl).modal('show');
+            }
+
+            fetch(analisarGrokUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new URLSearchParams({
+                    notificacao_id: notifId || 0,
+                    titulo: titulo || '',
+                    mensagem: mensagem || ''
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (data && data.success && data.analise) {
+                    if (data.cached) {
+                        if (cacheBadge) {
+                            cacheBadge.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Cache MySQL (0 chamadas)';
+                            cacheBadge.style.display = 'inline-block';
+                        }
+                    } else {
+                        if (liveBadge) {
+                            liveBadge.innerHTML = '<i class="bi bi-globe"></i> Grok Cloud (Nova consulta)';
+                            liveBadge.style.display = 'inline-block';
+                        }
+                    }
+
+                    if (previewEl) {
+                        if (typeof marked !== 'undefined' && marked.parse) {
+                            previewEl.innerHTML = marked.parse(data.analise);
+                        } else {
+                            previewEl.textContent = data.analise;
+                        }
+                    }
+
+                    if (rawEl) {
+                        rawEl.textContent = data.analise;
+                    }
+
+                    if (contentArea) contentArea.style.display = 'block';
+                } else {
+                    if (errorEl) {
+                        errorEl.textContent = (data && data.message) ? data.message : 'Não foi possível obter a análise da IA no momento.';
+                        errorEl.style.display = 'block';
+                    }
+                }
+            })
+            .catch(err => {
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (errorEl) {
+                    errorEl.textContent = 'Falha de conexão com o servidor: ' + err.message;
+                    errorEl.style.display = 'block';
+                }
+            });
+        }
+
+        function ativarAbaGrok(aba) {
+            const btnPreview = document.getElementById('tab-btn-grok-preview');
+            const btnRaw = document.getElementById('tab-btn-grok-raw');
+            const panePreview = document.getElementById('grok-pane-preview');
+            const paneRaw = document.getElementById('grok-pane-raw');
+
+            if (aba === 'raw') {
+                if (btnRaw) btnRaw.classList.add('active');
+                if (btnPreview) btnPreview.classList.remove('active');
+                if (paneRaw) paneRaw.style.display = 'block';
+                if (panePreview) panePreview.style.display = 'none';
+            } else {
+                if (btnPreview) btnPreview.classList.add('active');
+                if (btnRaw) btnRaw.classList.remove('active');
+                if (panePreview) panePreview.style.display = 'block';
+                if (paneRaw) paneRaw.style.display = 'none';
+            }
         }
 
         function aplicarFiltroBuscaNotificacoes() {
@@ -1400,6 +1634,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             `;
                         } else {
                             const isItemAprovada = (n.tipo === 'APOSTA_CARTAO_APROVADA' || n.tipo === 'APOSTA_CRIADA' || n.tipo === 'NOVA_OPORTUNIDADE_AH' || n.tipo === 'OPORTUNIDADE_AO_VIVO');
+                            const isLineup = (n.tipo === 'ESCALACAO_CONFIRMADA_ALERTA' || n.tipo === 'ESCALACAO_CONFIRMADA_FORCA_MAXIMA' || (n.titulo && (n.titulo.includes('Escalação') || n.titulo.includes('Súmula') || n.titulo.includes('Titulares'))) || (n.mensagem && (n.mensagem.includes('ESCALAÇÕES') || n.mensagem.includes('Titulares:'))));
                             const iconHtml = (n.tipo === 'OPORTUNIDADE_AO_VIVO') ? '<i class="bi bi-lightning-charge-fill text-warning me-1"></i>' : (isItemAprovada ? '<i class="bi bi-bullseye text-success me-1"></i>' : '');
                             const titleColor = isUnread ? (isItemAprovada ? '#4ade80' : '#f87171') : '#f1f5f9';
                             html += `
@@ -1412,6 +1647,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                         </a>
                                         <div class="d-flex align-items-center gap-1">
                                             <span class="notif-time me-1">${timeStr}</span>
+                                            ${isLineup ? `
+                                                <button type="button" class="btn btn-xs btn-analisar-grok-notif" data-notif-id="${n.id}" data-titulo="${encodeURIComponent(n.titulo)}" data-msg="${encodeURIComponent(n.mensagem)}" title="Analisar escalação com Grok AI" style="background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.45); border-radius: 4px; padding: 2px 6px; color: #a5b4fc; font-size: 0.72rem; line-height: 1;">
+                                                    <i class="bi bi-robot"></i>
+                                                </button>
+                                            ` : ''}
                                             <button type="button" class="btn btn-xs btn-copiar-notif" data-msg="${encodeURIComponent(n.mensagem)}" title="Copiar texto do alerta" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; color: #cbd5e1; font-size: 0.72rem; line-height: 1;">
                                                 <i class="bi bi-clipboard"></i>
                                             </button>
@@ -1533,6 +1773,20 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         });
                     });
 
+                    // Analisar escalação com Grok AI ao clicar no botão do robô
+                    container.querySelectorAll('.btn-analisar-grok-notif').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const notifId = this.getAttribute('data-notif-id') || '';
+                            let titulo = 'Escalação';
+                            let mensagem = '';
+                            try { titulo = decodeURIComponent(this.getAttribute('data-titulo') || 'Escalação'); } catch(err) { titulo = this.getAttribute('data-titulo') || 'Escalação'; }
+                            try { mensagem = decodeURIComponent(this.getAttribute('data-msg') || ''); } catch(err) { mensagem = this.getAttribute('data-msg') || ''; }
+                            abrirModalAnaliseGrok(notifId, titulo, mensagem);
+                        });
+                    });
+
                     // Copiar texto do alerta ao clicar no botão de cópia
                     container.querySelectorAll('.btn-copiar-notif').forEach(btn => {
                         btn.addEventListener('click', function(e) {
@@ -1555,7 +1809,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // Evento de clique para marcar lida e direcionar para tela de apostas com scroll e highlight
                     container.querySelectorAll('.notif-item').forEach(el => {
                         el.addEventListener('click', function(e) {
-                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif') || e.target.closest('.btn-marcar-lida-item') || e.target.closest('.btn-excluir-notif')) return;
+                            if (e.target.closest('.btn-despinar-item') || e.target.closest('.btn-copiar-notif') || e.target.closest('.btn-analisar-grok-notif') || e.target.closest('.btn-marcar-lida-item') || e.target.closest('.btn-excluir-notif')) return;
 
                             const nid = this.getAttribute('data-notif-id');
                             if (nid) {
@@ -2093,6 +2347,34 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         searchInput.focus();
                     }
                     aplicarFiltroBuscaNotificacoes();
+                });
+            }
+
+            // Alternância de Abas (Visualização Formatada vs Texto Puro) no modal do Grok
+            const tabPreview = document.getElementById('tab-btn-grok-preview');
+            const tabRaw = document.getElementById('tab-btn-grok-raw');
+            if (tabPreview) {
+                tabPreview.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    ativarAbaGrok('preview');
+                });
+            }
+            if (tabRaw) {
+                tabRaw.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    ativarAbaGrok('raw');
+                });
+            }
+
+            // Botão copiar dentro do modal de análise do Grok
+            const btnCopiarGrok = document.getElementById('btn-copiar-analise-grok');
+            if (btnCopiarGrok) {
+                btnCopiarGrok.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const rawEl = document.getElementById('grok-pane-raw');
+                    const previewEl = document.getElementById('grok-pane-preview');
+                    const texto = (rawEl && rawEl.textContent) ? rawEl.textContent : (previewEl ? previewEl.innerText : '');
+                    copiarTextoParaClipboard(texto, this);
                 });
             }
 

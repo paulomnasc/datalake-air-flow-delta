@@ -1011,69 +1011,71 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
     if "_GEMINI_KEY_BLOCKED" not in globals():
         _GEMINI_KEY_BLOCKED = False
 
+    # ==============================================================================
+    # CHAMADAS AUTOMÁTICAS DE API (GEMINI / GROQ) DESATIVADAS TEMPORARIAMENTE
+    # (Código mantido comentado para reativação futura sem cobranças em segundo plano)
+    # ==============================================================================
+    # try:
+    #     if api_key and not _GEMINI_KEY_BLOCKED:
+    #         try:
+    #             resp = requests.post(url, json=payload, headers=headers, timeout=12)
+    #             if resp.status_code == 429:
+    #                 if tools_config:
+    #                     payload_no_tools = {
+    #                         "contents": payload["contents"],
+    #                         "generationConfig": payload["generationConfig"]
+    #                     }
+    #                     url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    #                     resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
+    #                 else:
+    #                     alt_model = "gemini-1.5-flash" if "lite" in model_name else "gemini-flash-lite-latest"
+    #                     url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/{alt_model}:generateContent?key={api_key}"
+    #                     resp = requests.post(url_alt, json=payload, headers=headers, timeout=15)
+    #             elif resp.status_code in (401, 403):
+    #                 _GEMINI_KEY_BLOCKED = True
+    #             if resp.status_code == 200:
+    #                 res_json = resp.json()
+    #                 candidates = res_json.get("candidates", [])
+    #                 if candidates:
+    #                     for p in candidates[0].get("content", {}).get("parts", []):
+    #                         if "text" in p:
+    #                             raw_text += p["text"]
+    #         except Exception as e_gem:
+    #             pass
+    #     if not raw_text.strip():
+    #         raw_text = _consultar_groq_fallback(prompt_text)
+    # except Exception:
+    #     pass
+
     try:
-        if api_key and not _GEMINI_KEY_BLOCKED:
-            try:
-                resp = requests.post(url, json=payload, headers=headers, timeout=12)
-                if resp.status_code == 429:
-                    if tools_config:
-                        # Se tomou 429 com a tool google_search, tenta imediatamente sem tools
-                        payload_no_tools = {
-                            "contents": payload["contents"],
-                            "generationConfig": payload["generationConfig"]
-                        }
-                        url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-                        resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
-                    else:
-                        # Se já estava sem tools e tomou 429, tenta modelo alternativo
-                        alt_model = "gemini-1.5-flash" if "lite" in model_name else "gemini-flash-lite-latest"
-                        url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/{alt_model}:generateContent?key={api_key}"
-                        resp = requests.post(url_alt, json=payload, headers=headers, timeout=15)
-                elif resp.status_code in (401, 403):
-                    _GEMINI_KEY_BLOCKED = True
-
-                if resp.status_code == 200:
-                    res_json = resp.json()
-                    candidates = res_json.get("candidates", [])
-                    if candidates:
-                        for p in candidates[0].get("content", {}).get("parts", []):
-                            if "text" in p:
-                                raw_text += p["text"]
-                else:
-                    print(f"⚠️ [Gemini API] HTTP {resp.status_code}. Acionando contingência de IA (Groq) com notícias web...")
-            except Exception as e_gem:
-                print(f"⚠️ [Gemini API] Falha ou timeout na conexão ({e_gem}). Acionando contingência de IA (Groq)...")
-
-        if not raw_text.strip():
-            raw_text = _consultar_groq_fallback(prompt_text)
-
-        if not raw_text.strip():
-            # Se ambas as IAs falharem, mas a súmula oficial já estiver disponível no MySQL:
-            # emite parecer oficial estruturado a partir da súmula gravada para não perder a janela de apostas
-            h_t = dossie.get("home_team", "Mandante")
-            a_t = dossie.get("away_team", "Visitante")
-            if lineups_disponiveis or sumula_info.get("tem_sumula"):
-                motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
-                is_alerta = alerta_estrutural or alerta_critico_dados
-                grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
-                badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
-                return {
-                    "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
-                    "grau_risco": grau_emerg,
-                    "badge_risco": badge_emerg,
-                    "tem_alerta": is_alerta,
-                    "escalacao_confirmada": True,
-                    "fonte_escalacao": "API_SPORTS",
-                    "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
-                    "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
-                    "parecer_explicativo": (
-                        f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada! Análise das Escalações:\n\n"
-                        f"1) Titulares confirmados: As federações oficiais liberaram a súmula da partida com os 11 titulares de cada equipe confirmados na API-Sports.\n"
-                        f"2) Ausências de peso: {motivos_str}.\n"
-                        f"3) Impacto tático na linha: Formações oficiais registradas e consistentes com o modelo pré-jogo.\n"
-                        f"4) Veredito final: {'🔴 Desfalque Crítico / Risco de Mercado Detectado - Cautela recomendada' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
-                    )
-                }
+        # Modo Determinístico Local: emite parecer com súmula oficial gravada sem consumir créditos de IA
+        h_t = dossie.get("home_team", "Mandante")
+        a_t = dossie.get("away_team", "Visitante")
+        if lineups_disponiveis or sumula_info.get("tem_sumula"):
+            motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+            is_alerta = alerta_estrutural or alerta_critico_dados
+            grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
+            badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
+            
+            parecer_sumula = (
+                f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada!\n\n"
+                f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
+                f"{texto_sumula}\n\n"
+                f"--- DIAGNÓSTICO PRÉ-JOGO ---\n"
+                f"• Status do Elenco: {motivos_str}.\n"
+                f"• Veredito: {'🔴 Desfalque Crítico / Risco de Mercado Detectado' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
+            )
+            return {
+                "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
+                "grau_risco": grau_emerg,
+                "badge_risco": badge_emerg,
+                "tem_alerta": is_alerta,
+                "escalacao_confirmada": True,
+                "fonte_escalacao": "API_SPORTS",
+                "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
+                "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
+                "parecer_explicativo": parecer_sumula
+            }
             if alerta_estrutural:
                 return {
                     "status": "ALERTA_RISCO",
@@ -2053,28 +2055,29 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
     api_key = get_gemini_api_key()
     raw_text = ""
 
-    if api_key and "_GEMINI_KEY_BLOCKED" not in globals():
-        model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
-            "generationConfig": {"temperature": 0.2}
-        }
-        try:
-            resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=25)
-            if resp.status_code == 200:
-                data_resp = resp.json()
-                cands = data_resp.get("candidates", [])
-                if cands:
-                    parts = cands[0].get("content", {}).get("parts", [])
-                    raw_text = "".join(p.get("text", "") for p in parts if p.get("text"))
-            else:
-                print(f"⚠️ [IA Sentinela AH] Gemini HTTP {resp.status_code}. Acionando contingência Groq...")
-        except Exception as e_gem:
-            print(f"⚠️ [IA Sentinela AH] Falha ou timeout no Gemini ({e_gem}). Acionando contingência Groq...")
-
-    if not raw_text:
-        raw_text = _consultar_groq_fallback(prompt_text)
+    # ==============================================================================
+    # CHAMADA DE IA NO HANDICAP DESATIVADA TEMPORARIAMENTE (APENAS COMENTADA)
+    # (Permite ao motor quantitativo Poisson + Gatekeeper rodar localmente sem custos)
+    # ==============================================================================
+    # if api_key and "_GEMINI_KEY_BLOCKED" not in globals():
+    #     model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+    #     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    #     payload = {
+    #         "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+    #         "generationConfig": {"temperature": 0.2}
+    #     }
+    #     try:
+    #         resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=25)
+    #         if resp.status_code == 200:
+    #             data_resp = resp.json()
+    #             cands = data_resp.get("candidates", [])
+    #             if cands:
+    #                 parts = cands[0].get("content", {}).get("parts", [])
+    #                 raw_text = "".join(p.get("text", "") for p in parts if p.get("text"))
+    #     except Exception as e_gem:
+    #         pass
+    # if not raw_text:
+    #     raw_text = _consultar_groq_fallback(prompt_text)
 
     # Processa e sanitiza a resposta JSON
     default_result = {

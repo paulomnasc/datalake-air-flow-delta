@@ -4844,6 +4844,160 @@ class ApostaController extends BaseController
             'fixtureId' => $fixtureId
         ]);
     }
+
+    /**
+     * Análise sob demanda de Súmula e Escalação Oficial com Grok AI (Groq API).
+     * Acionado exclusivamente quando o usuário clica no botão do robozinho no Sininho.
+     */
+    public function analisarEscalacaoGrok()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ]);
+        }
+
+        $notifId = (int)$this->request->getPost('notificacao_id');
+        $mensagemCustom = (string)$this->request->getPost('mensagem');
+        $tituloCustom = (string)$this->request->getPost('titulo');
+
+        $db = \Config\Database::connect();
+        $mensagem = $mensagemCustom;
+        $titulo = $tituloCustom;
+
+        if ($notifId > 0) {
+            $notif = $db->table('notificacoes_usuario')->where('id', $notifId)->get()->getRowArray();
+            if ($notif) {
+                // Protocolo Cache-First no MySQL (Regra de Ouro 1):
+                if (!empty($notif['analise_ia'])) {
+                    return $this->response->setJSON([
+                        'success' => true,
+                        'titulo'  => $notif['titulo'],
+                        'analise' => $notif['analise_ia'],
+                        'cached'  => true
+                    ]);
+                }
+                $mensagem = $notif['mensagem'];
+                $titulo = $notif['titulo'];
+            }
+        }
+
+        if (empty($mensagem)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Texto da escalação não informado.'
+            ]);
+        }
+
+        $apiKey = env('VISION_API_KEY') ?: getenv('VISION_API_KEY') ?: ($_ENV['VISION_API_KEY'] ?? '');
+        if (empty($apiKey)) {
+            $envPath = APPPATH . '../.env';
+            if (file_exists($envPath)) {
+                $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                foreach ($lines as $line) {
+                    if (strpos(trim($line), 'VISION_API_KEY=') === 0) {
+                        $apiKey = trim(explode('=', $line, 2)[1]);
+                        $apiKey = trim($apiKey, '"\'');
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (empty($apiKey)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Chave VISION_API_KEY não configurada no servidor.'
+            ]);
+        }
+
+        $systemPrompt = "Você é o Grok AI, Analista Tático Oficial do FootballWeb.\n"
+            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo que o apostador recebeu.\n"
+            . "Analise de forma concisa, direta e altamente técnica:\n"
+            . "1) Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
+            . "2) Goleiro e Espinha Dorsal: se o goleiro titular está em campo ou se há desfalques graves nos setores chave (zaga, criação, ataque).\n"
+            . "3) Veredito para o Apostador: emita uma recomendação clara (🟢 Entrada Segura / Mantida ou 🔴 Cautela / Alerta de Risco).\n"
+            . "Responda em formato limpo, direto e profissional em português brasileiro.";
+
+        $userPrompt = "Título do Alerta: {$titulo}\n\nDetalhes da Súmula e Escalação Oficial:\n{$mensagem}\n\nPor favor, emita o seu diagnóstico tático e o veredito para o apostador.";
+
+        try {
+            $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json',
+                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                'model' => 'openai/gpt-oss-120b',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt]
+                ],
+                'max_tokens' => 800,
+                'temperature' => 0.2
+            ]));
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode !== 200 || empty($response)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "Erro na comunicação com a IA Grok (HTTP {$httpCode}): " . ($curlError ?: 'Resposta vazia da API.')
+                ]);
+            }
+
+            $body = json_decode($response, true);
+            $analise = $body['choices'][0]['message']['content'] ?? '';
+
+            if (empty($analise)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Nenhuma análise gerada pela IA.'
+                ]);
+            }
+
+            // Persiste no Cache do MySQL na tabela notificacoes_usuario (Regra de Ouro 1)
+            if ($notifId > 0) {
+                try {
+                    $db->table('notificacoes_usuario')->where('id', $notifId)->update([
+                        'analise_ia' => $analise
+                    ]);
+                    // Se estiver vinculada a uma aposta, espelha em auditoria_ia_parecer
+                    if (!empty($notif['aposta_id'])) {
+                        $db->table('apostas')->where('id', $notif['aposta_id'])->update([
+                            'auditoria_ia_parecer' => $analise,
+                            'auditoria_ia_checked_at' => date('Y-m-d H:i:s')
+                        ]);
+                    }
+                } catch (\Throwable $e_cache) {
+                    log_message('error', '[Cache Grok] Falha ao persistir analise_ia em notificacoes_usuario: ' . $e_cache->getMessage());
+                }
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'titulo'  => $titulo,
+                'analise' => $analise,
+                'cached'  => false
+            ]);
+
+        } catch (\Throwable $e) {
+            log_message('error', '[Grok Escalação] Exceção ao consultar Grok: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Exceção interna ao consultar Grok AI: ' . $e->getMessage()
+            ]);
+        }
+    }
 }
 
 

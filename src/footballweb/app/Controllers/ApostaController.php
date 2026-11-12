@@ -2242,6 +2242,28 @@ class ApostaController extends BaseController
             ]);
 
             $statusCode = $response->getStatusCode();
+            $respBody = (string)$response->getBody();
+
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($statusCode === 402 || $statusCode === 429);
+            if (!$isQuota && !empty($respBody)) {
+                $respLower = strtolower($respBody);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)$userId, $statusCode, $respBody);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
             if ($statusCode !== 200) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -2407,6 +2429,28 @@ class ApostaController extends BaseController
             ]);
 
             $statusCode = $response->getStatusCode();
+            $respBody = (string)$response->getBody();
+
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($statusCode === 402 || $statusCode === 429);
+            if (!$isQuota && !empty($respBody)) {
+                $respLower = strtolower($respBody);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)$userId, $statusCode, $respBody);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
             if ($statusCode !== 200) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -4948,6 +4992,26 @@ class ApostaController extends BaseController
             $curlError = curl_error($ch);
             curl_close($ch);
 
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($httpCode === 402 || $httpCode === 429);
+            if (!$isQuota && !empty($response)) {
+                $respLower = strtolower($response);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)($access['user_id'] ?? 558), $httpCode, $response ?: $curlError);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
             if ($httpCode !== 200 || empty($response)) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -4998,6 +5062,62 @@ class ApostaController extends BaseController
             ]);
         }
     }
+
+    /**
+     * Registra alerta no sininho (notificacoes_usuario) quando a API do Grok esgota créditos ou atinge rate limit (HTTP 402/429).
+     */
+    private function registrarAlertaCreditosGrok(int $usuarioId, int $httpCode, string $errorDetails = ''): void
+    {
+        try {
+            $db = \Config\Database::connect();
+
+            // Evita disparos duplicados: se já houver um alerta não lido nas últimas 2 horas, não cria outro
+            $duplicado = $db->table('notificacoes_usuario')
+                ->where('usuario_id', $usuarioId)
+                ->where('tipo', 'GROK_CREDITOS_ESGOTADOS')
+                ->where('lida', 0)
+                ->where('criado_em >=', date('Y-m-d H:i:s', strtotime('-2 hours')))
+                ->countAllResults();
+
+            if ($duplicado > 0) {
+                return;
+            }
+
+            $motivo = ($httpCode === 402) ? "Créditos/Saldo insuficiente (HTTP 402)" : "Cota da API / Rate limit atingido (HTTP {$httpCode})";
+            $titulo = "🚨 Grok AI: Créditos ou Cota da API Esgotados";
+            $msg = "Atenção: A API do Grok (Groq Cloud) acusou limite de requisições ou saldo zerado ({$motivo}). "
+                 . "As análises táticas com IA ficarão pausadas até a renovação da cota ou recarga em console.groq.com.";
+
+            if (!empty($errorDetails)) {
+                $detalhesLimpos = trim(strip_tags($errorDetails));
+                // Tenta extrair a mensagem do JSON de erro se aplicável
+                $jsonErr = json_decode($errorDetails, true);
+                if (!empty($jsonErr['error']['message'])) {
+                    $detalhesLimpos = $jsonErr['error']['message'];
+                }
+                if (strlen($detalhesLimpos) > 160) {
+                    $detalhesLimpos = substr($detalhesLimpos, 0, 160) . '...';
+                }
+                $msg .= " [Detalhes: " . $detalhesLimpos . "]";
+            }
+
+            $db->table('notificacoes_usuario')->insert([
+                'usuario_id'  => $usuarioId,
+                'aposta_id'   => null,
+                'fixture_id'  => null,
+                'tipo'        => 'GROK_CREDITOS_ESGOTADOS',
+                'titulo'      => $titulo,
+                'mensagem'    => $msg,
+                'link'        => null,
+                'lida'        => 0,
+                'pinada'      => 1, // Fixa no topo com prioridade máxima
+                'criado_em'   => date('Y-m-d H:i:s')
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[Alerta Grok] Erro ao persistir alerta de créditos em notificacoes_usuario: ' . $e->getMessage());
+        }
+    }
 }
+
 
 

@@ -1577,7 +1577,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                         // Alertas de apostas, sentinela e in-play sempre direcionam canonicamente para /apostas com scroll e highlight
                         let linkHref = '#';
-                        if (isStopLoss) {
+                        const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
+                        const isGrokQuota = (n.tipo === 'GROK_CREDITOS_ESGOTADOS');
+
+                        if (isStopLoss || isGrokQuota) {
                             linkHref = n.link ? (n.link.startsWith('http') ? n.link : '<?= base_url() ?>' + (n.link.startsWith('/') ? n.link.substring(1) : n.link)) : '#';
                         } else {
                             const fixIdParam = n.fixture_id ? 'fixture_id=' + n.fixture_id : '';
@@ -1592,13 +1595,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             }
                         }
 
-                        if (isStopLoss) {
+                        if (isStopLoss || isGrokQuota) {
+                            const iconClass = isGrokQuota ? 'bi-robot' : (isPinada ? 'bi-pin-angle-fill' : 'bi-shield-exclamation');
+                            const alertBadge = isGrokQuota ? '<span class="badge bg-warning text-dark" style="font-size: 0.65rem; padding: 2px 6px;">IA PAUSADA</span>' : (isPinada ? '<span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>' : '');
                             html += `
-                                <div class="notif-item ${isPinada ? 'pinada' : ''} ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}">
+                                <div class="notif-item ${isPinada ? 'pinada' : ''} ${isUnread ? 'nao-lida' : ''}" data-notif-id="${n.id}" data-href="${linkHref}" style="border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.08);">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <a href="${linkHref}" class="text-decoration-none d-flex align-items-center gap-1 flex-grow-1" style="color: inherit;">
                                             <strong style="font-size: 0.85rem; color: #ef4444;" class="d-flex align-items-center gap-1">
-                                                <i class="bi ${isPinada ? 'bi-pin-angle-fill' : 'bi-shield-exclamation'} text-danger"></i> ${n.titulo}
+                                                <i class="bi ${iconClass} text-danger"></i> ${n.titulo}
                                             </strong>
                                         </a>
                                         <div class="d-flex align-items-center gap-1">
@@ -1614,8 +1619,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                                     <i class="bi bi-check2-all text-info"></i>
                                                 </span>
                                             `}
-                                            ${isPinada ? `
-                                                <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 6px;">📌 PINADO</span>
+                                            ${alertBadge}
+                                            ${isPinada && isStopLoss ? `
                                                 <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-despinar-item" data-notif-id="${n.id}" title="Despinar alerta para não reexibir" style="font-size: 0.70rem; border-radius: 4px; line-height: 1.2; background: rgba(239,68,68,0.15);">
                                                     <i class="bi bi-pin-angle"></i> Despinar
                                                 </button>

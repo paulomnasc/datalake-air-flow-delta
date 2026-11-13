@@ -580,25 +580,25 @@ class ApostaController extends BaseController
             if ($evalPy !== null) {
                 return $evalPy;
             }
-        }
-
-        // =========================================================================
-        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
-        // =========================================================================
-
-        // =========================================================================
-        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
-        // =========================================================================
-
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA (Apenas Under 5.5 e Under 6.5)
-        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
-        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
-
-        if (abs($lineCheck - 5.5) > 0.01 && abs($lineCheck - 6.5) > 0.01) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            $gatekeeperCategory = 'Falha na Avaliação de Handicap';
+            $gatekeeperMsg = 'Aviso Gatekeeper AH (NO_BET): Não foi possível validar os parâmetros estatísticos do handicap para esta partida.';
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
+
+        // =========================================================================
+        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
+        // =========================================================================
+        if ($isCartoes) {
+            // TRAVA RIGOROSA DE SEGURANÇA POR LINHA (Apenas Under 5.5 e Under 6.5)
+            preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
+            $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
+
+            if (abs($lineCheck - 5.5) > 0.01 && abs($lineCheck - 6.5) > 0.01) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
 
         // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
         $rowAvg = $db->query("
@@ -804,6 +804,7 @@ class ApostaController extends BaseController
                 }
             }
         }
+        }
 
         return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
     }
@@ -834,7 +835,12 @@ class ApostaController extends BaseController
             return null;
         }
 
-        $res = json_decode(trim($output), true);
+        $jsonStr = trim($output);
+        if (preg_match('/\{[\s\S]*"statusGatekeeper"[\s\S]*\}/', $output, $mJson)) {
+            $jsonStr = $mJson[0];
+        }
+
+        $res = json_decode($jsonStr, true);
         if (!$res || !isset($res['statusGatekeeper'])) {
             return null;
         }

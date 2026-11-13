@@ -1577,7 +1577,6 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                         // Alertas de apostas, sentinela e in-play sempre direcionam canonicamente para /apostas com scroll e highlight
                         let linkHref = '#';
-                        const isStopLoss = (n.tipo === 'STOP_LOSS_DIARIO');
                         const isGrokQuota = (n.tipo === 'GROK_CREDITOS_ESGOTADOS');
 
                         if (isStopLoss || isGrokQuota) {

@@ -285,8 +285,14 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
             """, (enriched_app_r, fixture_id))
     else:
-        # Passa enriched_reason_ah (com audit_bullet) para que o detector de CLV Positivo reconheça a odd atual do mercado
-        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
+        # Só aciona rotina de cancelamento se houver apostas existentes para a partida no banco
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+            LIMIT 1
+        """, (fixture_id,))
+        if cursor.fetchone():
+            cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
 
         # Verifica se a partida possui aposta preservada (CLV Positivo, aposta confirmada ou ativa)
         cursor.execute("""

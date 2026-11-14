@@ -5631,7 +5631,18 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                 btnEl.disabled = false;
                 btnEl.innerHTML = origText;
                 if (!data.success) {
-                    alert('⚠️ ' + (data.message || 'Erro ao revalidar odds.'));
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'Aviso de Auditoria',
+                            text: data.message || 'Não foi possível revalidar as odds no momento.',
+                            icon: 'warning',
+                            confirmButtonColor: '#f47c20',
+                            background: '#0f172a',
+                            color: '#ffffff'
+                        });
+                    } else {
+                        alert('⚠️ ' + (data.message || 'Erro ao revalidar odds.'));
+                    }
                     return;
                 }
 
@@ -5716,39 +5727,80 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                     }
                 }
 
-                // 5. Feedback com Alerta Completo
-                let msg = '🔄 ' + (data.message || 'Revalidação concluída com sucesso!') + '\n\n';
+                // 5. Feedback Estruturado com SweetAlert2 (Regra 17 de UX)
+                const bmName = data.bookmaker || 'Betano';
+                let swalHtml = '<div style="text-align: left; font-size: 0.80rem; color: #cbd5e1; line-height: 1.45;">';
+                
                 if (data.odds_1x2 && data.odds_1x2.home) {
-                    msg += '• Odds 1X2 (' + (data.bookmaker || 'Betano') + '): Casa @ ' + Number(data.odds_1x2.home).toFixed(2) + ' | Empate @ ' + Number(data.odds_1x2.draw).toFixed(2) + ' | Fora @ ' + Number(data.odds_1x2.away).toFixed(2) + '\n\n';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #38bdf8;">';
+                    swalHtml += '  <strong style="color: #38bdf8;">📊 Odds 1X2 (' + bmName + '):</strong> ';
+                    swalHtml += '  Casa <strong>' + Number(data.odds_1x2.home).toFixed(2) + '</strong> | ';
+                    swalHtml += '  Empate <strong>' + Number(data.odds_1x2.draw).toFixed(2) + '</strong> | ';
+                    swalHtml += '  Fora <strong>' + Number(data.odds_1x2.away).toFixed(2) + '</strong>';
+                    swalHtml += '</div>';
                 }
+
                 if (data.handicap) {
-                    msg += '• Handicap Asiático: ' + data.handicap.suggestion + (data.handicap.odd ? ' @ ' + Number(data.handicap.odd).toFixed(2) : '') + ' [' + data.handicap.status + ']\n';
+                    const isAhApp = (data.handicap.status === 'APROVADO');
+                    const ahBadgeCol = isAhApp ? '#10b981' : '#f87171';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid ' + ahBadgeCol + ';">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: ' + ahBadgeCol + ';">🎯 Handicap Asiático:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + (data.handicap.category || data.handicap.status) + '</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.handicap.suggestion + (data.handicap.odd ? ' @ ' + Number(data.handicap.odd).toFixed(2) : '') + '</div>';
                     if (data.handicap.reason_clean) {
-                        msg += '  ↳ Diagnóstico: ' + data.handicap.reason_clean + '\n';
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.handicap.reason_clean + '</div>';
                     }
-                    if (data.handicap.lines_read && data.handicap.lines_read.length > 0) {
-                        msg += '\n  ↳ Linhas de AH Lidas na Betano (' + data.handicap.lines_read.length + ' linhas):\n';
-                        data.handicap.lines_read.forEach(function(l) {
-                            const icon = l.aprovada ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
-                            msg += '     ' + icon + ' ' + l.palpite + ' @ ' + Number(l.odd).toFixed(2) + '\n';
-                            if (l.motivo) {
-                                msg += '        ↳ ' + l.motivo + '\n';
-                            }
-                        });
-                    }
+                    swalHtml += '</div>';
                 }
+
                 if (data.cards) {
-                    msg += '\n• Cartões: ' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + ' [' + data.cards.status + ']\n';
+                    swalHtml += '<div style="padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #fbbf24;">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: #fbbf24;">🟨 Mercado de Cartões:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + Number(data.cards.probability || 0).toFixed(1) + '% Poisson</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + '</div>';
                     if (data.cards.reason_clean) {
-                        msg += '  ↳ Diagnóstico: ' + data.cards.reason_clean + '\n';
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.cards.reason_clean + '</div>';
                     }
+                    swalHtml += '</div>';
                 }
-                alert(msg);
+                swalHtml += '</div>';
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Odds & IA Revalidados',
+                        html: swalHtml,
+                        icon: 'success',
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#38bdf8',
+                        background: '#0f172a',
+                        color: '#ffffff'
+                    });
+                } else {
+                    let msg = '🔄 Odds e IA Revalidados com Sucesso!\n\n';
+                    if (data.handicap) msg += '• Handicap: ' + data.handicap.suggestion + '\n';
+                    if (data.cards) msg += '• Cartões: ' + data.cards.suggestion + '\n';
+                    alert(msg);
+                }
             },
             error: function() {
                 btnEl.disabled = false;
                 btnEl.innerHTML = origText;
-                alert('Erro de comunicação com o servidor ao revalidar.');
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Erro de Comunicação',
+                        text: 'Falha de comunicação com o servidor ao revalidar.',
+                        icon: 'error',
+                        confirmButtonColor: '#ef4444',
+                        background: '#0f172a',
+                        color: '#ffffff'
+                    });
+                } else {
+                    alert('Erro de comunicação com o servidor ao revalidar.');
+                }
             }
         });
     }

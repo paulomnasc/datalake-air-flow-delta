@@ -4159,12 +4159,24 @@ class ApostaController extends BaseController
         $cmd .= " 2>&1";
 
         $output = shell_exec($cmd);
-        $result = json_decode($output, true);
 
-        if (!$result) {
+        $result = null;
+        if (!empty($output)) {
+            $jsonStart = strpos($output, '{');
+            $jsonEnd = strrpos($output, '}');
+            if ($jsonStart !== false && $jsonEnd !== false && $jsonEnd > $jsonStart) {
+                $jsonStr = substr($output, $jsonStart, $jsonEnd - $jsonStart + 1);
+                $result = json_decode($jsonStr, true);
+            } else {
+                $result = json_decode($output, true);
+            }
+        }
+
+        if (!$result || empty($result['success'])) {
+            $errMsg = $result['message'] ?? 'Falha ao revalidar cotações e Gatekeeper da partida em tempo real.';
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Erro ao processar auditoria e Gatekeeper: ' . $output
+                'message' => $errMsg
             ]);
         }
 

@@ -14,6 +14,7 @@ docs/footballweb/PROCESSO_CRIACAO_PALPITES_HANDICAP_ASIATICO.md:
 """
 
 import os
+import sys
 import re
 import json
 import math
@@ -1906,12 +1907,12 @@ def calculate_unified_handicap_recommendation(
             xg_h = round(xg_h * penal_factor, 2)
             xg_a = round(xg_a * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}", file=sys.stderr)
         elif team_penalizado and team_penalizado in away_team.lower():
             xg_a = round(xg_a * penal_factor, 2)
             xg_h = round(xg_h * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}", file=sys.stderr)
 
     # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
     if betano_lines is None:
@@ -3963,7 +3964,14 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     Cancelamento automático desativado conforme diretriz operacional (Diário de Bordo 22/10/2026).
     Preserva apostas existentes (confirmadas ou não confirmadas) como 'Pendente' sem estorno ou cancelamento forçado.
     """
-    print(f"🔒 [Aposta Preservada / Cancelamento Automático Desativado] Partida #{fixture_id}: cancelamento automático ignorado. Apostas mantidas intactas.")
+    if cursor and fixture_id:
+        try:
+            cursor.execute("SELECT id FROM apostas WHERE fixture_id = %s LIMIT 1", (fixture_id,))
+            if not cursor.fetchone():
+                return []
+        except Exception:
+            pass
+    print(f"🔒 [Aposta Preservada / Cancelamento Automático Desativado] Partida #{fixture_id}: cancelamento automático ignorado. Apostas mantidas intactas.", file=sys.stderr)
     return []
 
 

@@ -601,13 +601,21 @@ def sync_fixture_and_bet_goals(
                 mercado, casa_de_aposta, palpite, odd, odd_justa,
                 probabilidade_poisson, ev_percentual, status_gatekeeper,
                 valor_aposta, ganhos_potenciais, status, confirmada,
-                resultado_detalhado, data_hora_jogo, criado_em, updated_at
+                resultado_detalhado, data_hora_jogo,
+                auditoria_ia_status, auditoria_ia_resumo, auditoria_ia_parecer,
+                auditoria_ia_checked_at, notificacao_escalacao_enviada,
+                criado_em, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
                 'Gols Asiáticos', 'Betano', %s, %s, %s,
                 %s, %s, 'APROVADO',
                 %s, %s, 'Pendente', %s,
-                %s, %s, NOW(), NOW()
+                %s, %s,
+                'CONFIRMADO',
+                'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)',
+                'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.',
+                NOW(), 1,
+                NOW(), NOW()
             )
         """, (
             uid, user_moeda, user_cotacao, fixture_id, home_team, away_team,

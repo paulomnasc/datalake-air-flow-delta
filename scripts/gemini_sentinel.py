@@ -555,13 +555,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
                 f"⚠️ Suspeita de Armadilha da Odd Inflada no pré-jogo: A cotação subiu no mercado. Requer validação mandatória da súmula oficial com titulares."
             )
         else:
-            alerta_critico = True
             desc_cat_lower = desc_cat.lower()
             if "falta de valor esperado" in desc_cat_lower or "ev" in desc_cat_lower or "sem entrada" in desc_cat_lower or "liquidez" in desc_cat_lower:
                 motivos_risco.append(
-                    "🚨 As linhas AH viáveis do palpite foram excluídas pelas casas de apostas (Gatekeeper decretou abstenção por falta de valor esperado +EV): Saída preventiva / cancelamento recomendado."
+                    "⚠️ Observação de Mercado: Cotações automatizadas da casa padrão sem valor esperado (+EV) no pré-jogo matinal."
                 )
             else:
+                alerta_critico = True
                 motivos_risco.append(
                     f"🚨 Gatekeeper decretou Abstenção ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
                 )
@@ -575,7 +575,7 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
         alerta_critico = True
         motivos_risco.append(f"Cotações 1X2 ausentes ou zeradas no banco ({odd_home:.2f} x {odd_away:.2f}).")
 
-    if probabilidade <= 0.0 or probabilidade > 100.0:
+    if item.get('probabilidade_poisson') is not None and (probabilidade <= 0.0 or probabilidade > 100.0):
         alerta_critico = True
         motivos_risco.append(f"Probabilidade Poisson anômala ou zerada ({probabilidade:.1f}%).")
 
@@ -1061,28 +1061,54 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         h_t = dossie.get("home_team", "Mandante")
         a_t = dossie.get("away_team", "Visitante")
         if lineups_disponiveis or sumula_info.get("tem_sumula"):
-            motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
-            is_alerta = alerta_estrutural or alerta_critico_dados
-            grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
-            badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
-            
+            tem_alerta_elenco = bool(alerta_estrutural)
+            tem_alerta_dados = bool(alerta_critico_dados)
+
+            if tem_alerta_elenco:
+                motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Alterações críticas ou desfalques detectados no elenco"
+                veredito_txt = "🔴 Desfalque Crítico no Elenco Detectado"
+                grau_emerg = "ALTO"
+                badge_emerg = "🔴 Risco Alto (Elenco)"
+                titulo_tag = "🔴 Alerta de Desfalques"
+                resumo_txt = f"Desfalques na súmula: {motivos_str}"
+            elif tem_alerta_dados:
+                motivos_str = "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+                veredito_txt = "🟡 Força Máxima Confirmada no Elenco (Com Observação de Mercado/Cotações)"
+                grau_emerg = "MEDIO"
+                badge_emerg = "🟡 Observação de Mercado"
+                titulo_tag = "Força Máxima / ⚠️ Observação de Mercado"
+                resumo_txt = "Força máxima no elenco (com observação de mercado/cotações)"
+            else:
+                motivos_str = "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+                veredito_txt = "🟢 Força Máxima Confirmada - Sinal Verde"
+                grau_emerg = "BAIXO" if not confronto_eq else "MEDIO"
+                badge_emerg = "🟢 Força Máxima" if not confronto_eq else "🟡 Confronto Equilibrado"
+                titulo_tag = "🟢 Força Máxima"
+                resumo_txt = "Força máxima confirmada sem desfalques críticos"
+
             parecer_sumula = (
                 f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada!\n\n"
                 f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
                 f"{texto_sumula}\n\n"
                 f"--- DIAGNÓSTICO PRÉ-JOGO ---\n"
                 f"• Status do Elenco: {motivos_str}.\n"
-                f"• Veredito: {'🔴 Desfalque Crítico / Risco de Mercado Detectado' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
             )
+            if tem_alerta_dados and aud_dados.get("motivos_risco"):
+                motivos_mkt = "; ".join(aud_dados["motivos_risco"])
+                parecer_sumula += f"• Observação de Mercado/Cotações: ⚠️ {motivos_mkt}\n"
+            parecer_sumula += f"• Veredito: {veredito_txt}"
+
             return {
-                "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
+                "status": "ALERTA_RISCO" if tem_alerta_elenco else ("CONFIRMADO" if not tem_alerta_dados else "ALERTA_RISCO"),
                 "grau_risco": grau_emerg,
                 "badge_risco": badge_emerg,
-                "tem_alerta": is_alerta,
+                "tem_alerta": tem_alerta_elenco or tem_alerta_dados,
+                "tem_alerta_elenco": tem_alerta_elenco,
+                "tem_alerta_dados": tem_alerta_dados,
                 "escalacao_confirmada": True,
                 "fonte_escalacao": "API_SPORTS",
-                "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
-                "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
+                "resumo_escalacao": resumo_txt,
+                "titulo_alerta": f"📋 Escalação Confirmada [{titulo_tag}]: {h_t} vs {a_t}",
                 "parecer_explicativo": parecer_sumula
             }
             if alerta_estrutural:
@@ -1620,6 +1646,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND a.auditoria_ia_status IS NULL
+                  AND (a.mercado IS NULL OR a.mercado NOT LIKE '%%Gol%%')
+                  AND (a.palpite IS NULL OR a.palpite NOT LIKE '%%Gol%%')
                   AND DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR)) = DATE(DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 HOUR))
                   AND ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1642,6 +1670,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
                   AND (a.notificacao_escalacao_enviada = 0 OR a.notificacao_escalacao_enviada IS NULL)
+                  AND (a.mercado IS NULL OR a.mercado NOT LIKE '%%Gol%%')
+                  AND (a.palpite IS NULL OR a.palpite NOT LIKE '%%Gol%%')
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 25 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1661,6 +1691,24 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             total_processados += 1
             aposta_id = item['aposta_id']
             fixture_id = item['fixture_id']
+            mercado_str = str(item.get('mercado') or '').lower()
+            palpite_str = str(item.get('palpite') or '').lower()
+
+            # Governança de Isolamento: Mercado de Gols Asiáticos opera sob Matemática Pura de Poisson
+            if 'gol' in mercado_str or 'gol' in palpite_str:
+                print(f"ℹ️ [Sentinela IA] Aposta #{aposta_id} é do mercado de Gols Asiáticos. Isolada de auditoria qualitativa (Regra Matemática Pura).")
+                cursor.execute("""
+                    UPDATE apostas SET
+                        auditoria_ia_status = 'CONFIRMADO',
+                        auditoria_ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)',
+                        auditoria_ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.',
+                        auditoria_ia_checked_at = NOW(),
+                        notificacao_escalacao_enviada = 1
+                    WHERE id = %s
+                """, (aposta_id,))
+                conn.commit()
+                continue
+
             home_team = item['home_team']
             away_team = item['away_team']
             if item.get('fixture_date'):
@@ -1848,14 +1896,24 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         badge_risco = '🔴 Risco Crítico de Mercado'
                         resumo = f"🚨 Alerta de Mercado [Drift Severo / Pressão Vendedora]: {recalib.get('motivo_recalibragem', 'Distorção de mercado')}"
                         titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    elif resultado.get('tem_alerta_elenco'):
+                        st = 'ALERTA_RISCO'
+                        badge_risco = '🔴 Risco Alto (Elenco)'
+                        resumo = f"📋 Escalação Confirmada [Alerta de Desfalques]: {resultado.get('resumo_escalacao', resumo)}"
+                        titulo_alerta = f"📋 Escalação Confirmada [🔴 Alerta de Desfalques]: {home_team} vs {away_team}"
+                    elif resultado.get('tem_alerta_dados'):
+                        st = 'CONFIRMADO' if (item.get('confirmada') == 1 or item.get('status') == 'Pendente') else 'ALERTA_RISCO'
+                        badge_risco = '🟡 Observação de Mercado'
+                        resumo = f"📋 Escalação Confirmada [Força Máxima / Observação de Mercado]: {resultado.get('resumo_escalacao', resumo)}"
+                        titulo_alerta = f"📋 Escalação Confirmada [Força Máxima / ⚠️ Observação de Mercado]: {home_team} vs {away_team}"
                     elif not tem_alerta:
                         st = 'CONFIRMADO'
                         resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
-                        titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
+                        titulo_alerta = f"📋 Escalação Confirmada [🟢 Força Máxima]: {home_team} vs {away_team}"
                     else:
                         st = 'ALERTA_RISCO'
-                        resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
-                        titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
+                        resumo = f"📋 Escalação Confirmada [Observação]: {resumo}"
+                        titulo_alerta = f"📋 Escalação Confirmada [⚠️ Observação]: {home_team} vs {away_team}"
                     if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
                         parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
                 elif tem_alerta_mercado:

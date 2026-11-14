@@ -1504,13 +1504,16 @@ if (!function_exists('fmtTopValorWithBrl')) {
           $isLineupNotified = $lineupNotifStatus->isNotificado();
           $sentinelaStatus = $aposta->auditoria_ia_status ?? '';
 
+          $isGolsAsiaticos = (stripos($aposta->mercado ?? '', 'gol') !== false || stripos($aposta->palpite ?? '', 'gol') !== false);
+
           // Estado 1: Súmula Realmente Pendente (Aposta Premium/Quase Premium aguardando súmula oficial e notificação)
+          // Nota: Mercado de Gols Asiáticos é isolado da Sentinela LLM e nunca é bloqueado aguardando escalação.
           $nowEpoch = time();
           $isFinishedOrPast = ($gameEpoch > 0 && $gameEpoch <= $nowEpoch) || in_array(strtoupper($aposta->status ?? ''), ['GANHA', 'MEIO GANHA', 'PERDIDA', 'MEIO PERDIDA', 'ANULADA', 'CASHOUT']);
-          $isLineupPending = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $isLineupPending = !$isGolsAsiaticos && !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Estado 3: Súmula Notificada com Alerta de Risco
-          $isLineupRiskAlert = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $isLineupRiskAlert = !$isGolsAsiaticos && !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Bloqueio rígido de confirmação de governança: apenas enquanto a súmula estiver pendente
           $isLockedByLineup = $isLineupPending;

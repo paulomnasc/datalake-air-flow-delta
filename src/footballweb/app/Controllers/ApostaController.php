@@ -1329,7 +1329,8 @@ class ApostaController extends BaseController
         $isPremium = $betTier->isPremium();
         $isQuasePremium = $betTier->isQuasePremium();
 
-        if ($isPremium || $isQuasePremium) {
+        $isGolsMercado = (stripos($aposta->mercado ?? '', 'gol') !== false || stripos($aposta->palpite ?? '', 'gol') !== false);
+        if (!$isGolsMercado && ($isPremium || $isQuasePremium)) {
             $sentinelaStatus = $aposta->auditoria_ia_status ?? null;
             if ($sentinelaStatus !== 'CONFIRMADO' && $sentinelaStatus !== 'ALERTA_RISCO') {
                 $tipoNome = $isPremium ? '👑 PREMIUM' : '🛡️ Quase Premium';
@@ -1587,7 +1588,8 @@ class ApostaController extends BaseController
             $isPremLote = $tierLote->isPremium();
             $isQuasePremLote = $tierLote->isQuasePremium();
 
-            if (($isPremLote || $isQuasePremLote) && ($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') {
+            $isGolsLote = (stripos($aposta->mercado ?? '', 'gol') !== false || stripos($aposta->palpite ?? '', 'gol') !== false);
+            if (!$isGolsLote && ($isPremLote || $isQuasePremLote) && ($aposta->auditoria_ia_status ?? '') !== 'CONFIRMADO') {
                 $skippedLineupCount++;
                 continue; // Pula sem debitar
             }

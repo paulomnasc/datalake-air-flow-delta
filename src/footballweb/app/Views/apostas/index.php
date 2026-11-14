@@ -1519,7 +1519,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           $isExceedingCeiling = false;
           if ($isHandicap && preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $aposta->palpite ?? '', $mLine)) {
               $lVal = (float)str_replace(',', '.', $mLine[1]);
-              if ($lVal < -0.75) {
+              if ($lVal < -1.0) {
                   $isExceedingCeiling = true;
               }
           }
@@ -2127,7 +2127,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 } elseif ($isLockedByRiskCeiling) {
                     $btnConfirmClass = 'btn-secondary disabled';
                     $btnConfirmIcon = 'bi-shield-slash-fill';
-                    $btnConfirmTitle = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+                    $btnConfirmTitle = 'Trava de Segurança da Banca: Linhas além de -1.0 AH para favoritos estão bloqueadas.';
                     $btnConfirmText = '🔒 Limite Excedido';
                 } elseif ($isLineupPending) {
                     // Estado 1: Súmula Realmente Pendente
@@ -2150,7 +2150,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 }
 
                 $onclickAction = $isLockedByRiskCeiling 
-                  ? "alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.'); return false;" 
+                  ? "alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além de -1.0 estão bloqueadas para confirmação e débito na banca.'); return false;" 
                   : ($isLineupPending 
                     ? "alert('⏳ Trava de Governança de Risco: Esta aposta é classificada como " . ($isApostaPremium ? '👑 PREMIUM' : '🛡️ Quase Premium') . ". É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.'); return false;" 
                     : 'openConfirmBetModalFromButton(this)'
@@ -4247,7 +4247,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const match = p.match(/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i);
     if (match && match[1]) {
       const val = parseFloat(match[1].replace(',', '.'));
-      if (!isNaN(val) && val < -0.75) {
+      if (!isNaN(val) && val < -1.0) {
         return true;
       }
     }
@@ -4262,7 +4262,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const mercadoVal = document.getElementById('mercadoInput')?.value || '';
     const palpiteVal = document.getElementById('palpiteInput')?.value || '';
     if (isHandicapExceedingCeiling(mercadoVal, palpiteVal)) {
-      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -1.0 AH.\n\nLinhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5, -0.75 ou -1.0).');
       return;
     }
 
@@ -4473,7 +4473,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const editMercadoVal = document.getElementById('editMercadoInput')?.value || '';
     const editPalpiteVal = document.getElementById('editPalpiteInput')?.value || '';
     if (isHandicapExceedingCeiling(editMercadoVal, editPalpiteVal)) {
-      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nLinhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5 ou -0.75).');
+      alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -1.0 AH.\n\nLinhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas para preservação do capital. Ajuste o palpite para uma linha autorizada (-0.5, -0.75 ou -1.0).');
       return;
     }
 
@@ -4603,10 +4603,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
         return;
       }
 
-      // 4.2 Trava Mandatória de Segurança da Banca: Teto de -0.75 AH para Favoritos
+      // 4.2 Trava Mandatória de Segurança da Banca: Teto de -1.0 AH para Favoritos
       const isLockedRisk = cardEl.getAttribute('data-locked-risk') === '1' || isHandicapExceedingCeiling(mercado, palpite);
       if (isLockedRisk) {
-        alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -0.75 AH.\n\nEsta aposta possui uma linha além do limite de risco permitido (-1.0, -1.25, -1.5) e está terminantemente bloqueada para confirmação e débito na banca.');
+        alert('🔒 Trava de Segurança da Banca:\nO teto máximo de risco permitido para qualquer favorito é -1.0 AH.\n\nEsta aposta possui uma linha além do limite de risco permitido (-1.25, -1.5, -2.0) e está terminantemente bloqueada para confirmação e débito na banca.');
         return;
       }
 
@@ -5449,10 +5449,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
       btnConfirm.style.removeProperty('border-color');
       btnConfirm.style.removeProperty('color');
       btnConfirm.style.setProperty('cursor', 'not-allowed', 'important');
-      btnConfirm.title = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+      btnConfirm.title = 'Trava de Segurança da Banca: Linhas além de -1.0 AH para favoritos estão bloqueadas.';
       btnConfirm.innerHTML = '<i class="bi bi-shield-slash-fill me-1"></i> 🔒 Limite Excedido';
       btnConfirm.onclick = function() {
-        alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.');
+        alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além de -1.0 estão bloqueadas para confirmação e débito na banca.');
         return false;
       };
       return;

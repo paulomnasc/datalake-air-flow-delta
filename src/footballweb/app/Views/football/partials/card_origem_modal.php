@@ -111,7 +111,7 @@ if (!function_exists('simplifyRejectionReasonModal')) {
         if (empty($m)) return 'Reprovada';
         if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
-        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
+        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -1.0 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
         if (stripos($m, 'divergência de mando') !== false || stripos($m, 'caldeirão') !== false || stripos($m, 'restritas exclusivamente a mandantes') !== false) return 'Trava de mando';
         if (stripos($m, 'cobertura de empate') !== false) return 'Exige 1X2 <= 1.55';

@@ -805,7 +805,7 @@ def evaluate_and_select_best_ah_candidate(
     - Score de Valor = EV% * (Prob / 100.0)
     """
     standard_allowed_lines = {0.0}
-    moderate_negative_lines = {-0.5, -0.75}
+    moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
     raw_a_odd = float(odd_away or 0.0)
@@ -984,8 +984,8 @@ def evaluate_and_select_best_ah_candidate(
             cand_xg_diff >= 0.0
         )
 
-        # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -0.75 AH
-        if c_line < -0.75:
+        # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -1.0 AH
+        if c_line < -1.0:
             continue
 
         # =========================================================================
@@ -1008,7 +1008,7 @@ def evaluate_and_select_best_ah_candidate(
         # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
         # Exceção Soberana: Super-Dominância Tier 1 (onde o abismo técnico autoriza até -0.75 AH).
         # =========================================================================
-        if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75)):
+        if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75, -1.0)):
             continue
 
         u5j_diff = abs(cand_pts_eff - opp_pts_eff)
@@ -1353,7 +1353,7 @@ def evaluate_and_select_best_ah_candidate(
 
         if c_line in moderate_negative_lines:
             # -0.5 AH pode ser liberado para mandantes com dominância de Poisson OU super-favoritos/assimetria
-            # Linha -0.75 AH permanece restrita a Super-Favoritos ou Tier 1 Dominante (teto máximo global)
+            # Linhas -0.75 AH e -1.0 AH permanecem restritas a Super-Favoritos ou Tier 1 Dominante (teto máximo global)
             min_odd_neg = 1.50 if is_super_dominant_tier1 else 1.60
             if c_odd < min_odd_neg or c_odd > 1.95:
                 continue
@@ -1362,12 +1362,18 @@ def evaluate_and_select_best_ah_candidate(
                     continue
                 required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
                 required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
-            else:
+            elif c_line == -0.75:
                 # Linha -0.75 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
                 if not is_eligible_negative:
                     continue
                 required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 65.0
                 required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 15.0
+            else:
+                # Linha -1.0 AH: teto máximo permitido em cenários de super-favoritismo / dominância técnica
+                if not (is_eligible_negative or is_super_dominant_tier1 or is_super_fav_crushed):
+                    continue
+                required_prob = 55.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 60.0
+                required_ev = 5.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 10.0
         elif c_line == -0.25:
             # Linha de Cobertura de -0.25 AH (Carro-Chefe Histórico de Rentabilidade):
             # 1. Elegibilidade: Mandantes com superioridade técnica OU Visitantes em alta contra mandantes em crise
@@ -1520,7 +1526,7 @@ def evaluate_and_select_best_ah_candidate(
                 cand_copy['tier'] = BetTier.QUASE_PREMIUM
                 cand_copy['gatekeeper_category'] = 'Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula'
                 cand_copy['is_momentum_surge'] = True
-            elif is_super_dominant_tier1 and c_line in (-0.5, -0.75):
+            elif is_super_dominant_tier1 and c_line in (-0.5, -0.75, -1.0):
                 cand_copy['destaque'] = BetTier.PREMIUM.value
                 cand_copy['is_premium'] = True
                 cand_copy['tier'] = BetTier.PREMIUM
@@ -3354,8 +3360,8 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         if status_ah == 'APROVADO' and p_str.strip().lower() == str(sug_ah).strip().lower():
             is_aprovada = True
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
-        elif c_line < -0.75:
-            motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
+        elif c_line < -1.0:
+            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é estritamente proibida pelo teto universal de segurança da banca"
         elif c_line in (0.25, 0.5):
             motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de dominância >= 30% no U5J do mandante ou desfalques importantes na súmula"
         elif c_line > 0.0:
@@ -3368,7 +3374,7 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Reprovada: Cotação deprimida abaixo do piso seguro de 1.50"
         elif 1.61 <= odd_val <= 1.85 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Equipe em curva descendente bloqueada na faixa crítica de risco (1.61 a 1.85)"
-        elif c_line in (-0.5, -0.75):
+        elif c_line in (-0.5, -0.75, -1.0):
             motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
         elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"

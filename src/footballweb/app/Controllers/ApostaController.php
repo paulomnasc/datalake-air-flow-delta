@@ -296,7 +296,7 @@ class ApostaController extends BaseController
         if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital.'
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas para preservação do capital.'
             ])->setStatusCode(422);
         }
 
@@ -924,7 +924,7 @@ class ApostaController extends BaseController
         if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas para preservação do capital.'
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas para preservação do capital.'
             ])->setStatusCode(422);
         }
 
@@ -1344,14 +1344,14 @@ class ApostaController extends BaseController
         }
 
         // =========================================================================
-        // TRAVA MANDATÓRIA DE SEGURANÇA DA BANCA: TETO DE RISCO UNIVERSAL (-0.75 AH)
-        // Linhas além de -0.75 AH para favoritos estão permanentemente bloqueadas.
+        // TRAVA MANDATÓRIA DE SEGURANÇA DA BANCA: TETO DE RISCO UNIVERSAL (-1.0 AH)
+        // Linhas além de -1.0 AH para favoritos estão permanentemente bloqueadas.
         // =========================================================================
         if ($this->isHandicapExceedingCeiling($aposta->mercado ?? '', $aposta->palpite ?? '')) {
             return $this->response->setJSON([
                 'success' => false,
                 'is_locked_by_ceiling' => true,
-                'message' => '🔒 Trava de Segurança da Banca: Esta aposta excede o teto máximo de risco permitido para favoritos (-0.75 AH) e está bloqueada para confirmação e débito na banca.'
+                'message' => '🔒 Trava de Segurança da Banca: Esta aposta excede o teto máximo de risco permitido para favoritos (-1.0 AH) e está bloqueada para confirmação e débito na banca.'
             ])->setStatusCode(422);
         }
 
@@ -1592,7 +1592,7 @@ class ApostaController extends BaseController
                 continue; // Pula sem debitar
             }
 
-            // Trava Mandatória de Segurança da Banca: Teto de -0.75 AH para favoritos
+            // Trava Mandatória de Segurança da Banca: Teto de -1.0 AH para favoritos
             if ($this->isHandicapExceedingCeiling($aposta->mercado ?? '', $aposta->palpite ?? '')) {
                 continue; // Pula sem debitar
             }
@@ -2528,8 +2528,8 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Trava de Risco da Banca: Verifica se a linha de Handicap Asiático para o favorito excede o teto permitido (-0.75 AH).
-     * Linhas além de -0.75 (ex: -1.0, -1.25, -1.5, -2.0) são estritamente bloqueadas.
+     * Trava de Risco da Banca: Verifica se a linha de Handicap Asiático para o favorito excede o teto permitido (-1.0 AH).
+     * Linhas além de -1.0 (ex: -1.25, -1.5, -2.0) são estritamente bloqueadas.
      */
     private function isHandicapExceedingCeiling(string $mercado, string $palpite): bool
     {
@@ -2540,7 +2540,7 @@ class ApostaController extends BaseController
 
         if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)\s*(?:ah|\(|$)/i', $palpite, $m)) {
             $val = (float)str_replace(',', '.', $m[1]);
-            if ($val < -0.75) {
+            if ($val < -1.0) {
                 return true;
             }
         }
@@ -3817,7 +3817,7 @@ class ApostaController extends BaseController
             return $this->response->setJSON([
                 'success' => false,
                 'aprovado' => false,
-                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas.'
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas.'
             ]);
         }
 
@@ -3895,7 +3895,7 @@ class ApostaController extends BaseController
                 return $this->response->setJSON([
                     'success'          => true,
                     'statusGatekeeper' => 'NO_BET',
-                    'gatekeeperMsg'    => '🔒 Trava de Segurança da Banca: Linhas além de -0.75 AH estão bloqueadas.',
+                    'gatekeeperMsg'    => '🔒 Trava de Segurança da Banca: Linhas além de -1.0 AH estão bloqueadas.',
                     'oddJusta'         => null,
                     'evPercentual'     => null
                 ]);
@@ -4080,7 +4080,7 @@ class ApostaController extends BaseController
         if ($this->isHandicapExceedingCeiling('Handicap Asiático', $linhaAh)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além desse limite (-1.0, -1.25, -1.5) estão bloqueadas.'
+                'message' => '🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -1.0 AH. Linhas além desse limite (-1.25, -1.5, -2.0) estão bloqueadas.'
             ])->setStatusCode(422);
         }
 

@@ -102,14 +102,15 @@ def send_goals_bets_email(novas_apostas, apostas_canceladas=None, recipient="pau
         odd = float(aposta.get('odd', 0.0))
         valor = float(aposta.get('valor_aposta', 10.0))
         ganhos = float(aposta.get('ganhos_potenciais', 0.0))
+        moeda_cod = aposta.get('moeda_codigo', 'USDT')
 
         rows_novas_html += f"""
         <tr style="border-bottom: 1px solid #e0e0e0;">
             <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}<br><span style="color: #666; font-weight: normal; font-size: 11px;">{data_j}</span></td>
             <td style="padding: 10px; font-size: 13px; color: #16a34a; font-weight: bold;">{palpite}</td>
             <td style="padding: 10px; font-size: 13px; font-weight: bold; text-align: center;">{odd:.2f}</td>
-            <td style="padding: 10px; font-size: 13px; text-align: right;">R$ {valor:.2f}</td>
-            <td style="padding: 10px; font-size: 13px; font-weight: bold; color: #0284c7; text-align: right;">R$ {ganhos:.2f}</td>
+            <td style="padding: 10px; font-size: 13px; text-align: right;">{moeda_cod} {valor:.2f}</td>
+            <td style="padding: 10px; font-size: 13px; font-weight: bold; color: #0284c7; text-align: right;">{moeda_cod} {ganhos:.2f}</td>
         </tr>
         """
 
@@ -256,14 +257,27 @@ def criar_apostas_gols_diario(target_date_str=None, confirmada=0):
 
             if inserted > 0:
                 conn.commit()
+                # Buscar aposta recém-criada para o relatório por e-mail com a moeda e stake reais
+                cursor.execute("""
+                    SELECT valor_aposta, ganhos_potenciais, moeda_codigo
+                    FROM apostas
+                    WHERE fixture_id = %s AND mercado = 'Gols Asiáticos'
+                    ORDER BY id DESC LIMIT 1
+                """, (fid,))
+                b_info = cursor.fetchone()
+                val_ap = float(b_info['valor_aposta']) if b_info else 10.0
+                ganh_pot = float(b_info['ganhos_potenciais']) if b_info else round(val_ap * best_cand['odd'], 2)
+                moeda_c = b_info['moeda_codigo'] if b_info else 'USDT'
+
                 novas_apostas_relatorio.append({
                     'time_casa': home,
                     'time_fora': away,
                     'data_hora_jogo': f.get('fixture_date'),
                     'palpite': palpite_sug,
                     'odd': best_cand['odd'],
-                    'valor_aposta': 10.0,
-                    'ganhos_potenciais': round(10.0 * best_cand['odd'], 2)
+                    'valor_aposta': val_ap,
+                    'ganhos_potenciais': ganh_pot,
+                    'moeda_codigo': moeda_c
                 })
 
         print(f"✅ [Gols Asiáticos] Concluído. Total de {len(novas_apostas_relatorio)} novas partidas com entradas geradas.")

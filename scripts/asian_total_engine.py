@@ -321,8 +321,14 @@ def fetch_betano_goals_lines(fixture_id: int, home_team: str, away_team: str) ->
                 bm = data[0]['bookmakers'][0]
                 for bet in bm.get('bets', []):
                     b_name = (bet.get('name') or '').strip().lower()
-                    # Identificar mercados de Gols Asiáticos / Over Under
-                    if any(term in b_name for term in ['asian total', 'total de gols asiatico', 'total de golos asiatico', 'goals over/under', 'gols mais/menos']):
+                    # Descartar expressamente mercados parciais (1º tempo, 2º tempo, equipes, etc.)
+                    if any(bad in b_name for bad in [
+                        '1st half', 'first half', '1st', '1h', '2nd half', 'second half', '2nd', '2h',
+                        'home', 'away', 'team', 'extra time', 'half', 'tempo', 'equipe', 'exact'
+                    ]):
+                        continue
+                    # Identificar mercados de Gols Asiáticos / Over Under do jogo completo (Full Time)
+                    if any(term in b_name for term in ['asian total', 'total de gols asiatico', 'total de golos asiatico']) or b_name in ['goals over/under', 'total de gols', 'total de golos', 'gols mais/menos']:
                         for val in bet.get('values', []):
                             v_name = (val.get('value') or '').strip().lower()
                             v_odd = float(val.get('odd', 0.0) or 0.0)
@@ -382,11 +388,20 @@ def evaluate_and_select_best_goals_candidate(
         if odd < 1.60 or odd > 2.30:
             continue
 
-        # 2. Filtro de Valor Esperado e Probabilidade
+        # 2. Trava de Sanidade de Mercado (Full Time 90 min)
+        # Em 90 minutos de jogo, linhas de Over <= 1.25 JAMAIS pagam acima de 1.50 em pré-jogo.
+        # Se uma linha Over <= 1.25 possuir odd no sweet spot (1.60-2.30), trata-se de mercado parcial contaminado (1º tempo ou time individual).
+        if c_type == 'Over' and line <= 1.25:
+            continue
+        # Da mesma forma, Under >= 4.0 não tem liquidez no sweet spot em ligas regulares
+        if c_type == 'Under' and line >= 4.0:
+            continue
+
+        # 3. Filtro de Valor Esperado e Probabilidade
         if ev_pct < 3.0 or prob < 52.0:
             continue
 
-        # 3. Filtro de Consistência Tática e de Mercado
+        # 4. Filtro de Consistência Tática e de Mercado
         # Se for OVER e a linha for alta (ex: >= 2.5), o total projetado xG não pode ser excessivamente baixo
         if c_type == 'Over' and line >= 2.5 and total_xg < 2.00:
             continue
@@ -537,6 +552,13 @@ def sync_fixture_and_bet_goals(
     prob = float(best_cand.get('prob_efetiva') or 50.0)
     ev = float(best_cand.get('ev_pct') or 0.0)
 
+    # Consulta a moeda padrão ativa no sistema para criação de apostas (Regra Multi-Moedas)
+    cursor.execute("SELECT codigo, cotacao_brl, casas_decimais FROM moedas_config WHERE is_default = 1 AND ativo = 1 LIMIT 1")
+    m_def = cursor.fetchone()
+    moeda_padrao_cod = m_def['codigo'] if m_def else 'BRL'
+    cotacao_brl_padrao = float(m_def['cotacao_brl']) if m_def else 1.0
+    casas_dec_padrao = int(m_def['casas_decimais']) if m_def else 2
+
     inserted_count = 0
     for uid in user_ids:
         # Verificar se já existe aposta ativa para esta partida e mercado
@@ -551,25 +573,44 @@ def sync_fixture_and_bet_goals(
             # Já existe aposta registrada
             continue
 
-        valor_aposta = 10.0
-        retorno_potencial = round(valor_aposta * odd, 2)
+        # Consulta stake ativa parametrizada do usuário em metas_diarias_config
+        cursor.execute("""
+            SELECT stake_padrao, moeda_codigo 
+            FROM metas_diarias_config 
+            WHERE usuario_id = %s AND is_ativa = 1 
+            ORDER BY id DESC LIMIT 1
+        """, (uid,))
+        meta_row = cursor.fetchone()
+        user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
+        user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
+        if user_stake <= 0.0:
+            user_stake = 10.00
+
+        # Obter cotação snapshot e casas decimais da moeda do usuário
+        cursor.execute("SELECT cotacao_brl, casas_decimais FROM moedas_config WHERE codigo = %s LIMIT 1", (user_moeda,))
+        m_user = cursor.fetchone()
+        user_cotacao = float(m_user['cotacao_brl']) if m_user else cotacao_brl_padrao
+        user_decimais = int(m_user['casas_decimais']) if m_user else casas_dec_padrao
+
+        valor_aposta = round(user_stake, user_decimais)
+        retorno_potencial = round(valor_aposta * odd, user_decimais)
 
         cursor.execute("""
             INSERT INTO apostas (
-                usuario_id, fixture_id, time_casa, time_fora,
+                usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora,
                 mercado, casa_de_aposta, palpite, odd, odd_justa,
                 probabilidade_poisson, ev_percentual, status_gatekeeper,
                 valor_aposta, ganhos_potenciais, status, confirmada,
-                resultado_detalhado, data_hora_jogo, criado_em
+                resultado_detalhado, data_hora_jogo, criado_em, updated_at
             ) VALUES (
-                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 'Gols Asiáticos', 'Betano', %s, %s, %s,
                 %s, %s, 'APROVADO',
                 %s, %s, 'Pendente', %s,
-                %s, %s, NOW()
+                %s, %s, NOW(), NOW()
             )
         """, (
-            uid, fixture_id, home_team, away_team,
+            uid, user_moeda, user_cotacao, fixture_id, home_team, away_team,
             palpite, odd, fair_odd,
             prob, ev,
             valor_aposta, retorno_potencial, confirmada,
@@ -589,11 +630,11 @@ def sync_fixture_and_bet_goals(
                     usuario_id, aposta_id, tipo, descricao, valor,
                     saldo_anterior, saldo_posterior, moeda_codigo, criado_em
                 ) VALUES (
-                    %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, 'BRL', NOW()
+                    %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                 )
             """, (
                 uid, aposta_id, f"Aposta #{aposta_id} - Gols Asiáticos: {palpite}",
-                valor_aposta, saldo_ant, saldo_pos
+                valor_aposta, saldo_ant, saldo_pos, user_moeda
             ))
             cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (saldo_pos, uid))
 

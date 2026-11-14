@@ -241,8 +241,16 @@ def parse_betano_event_markets(event_obj: dict, home_team: str, away_team: str) 
                 except Exception:
                     continue
 
-        # 4. Mercado de Gols Asiáticos (Total de Gols Asiático / Asian Total / Over & Under)
-        if any(term in m_name for term in ['total de gols asiatico', 'asian total', 'total de golos asiatico', 'asiatisches total', 'total de gols - asiatico']):
+        # 4. Mercado de Gols Asiáticos (Total de Gols Asiático / Asian Total / Over & Under) - Estritamente Jogo Completo (90 min)
+        # Descartar expressamente mercados parciais (1º tempo, 2º tempo, equipes individuais, etc.)
+        is_partial_goals = any(bad in m_name for bad in [
+            '1º tempo', '1º-tempo', '1o tempo', 'primeiro tempo', '1st half', 'first half', '1h', 'ht',
+            '2º tempo', '2º-tempo', '2o tempo', 'segundo tempo', '2nd half', 'second half', '2h',
+            'equipe', 'time', 'casa', 'fora', 'home', 'away', 'individual', 'prorrogação', 'extra time',
+            'exato', 'ímpar', 'impar', 'par'
+        ])
+
+        if not is_partial_goals and any(term in m_name for term in ['total de gols asiatico', 'asian total', 'total de golos asiatico', 'asiatisches total', 'total de gols - asiatico']):
             for s in selections:
                 s_name = (s.get('name') or '').strip().lower()
                 s_price = float(s.get('price', 0.0) or 0.0)
@@ -267,7 +275,7 @@ def parse_betano_event_markets(event_obj: dict, home_team: str, away_team: str) 
                     })
                 except Exception:
                     continue
-        elif any(term in m_name for term in ['mais/menos total de gols', 'total de gols', 'mais de/menos de', 'goals over/under']):
+        elif not is_partial_goals and any(term in m_name for term in ['mais/menos total de gols', 'total de gols', 'mais de/menos de', 'goals over/under']):
             for s in selections:
                 s_name = (s.get('name') or '').strip().lower()
                 s_price = float(s.get('price', 0.0) or 0.0)

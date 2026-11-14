@@ -92,8 +92,8 @@ class TerminalStakeController extends BaseController
 
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
-            $safeUrl = 'https://sportsbet.io/pt/sports';
-            $url = 'https://sportsbet.io/pt/sports';
+            $safeUrl = 'https://thunderpick.com';
+            $url = 'https://thunderpick.com';
         } else {
             if (! preg_match('#^https?://#i', $url)) {
                 $url = 'https://' . $url;
@@ -148,8 +148,8 @@ class TerminalStakeController extends BaseController
 
         $url = trim($this->request->getPost('url') ?? '');
         if (empty($url)) {
-            $safeUrl = 'https://sportsbet.io/pt/sports';
-            $url = 'https://sportsbet.io/pt/sports';
+            $safeUrl = 'https://thunderpick.com';
+            $url = 'https://thunderpick.com';
         } else {
             if (! preg_match('#^https?://#i', $url)) {
                 $url = 'https://' . $url;

@@ -4838,6 +4838,9 @@ def update_oddspedia_odds(conn):
                                 odd_home = %s, casa_odd_home = %s,
                                 odd_draw = %s, casa_odd_draw = %s,
                                 odd_away = %s, casa_odd_away = %s,
+                                odd_home_open = COALESCE(odd_home_open, %s),
+                                odd_draw_open = COALESCE(odd_draw_open, %s),
+                                odd_away_open = COALESCE(odd_away_open, %s),
                                 xg_home = IF(xg_home <= 0, %s, xg_home),
                                 xg_away = IF(xg_away <= 0, %s, xg_away),
                                 is_surebet = %s, surebet_profit_pct = %s,
@@ -4845,7 +4848,7 @@ def update_oddspedia_odds(conn):
                                 gatekeeper_category = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(sug) else 'APROVADO', sug, reason), fix_id))
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, best_c1, best_cX, best_c2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, determine_gatekeeper_category('NO_BET' if is_abstain_suggestion(sug) else 'APROVADO', sug, reason), fix_id))
                         conn.commit()
                         if is_abstain_suggestion(sug):
                             cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)

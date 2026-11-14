@@ -36,6 +36,7 @@ Para proteger o patrimônio da banca contra ilusões estatísticas, distorções
 - **Conceito**: A forma recente da equipe nos últimos 5 jogos (U5J) deve ser testada e comprovada contra oponentes de alto calibre (*Strength of Schedule*).
 - **Critério Objetivo**:
   - Pontuação de Eficiência Ponderada $U5J \ge 24.0\text{ pts}$ ou dominância comprovada de equipe Tier 1 de elite;
+  - **Dominância Relativa Mínima de 30% no U5J**: A equipe candidata deve obrigatoriamente possuir no mínimo **+30% de eficiência ponderada em relação ao adversário** ($Ef_{candidato} \ge 1.30 \times Ef_{adversario}$), garantindo abismo técnico evidente e expurgando confrontos de forças parelhas;
   - Histórico recente contendo confrontos diretos contra gigantes do continente ou clubes do topo da tabela;
   - Expurgo de pontuações infladas: pontos obtidos exclusivamente contra equipes frágeis ou em divisões inferiores não qualificam uma equipe para o selo PREMIUM.
 

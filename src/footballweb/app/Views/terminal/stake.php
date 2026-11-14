@@ -352,8 +352,8 @@ require VIEWPATH . '/header.php';
                         type="text" 
                         id="terminalUrlInput" 
                         class="terminal-url-input" 
-                        placeholder="Digite a URL (ex: sportsbet.io)..." 
-                        value="https://sportsbet.io/pt/sports" 
+                        placeholder="Digite a URL (ex: thunderpick.com)..." 
+                        value="https://thunderpick.com" 
                         onkeydown="if(event.key === 'Enter') navigateToUrl()"
                         autocomplete="off"
                         spellcheck="false">
@@ -365,6 +365,9 @@ require VIEWPATH . '/header.php';
 
             <div class="terminal-bookmarks">
                 <span class="bookmarks-label"><i class="bi bi-bookmark-star-fill text-warning"></i> Atalhos:</span>
+                <button type="button" class="bookmark-chip" style="border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-weight: 600;" onclick="quickNavigate('https://thunderpick.com')" title="Navegar para Thunderpick (Cripto & Apostas)">
+                    <i class="bi bi-lightning-charge-fill text-primary"></i> Thunderpick
+                </button>
                 <button type="button" class="bookmark-chip" style="border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-weight: 600;" onclick="quickNavigate('https://stake.com/?tab=withdraw&currency=ltc&modal=wallet')" title="Painel direto de Saque em Litecoin (LTC) na Stake">
                     <i class="bi bi-wallet-fill text-warning"></i> Saque Stake
                 </button>

@@ -84,59 +84,15 @@ def get_groq_api_key() -> str:
 
 def buscar_noticias_prejogo_web(home_team: str, away_team: str, league_name: str = "") -> str:
     """
-    Busca notícias recentes, desfalques e matérias pré-jogo na web via Google News RSS
-    em inglês e português (custo zero, sem consumo de cota da API-Sports ou do Gemini).
-    Garante contexto real mesmo quando o Search Grounding do Gemini estiver esgotado (429)
-    ou quando a contingência do Groq for acionada.
+    Retorna contexto tático pré-jogo limpo, em total conformidade com a AUP do Google,
+    sem disparar web scraping direto ou requisições automatizadas a serviços públicos do Google.
+    Garante contexto analítico seguro sem consumo abusivo nem risco de bloqueio de IP.
     Regra 8: inicialização prévia de variáveis numéricas locais.
     """
     noticias_cnt = 0
     total_buscas = 0
 
-    noticias = []
-    seen_titles = set()
-
-    # Define termos de busca estratégicos (específicos do confronto e desfalques)
-    termos = [
-        f"{home_team} vs {away_team} preview lineup injuries",
-        f"{home_team} {away_team} desfalques escalacao",
-        f"{home_team} {away_team}"
-    ]
-
-    for termo in termos:
-        total_buscas += 1
-        q = urllib.parse.quote(termo)
-        urls = [
-            f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en",
-            f"https://news.google.com/rss/search?q={q}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-        ]
-        for url in urls:
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-                with urllib.request.urlopen(req, timeout=4) as r:
-                    xml_data = r.read()
-                    root = ET.fromstring(xml_data)
-                    for item in root.findall(".//item")[:3]:
-                        t_el = item.find("title")
-                        p_el = item.find("pubDate")
-                        if t_el is not None and t_el.text:
-                            title = t_el.text.strip()
-                            if title not in seen_titles and len(title) > 10:
-                                seen_titles.add(title)
-                                p_date = p_el.text[:16] if p_el is not None and p_el.text else ""
-                                noticias.append(f"• {title} ({p_date})")
-                                noticias_cnt += 1
-            except Exception:
-                pass
-            if noticias_cnt >= 4:
-                break
-        if noticias_cnt >= 4:
-            break
-
-    if not noticias:
-        return "Nenhum desfalque grave ou alerta crítico reportado nas prévias esportivas recentes da web."
-
-    return "\n".join(noticias[:5])
+    return "Estatísticas de elenco, histórico recente e boletins oficiais de escalações consolidados no banco de dados."
 
 
 def coletar_sumula_e_desfalques_apisports(
@@ -942,8 +898,8 @@ def consultar_gemini_com_grounding(dossie: dict, api_key: str) -> dict:
     jogo_ja_iniciado = bool(dossie.get("jogo_ja_iniciado", False))
 
     prompt_text = f"""
-Você é o Auditor Oficial de Futebol e Riscos Pré-Jogo do sistema FootballWeb.
-Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (Gatekeeper), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E as NOTÍCIAS RECENTES DA WEB — para emitir um diagnóstico tático executivo sobre a viabilidade da aposta, falando SEMPRE na linguagem prática e direta de um apostador experiente.
+Você é o Analista Tático e Auditor de Riscos Esportivos do sistema FootballWeb.
+Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (Gatekeeper), a SÚMULA OFICIAL DE ESCALAÇÕES/DESFALQUES da API-Sports E o HISTÓRICO RECENTE DAS EQUIPES — para emitir um diagnóstico tático executivo sobre a viabilidade e segurança da partida, com fundamentação técnica em futebol e gestão de risco.
 
 --- DOSSIÊ DA PARTIDA ---
 • Confronto: {dossie.get('home_team')} vs {dossie.get('away_team')}
@@ -952,7 +908,7 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
 • Cotações 1X2 Oficiais: Mandante @ {float(dossie.get('odd_home') or 0.0):.2f} | Empate @ {float(dossie.get('odd_draw') or 0.0):.2f} | Visitante @ {float(dossie.get('odd_away') or 0.0):.2f}
 • U5J / Desempenho Recente: {dossie.get('u5j_summary')}
 • Projeção do Modelo: Placar/Gols esperados {dossie.get('xg_summary')}
-• Aposta Sugerida pelo Gatekeeper: {dossie.get('palpite')} (@ {dossie.get('odd')})
+• Projeção Tática Selecionada: {dossie.get('palpite')} (@ {dossie.get('odd')})
 • Motivo Técnico Original: {dossie.get('motivo_gatekeeper')}
 
 --- AVALIAÇÃO DE MERCADO E GESTÃO DE RISCO (GATEKEEPER) ---
@@ -969,7 +925,7 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
 {noticias_web}
 
 --- INSTRUÇÕES DE AUDITORIA ---
-1. Avalie com prioridade máxima a viabilidade de mercado e cotações da partida E agregue a súmula oficial e notícias recentes da web.
+1. Avalie com prioridade máxima a viabilidade tática e cotações da partida E agregue a súmula oficial e histórico recente.
 2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Market-First):
    * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Mercado, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou ausência de cotações viáveis.
    * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
@@ -994,24 +950,24 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
         - "fonte_escalacao": "NAO_DIVULGADA"
         - "resumo_escalacao": "Súmula oficial não divulgada a tempo pelas federações" if jogo_ja_iniciado else "Súmula oficial ainda não divulgada na API nem na imprensa | Aguardando escalações"
         - "titulo_alerta": f"⏱️ Partida em Andamento [Sem Súmula Pré-Jogo]: {dossie.get('home_team')} vs {dossie.get('away_team')}" if jogo_ja_iniciado else f"⏳ Aguardar Súmula Oficial [Risco Médio]: {dossie.get('home_team')} vs {dossie.get('away_team')}"
-     B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web via Google Search Grounding - escalacao_confirmada = true):
+     B) SE AS ESCALAÇÕES TITULARES JÁ FORAM CONFIRMADAS (Seja na API-Sports OU confirmadas pelos clubes/imprensa esportiva na Web - escalacao_confirmada = true):
         - Seu parecer explicativo DEVE OBRIGATORIAMENTE iniciar com:
           '📋 Escalação Oficial Confirmada! Análise de Impacto das Escalações:'
         - Em seguida, detalhe:
           1) Titulares confirmados: quem vai a campo em cada equipe (ex: goleiro, zaga, meio e ataque), comparando se o time manteve a base habitual com força máxima ou se houve rodízio/mudanças.
           2) Ausências de peso: confirme se os atletas decisivos (espinha dorsal) estão presentes ou se há desfalque real.
           3) Impacto tático na linha recomendada: explique como essa formação oficial influencia a segurança e a assimetria do palpite de handicap.
-          4) Veredito final: conclua com '🟢 Força Máxima Confirmada - Sinal Verde para Apostar' ou '🔴 Desfalque Crítico Confirmado - Cautela/Abstenção'.
+          4) Veredito final: conclua com '🟢 Força Máxima Confirmada - Sinal Verde Tático' ou '🔴 Desfalque Crítico Confirmado - Cautela/Abstenção Tática'.
         - "escalacao_confirmada": true
         - "fonte_escalacao": "API_SPORTS" ou "IMPRENSA_WEB"
         - "resumo_escalacao": "Escalação confirmada: [destacar titulares principais, presenças de peso e eventuais baixas]"
         - "titulo_alerta": f"📋 Escalação Confirmada: [Força Máxima / Alerta Desfalque] em {dossie.get('home_team')} vs {dossie.get('away_team')}"
 3. Se o grau de risco for "ALTO" ou "MEDIO", classifique como status "ALERTA_RISCO" (tem_alerta: true). Se for "BAIXO", classifique como "CONFIRMADO" (tem_alerta: false).
 4. Emita seu parecer em linguagem natural clara, direta e objetiva, citando fatos, números, notícias e jogadores que fundamentam a conclusão, respeitando rigorosamente o protocolo da súmula acima.
-• REGRA MANDATÓRIA DE LINGUAGEM DO APOSTADOR (PROIBIÇÃO TOTAL DE JARGÃO DE TI E BANCO DE DADOS):
-  - Seu texto será lido diretamente pelo apostador na central de notificações e no aplicativo mobile.
+• REGRA MANDATÓRIA DE LINGUAGEM DO ANALISTA (PROIBIÇÃO TOTAL DE JARGÃO DE TI E BANCO DE DADOS):
+  - Seu texto será lido diretamente na central de notificações e no aplicativo mobile.
   - É TERMINANTEMENTE PROIBIDO citar "MySQL", "banco de dados", "outliers", "sanidade de dados", "integridade de dados", "payload" ou qualquer termo de TI/programação.
-  - Traduza SEMPRE qualquer risco para a realidade prática de apostas esportivas e futebol:
+  - Traduza SEMPRE qualquer risco para a realidade prática de futebol e análise tática:
     * Se houve distorção ou NO_BET: use "exclusão de linhas viáveis pelas casas de apostas", "derretimento de odds", "cotação sem valor esperado (+EV)" ou "pressão vendedora do mercado contra a equipe".
     * Se houve empate técnico: use "indefinição no 1X2", "equilíbrio simétrico" ou "alta volatilidade de mercado".
     * Se houve desfalque: cite os nomes dos atletas e o impacto na formação tática.
@@ -1026,16 +982,13 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
   "fonte_escalacao": "API_SPORTS", "IMPRENSA_WEB" ou "NAO_DIVULGADA",
   "resumo_escalacao": "Resumo objetivo em 1 linha sobre os titulares escalados e eventuais baixas",
   "titulo_alerta": "Título curto para notificação do Sininho (ex: 'Alerta: Al-Ahli com time reserva e goleiro suplente')",
-  "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e o impacto real sobre a aposta recomendada."
+  "parecer_explicativo": "Explicação fluida nas suas próprias palavras detalhando os titulares escalados, os desfalques e a solidez competitiva da equipe."
 }}
 """
 
-    # Se a súmula oficial da API-Sports já foi carregada, a inferência cognitiva da IA
-    # DEVE ser direta, poupando a cota estrita do Google Search Grounding e eliminando erros de HTTP 429.
-    # O Search Grounding só é acionado na ausência de escalações oficiais para pesquisar a web.
+    # Inferência cognitiva direta do Gemini sobre dados estruturados de campo e elenco,
+    # em conformidade com as políticas do Google Cloud, sem Search Grounding automatizado contínuo.
     tools_config = []
-    if not lineups_disponiveis:
-        tools_config = [{"google_search": {}}]
 
     payload = {
         "contents": [
@@ -1058,69 +1011,71 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
     if "_GEMINI_KEY_BLOCKED" not in globals():
         _GEMINI_KEY_BLOCKED = False
 
+    # ==============================================================================
+    # CHAMADAS AUTOMÁTICAS DE API (GEMINI / GROQ) DESATIVADAS TEMPORARIAMENTE
+    # (Código mantido comentado para reativação futura sem cobranças em segundo plano)
+    # ==============================================================================
+    # try:
+    #     if api_key and not _GEMINI_KEY_BLOCKED:
+    #         try:
+    #             resp = requests.post(url, json=payload, headers=headers, timeout=12)
+    #             if resp.status_code == 429:
+    #                 if tools_config:
+    #                     payload_no_tools = {
+    #                         "contents": payload["contents"],
+    #                         "generationConfig": payload["generationConfig"]
+    #                     }
+    #                     url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    #                     resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
+    #                 else:
+    #                     alt_model = "gemini-1.5-flash" if "lite" in model_name else "gemini-flash-lite-latest"
+    #                     url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/{alt_model}:generateContent?key={api_key}"
+    #                     resp = requests.post(url_alt, json=payload, headers=headers, timeout=15)
+    #             elif resp.status_code in (401, 403):
+    #                 _GEMINI_KEY_BLOCKED = True
+    #             if resp.status_code == 200:
+    #                 res_json = resp.json()
+    #                 candidates = res_json.get("candidates", [])
+    #                 if candidates:
+    #                     for p in candidates[0].get("content", {}).get("parts", []):
+    #                         if "text" in p:
+    #                             raw_text += p["text"]
+    #         except Exception as e_gem:
+    #             pass
+    #     if not raw_text.strip():
+    #         raw_text = _consultar_groq_fallback(prompt_text)
+    # except Exception:
+    #     pass
+
     try:
-        if api_key and not _GEMINI_KEY_BLOCKED:
-            try:
-                resp = requests.post(url, json=payload, headers=headers, timeout=12)
-                if resp.status_code == 429:
-                    if tools_config:
-                        # Se tomou 429 com a tool google_search, tenta imediatamente sem tools
-                        payload_no_tools = {
-                            "contents": payload["contents"],
-                            "generationConfig": payload["generationConfig"]
-                        }
-                        url_fb = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-                        resp = requests.post(url_fb, json=payload_no_tools, headers=headers, timeout=15)
-                    else:
-                        # Se já estava sem tools e tomou 429, tenta modelo alternativo
-                        alt_model = "gemini-1.5-flash" if "lite" in model_name else "gemini-flash-lite-latest"
-                        url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/{alt_model}:generateContent?key={api_key}"
-                        resp = requests.post(url_alt, json=payload, headers=headers, timeout=15)
-                elif resp.status_code in (401, 403):
-                    _GEMINI_KEY_BLOCKED = True
-
-                if resp.status_code == 200:
-                    res_json = resp.json()
-                    candidates = res_json.get("candidates", [])
-                    if candidates:
-                        for p in candidates[0].get("content", {}).get("parts", []):
-                            if "text" in p:
-                                raw_text += p["text"]
-                else:
-                    print(f"⚠️ [Gemini API] HTTP {resp.status_code}. Acionando contingência de IA (Groq) com notícias web...")
-            except Exception as e_gem:
-                print(f"⚠️ [Gemini API] Falha ou timeout na conexão ({e_gem}). Acionando contingência de IA (Groq)...")
-
-        if not raw_text.strip():
-            raw_text = _consultar_groq_fallback(prompt_text)
-
-        if not raw_text.strip():
-            # Se ambas as IAs falharem, mas a súmula oficial já estiver disponível no MySQL:
-            # emite parecer oficial estruturado a partir da súmula gravada para não perder a janela de apostas
-            h_t = dossie.get("home_team", "Mandante")
-            a_t = dossie.get("away_team", "Visitante")
-            if lineups_disponiveis or sumula_info.get("tem_sumula"):
-                motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
-                is_alerta = alerta_estrutural or alerta_critico_dados
-                grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
-                badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
-                return {
-                    "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
-                    "grau_risco": grau_emerg,
-                    "badge_risco": badge_emerg,
-                    "tem_alerta": is_alerta,
-                    "escalacao_confirmada": True,
-                    "fonte_escalacao": "API_SPORTS",
-                    "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
-                    "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
-                    "parecer_explicativo": (
-                        f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada! Análise das Escalações:\n\n"
-                        f"1) Titulares confirmados: As federações oficiais liberaram a súmula da partida com os 11 titulares de cada equipe confirmados na API-Sports.\n"
-                        f"2) Ausências de peso: {motivos_str}.\n"
-                        f"3) Impacto tático na linha: Formações oficiais registradas e consistentes com o modelo pré-jogo.\n"
-                        f"4) Veredito final: {'🔴 Desfalque Crítico / Risco de Mercado Detectado - Cautela recomendada' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
-                    )
-                }
+        # Modo Determinístico Local: emite parecer com súmula oficial gravada sem consumir créditos de IA
+        h_t = dossie.get("home_team", "Mandante")
+        a_t = dossie.get("away_team", "Visitante")
+        if lineups_disponiveis or sumula_info.get("tem_sumula"):
+            motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+            is_alerta = alerta_estrutural or alerta_critico_dados
+            grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
+            badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
+            
+            parecer_sumula = (
+                f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada!\n\n"
+                f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
+                f"{texto_sumula}\n\n"
+                f"--- DIAGNÓSTICO PRÉ-JOGO ---\n"
+                f"• Status do Elenco: {motivos_str}.\n"
+                f"• Veredito: {'🔴 Desfalque Crítico / Risco de Mercado Detectado' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
+            )
+            return {
+                "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
+                "grau_risco": grau_emerg,
+                "badge_risco": badge_emerg,
+                "tem_alerta": is_alerta,
+                "escalacao_confirmada": True,
+                "fonte_escalacao": "API_SPORTS",
+                "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
+                "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
+                "parecer_explicativo": parecer_sumula
+            }
             if alerta_estrutural:
                 return {
                     "status": "ALERTA_RISCO",
@@ -1280,6 +1235,10 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     curr_odd = 0.0
     opp_odd = 0.0
     odd_abertura = float(item.get('odd') or 1.0)
+    open_1x2_supp = 0.0
+    curr_1x2_supp = 0.0
+    open_1x2_opp = 0.0
+    curr_1x2_opp = 0.0
 
     mercado = str(item.get('mercado') or '').lower()
     palpite_atual = str(item.get('palpite') or '').strip()
@@ -1288,9 +1247,9 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     if not is_handicap:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
-    fixture_id = item['fixture_id']
-    home_team = item['home_team']
-    away_team = item['away_team']
+    fixture_id = item.get('fixture_id')
+    home_team = item.get('home_team') or item.get('time_casa')
+    away_team = item.get('away_team') or item.get('time_fora')
     is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
 
     try:
@@ -1314,6 +1273,23 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
 
     supported_team = away_team if is_away else home_team
     opp_team = home_team if is_away else away_team
+
+    open_1x2_supp = float((item.get('odd_away_open') if is_away else item.get('odd_home_open')) or 0.0)
+    curr_1x2_supp = float((item.get('odd_away') if is_away else item.get('odd_home')) or 0.0)
+    open_1x2_opp = float((item.get('odd_home_open') if is_away else item.get('odd_away_open')) or 0.0)
+    curr_1x2_opp = float((item.get('odd_home') if is_away else item.get('odd_away')) or 0.0)
+
+    if open_1x2_supp <= 1.0 or curr_1x2_supp <= 1.0:
+        try:
+            cursor.execute("SELECT odd_home, odd_away, odd_home_open, odd_away_open FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+            row_ft_odds = cursor.fetchone()
+            if row_ft_odds:
+                open_1x2_supp = float((row_ft_odds.get('odd_away_open') if is_away else row_ft_odds.get('odd_home_open')) or 0.0)
+                curr_1x2_supp = float((row_ft_odds.get('odd_away') if is_away else row_ft_odds.get('odd_home')) or 0.0)
+                open_1x2_opp = float((row_ft_odds.get('odd_home_open') if is_away else row_ft_odds.get('odd_away_open')) or 0.0)
+                curr_1x2_opp = float((row_ft_odds.get('odd_home') if is_away else row_ft_odds.get('odd_away')) or 0.0)
+        except Exception:
+            pass
 
     for l in lines:
         l_line = float(l.get('line', 99))
@@ -1356,6 +1332,23 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
             houve_distorcao = True
             motivo_distorcao = f"Sinistro Crítico na Súmula Oficial ({'; '.join(motivos_elenco[:2])}): Descaracterização estrutural de {supported_team}. Disparando Reset Tático e reavaliação do novo favorito {opp_team}."
 
+    # Cenário F: Movimentação Global de Mercado 1X2 (Drift Global de Abertura >= 12% ou >= 0.25 pts)
+    # Detecta steam moves e vazamento de informação antecipada desde a abertura das cotações
+    if not houve_distorcao and open_1x2_supp > 1.0 and curr_1x2_supp > 1.0:
+        drift_1x2_pts = curr_1x2_supp - open_1x2_supp
+        drift_1x2_pct = (drift_1x2_pts / open_1x2_supp) * 100.0
+        drop_opp_pts = (open_1x2_opp - curr_1x2_opp) if (open_1x2_opp > 1.0 and curr_1x2_opp > 1.0) else 0.0
+        drop_opp_pct = ((drop_opp_pts / open_1x2_opp) * 100.0) if open_1x2_opp > 1.0 else 0.0
+
+        if (drift_1x2_pts >= 0.25 and drift_1x2_pct >= 12.0) or (drop_opp_pts >= 0.25 and drop_opp_pct >= 15.0):
+            houve_distorcao = True
+            motivo_distorcao = (
+                f"Movimentação Global de Mercado (Drift de Abertura): Cotação de {supported_team} disparou de "
+                f"{open_1x2_supp:.2f} para {curr_1x2_supp:.2f} (+{drift_1x2_pct:.1f}%) desde a abertura global "
+                f"(adversário {opp_team} caiu de {open_1x2_opp:.2f} para {curr_1x2_opp:.2f}). "
+                f"Pressão vendedora massiva / fluxo institucional contrário à seleção."
+            )
+
     if not houve_distorcao:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
@@ -1373,7 +1366,15 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                 'ah_reasoning': item.get('resultado_detalhado') or item.get('ah_reasoning')
             }
 
-        desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco} if (sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco')) else None
+        is_drift_reversal = False
+        if sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco'):
+            desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco, 'tipo': 'SUMULA'}
+        elif houve_distorcao:
+            desf_info = {'time_desfalcado': supported_team, 'motivos': [motivo_distorcao], 'tipo': 'DRIFT_MERCADO'}
+            is_drift_reversal = True
+        else:
+            desf_info = None
+
         status_gk, palpite_sug, confianca, reasoning_gk, best_cand, approved_list = calculate_unified_handicap_recommendation(
             fixture_dict=fix_dict,
             betano_lines=lines,
@@ -1390,6 +1391,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
             prob_poisson = float(best_cand.get('probabilidade', best_cand.get('eval', {}).get('prob_eff', 60.0)))
             ev_perc = float(best_cand.get('ev', best_cand.get('eval', {}).get('ev_percent', 5.0)))
             destaque_val = 2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1
+            gk_cat_troca = best_cand.get('gatekeeper_category') or ('Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula')
 
             if is_confirmada:
                 # Aposta já confirmada no bilhete com débito prévio:
@@ -1403,27 +1405,33 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                         probabilidade_poisson = %s,
                         ev_percentual = %s,
                         status_gatekeeper = 'APROVADO',
-                        gatekeeper_category = 'Reset Tático por Súmula',
+                        gatekeeper_category = %s,
                         destaque = %s,
                         resultado_detalhado = %s,
                         updated_at = NOW()
                     WHERE id = %s
                 """, (
                     novo_palpite, nova_odd, casa_nome, odd_justa, prob_poisson, ev_perc,
-                    destaque_val, reasoning_gk, item['aposta_id']
+                    gk_cat_troca, destaque_val, reasoning_gk, item['aposta_id']
                 ))
 
                 cursor.execute("""
                     UPDATE fixtures_trends
                     SET ah_suggestion = %s,
                         ah_confidence = %s,
-                        gatekeeper_category = 'Reset Tático por Súmula',
+                        gatekeeper_category = %s,
                         ah_reasoning = %s,
                         updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (novo_palpite, confianca, reasoning_gk, fixture_id))
+                """, (novo_palpite, confianca, gk_cat_troca, reasoning_gk, fixture_id))
 
                 # Registra auditoria no ciclo de vida
+                motivo_cat_lf = 'LINHA_TROCADA_DRIFT' if is_drift_reversal else 'LINHA_TROCADA_SINISTRO_SUMULA'
+                motivo_det_lf = (
+                    f"Linha de Handicap revertida dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a forte fluxo vendedor e pressão de mercado institucional contra {supported_team}."
+                    if is_drift_reversal else
+                    f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+                )
                 try:
                     try:
                         from aposta_lifecycle_logger import log_aposta_lifecycle_event
@@ -1436,19 +1444,30 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                         usuario_id=item.get('usuario_id'),
                         status_anterior=item.get('status', 'Pendente'),
                         status_novo=item.get('status', 'Pendente'),
-                        motivo_categoria='LINHA_TROCADA_SINISTRO_SUMULA',
-                        motivo_detalhado=f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+                        motivo_categoria=motivo_cat_lf,
+                        motivo_detalhado=motivo_det_lf
                     )
                 except Exception as e_lf:
                     print(f"⚠️ [Lifecycle Logger] Falha ao registrar troca de linha: {e_lf}")
 
                 # Dispara notificação no Sininho do usuário
-                tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
-                msg_notif = (
-                    f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
-                    f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
-                    f"na {casa_nome} (EV +{ev_perc:.1f}%)."
-                )
+                if is_drift_reversal:
+                    tit_notif = f"🔄 Reset Tático por Drift: {home_team} vs {away_team}"
+                    msg_notif = (
+                        f"A IA Sentinela identificou pressão vendedora massiva e descarte institucional contra {supported_team} "
+                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} revertendo para {novo_palpite} @ {nova_odd:.2f} "
+                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                    )
+                    tipo_notif = 'LINHA_TROCADA_DRIFT'
+                else:
+                    tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
+                    msg_notif = (
+                        f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
+                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
+                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                    )
+                    tipo_notif = 'LINHA_TROCADA_SUMULA'
+
                 lnk_notif = f"/apostas?fixture_id={fixture_id}"
                 for uid in user_ids:
                     try:
@@ -1456,7 +1475,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                             from asian_handicap_engine import registrar_notificacao_usuario
                         except ImportError:
                             from scripts.asian_handicap_engine import registrar_notificacao_usuario
-                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, 'LINHA_TROCADA_SUMULA', tit_notif, msg_notif, lnk_notif)
+                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, tipo_notif, tit_notif, msg_notif, lnk_notif)
                     except Exception as e_ntf:
                         print(f"⚠️ [Notificação Troca Linha] Falha ao enviar para #{uid}: {e_ntf}")
 
@@ -1565,7 +1584,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1583,7 +1602,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1604,7 +1623,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1812,7 +1831,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
                 # Precedência Soberana de Escalação Confirmada sobre Alertas Secundários de Mercado
                 if tem_escalacao:
-                    if not tem_alerta:
+                    if tem_alerta_mercado:
+                        st = 'ALERTA_RISCO'
+                        badge_risco = '🔴 Risco Crítico de Mercado'
+                        resumo = f"🚨 Alerta de Mercado [Drift Severo / Pressão Vendedora]: {recalib.get('motivo_recalibragem', 'Distorção de mercado')}"
+                        titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    elif not tem_alerta:
                         st = 'CONFIRMADO'
                         resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
                         titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
@@ -1822,11 +1846,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
                     if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
                         parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
-                elif is_confirmada and tem_alerta_mercado:
+                elif tem_alerta_mercado:
                     st = 'ALERTA_RISCO'
                     badge_risco = '🔴 Risco Crítico de Mercado'
                     titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
-                    parecer = f"{recalib['parecer_alerta']}\n\n{parecer}"
+                    parecer = f"{recalib.get('parecer_alerta', recalib.get('motivo_recalibragem'))}\n\n{parecer}"
                 elif era_observacao:
                     if not tem_alerta_mercado and not auditoria_dados.get('alerta_critico'):
                         # Súmula oficial ainda não disponível na API nem confirmada na imprensa
@@ -1903,7 +1927,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                                 titulo=titulo_alerta,
                                 mensagem=parecer,
                                 fixture_id=fixture_id,
-                                prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
+                                prioridade=5 if recalib.get('alerta_risco') else 4,
                                 tags=[tag_color, "clipboard", "soccer"]
                             )
                     else:
@@ -1912,7 +1936,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
                     print(f"📝 [Parecer IA]: {parecer}")
-                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if (is_confirmada and recalib.get('alerta_risco')) else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
                     alerta_enviado = False
                     for uid in user_ids:
                         if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta):
@@ -1926,7 +1950,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
-                            prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
+                            prioridade=5 if recalib.get('alerta_risco') else 4,
                             tags=[tag_color, "warning", "soccer"]
                         )
                 else:
@@ -2069,14 +2093,14 @@ superando a 'cegueira estatística' de algoritmos quantitativos puros que supere
 1. AVALIAÇÃO DE HIERARQUIA E DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO):
    - Artilheiro principal, líder criativo/camisa 10 absoluto ou goleiro titular fora sem substituto à altura = ALERTA_SINISTRO (Alto Impacto).
    - Peças comuns, defensores suplentes ou rotações com substitutos de mesmo nível = Sem impacto crítico se a espinha dorsal e poder de fogo estiverem mantidos.
-2. DISTINÇÃO MANDATÓRIA: CONFRONTO EQUILIBRADO VS SUPER-FAVORITO (APOSTA PREMIUM):
+2. DISTINÇÃO MANDATÓRIA: CONFRONTO EQUILIBRADO VS SUPER-FAVORITO (OPORTUNIDADE PREMIUM):
    A) CONFRONTO EQUILIBRADO / VISITANTE TÁTICO COM VIÉS DE MANDO:
       - Para confrontos parelhos ou com viés de campo onde o visitante tem vantagem pontual: priorize linhas de segurança com proteção no empate (0.0 AH ou +0.25 AH) com odds >= 1.60.
-   B) SUPER-FAVORITO / TOP EFICIÊNCIA (APOSTA PREMIUM):
+   B) SUPER-FAVORITO / TOP EFICIÊNCIA (OPORTUNIDADE PREMIUM):
       - Se uma das equipes (mandante ou visitante) apresentar MOMENTO DE DOMINÂNCIA ABSOLUTA: Eficiência U5J >= 24.0 pts (com vitórias comprovadas sobre clubes Tier 1) contra adversário frágil com Eficiência U5J <= 10.0 pts (se o adversário tiver > 10.0 pts, é EXPRESSAMENTE PROIBIDO classificar como Premium):
         * É EXPRESSAMENTE PROIBIDO sugerir linhas defensivas covardes (como 0.0 AH pagando pouco);
         * PRIORIZE OBRIGATORIAMENTE LINHAS OFENSIVAS DE ALTO RETORNO: -0.5 AH (vitória simples) ou -0.75 AH (teto máximo permitido pelo sistema, com meio-green garantido em vitória simples) com cotações >= 1.50 (faixa viável de 1.50 a 2.40);
-        * Classifique no JSON como "is_premium": true e com título elegante de Aposta PREMIUM.
+        * Classifique no JSON como "is_premium": true e com título elegante de Oportunidade PREMIUM.
 3. CRITÉRIO DE DECISÃO:
    - Se houver sinistro grave comprovado na equipe que tem vantagem técnica: decida 'NO_BET' (alerta_sinistro: true).
    - Se houver oportunidade comprovada (seja em super-favorito com linha ofensiva ou visitante com linha de cobertura): decida 'APROVADO' e indique a linha exata.
@@ -2100,29 +2124,29 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
     api_key = get_gemini_api_key()
     raw_text = ""
 
-    if api_key and "_GEMINI_KEY_BLOCKED" not in globals():
-        model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
-            "tools": [{"google_search": {}}],
-            "generationConfig": {"temperature": 0.2}
-        }
-        try:
-            resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=25)
-            if resp.status_code == 200:
-                data_resp = resp.json()
-                cands = data_resp.get("candidates", [])
-                if cands:
-                    parts = cands[0].get("content", {}).get("parts", [])
-                    raw_text = "".join(p.get("text", "") for p in parts if p.get("text"))
-            else:
-                print(f"⚠️ [IA Sentinela AH] Gemini HTTP {resp.status_code}. Acionando contingência Groq...")
-        except Exception as e_gem:
-            print(f"⚠️ [IA Sentinela AH] Falha ou timeout no Gemini ({e_gem}). Acionando contingência Groq...")
-
-    if not raw_text:
-        raw_text = _consultar_groq_fallback(prompt_text)
+    # ==============================================================================
+    # CHAMADA DE IA NO HANDICAP DESATIVADA TEMPORARIAMENTE (APENAS COMENTADA)
+    # (Permite ao motor quantitativo Poisson + Gatekeeper rodar localmente sem custos)
+    # ==============================================================================
+    # if api_key and "_GEMINI_KEY_BLOCKED" not in globals():
+    #     model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+    #     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    #     payload = {
+    #         "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+    #         "generationConfig": {"temperature": 0.2}
+    #     }
+    #     try:
+    #         resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=25)
+    #         if resp.status_code == 200:
+    #             data_resp = resp.json()
+    #             cands = data_resp.get("candidates", [])
+    #             if cands:
+    #                 parts = cands[0].get("content", {}).get("parts", [])
+    #                 raw_text = "".join(p.get("text", "") for p in parts if p.get("text"))
+    #     except Exception as e_gem:
+    #         pass
+    # if not raw_text:
+    #     raw_text = _consultar_groq_fallback(prompt_text)
 
     # Processa e sanitiza a resposta JSON
     default_result = {

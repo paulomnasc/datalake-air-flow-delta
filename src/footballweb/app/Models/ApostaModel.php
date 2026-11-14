@@ -62,7 +62,7 @@ class ApostaModel extends Model
         $builderSelect = $db->table($this->table)
             ->select("
                 COALESCE(SUM(CASE WHEN status NOT IN ('Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_apostado,
-                COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_apostado_liquidado,
+                COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Não Confirmada', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_apostado_liquidado,
                 COALESCE(SUM(CASE 
                     WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
                     WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))
@@ -77,7 +77,7 @@ class ApostaModel extends Model
                 SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as perdidas,
                 SUM(CASE WHEN status = 'Meio Perdida' THEN 1 ELSE 0 END) as meio_perdidas,
                 SUM(CASE WHEN status = 'ANULADA' THEN 1 ELSE 0 END) as anuladas,
-                SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
+                SUM(CASE WHEN status IN ('Pendente', 'Não Confirmada') THEN 1 ELSE 0 END) as pendentes,
                 SUM(CASE WHEN status = 'Cashout' THEN 1 ELSE 0 END) as cashouts
             ", false)
             ->where('usuario_id', $usuarioId);

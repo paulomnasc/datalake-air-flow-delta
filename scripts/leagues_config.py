@@ -12,7 +12,6 @@ ALLOWED_LEAGUES = {
     73: "Copa do Brasil (Brasil)",
     39: "Premier League (Inglaterra)",
     140: "La Liga (Espanha)",
-    143: "Copa del Rey (Espanha)",
     135: "Serie A (Italia)",
     137: "Coppa Italia (Italia)",
     78: "Bundesliga (Alemanha)",
@@ -30,7 +29,6 @@ ALLOWED_LEAGUES = {
     9: "Copa America (America do Sul)",
     772: "Leagues Cup (America)",
     262: "Liga MX (Mexico)",
-    1028: "CONCACAF Central American Cup (CONCACAF)",
     16: "CONCACAF Champions Cup (CONCACAF)",
     113: "Allsvenskan (Suecia)",
     103: "Eliteserien (Noruega)",
@@ -40,19 +38,9 @@ ALLOWED_LEAGUES = {
     130: "Copa Argentina (Argentina)",
     ## 98: "J1 League (Japao)",
     ## 292: "K League 1 (Coreia do Sul)",
-    283: "Liga I (Romenia)",
-    286: "Super Liga (Servia)",
-    244: "Veikkausliiga (Finlandia)",
-    281: "Primera Division (Peru)",
-    242: "Liga Pro (Equador)",
-    917: "Copa Ecuador (Equador)",
-    268: "Primera Division (Uruguai)",
     265: "Primera Division (Chile)",
-    267: "Copa Chile (Chile)",
+    268: "Primera Division (Uruguai)",
     239: "Primera Division (Colombia)",
-    344: "Primera Division (Bolivia)",
-    964: "Copa de la Division Profesional (Bolivia)",
-    ## 501: "Copa Paraguay (Paraguai)",
     ## 169: "Super League (China)",
     307: "Saudi Pro League (Arabia Saudita)",
     203: "Super Lig (Turquia)",
@@ -65,13 +53,10 @@ ALLOWED_LEAGUES = {
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
     253: "Major League Soccer (EUA)",
-    479: "Canadian Premier League (Canada)",
-    259: "Canadian Championship (Canada)",
     ## 10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
     17: "AFC Champions League (Asia)"
-    ## 18: "AFC Champions League Two (Asia)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
@@ -82,7 +67,7 @@ ALLOWED_LEAGUE_NAMES = [
     'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b',
     'copa do brasil', 'copa brasil', 'copa do nordeste', 'supercopa',
     'premier league', 'fa cup', 'efl cup',
-    'la liga', 'copa del rey',
+    'la liga',
     'bundesliga', 'dfb pokal',
     'ligue 1', 'coupe de france',
     'primeira liga', 'liga portugal',
@@ -90,7 +75,7 @@ ALLOWED_LEAGUE_NAMES = [
     'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership', 'scottish premiership',
-    'liga profesional', 'primera division', 'copa argentina', 'copa chile',
+    'liga profesional', 'primera division', 'copa argentina',
     'super league 1', 'super league', 'superliga',
     'champions league', 'europa league',
     'libertadores', 'copa sudamericana', 'sudamericana', 'recopa',
@@ -99,10 +84,9 @@ ALLOWED_LEAGUE_NAMES = [
     'allsvenskan', 'eliteserien',
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
-    'veikkausliiga', 'ekstraklasa', 'czech first league',
-    'mls', 'major league soccer', 'canadian premier league', 'canadian championship',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
-    'copa de la división profesional', 'copa de la division profesional', 'copa division profesional', 'division profesional'
+    'ekstraklasa', 'czech first league',
+    'mls', 'major league soccer',
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
 ]
 
 
@@ -300,6 +284,7 @@ TIER_1_ELITE_CLUBS = {
     1139: "Santa Fe",
     1135: "Junior",
     1138: "America de Cali",
+    1136: "Once Caldas",
 
     # Chile (Primera Division - Os Três Grandes)
     2315: "Colo Colo",
@@ -353,7 +338,11 @@ TIER_1_ELITE_CLUBS = {
     # China (Super League)
     836: "SHANGHAI SIPG",
     833: "Shanghai Shenhua",
-    844: "Shandong Luneng"
+    844: "Shandong Luneng",
+
+    # Egito (Premier League - Gigantes do Cairo / África)
+    1577: "Al Ahly",
+    1040: "Zamalek SC"
 }
 
 
@@ -402,6 +391,10 @@ TIER_1_NAME_TO_ID = {
     "san lorenzo": 460,
     "penarol": 2348, "peñarol": 2348,
     "club nacional": 2356, "nacional montevideo": 2356,
+    # Colômbia
+    "atletico nacional": 1137, "atlético nacional": 1137,
+    "america de cali": 1138, "américa de cali": 1138,
+    "once caldas": 1136, "millonarios": 1125, "santa fe": 1139, "junior": 1135,
     # Seleções Nacionais (Top Mundial / Copa do Mundo 2026)
     "espanha": 9, "spain": 9,
     "argentina": 26,
@@ -435,6 +428,9 @@ TIER_1_NAME_TO_ID = {
     "the strongest": 3711, "strongest": 3711,
     "jorge wilstermann": 3705, "wilstermann": 3705,
     "oriente petrolero": 3707, "blooming": 3701,
+    # Egito
+    "al ahly": 1577, "al-ahly": 1577, "al ahly cairo": 1577,
+    "zamalek": 1040, "zamalek sc": 1040,
 }
 
 # Cache em memória para consulta instantânea O(1) de seleções do Mundial

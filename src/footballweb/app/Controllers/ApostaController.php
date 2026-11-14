@@ -348,6 +348,17 @@ class ApostaController extends BaseController
             $statusGatekeeper = 'ALERTA_RISCO_OVER';
         }
 
+        if ($statusGatekeeper === 'NO_BET') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'NO_BET',
+                    'message'              => "🚫 Alerta de Risco Gatekeeper (NO_BET):\n" . $gatekeeperMsg . "\n\nEsta simulação de aposta foi rejeitada pela gestão de risco porque a Odd informada ({$odd}) é desfavorável frente à linha ou projeta expectativa matemática de perda para a banca no longo prazo.\n\nDeseja registrar e assumir o risco da aposta mesmo assim?"
+                ]);
+            }
+        }
 
         // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();
@@ -569,25 +580,25 @@ class ApostaController extends BaseController
             if ($evalPy !== null) {
                 return $evalPy;
             }
-        }
-
-        // =========================================================================
-        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
-        // =========================================================================
-
-        // =========================================================================
-        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
-        // =========================================================================
-
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA (Apenas Under 5.5 e Under 6.5)
-        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
-        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
-
-        if (abs($lineCheck - 5.5) > 0.01 && abs($lineCheck - 6.5) > 0.01) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            $gatekeeperCategory = 'Falha na Avaliação de Handicap';
+            $gatekeeperMsg = 'Aviso Gatekeeper AH (NO_BET): Não foi possível validar os parâmetros estatísticos do handicap para esta partida.';
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
+
+        // =========================================================================
+        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
+        // =========================================================================
+        if ($isCartoes) {
+            // TRAVA RIGOROSA DE SEGURANÇA POR LINHA (Apenas Under 5.5 e Under 6.5)
+            preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
+            $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
+
+            if (abs($lineCheck - 5.5) > 0.01 && abs($lineCheck - 6.5) > 0.01) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (NO_BET): Apenas as linhas Under 5.5 e Under 6.5 são autorizadas para operação no mercado de cartões.";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
 
         // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
         $rowAvg = $db->query("
@@ -682,6 +693,8 @@ class ApostaController extends BaseController
                 $isHRel = (strpos($ftHZone, 'relegat') !== false || strpos($ftHZone, 'play out') !== false || strpos($ftHZone, 'rebaixamento') !== false);
                 $isHUnderThreat = (
                     $isHRel ||
+                    ($ftHPpg > 0.0 && $ftHPpg <= 1.05) ||
+                    ($ftHRank >= 14 && $ftHPpg > 0.0 && $ftHPpg <= 1.15) ||
                     ($ftHRank >= 12 && $ftHPpg > 0.0 && $ftHPpg <= 1.25) ||
                     ($ftHRank >= 12 && $ftStandMot >= 3.0) ||
                     ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))
@@ -791,6 +804,7 @@ class ApostaController extends BaseController
                 }
             }
         }
+        }
 
         return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
     }
@@ -821,7 +835,12 @@ class ApostaController extends BaseController
             return null;
         }
 
-        $res = json_decode(trim($output), true);
+        $jsonStr = trim($output);
+        if (preg_match('/\{[\s\S]*"statusGatekeeper"[\s\S]*\}/', $output, $mJson)) {
+            $jsonStr = $mJson[0];
+        }
+
+        $res = json_decode($jsonStr, true);
         if (!$res || !isset($res['statusGatekeeper'])) {
             return null;
         }
@@ -952,6 +971,17 @@ class ApostaController extends BaseController
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
         }
 
+        if ($eval['statusGatekeeper'] === 'NO_BET') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'NO_BET',
+                    'message'              => "🚫 Alerta de Risco Gatekeeper (NO_BET):\n" . $eval['gatekeeperMsg'] . "\n\nEsta alteração foi rejeitada pela gestão de risco porque a Odd informada ({$odd}) é desfavorável frente à linha ou projeta expectativa matemática de perda para a banca no longo prazo.\n\nDeseja confirmar a alteração e assumir o risco mesmo assim?"
+                ]);
+            }
+        }
 
         $dataUpdate = [
             'fixture_id'            => $eval['fixtureId'],
@@ -2218,6 +2248,28 @@ class ApostaController extends BaseController
             ]);
 
             $statusCode = $response->getStatusCode();
+            $respBody = (string)$response->getBody();
+
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($statusCode === 402 || $statusCode === 429);
+            if (!$isQuota && !empty($respBody)) {
+                $respLower = strtolower($respBody);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)$userId, $statusCode, $respBody);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
             if ($statusCode !== 200) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -2383,6 +2435,28 @@ class ApostaController extends BaseController
             ]);
 
             $statusCode = $response->getStatusCode();
+            $respBody = (string)$response->getBody();
+
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($statusCode === 402 || $statusCode === 429);
+            if (!$isQuota && !empty($respBody)) {
+                $respLower = strtolower($respBody);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)$userId, $statusCode, $respBody);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
             if ($statusCode !== 200) {
                 return $this->response->setJSON([
                     'success' => false,
@@ -3783,6 +3857,62 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Endpoint AJAX para validação instantânea no modal de Nova Aposta
+     * Avalia linha AH e odd em tempo real contra o Gatekeeper.
+     */
+    public function avaliarGatekeeperInstantaneo()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Autenticação necessária.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
+        $timeCasa  = trim($this->request->getPost('time_casa') ?? '');
+        $timeFora  = trim($this->request->getPost('time_fora') ?? '');
+        $mercado   = trim($this->request->getPost('mercado') ?? 'Handicap Asiático');
+        $palpite   = trim($this->request->getPost('palpite') ?? '');
+        $odd       = (float)str_replace(',', '.', (string)($this->request->getPost('odd') ?? '0'));
+
+        if ($odd <= 1.0 || empty($palpite)) {
+            return $this->response->setJSON([
+                'success'          => true,
+                'statusGatekeeper' => 'AGUARDANDO',
+                'gatekeeperMsg'    => 'Informe o palpite e uma odd válida (> 1.00).'
+            ]);
+        }
+
+        if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
+            $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
+            if ($this->isHandicapExceedingCeiling($mercado, $palpite)) {
+                return $this->response->setJSON([
+                    'success'          => true,
+                    'statusGatekeeper' => 'NO_BET',
+                    'gatekeeperMsg'    => '🔒 Trava de Segurança da Banca: Linhas além de -0.75 AH estão bloqueadas.',
+                    'oddJusta'         => null,
+                    'evPercentual'     => null
+                ]);
+            }
+        }
+
+        $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
+
+        return $this->response->setJSON([
+            'success'            => true,
+            'statusGatekeeper'   => $eval['statusGatekeeper'],
+            'gatekeeperCategory' => $eval['gatekeeperCategory'] ?? null,
+            'gatekeeperMsg'      => $eval['gatekeeperMsg'] ?? '',
+            'oddJusta'           => $eval['oddJusta'] ?? null,
+            'evPercentual'       => $eval['evPercentual'] ?? null,
+            'probPoisson'        => $eval['probPoisson'] ?? null,
+            'destaque'           => $eval['destaque'] ?? 0
+        ]);
+    }
+
+    /**
      * Endpoint AJAX para obter o radar proativo de linhas de AH (Odds mínimas e oportunidades em outras casas).
      */
     public function radarLinhasAh($fixtureId)
@@ -4764,6 +4894,267 @@ class ApostaController extends BaseController
             'fixtureId' => $fixtureId
         ]);
     }
+
+    /**
+     * Análise sob demanda de Súmula e Escalação Oficial com Grok AI (Groq API).
+     * Acionado exclusivamente quando o usuário clica no botão do robozinho no Sininho.
+     */
+    public function analisarEscalacaoGrok()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ]);
+        }
+
+        $notifId = (int)$this->request->getPost('notificacao_id');
+        $mensagemCustom = (string)$this->request->getPost('mensagem');
+        $tituloCustom = (string)$this->request->getPost('titulo');
+
+        $db = \Config\Database::connect();
+        $mensagem = $mensagemCustom;
+        $titulo = $tituloCustom;
+        $dadosApostaStr = '';
+
+        if ($notifId > 0) {
+            $notif = $db->table('notificacoes_usuario')->where('id', $notifId)->get()->getRowArray();
+            if ($notif) {
+                // Protocolo Cache-First no MySQL (Regra de Ouro 1):
+                if (!empty($notif['analise_ia'])) {
+                    return $this->response->setJSON([
+                        'success' => true,
+                        'titulo'  => $notif['titulo'],
+                        'analise' => $notif['analise_ia'],
+                        'cached'  => true
+                    ]);
+                }
+                $mensagem = $notif['mensagem'];
+                $titulo = $notif['titulo'];
+
+                $apostaId = !empty($notif['aposta_id']) ? (int)$notif['aposta_id'] : 0;
+                $fixtureId = !empty($notif['fixture_id']) ? (int)$notif['fixture_id'] : 0;
+                $apostaRow = null;
+                if ($apostaId > 0) {
+                    $apostaRow = $db->table('apostas')->where('id', $apostaId)->get()->getRowArray();
+                } elseif ($fixtureId > 0 && !empty($access['user_id'])) {
+                    $apostaRow = $db->table('apostas')
+                        ->where('fixture_id', $fixtureId)
+                        ->where('usuario_id', (int)$access['user_id'])
+                        ->orderBy('id', 'DESC')
+                        ->get()
+                        ->getRowArray();
+                }
+
+                if ($apostaRow) {
+                    $dadosApostaStr = "• Mercado: " . ($apostaRow['mercado'] ?? 'N/D') . "\n"
+                                    . "• Palpite/Linha: " . ($apostaRow['palpite'] ?? 'N/D') . "\n"
+                                    . "• Cotação (Odd): " . ($apostaRow['odd'] ?? 'N/D') . "\n"
+                                    . "• Partida: " . ($apostaRow['time_casa'] ?? '') . " x " . ($apostaRow['time_fora'] ?? '');
+                }
+            }
+        }
+
+        if (empty($mensagem)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Texto da escalação não informado.'
+            ]);
+        }
+
+        $apiKey = env('VISION_API_KEY') ?: getenv('VISION_API_KEY') ?: ($_ENV['VISION_API_KEY'] ?? '');
+        if (empty($apiKey)) {
+            $envPath = APPPATH . '../.env';
+            if (file_exists($envPath)) {
+                $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                foreach ($lines as $line) {
+                    if (strpos(trim($line), 'VISION_API_KEY=') === 0) {
+                        $apiKey = trim(explode('=', $line, 2)[1]);
+                        $apiKey = trim($apiKey, '"\'');
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (empty($apiKey)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Chave VISION_API_KEY não configurada no servidor.'
+            ]);
+        }
+
+        $systemPrompt = "Você é o Grok AI, Analista Tático Oficial e Auditor de Gestão de Risco do FootballWeb.\n"
+            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado e Odds).\n\n"
+            . "Estruture sua resposta estritamente nos seguintes tópicos:\n"
+            . "1️⃣ Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
+            . "2️⃣ Goleiro e Espinha Dorsal: se os goleiros titulares e a espinha dorsal (zaga, criação, ataque) estão mantidos.\n"
+            . "3️⃣ Análise Crítica da Linha da Aposta (Handicap / Mercado): cruze o poderio dos 11 titulares confirmados com a linha exata da aposta do usuário. Explique com clareza se a escalação confirmada favorece ou destrói a probabilidade da linha (ex: DNB 0.0 AH, linhas negativas -AH ou positivas +AH).\n"
+            . "4️⃣ Veredito e Gestão de Banca (Ação Recomendada):\n"
+            . "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida)\n"
+            . "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado)\n"
+            . "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desequilíbrio grave contra a linha / Risco iminente de perda integral da stake).\n\n"
+            . "Responda em formato limpo, direto, com formatação rica em markdown, linguagem tática de futebol e foco absoluto na proteção do capital da banca.";
+
+        $userPrompt = "Título do Alerta: {$titulo}\n\n";
+        if (!empty($dadosApostaStr)) {
+            $userPrompt .= "🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO:\n{$dadosApostaStr}\n\n";
+        }
+        $userPrompt .= "📋 DETALHES DA SÚMULA E ESCALAÇÃO OFICIAL:\n{$mensagem}\n\n"
+            . "Por favor, emita seu diagnóstico tático completo, correlacionando a escalação oficial com a linha da aposta do usuário e fornecendo a recomendação clara de ação (inclusive sobre CASHOUT).";
+
+        try {
+            $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json',
+                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                'model' => 'openai/gpt-oss-120b',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt]
+                ],
+                'max_tokens' => 2000,
+                'temperature' => 0.2
+            ]));
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            // Detecção de cota/créditos esgotados na API do Grok
+            $isQuota = ($httpCode === 402 || $httpCode === 429);
+            if (!$isQuota && !empty($response)) {
+                $respLower = strtolower($response);
+                if (strpos($respLower, 'insufficient_quota') !== false ||
+                    strpos($respLower, 'exceeded your current quota') !== false ||
+                    strpos($respLower, 'rate_limit_exceeded') !== false ||
+                    strpos($respLower, 'credit_balance_too_low') !== false) {
+                    $isQuota = true;
+                }
+            }
+
+            if ($isQuota) {
+                $this->registrarAlertaCreditosGrok((int)($access['user_id'] ?? 558), $httpCode, $response ?: $curlError);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => '🚨 A cota ou créditos da API do Grok foram esgotados. Um alerta foi registrado no seu sininho.'
+                ]);
+            }
+
+            if ($httpCode !== 200 || empty($response)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "Erro na comunicação com a IA Grok (HTTP {$httpCode}): " . ($curlError ?: 'Resposta vazia da API.')
+                ]);
+            }
+
+            $body = json_decode($response, true);
+            $analise = $body['choices'][0]['message']['content'] ?? '';
+
+            if (empty($analise)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Nenhuma análise gerada pela IA.'
+                ]);
+            }
+
+            // Persiste no Cache do MySQL na tabela notificacoes_usuario (Regra de Ouro 1)
+            if ($notifId > 0) {
+                try {
+                    $db->table('notificacoes_usuario')->where('id', $notifId)->update([
+                        'analise_ia' => $analise
+                    ]);
+                    // Se estiver vinculada a uma aposta, espelha em auditoria_ia_parecer
+                    if (!empty($notif['aposta_id'])) {
+                        $db->table('apostas')->where('id', $notif['aposta_id'])->update([
+                            'auditoria_ia_parecer' => $analise,
+                            'auditoria_ia_checked_at' => date('Y-m-d H:i:s')
+                        ]);
+                    }
+                } catch (\Throwable $e_cache) {
+                    log_message('error', '[Cache Grok] Falha ao persistir analise_ia em notificacoes_usuario: ' . $e_cache->getMessage());
+                }
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'titulo'  => $titulo,
+                'analise' => $analise,
+                'cached'  => false
+            ]);
+
+        } catch (\Throwable $e) {
+            log_message('error', '[Grok Escalação] Exceção ao consultar Grok: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Exceção interna ao consultar Grok AI: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Registra alerta no sininho (notificacoes_usuario) quando a API do Grok esgota créditos ou atinge rate limit (HTTP 402/429).
+     */
+    private function registrarAlertaCreditosGrok(int $usuarioId, int $httpCode, string $errorDetails = ''): void
+    {
+        try {
+            $db = \Config\Database::connect();
+
+            // Evita disparos duplicados: se já houver um alerta não lido nas últimas 2 horas, não cria outro
+            $duplicado = $db->table('notificacoes_usuario')
+                ->where('usuario_id', $usuarioId)
+                ->where('tipo', 'GROK_CREDITOS_ESGOTADOS')
+                ->where('lida', 0)
+                ->where('criado_em >=', date('Y-m-d H:i:s', strtotime('-2 hours')))
+                ->countAllResults();
+
+            if ($duplicado > 0) {
+                return;
+            }
+
+            $motivo = ($httpCode === 402) ? "Créditos/Saldo insuficiente (HTTP 402)" : "Cota da API / Rate limit atingido (HTTP {$httpCode})";
+            $titulo = "🚨 Grok AI: Créditos ou Cota da API Esgotados";
+            $msg = "Atenção: A API do Grok (Groq Cloud) acusou limite de requisições ou saldo zerado ({$motivo}). "
+                 . "As análises táticas com IA ficarão pausadas até a renovação da cota ou recarga em console.groq.com.";
+
+            if (!empty($errorDetails)) {
+                $detalhesLimpos = trim(strip_tags($errorDetails));
+                // Tenta extrair a mensagem do JSON de erro se aplicável
+                $jsonErr = json_decode($errorDetails, true);
+                if (!empty($jsonErr['error']['message'])) {
+                    $detalhesLimpos = $jsonErr['error']['message'];
+                }
+                if (strlen($detalhesLimpos) > 160) {
+                    $detalhesLimpos = substr($detalhesLimpos, 0, 160) . '...';
+                }
+                $msg .= " [Detalhes: " . $detalhesLimpos . "]";
+            }
+
+            $db->table('notificacoes_usuario')->insert([
+                'usuario_id'  => $usuarioId,
+                'aposta_id'   => null,
+                'fixture_id'  => null,
+                'tipo'        => 'GROK_CREDITOS_ESGOTADOS',
+                'titulo'      => $titulo,
+                'mensagem'    => $msg,
+                'link'        => null,
+                'lida'        => 0,
+                'pinada'      => 1, // Fixa no topo com prioridade máxima
+                'criado_em'   => date('Y-m-d H:i:s')
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[Alerta Grok] Erro ao persistir alerta de créditos em notificacoes_usuario: ' . $e->getMessage());
+        }
+    }
 }
+
 
 

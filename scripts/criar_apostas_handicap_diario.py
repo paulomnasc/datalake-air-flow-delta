@@ -789,6 +789,17 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
+        # =========================================================================
+        # REGRA MANDATÓRIA DE GOVERNANÇA: APENAS PREMIUM E QUASE PREMIUM CRIAM APOSTAS
+        # A esteira autônoma de apostas só pode criar ou manter apostas ativas na banca
+        # se o palpite for chancelado formalmente como PREMIUM (destaque=2) ou QUASE PREMIUM (destaque=1).
+        # Apostas do tier REGULAR (destaque=0) permanecem restritas a fixtures_trends.
+        # =========================================================================
+        cand_destaque = int(best_cand.get('destaque', 0))
+        if cand_destaque not in (BetTier.PREMIUM.value, BetTier.QUASE_PREMIUM.value):
+            print(f"ℹ️ [Filtro de Governança] Partida #{fixture_id} ({home_team} vs {away_team}) classificada como Regular (destaque={cand_destaque}). Apenas PREMIUM e QUASE PREMIUM geram apostas ativas. Mantida apenas em fixtures_trends.")
+            continue
+
         # Checa se já existe aposta ativa ou cancelada pelo usuário para esta partida no banco
         cursor.execute("""
             SELECT id, palpite, confirmada, status, status_gatekeeper, resultado_detalhado FROM apostas 

@@ -109,6 +109,7 @@ if (!function_exists('simplifyRejectionReasonModal')) {
     function simplifyRejectionReasonModal($motivo) {
         $m = trim($motivo);
         if (empty($m)) return 'Reprovada';
+        if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
         if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
@@ -120,30 +121,36 @@ if (!function_exists('simplifyRejectionReasonModal')) {
     }
 }
 
-if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
-    function renderHandicapAuditTableInsideMotivation($rawMotivation, $fix, $aposta = null) {
-        if (empty($rawMotivation)) return '';
+if (!function_exists('renderHandicapAuditTableModal')) {
+    function renderHandicapAuditTableModal($fix, $aposta = null) {
+        $rawAuditText = '';
+        $sources = [
+            $fix->ah_reasoning ?? '',
+            $aposta->resultado_detalhado ?? ''
+        ];
 
-        // Se não contiver o bloco de linhas auditadas, retorna o texto preservando quebras de linha
-        if (!preg_match('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:/u', $rawMotivation)) {
-            return nl2br(htmlspecialchars($rawMotivation));
+        foreach ($sources as $fullSource) {
+            if (empty($fullSource)) continue;
+            if (preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
+                $rawAuditText = $mAud[1];
+                break;
+            } elseif (preg_match('/📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*/u', $fullSource, $mAud)) {
+                $rawAuditText = $mAud[0];
+                break;
+            }
         }
 
-        $parts = preg_split('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:/u', $rawMotivation);
-        $tacticalText = trim($parts[0] ?? '');
-        $linesBlock = $parts[1] ?? '';
+        $homeTeam = $fix->home_team ?? 'Mandante';
+        $awayTeam = $fix->away_team ?? 'Visitante';
 
-        $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
-        preg_match_all($pattern, $linesBlock, $matches, PREG_SET_ORDER);
-
-        if (empty($matches)) {
-            return nl2br(htmlspecialchars($rawMotivation));
+        $matches = [];
+        if (!empty($rawAuditText)) {
+            $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
+            preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
         }
 
         // Agrupar linhas em pares (Mandante x Visitante) no padrão 1win
-        $pairs = array_chunk($matches, 2);
-        $homeTeam = $fix->home_team ?? 'Mandante';
-        $awayTeam = $fix->away_team ?? 'Visitante';
+        $pairs = !empty($matches) ? array_chunk($matches, 2) : [];
 
         // Detecção de aposta aprovada / Radar de Oportunidade
         $approvedLineInBet = null;
@@ -162,7 +169,7 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
 
         // Verifica se a linha aprovada já consta na lista da Betano
         $foundInAudit = false;
-        if ($approvedLineInBet) {
+        if ($approvedLineInBet && !empty($pairs)) {
             foreach ($pairs as &$p) {
                 foreach ($p as &$mItem) {
                     if ($mItem && stripos($mItem[2], $approvedLineInBet['team']) !== false && floatval($mItem[3]) == floatval($approvedLineInBet['line'])) {
@@ -204,21 +211,49 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                 $radarPair = $isHome ? [$appCell, $oppCell] : [$oppCell, $appCell];
                 array_unshift($pairs, $radarPair);
             }
+        } elseif ($approvedLineInBet && empty($pairs)) {
+            // Caso em que só temos a linha da aposta aprovada gravada
+            $isHome = (stripos($homeTeam, $approvedLineInBet['team']) !== false || stripos($approvedLineInBet['team'], $homeTeam) !== false);
+            $oppTeam = $isHome ? $awayTeam : $homeTeam;
+            $oppVal = -floatval($approvedLineInBet['line']);
+            $oppLine = ($oppVal > 0 ? '+' : '') . $oppVal;
+            if ($oppVal == 0.0) $oppLine = '0.0';
+
+            $appCell = [
+                0 => '',
+                1 => '🟢 [APROVADA]',
+                2 => $approvedLineInBet['team'],
+                3 => $approvedLineInBet['line'],
+                4 => number_format($approvedLineInBet['odd'], 2),
+                5 => $approvedLineInBet['reason']
+            ];
+            $oppCell = [
+                0 => '',
+                1 => '❌ [REPROVADA]',
+                2 => $oppTeam,
+                3 => $oppLine,
+                4 => '--',
+                5 => 'Linha inversa de cobertura no adversário'
+            ];
+
+            $radarPair = $isHome ? [$appCell, $oppCell] : [$oppCell, $appCell];
+            $pairs = [$radarPair];
+        }
+
+        if (empty($pairs)) {
+            return '<div style="background: rgba(15, 23, 42, 0.75); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 25px; text-align: center; color: #94a3b8; font-size: 0.78rem;">
+                <i class="bi bi-sliders mb-2 d-block" style="font-size: 1.5rem; color: #64748b;"></i>
+                Nenhuma linha de Handicap Asiático auditada registrada para esta partida no momento da análise.
+            </div>';
         }
 
         ob_start();
         ?>
-        <?php if (!empty($tacticalText)): ?>
-            <div style="margin-bottom: 12px; line-height: 1.5; white-space: pre-line;">
-                <?= htmlspecialchars($tacticalText) ?>
-            </div>
-        <?php endif; ?>
-
         <!-- Tabela Estilo 1win Bet para Handicap Asiático -->
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 12px; margin-top: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">
-                <span style="font-weight: 700; color: #f8fafc; font-size: 0.82rem; display: flex; align-items: center; gap: 6px;">
-                    <i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)
+        <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 10px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;">
+                    <i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Auditadas pelo Gatekeeper
                 </span>
                 <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem; font-weight: 600;">
                     Auditoria Gatekeeper
@@ -226,13 +261,13 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
             </div>
 
             <!-- Nomes dos Times (Cabeçalho de Colunas 1win) -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.75rem; font-weight: 700; color: #94a3b8;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;">
                 <div style="text-align: left;">🏠 <?= htmlspecialchars($homeTeam) ?></div>
                 <div style="text-align: right;">✈️ <?= htmlspecialchars($awayTeam) ?></div>
             </div>
 
-            <!-- Linhas de Cotação (Pares 1win) -->
-            <div style="display: flex; flex-direction: column; gap: 6px;">
+            <!-- Linhas de Cotação (Pares 1win) com Scrollbar Lateral -->
+            <div class="ah-lines-scroll" style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; padding-right: 6px;">
                 <?php foreach ($pairs as $pair): ?>
                     <?php 
                         $itemH = $pair[0] ?? null;
@@ -248,31 +283,54 @@ if (!function_exists('renderHandicapAuditTableInsideMotivation')) {
                                     $lineVal = $item[3];
                                     $oddVal = is_numeric($item[4]) ? number_format((float)$item[4], 2) : $item[4];
                                     $fullReason = trim($item[5] ?? ($isAprovada ? 'Aprovada pelo Gatekeeper com valor esperado positivo' : 'Reprovada'));
-                                    $shortReason = $isAprovada ? ($isRadar ? 'Aprovada (Radar / +EV)' : 'Aprovada (+EV)') : simplifyRejectionReasonModal($fullReason);
+                                    $isCondicional = (!$isAprovada && (
+                                        stripos($fullReason, 'súmula') !== false || 
+                                        stripos($fullReason, 'desfalque') !== false || 
+                                        stripos($fullReason, 'condicional') !== false ||
+                                        $lineVal === '+0.5' || $lineVal === '+0.25' || $lineVal === '+0.50' ||
+                                        (is_numeric($lineVal) && ((float)$lineVal == 0.5 || (float)$lineVal == 0.25) && strpos($lineVal, '-') === false)
+                                    ));
+                                    $shortReason = $isAprovada ? ($isRadar ? 'Aprovada (Radar / +EV)' : 'Aprovada (+EV)') : ($isCondicional ? 'Depende de Súmula' : simplifyRejectionReasonModal($fullReason));
 
-                                    $cardBg = $isAprovada ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(30, 41, 59, 0.6)';
-                                    $cardBorder = $isAprovada ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)';
-                                    $oddColor = $isAprovada ? '#34d399' : '#ffffff';
+                                    if ($isAprovada) {
+                                        $cardBg = 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)';
+                                        $cardBorder = '1.5px solid #10b981';
+                                        $oddColor = '#34d399';
+                                        $badgeColor = '#34d399';
+                                        $badgeBg = 'rgba(16, 185, 129, 0.2)';
+                                        $badgeBorder = 'rgba(16, 185, 129, 0.4)';
+                                        $icon = '🟢';
+                                    } elseif ($isCondicional) {
+                                        $cardBg = 'rgba(148, 163, 184, 0.18)';
+                                        $cardBorder = '1px solid rgba(148, 163, 184, 0.35)';
+                                        $oddColor = '#cbd5e1';
+                                        $badgeColor = '#e2e8f0';
+                                        $badgeBg = 'rgba(148, 163, 184, 0.22)';
+                                        $badgeBorder = 'rgba(203, 213, 225, 0.35)';
+                                        $icon = '⏳';
+                                    } else {
+                                        $cardBg = 'rgba(30, 41, 59, 0.6)';
+                                        $cardBorder = '1px solid rgba(255, 255, 255, 0.08)';
+                                        $oddColor = '#ffffff';
+                                        $badgeColor = '#f87171';
+                                        $badgeBg = 'rgba(239, 68, 68, 0.12)';
+                                        $badgeBorder = 'rgba(239, 68, 68, 0.25)';
+                                        $icon = '❌';
+                                    }
                                 ?>
                                 <div style="background: <?= $cardBg ?>; border: <?= $cardBorder ?>; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; min-height: 44px; transition: transform 0.15s ease;" title="<?= htmlspecialchars($fullReason) ?>">
                                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                                        <span style="font-size: 0.75rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 6px;">
-                                            <?= htmlspecialchars($teamName . ' ' . $lineVal) ?>
+                                        <span style="font-size: 0.80rem; color: #f1f5f9; font-weight: 700; font-family: monospace;">
+                                             <?= htmlspecialchars($lineVal) ?>
                                         </span>
                                         <span style="font-size: 0.88rem; font-weight: 800; font-family: monospace; color: <?= $oddColor ?>;">
                                             <?= $oddVal ?>
                                         </span>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-                                        <?php if ($isAprovada): ?>
-                                            <span style="font-size: 0.62rem; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); padding: 0 4px; border-radius: 4px;">
-                                                🟢 <?= htmlspecialchars($shortReason) ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span style="font-size: 0.60rem; font-weight: 600; color: #f87171; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); padding: 0 4px; border-radius: 4px;">
-                                                ❌ <?= htmlspecialchars($shortReason) ?>
-                                            </span>
-                                        <?php endif; ?>
+                                        <span style="font-size: 0.60rem; font-weight: 600; color: <?= $badgeColor ?>; background: <?= $badgeBg ?>; border: 1px solid <?= $badgeBorder ?>; padding: 0 4px; border-radius: 4px;">
+                                            <?= $icon ?> <?= htmlspecialchars($shortReason) ?>
+                                        </span>
                                     </div>
                                 </div>
                             <?php else: ?>
@@ -299,6 +357,9 @@ try {
     $dateStr = $dt->format('d/m/Y');
 } catch (\Exception $e) {}
 
+$leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($fix->league_id ?? null, $fix->league_name ?? null);
+$leagueCountry = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : ($leagueInfo['country'] ?? '');
+$leagueFlag = $leagueInfo['flag'] ?? '';
 $displayLeague = $fix->league_name ?? 'Liga';
 $prob = !empty($fix->win_probability) ? (float)$fix->win_probability : 50.0;
 $class = ($prob >= 70) ? 'high' : (($prob >= 55) ? 'safe' : 'risky');
@@ -334,10 +395,7 @@ $isCardPremium = $isCardAhApproved && (
 $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
     (($fix->gatekeeper_category ?? '') === 'Aposta Quase Premium (+EV Selecionado)') ||
     (!empty($fix->destaque) && (int)$fix->destaque === 1) ||
-    (!empty($aposta->destaque) && (int)$aposta->destaque === 1) ||
-    (($aposta->status_gatekeeper ?? '') === 'SUGESTAO_RADAR') ||
-    preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $fix->ah_suggestion ?? '') ||
-    (!empty($aposta->palpite) && preg_match('/(0\.0|\+0\.25|-0\.25|empate anula)/i', $aposta->palpite))
+    (!empty($aposta->destaque) && (int)$aposta->destaque === 1)
 );
 ?>
 
@@ -379,15 +437,74 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
     .card-origem-modal-wrapper .prob-bar-fill.high { background: linear-gradient(90deg, #10b981, #059669); }
     .card-origem-modal-wrapper .prob-bar-fill.safe { background: linear-gradient(90deg, #38bdf8, #0284c7); }
     .card-origem-modal-wrapper .prob-bar-fill.risky { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .card-origem-modal-wrapper .match-detail-nav-tabs {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      gap: 6px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link {
+      color: #94a3b8;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link:hover {
+      color: #f1f5f9;
+      background: rgba(51, 65, 85, 0.8);
+    }
+    .card-origem-modal-wrapper .match-detail-nav-tabs .nav-link.active {
+      color: #38bdf8;
+      background: rgba(15, 23, 42, 0.95);
+      border-color: rgba(56, 189, 248, 0.4) rgba(56, 189, 248, 0.4) transparent rgba(56, 189, 248, 0.4);
+      border-bottom: 2px solid #38bdf8;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll {
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 4px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35);
+      border-radius: 4px;
+    }
+    .card-origem-modal-wrapper .ah-lines-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.6);
+    }
   </style>
 
   <!-- Cabeçalho da Partida -->
   <div class="p-3 mb-3 rounded-3" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.85) 100%); border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2">
-        <span class="badge" style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.75rem; font-weight: 700; padding: 4px 8px;">
-          <?= htmlspecialchars($displayLeague) ?>
-        </span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="match-league badge" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px;">
+          <?php if (!empty($leagueFlag)): ?>
+            <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
+          <?php endif; ?>
+          <?php if (!empty($leagueCountry) && $leagueCountry !== 'Outro'): ?>
+            <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
+          <?php endif; ?>
+          <?php if (!empty($leagueCountry) && $leagueCountry !== 'Outro' && !empty($displayLeague)): ?>
+            <span style="color: #475569;">•</span>
+          <?php endif; ?>
+          <?php if (!empty($displayLeague)): ?>
+            <i class="bi bi-trophy-fill" style="color: #fbbf24; font-size: 0.78rem;"></i>
+            <span style="color: #38bdf8; font-weight: 600;"><?= htmlspecialchars($displayLeague) ?></span>
+          <?php endif; ?>
+        </div>
         <?php if ($isCardPremium): ?>
           <span class="badge border px-2 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
                 style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.35) 100%) !important; color: #fbbf24 !important; border-color: #f59e0b !important; letter-spacing: 0.3px;">
@@ -421,11 +538,27 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <div class="col-5 text-end">
         <div class="d-flex align-items-center justify-content-end gap-2">
           <div>
-            <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->home_team) ?></strong>
-            <span class="text-white-50 small" style="font-size: 0.70rem;">Mandante</span>
+            <div class="d-flex align-items-center justify-content-end gap-1">
+              <?php if (!empty($fix->home_rank)): ?>
+                <span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 6px;" title="Classificação: <?= $fix->home_rank ?>º lugar no campeonato<?= !empty($fix->home_ppg) ? ' (' . number_format((float)$fix->home_ppg, 2) . ' PPG)' : '' ?>">
+                  #<?= $fix->home_rank ?>
+                </span>
+              <?php endif; ?>
+              <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->home_team) ?></strong>
+            </div>
+            <span class="text-white-50 small" style="font-size: 0.70rem;">
+              Mandante<?= !empty($fix->home_rank) ? ' • <span class="text-info fw-semibold">' . $fix->home_rank . 'º na tabela</span>' : '' ?>
+            </span>
           </div>
           <?php if (!empty($fix->home_team_id)): ?>
-            <img src="<?= base_url('team-logo/' . $fix->home_team_id) ?>" alt="" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+            <div class="position-relative d-inline-flex flex-column align-items-center" style="min-width: 32px;">
+              <img src="<?= base_url('team-logo/' . $fix->home_team_id) ?>" alt="" style="width: 34px; height: 34px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+              <?php if (!empty($fix->home_rank)): ?>
+                <span class="badge shadow-sm" style="font-size: 0.62rem; font-weight: 700; background: #0f172a; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.6); padding: 1px 4px; border-radius: 4px; margin-top: 2px;" title="<?= $fix->home_rank ?>º colocado no campeonato">
+                  <?= $fix->home_rank ?>º
+                </span>
+              <?php endif; ?>
+            </div>
           <?php endif; ?>
         </div>
       </div>
@@ -441,11 +574,27 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <div class="col-5 text-start">
         <div class="d-flex align-items-center justify-content-start gap-2">
           <?php if (!empty($fix->away_team_id)): ?>
-            <img src="<?= base_url('team-logo/' . $fix->away_team_id) ?>" alt="" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+            <div class="position-relative d-inline-flex flex-column align-items-center" style="min-width: 32px;">
+              <img src="<?= base_url('team-logo/' . $fix->away_team_id) ?>" alt="" style="width: 34px; height: 34px; object-fit: contain; flex-shrink: 0;" onerror="this.style.display='none';">
+              <?php if (!empty($fix->away_rank)): ?>
+                <span class="badge shadow-sm" style="font-size: 0.62rem; font-weight: 700; background: #0f172a; color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.6); padding: 1px 4px; border-radius: 4px; margin-top: 2px;" title="<?= $fix->away_rank ?>º colocado no campeonato">
+                  <?= $fix->away_rank ?>º
+                </span>
+              <?php endif; ?>
+            </div>
           <?php endif; ?>
           <div>
-            <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->away_team) ?></strong>
-            <span class="text-white-50 small" style="font-size: 0.70rem;">Visitante</span>
+            <div class="d-flex align-items-center justify-content-start gap-1">
+              <strong class="text-white fs-6 d-block"><?= htmlspecialchars($fix->away_team) ?></strong>
+              <?php if (!empty($fix->away_rank)): ?>
+                <span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.4); padding: 2px 6px;" title="Classificação: <?= $fix->away_rank ?>º lugar no campeonato<?= !empty($fix->away_ppg) ? ' (' . number_format((float)$fix->away_ppg, 2) . ' PPG)' : '' ?>">
+                  #<?= $fix->away_rank ?>
+                </span>
+              <?php endif; ?>
+            </div>
+            <span class="text-white-50 small" style="font-size: 0.70rem;">
+              Visitante<?= !empty($fix->away_rank) ? ' • <span style="color: #a78bfa;" class="fw-semibold">' . $fix->away_rank . 'º na tabela</span>' : '' ?>
+            </span>
           </div>
         </div>
       </div>
@@ -547,7 +696,14 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
           <i class="bi bi-shield-shaded text-success fs-5"></i>
           <div>
             <strong class="text-white d-block" style="font-size: 0.88rem;">Handicap Asiático Recomendado</strong>
-            <span class="text-success small fw-semibold">🎯 Sugestão: <?= htmlspecialchars($sugestaoExibida) ?></span>
+            <div class="d-flex align-items-center gap-2 flex-wrap mt-0.5">
+              <span class="text-success small fw-semibold">🎯 Sugestão: <?= htmlspecialchars($sugestaoExibida) ?></span>
+              <?php if (preg_match('/(0\.0|\b0\b)\s*ah/i', $sugestaoExibida)): ?>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-size: 0.70rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;" title="Linha 0.0 AH equivale a Empate Anula a Aposta">
+                  <i class="bi bi-info-circle-fill me-1"></i>Equivale a "Draw No Bet" (Empate Anula)
+                </span>
+              <?php endif; ?>
+            </div>
           </div>
         </div>
         <?php if (!empty($categoriaExibida)): ?>
@@ -566,13 +722,40 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
         </div>
       <?php endif; ?>
 
-      <!-- Linha do Tempo U5J -->
-      <?= renderU5JTimelineTableModal($u5j_data, $fix) ?>
+      <!-- Contêiner de Abas: U5J vs Linhas AH do Gatekeeper -->
+      <ul class="nav nav-tabs match-detail-nav-tabs" id="matchDetailTabs-<?= $fixtureId ?>" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-u5j-btn-<?= $fixtureId ?>" data-bs-toggle="tab" data-bs-target="#tab-u5j-pane-<?= $fixtureId ?>" type="button" role="tab" aria-controls="tab-u5j-pane-<?= $fixtureId ?>" aria-selected="true">
+            <i class="bi bi-clock-history me-1 text-warning"></i> Linha do Tempo Recente (U5J)
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-ah-lines-btn-<?= $fixtureId ?>" data-bs-toggle="tab" data-bs-target="#tab-ah-lines-pane-<?= $fixtureId ?>" type="button" role="tab" aria-controls="tab-ah-lines-pane-<?= $fixtureId ?>" aria-selected="false">
+            <i class="bi bi-sliders me-1 text-info"></i> Linhas AH (Gatekeeper)
+          </button>
+        </li>
+      </ul>
 
-      <?php if (!empty($motivation)): ?>
+      <div class="tab-content" id="matchDetailTabContent-<?= $fixtureId ?>">
+        <div class="tab-pane fade show active" id="tab-u5j-pane-<?= $fixtureId ?>" role="tabpanel" aria-labelledby="tab-u5j-btn-<?= $fixtureId ?>">
+          <?= renderU5JTimelineTableModal($u5j_data, $fix) ?>
+        </div>
+        <div class="tab-pane fade" id="tab-ah-lines-pane-<?= $fixtureId ?>" role="tabpanel" aria-labelledby="tab-ah-lines-btn-<?= $fixtureId ?>">
+          <?= renderHandicapAuditTableModal($fix, $aposta ?? null) ?>
+        </div>
+      </div>
+
+      <?php 
+        $cleanMotivation = $motivation;
+        if (!empty($cleanMotivation)) {
+            $cleanMotivation = preg_replace('/•\s*📋\s*Linhas de Handicap Asiático Auditadas[\s\S]*$/u', '', $cleanMotivation);
+            $cleanMotivation = trim($cleanMotivation);
+        }
+      ?>
+      <?php if (!empty($cleanMotivation)): ?>
         <div class="p-2.5 mt-2 rounded-2" style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.74rem; color: #cbd5e1; line-height: 1.4;">
           <strong class="text-info d-block mb-1"><i class="bi bi-lightbulb-fill me-1"></i> Motivação Tática da Seleção:</strong>
-          <div><?= renderHandicapAuditTableInsideMotivation($motivation, $fix, $aposta ?? null) ?></div>
+          <div style="white-space: pre-line;"><?= htmlspecialchars($cleanMotivation) ?></div>
         </div>
       <?php endif; ?>
     </div>
@@ -669,5 +852,36 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
       <?php endif; ?>
     </div>
   <?php endif; ?>
+
+  <script>
+    (function() {
+      var fixtureTabs = document.querySelectorAll('#matchDetailTabs-<?= $fixtureId ?> [data-bs-toggle="tab"]');
+      fixtureTabs.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var targetSelector = this.getAttribute('data-bs-target');
+          if (!targetSelector) return;
+          var tabContainer = document.getElementById('matchDetailTabContent-<?= $fixtureId ?>');
+          if (!tabContainer) return;
+
+          fixtureTabs.forEach(function(b) {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+          });
+          this.classList.add('active');
+          this.setAttribute('aria-selected', 'true');
+
+          var panes = tabContainer.querySelectorAll('.tab-pane');
+          panes.forEach(function(p) {
+            p.classList.remove('show', 'active');
+          });
+          var activePane = tabContainer.querySelector(targetSelector);
+          if (activePane) {
+            activePane.classList.add('show', 'active');
+          }
+        });
+      });
+    })();
+  </script>
 </div>
 

@@ -1005,6 +1005,25 @@ if (!function_exists('fmtTopValorWithBrl')) {
     width: 92%;
   }
 
+  /* Posicionamento do Modal Card Origem próximo ao canto esquerdo do container */
+  #modalCardOrigem .modal-dialog {
+    max-width: 820px;
+    width: 95%;
+    margin-left: max(24px, calc((100vw - 1400px) / 2 + 20px)) !important;
+    margin-right: auto !important;
+  }
+  body.sidebar-notif-open #modalCardOrigem .modal-dialog,
+  body.sidebar-notif-pinned #modalCardOrigem .modal-dialog {
+    margin-left: 28px !important;
+    margin-right: auto !important;
+  }
+  @media (max-width: 768px) {
+    #modalCardOrigem .modal-dialog {
+      margin-left: auto !important;
+      margin-right: auto !important;
+    }
+  }
+
   .modal-dark .modal-content {
     background-color: var(--bet-card-bg);
     border: 1px solid var(--bet-card-border);
@@ -1486,10 +1505,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
           $sentinelaStatus = $aposta->auditoria_ia_status ?? '';
 
           // Estado 1: Súmula Realmente Pendente (Aposta Premium/Quase Premium aguardando súmula oficial e notificação)
-          $isLineupPending = ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $nowEpoch = time();
+          $isFinishedOrPast = ($gameEpoch > 0 && $gameEpoch <= $nowEpoch) || in_array(strtoupper($aposta->status ?? ''), ['GANHA', 'MEIO GANHA', 'PERDIDA', 'MEIO PERDIDA', 'ANULADA', 'CASHOUT']);
+          $isLineupPending = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && !$isLineupNotified && ($sentinelaStatus === 'EM_OBSERVACAO' || empty($sentinelaStatus)) && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Estado 3: Súmula Notificada com Alerta de Risco
-          $isLineupRiskAlert = ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
+          $isLineupRiskAlert = !$isFinishedOrPast && ($isApostaPremium || $isQuasePremium) && ($sentinelaStatus === 'ALERTA_RISCO') && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
 
           // Bloqueio rígido de confirmação de governança: apenas enquanto a súmula estiver pendente
           $isLockedByLineup = $isLineupPending;
@@ -1724,6 +1745,11 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
                 <div class="palpite-name">
                   <?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?>
+                  <?php if (!$isAbstencaoBloqueada && preg_match('/(0\.0|\b0\b)\s*ah/i', $aposta->palpite ?? '')): ?>
+                    <div class="mt-1" style="font-size: 0.72rem; color: #38bdf8; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(56, 189, 248, 0.12); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                      <i class="bi bi-info-circle-fill"></i> Equivale a "Draw No Bet" (Empate Anula a Aposta)
+                    </div>
+                  <?php endif; ?>
                   <?php if ($isAbstencaoBloqueada && !empty($aposta->palpite) && stripos($aposta->palpite, 'Sem Entrada') === false): ?>
                     <div style="font-size: 0.74rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">
                       Palpite aprovado prévio: <span style="text-decoration: line-through; color: #f87171; font-weight: 600;"><?= htmlspecialchars($aposta->palpite) ?></span>
@@ -2336,7 +2362,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
                 </span>
               </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation(); triggerGatekeeperLiveCheck();" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
           </div>
@@ -2369,7 +2395,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
+              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos(); triggerGatekeeperLiveCheck();">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
@@ -2380,6 +2406,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="0,00">
             </div>
           </div>
+
+          <!-- Feedback Visual do Gatekeeper em Tempo Real (Validação de Odd e Linha) -->
+          <div id="gatekeeperLiveFeedback" class="mb-3" style="display: none;"></div>
 
           <div class="row">
             <div class="col-4 mb-3">
@@ -2938,6 +2967,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function selectFixtureOption(optData) {
@@ -2967,6 +2997,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     closeFixtureDropdown();
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function clearFixtureSelection() {
@@ -3022,6 +3053,107 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
     const editCashoutEl = document.getElementById('editCashoutInput');
     if (editCashoutEl) editCashoutEl.value = valRaw;
+  }
+
+  let gatekeeperLiveCheckTimer = null;
+  function triggerGatekeeperLiveCheck() {
+    clearTimeout(gatekeeperLiveCheckTimer);
+    gatekeeperLiveCheckTimer = setTimeout(runGatekeeperLiveCheck, 350);
+  }
+
+  function runGatekeeperLiveCheck() {
+    const feedbackEl = document.getElementById('gatekeeperLiveFeedback');
+    if (!feedbackEl) return;
+
+    const mercado = document.getElementById('mercadoInput')?.value || '';
+    const isHandicap = mercado.toLowerCase().includes('handicap');
+    const isCartoes = mercado.toLowerCase().includes('cartõ') || mercado.toLowerCase().includes('card');
+    const odd = parseFloat(document.getElementById('oddInput')?.value) || 0;
+    const palpite = document.getElementById('palpiteInput')?.value || '';
+    const timeCasa = document.getElementById('timeCasaInput')?.value || '';
+    const timeFora = document.getElementById('timeForaInput')?.value || '';
+    const fixtureId = document.getElementById('fixtureSelect')?.value || '';
+
+    if (!isHandicap && !isCartoes) {
+      feedbackEl.style.display = 'none';
+      return;
+    }
+
+    if (odd <= 1.0 || !palpite) {
+      feedbackEl.style.display = 'none';
+      return;
+    }
+
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = '<div class="d-flex align-items-center gap-2 text-muted small p-2 rounded" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);"><span class="spinner-border spinner-border-sm text-info"></span> Consultando validação do Gatekeeper...</div>';
+
+    const formData = new FormData();
+    formData.append('fixture_id', fixtureId);
+    formData.append('time_casa', timeCasa);
+    formData.append('time_fora', timeFora);
+    formData.append('mercado', mercado);
+    formData.append('palpite', palpite);
+    formData.append('odd', odd);
+
+    fetch('/apostas/avaliar-gatekeeper-instantaneo', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.success || data.statusGatekeeper === 'AGUARDANDO') {
+        feedbackEl.style.display = 'none';
+        return;
+      }
+
+      if (data.statusGatekeeper === 'APPROVED' || data.statusGatekeeper === 'APROVADO') {
+        const oddJustaFmt = data.oddJusta ? Number(data.oddJusta).toFixed(2) : '-';
+        const evFmt = data.evPercentual ? '+' + Number(data.evPercentual).toFixed(1) + '%' : '+EV';
+        const probFmt = data.probPoisson ? Number(data.probPoisson).toFixed(1) + '%' : '';
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; color: #a7f3d0; font-size: 0.8rem;">
+            <i class="bi bi-shield-check text-success fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #34d399;">Gatekeeper: Aprovado (+EV) | Cotação com Valor Matemático</strong>
+              <div class="text-white-50 mt-1" style="font-size: 0.75rem;">
+                Odd Informada: <strong>${odd.toFixed(2)}</strong> ≥ Odd Justa: <strong>${oddJustaFmt}</strong> | EV: <span class="text-success fw-bold">${evFmt}</span> ${probFmt ? ' | Prob. Modelo: ' + probFmt : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (data.statusGatekeeper === 'NO_BET') {
+        const msgClean = data.gatekeeperMsg || 'Entrada rejeitada pelo Gatekeeper da banca por ausência de valor esperado (+EV).';
+        const cat = data.gatekeeperCategory ? `[${data.gatekeeperCategory}] ` : '';
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; font-size: 0.8rem;">
+            <i class="bi bi-shield-slash text-danger fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #f87171;">🚫 Gatekeeper: Rejeitado (NO_BET) — Risco de Prejuízo na Banca</strong>
+              <div class="mt-1" style="font-size: 0.75rem; color: #fca5a5; line-height: 1.35;">
+                ${cat}${msgClean}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (data.statusGatekeeper === 'AVISO_RISCO_OVER') {
+        feedbackEl.innerHTML = `
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fde68a; font-size: 0.8rem;">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0"></i>
+            <div>
+              <strong style="color: #fbbf24;">⚠️ Gatekeeper: Aviso de Risco Over Cartões</strong>
+              <div class="mt-1" style="font-size: 0.75rem; color: #fef08a;">
+                ${data.gatekeeperMsg || 'Apostas em Over possuem alta volatilidade estatística.'}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        feedbackEl.style.display = 'none';
+      }
+    })
+    .catch(() => {
+      feedbackEl.style.display = 'none';
+    });
   }
 
   function updatePalpiteExplanation() {
@@ -3205,6 +3337,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     }
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    triggerGatekeeperLiveCheck();
   }
 
   function autofillFixture(selectEl) {
@@ -3226,6 +3359,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     checkPalpiteEditableRule();
     updatePalpiteExplanation();
     checkXgWarning();
+    triggerGatekeeperLiveCheck();
   }
 
   function checkXgWarning() {
@@ -3604,7 +3738,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
       let withoutCancelledMatch = true;
       if (withoutCancelledVal === '1') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD') && !cardStatusUpper.includes('ANULAD');
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
       }
 
       let futureGamesMatch = true;
@@ -3622,7 +3756,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
       if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch && fixtureMatch) {
         counts.all++;
-        if (counts.hasOwnProperty(cardStatus)) {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        if (cardStatusUpper === 'PENDENTE' || cardStatusUpper.includes('CONFIRMADA')) {
+          counts['Pendente']++;
+        } else if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
         }
       }
@@ -3632,9 +3769,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
         statusMatch = true;
       } else if (status === 'concluidas') {
         const cardStatusUpper = cardStatus.toUpperCase();
-        const isPendente = (cardStatus === 'Pendente');
-        const isCanceled = cardStatusUpper.includes('CANCELAD') || cardStatusUpper.includes('ANULAD');
-        statusMatch = (!isPendente && !isCanceled);
+        statusMatch = (cardStatusUpper === 'GANHA' || cardStatusUpper === 'MEIO GANHA' || cardStatusUpper === 'PERDIDA' || cardStatusUpper === 'MEIO PERDIDA' || cardStatusUpper === 'CASHOUT' || cardStatusUpper === 'ANULADA');
+      } else if (status === 'Pendente') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        statusMatch = (cardStatusUpper === 'PENDENTE' || cardStatusUpper.includes('CONFIRMADA'));
       } else if (status === 'Ganha') {
         statusMatch = (cardStatus === 'Ganha' || cardStatus === 'Meio Ganha');
       } else if (status === 'Perdida') {
@@ -5268,25 +5406,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const btnConfirm = document.getElementById('btn-confirm-' + apostaId) || (cardEl ? cardEl.querySelector('#btn-confirm-' + apostaId) : null) || (cardEl ? cardEl.querySelector('.btn-confirmar-bloqueado') : null);
     if (!btnConfirm) return;
 
-    // 1. Remover atributos de bloqueio
+    // 1. Remover atributos de checagem prévia
     btnConfirm.removeAttribute('data-needs-check');
-    btnConfirm.removeAttribute('disabled');
-    btnConfirm.disabled = false;
 
-    // 2. Atualizar classes visuais
-    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
-    btnConfirm.classList.add('btn-success', 'pulse-highlight');
-
-    // 3. Forçar estilos inline de botão verde ativo
-    btnConfirm.style.setProperty('background', '#10b981', 'important');
-    btnConfirm.style.setProperty('border-color', '#059669', 'important');
-    btnConfirm.style.setProperty('color', '#ffffff', 'important');
-    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
-    btnConfirm.style.setProperty('opacity', '1', 'important');
-    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
-    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
-
-    // 4. Recuperar metadados atualizados
+    // 2. Recuperar metadados atualizados
     const timeCasa = btnConfirm.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
     const timeFora = btnConfirm.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
     const mercado = btnConfirm.getAttribute('data-mercado') || 'Handicap Asiático';
@@ -5298,6 +5421,55 @@ if (!function_exists('fmtTopValorWithBrl')) {
     if (palpite) btnConfirm.setAttribute('data-palpite', palpite);
     if (odd) btnConfirm.setAttribute('data-odd', oddFinal);
     if (valorAposta) btnConfirm.setAttribute('data-valor', valFinal);
+
+    // 3. Checagem de Trava de Governança (Súmula Oficial Pendente) e Trava de Risco
+    const isLockedLineup = (btnConfirm.getAttribute('data-locked-lineup') === '1') || (cardEl && cardEl.getAttribute('data-locked-lineup') === '1');
+    const isLockedRisk = (btnConfirm.getAttribute('data-locked-risk') === '1') || (cardEl && cardEl.getAttribute('data-locked-risk') === '1');
+
+    if (isLockedLineup) {
+      btnConfirm.classList.remove('btn-success', 'pulse-highlight', 'btn-confirmar-bloqueado');
+      btnConfirm.classList.add('btn-secondary', 'disabled');
+      btnConfirm.style.removeProperty('background');
+      btnConfirm.style.removeProperty('border-color');
+      btnConfirm.style.removeProperty('color');
+      btnConfirm.style.setProperty('cursor', 'not-allowed', 'important');
+      btnConfirm.title = 'Trava de Governança: Aguardando publicação da súmula oficial e validação da Sentinela Gemini';
+      btnConfirm.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> ⏳ Aguardar Súmula';
+      btnConfirm.onclick = function() {
+        alert('⏳ Trava de Governança de Risco: Esta aposta é classificada como ' + (cardEl && cardEl.getAttribute('data-is-premium') === '1' ? '👑 PREMIUM' : '🛡️ Quase Premium') + '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.');
+        return false;
+      };
+      return;
+    }
+
+    if (isLockedRisk) {
+      btnConfirm.classList.remove('btn-success', 'pulse-highlight', 'btn-confirmar-bloqueado');
+      btnConfirm.classList.add('btn-secondary', 'disabled');
+      btnConfirm.style.removeProperty('background');
+      btnConfirm.style.removeProperty('border-color');
+      btnConfirm.style.removeProperty('color');
+      btnConfirm.style.setProperty('cursor', 'not-allowed', 'important');
+      btnConfirm.title = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+      btnConfirm.innerHTML = '<i class="bi bi-shield-slash-fill me-1"></i> 🔒 Limite Excedido';
+      btnConfirm.onclick = function() {
+        alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.');
+        return false;
+      };
+      return;
+    }
+
+    // 4. Se não estiver bloqueado por súmula nem risco, libera botão de confirmação
+    btnConfirm.removeAttribute('disabled');
+    btnConfirm.disabled = false;
+    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
+    btnConfirm.classList.add('btn-success', 'pulse-highlight');
+    btnConfirm.style.setProperty('background', '#10b981', 'important');
+    btnConfirm.style.setProperty('border-color', '#059669', 'important');
+    btnConfirm.style.setProperty('color', '#ffffff', 'important');
+    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
+    btnConfirm.style.setProperty('opacity', '1', 'important');
+    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
+    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
 
     // 5. Vincular função de clique do modal de confirmação
     btnConfirm.onclick = function() {
@@ -6147,7 +6319,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
     if (!html) {
       html = `
         <div class="text-white-50 py-1" style="font-size: 0.72rem;">
-          <i class="bi bi-info-circle me-1"></i> No momento, todas as linhas de mercado ativas estão com margem de valor reduzida ou retidas pelo filtro de momento.
+          <i class="bi bi-info-circle me-1 text-warning"></i> ⚠️ Nenhuma linha alternativa aprovada pelo Gatekeeper: as cotações ativas não atingem o piso operacional seguro ou as linhas alternativas estão bloqueadas por travas de campo/mando. Recomendação da banca: Abstenção (NO_BET).
         </div>
       `;
     }

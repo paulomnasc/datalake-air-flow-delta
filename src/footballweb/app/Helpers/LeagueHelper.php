@@ -72,8 +72,10 @@ class LeagueHelper
         242  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
         917  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
         268  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
+        930  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
         265  => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
         239  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
+        241  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
         169  => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
         292  => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
         98   => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
@@ -87,7 +89,11 @@ class LeagueHelper
         197  => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
         106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
         345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
+        250  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+        252  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
         501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+        233  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
+        714  => ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false],
         // Competições Internacionais
         1    => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
         2    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
@@ -209,6 +215,9 @@ class LeagueHelper
         if (strpos($lNameLower, 'méxico') !== false || strpos($lNameLower, 'mexico') !== false || strpos($lNameLower, 'liga mx') !== false) {
             return ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true];
         }
+        if (strpos($lNameLower, 'egito') !== false || strpos($lNameLower, 'egypt') !== false) {
+            return ['country' => 'Egito', 'flag' => '🇪🇬', 'popular' => false];
+        }
 
         return ['country' => 'Outro', 'flag' => '🌐', 'popular' => false];
     }
@@ -323,6 +332,7 @@ class LeagueHelper
             1139 => "Santa Fe",
             1135 => "Junior",
             1138 => "America de Cali",
+            1136 => "Once Caldas",
             // Chile
             2315 => "Colo Colo",
             2323 => "Universidad de Chile",
@@ -348,7 +358,10 @@ class LeagueHelper
             2295 => "Cruz Azul",
             2286 => "U.N.A.M. - Pumas",
             2281 => "Toluca",
-            2292 => "CF Pachuca"
+            2292 => "CF Pachuca",
+            // Egito
+            1577 => "Al Ahly",
+            1040 => "Zamalek SC"
         ];
 
         // 1. Validação por ID oficial (100% determinística)

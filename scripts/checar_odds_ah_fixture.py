@@ -194,13 +194,14 @@ def extract_all_bookmakers_ah_lines(items, home_team, away_team):
                 bm_dict[bm_name] = lines
     return bm_dict
 
-def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_team, odd_home, odd_away, h_l5=None, a_l5=None):
+def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_team, odd_home, odd_away, h_l5=None, a_l5=None, desfalques_criticos=None):
     """
-    Gera as linhas analíticas de referência viáveis calculadas pelo modelo de Poisson do Gatekeeper,
-    independentemente de constarem ou não nas casas de apostas da API.
-    Apresenta as opções com cobertura de segurança (>= 55%) e sua respectiva odd mínima (+EV).
+    Gera as linhas analíticas de referência viáveis calculadas pelo modelo de Poisson e
+    estritamente validadas pelas travas de campo e governança do Gatekeeper.
+    Apresenta apenas opções que o Gatekeeper efetivamente aprova com valor esperado (+EV)
+    e cobertura de segurança.
     """
-    from asian_handicap_engine import evaluate_ah_line_poisson
+    from asian_handicap_engine import evaluate_ah_line_poisson, evaluate_and_select_best_ah_candidate
     ref_lines = []
 
     # Inicialização prévia de variáveis numéricas locais (Regra 8)
@@ -208,8 +209,9 @@ def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_
     odd_minima = 0.0
     prob_eff = 0.0
     line_val = 0.0
+    min_piso = 1.60
 
-    standard_steps = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
+    standard_steps = [-0.75, -0.5, -0.25, 0.0, 0.25, 0.5]
     for side_is_away in [False, True]:
         team_name = away_team if side_is_away else home_team
         for line_val in standard_steps:
@@ -217,17 +219,59 @@ def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_
             odd_justa = float(ev_res.get("odd_justa", 0.0))
             prob_eff = float(ev_res.get("prob_eff", 0.0))
 
-            # Critérios de viabilidade matemática do Gatekeeper:
-            # 1. Cobertura efetiva segura (mínimo de 55.0% de probabilidade de não perder)
-            # 2. Odd justa em faixa operável da banca (1.25 a 2.15)
-            if prob_eff >= 55.0 and 1.25 <= odd_justa <= 2.15:
-                odd_minima = max(1.45, round(odd_justa * 1.05, 2))
-                if odd_minima <= 2.25:
-                    sign_str = f"{line_val:+.2f}".rstrip("0").rstrip(".")
-                    if line_val == 0.0:
-                        sign_str = "0.0"
-                    palpite_fmt = f"{team_name} {sign_str} AH"
+            if prob_eff < 50.0 or odd_justa <= 0.0:
+                continue
 
+            # Pisos operacionais reais da banca:
+            # - Visitantes e linhas secas/negativas: piso mínimo de 1.60
+            # - Mandantes em linhas protegidas: piso mínimo de 1.50
+            min_piso = 1.60 if (side_is_away or line_val < 0.0) else 1.50
+            odd_minima = max(min_piso, round(odd_justa * 1.05, 2))
+
+            if odd_minima > 2.30:
+                continue
+
+            sign_str = f"{line_val:+.2f}".rstrip("0").rstrip(".")
+            if line_val == 0.0:
+                sign_str = "0.0"
+            palpite_fmt = f"{team_name} {sign_str} AH"
+
+            test_cand = {
+                'team': 'Away' if side_is_away else 'Home',
+                'target_team': team_name,
+                'is_away': side_is_away,
+                'line': line_val,
+                'palpite_str': palpite_fmt,
+                'odd': odd_minima,
+                'raw_value': f"{'Away' if side_is_away else 'Home'} {line_val}",
+                'source': 'RADAR_REFERENCE'
+            }
+
+            try:
+                best_c, approved_c = evaluate_and_select_best_ah_candidate(
+                    poisson_matrix=poisson_matrix,
+                    candidate_lines=[test_cand],
+                    home_team=home_team,
+                    away_team=away_team,
+                    odd_home=odd_home,
+                    odd_away=odd_away,
+                    home_team_id=fixture_dict.get('home_team_id'),
+                    away_team_id=fixture_dict.get('away_team_id'),
+                    home_last5=h_l5,
+                    away_last5=a_l5,
+                    xg_home=float(fixture_dict.get('xg_home') or 0.0),
+                    xg_away=float(fixture_dict.get('xg_away') or 0.0),
+                    home_rank=fixture_dict.get('home_rank'),
+                    away_rank=fixture_dict.get('away_rank'),
+                    home_ppg=fixture_dict.get('home_ppg'),
+                    away_ppg=fixture_dict.get('away_ppg'),
+                    home_zone=fixture_dict.get('home_zone'),
+                    away_zone=fixture_dict.get('away_zone'),
+                    standings_motivation_score=fixture_dict.get('standings_motivation_score'),
+                    odd_draw=float(fixture_dict.get('odd_draw') or 0.0),
+                    desfalques_criticos=desfalques_criticos
+                )
+                if approved_c:
                     ref_lines.append({
                         "linha": palpite_fmt,
                         "time": team_name,
@@ -237,6 +281,8 @@ def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_
                         "odd_minima": odd_minima,
                         "prob_cobertura": prob_eff
                     })
+            except Exception:
+                continue
 
     # Ordenar por probabilidade de cobertura decrescente
     ref_lines.sort(key=lambda x: x["prob_cobertura"], reverse=True)
@@ -1042,6 +1088,9 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
     cursor.close()
     conn.close()
 
+    betano_cand = find_matching_ah_candidate(betano_lines, linha_alvo, home_team, away_team)
+    odd_betano_val = float(betano_cand['odd']) if (betano_cand and betano_cand.get('odd')) else None
+
     motivo_rejeicao = ""
     if odd_float and linha_alvo:
         if odd_float < 1.45:
@@ -1052,6 +1101,19 @@ def validar_linha_customizada_ah(fixture_id, aposta_id, linha_alvo, odd_alvo=Non
             motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por probabilidade de cobertura ({p_eff_cust:.1f}%) abaixo do mínimo de segurança exigido de 55.0%."
         elif ev_perc_cust < 3.0:
             motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada por cotação insuficiente para gerar valor positivo (+EV). Cotação mínima necessária na casa: @ {odd_min_nec:.2f}."
+        elif odd_float < 1.60:
+            sufixo_betano = f" A cotação oficial na Betano é @ {odd_betano_val:.2f}." if odd_betano_val else ""
+            if is_away_c and line_c == 0.0:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Cotação abaixo do piso mínimo operacional exigido para DNB fora de casa (@ 1.60).{sufixo_betano}"
+            else:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Cotação abaixo do piso mínimo operacional do Gatekeeper (@ 1.60).{sufixo_betano}"
+        else:
+            for it in audit_items:
+                if palpite_fmt_c in it:
+                    motivo_rejeicao = it
+                    break
+            if not motivo_rejeicao:
+                motivo_rejeicao = f"{palpite_fmt_c} @ {odd_float:.2f} : Reprovada pelo Gatekeeper por gestão de risco de campo ou restrição de confronto."
     elif cand_testado:
         palpite_b = cand_testado["palpite_str"]
         odd_b = float(cand_testado["odd"])

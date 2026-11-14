@@ -245,6 +245,8 @@ def get_cached_betano_1x2(fixture_id: int):
 GATEKEEPER_DIDACTIC_MAP = {
     'Oportunidade PREMIUM (+EV Alavancado)': 'Super-Favorito de Elite (Tier 1) com convergência máxima da Tríade de Risco (V1: Elite contra gigantes, V2: Valor alinhado no 1X2, V3: 100% dos titulares confirmados). Autorizada alavancagem de 3x a stake padrão.',
     'Aposta Quase Premium (+EV Selecionado)': 'Aposta Selecionada com chancela do Prisma Quase Premium (V1: Desempenho contextual comprovado, V2: Linha de proteção com cobertura de empate 0.0 ou +/-0.25 AH e odd saudável, V3: Eixo central de titulares confirmado). Stake padrão (1x).',
+    'Reset Tático por Súmula': 'Reversão tática orientada pela súmula oficial: desfalques críticos no favorito inicial abriram oportunidade de alto valor (+EV) na equipe adversária com linha de proteção.',
+    'Reset Tático por Drift de Mercado': 'Reversão tática orientada pelo fluxo institucional de mercado: o favorito inicial sofreu forte pressão vendedora (drift severo) e o adversário recebeu suporte massivo do mercado (steam move), abrindo oportunidade de valor (+EV) na linha oposta.',
     'Falta de Valor Esperado (+EV)': 'A probabilidade real calculada pelo modelo não compensa o preço pago pela casa de apostas (o prêmio oferecido pela odd está abaixo do risco matemático do confronto).',
     'Equilíbrio Excessivo ou Inconsistência': 'Duelo onde o rendimento e pontuação recente de ambos os times são excessivamente parelhos e nenhuma linha de handicap ofereceu margem de segurança segura.',
     'Duelo de Crises': 'Ambos os times chegam em momento técnico muito ruim nos últimos 5 jogos (baixo aproveitamento e pontuação de eficiência precária), tornando o desfecho altamente imprevisível.',
@@ -276,19 +278,21 @@ def determine_gatekeeper_category(status_gk: str, suggestion: str, reason: str, 
     if not is_abstencao:
         # Categorias de Aprovação (APROVADO / Bet OK) governadas estritamente por BetTier
         cand_tier = best_cand.get('tier') if (best_cand and 'tier' in best_cand) else None
+        if (best_cand or {}).get('gatekeeper_category') in ('Reset Tático por Súmula', 'Reset Tático por Drift de Mercado'):
+            return (best_cand or {}).get('gatekeeper_category')
         if cand_tier == BetTier.PREMIUM or (best_cand and (best_cand.get('destaque') == BetTier.PREMIUM or best_cand.get('is_premium'))):
             return BetTier.PREMIUM.gatekeeper_category
         if cand_tier == BetTier.QUASE_PREMIUM or (best_cand and best_cand.get('destaque') == BetTier.QUASE_PREMIUM):
             return BetTier.QUASE_PREMIUM.gatekeeper_category
-        if (best_cand or {}).get('gatekeeper_category') == 'Reset Tático por Súmula':
-            return 'Reset Tático por Súmula'
 
         # Se best_cand não foi fornecido, inspeciona o texto da justificativa sem presunções cegas
         if not best_cand and r_text:
-            if 'Oportunidade PREMIUM' in r_text or 'Prisma PREMIUM' in r_text:
-                return BetTier.PREMIUM.gatekeeper_category
+            if 'Reset Tático por Drift de Mercado' in r_text:
+                return 'Reset Tático por Drift de Mercado'
             if 'Reset Tático por Súmula' in r_text:
                 return 'Reset Tático por Súmula'
+            if 'Oportunidade PREMIUM' in r_text or 'Prisma PREMIUM' in r_text:
+                return BetTier.PREMIUM.gatekeeper_category
             if 'Aposta Quase Premium' in r_text or 'Prisma Quase Premium' in r_text:
                 m_u5 = re.search(r'Eficiência U5J:[^|]*?(\d+(?:\.\d+)?)\s*pts', r_text)
                 if m_u5 and float(m_u5.group(1)) >= 12.0:
@@ -844,7 +848,11 @@ def evaluate_and_select_best_ah_candidate(
     is_home_poisson_dominant_minus_half = False
     mkt_fair_odd = 0.0
     team_penalizado = str((desfalques_criticos or {}).get('time_desfalcado') or '').lower() if desfalques_criticos else ''
+    reversao_tipo = str((desfalques_criticos or {}).get('tipo') or 'SUMULA').upper() if desfalques_criticos else 'SUMULA'
+    is_drift_reversal = (reversao_tipo == 'DRIFT_MERCADO')
     is_cand_benefited_by_lineup = False
+    cand_trend = "CURVA_ESTAVEL"
+    opp_trend = "CURVA_ESTAVEL"
 
     h_rank_val = 0
     a_rank_val = 0
@@ -950,6 +958,11 @@ def evaluate_and_select_best_ah_candidate(
         cand_pts_eff = compute_team_u5j_efficiency(cand_l5)
         opp_pts_eff = compute_team_u5j_efficiency(opp_l5)
 
+        cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
+        opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
+        cand_trend = (cand_l5 or {}).get('trend') or cand_trend_info.get("trend", "CURVA_ESTAVEL")
+        opp_trend = (opp_l5 or {}).get('trend') or opp_trend_info.get("trend", "CURVA_ESTAVEL")
+
         is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
         is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
 
@@ -957,6 +970,17 @@ def evaluate_and_select_best_ah_candidate(
         is_super_dominant_tier1 = (
             is_tier1 and cand_pts_eff >= 24.0 and opp_pts_eff <= 5.0 and
             cand_odd <= 1.35 and cand_xg_diff >= 2.0
+        )
+
+        # Condição Sistêmica: Mandante Falso Azarão com Dominância Relativa >= +30% no U5J (Quase Premium Invertido)
+        has_30pct_u5j_dominance = (cand_pts_eff >= (opp_pts_eff * 1.30)) if opp_pts_eff > 0 else (cand_pts_eff >= 8.0)
+        is_cand_false_dog_dominant = (
+            not c_is_away and
+            (cand_odd > opp_odd or cand_odd >= 2.40) and
+            cand_pts_eff >= 8.0 and
+            has_30pct_u5j_dominance and
+            cand_trend != "CURVA_DESCENDENTE" and
+            cand_xg_diff >= 0.0
         )
 
         # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -0.75 AH
@@ -969,10 +993,11 @@ def evaluate_and_select_best_ah_candidate(
         # (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5) com cotações espremidas (1.50 a 1.75)
         # gera expectativa matemática negativa (-25.3% ROI).
         # O Gatekeeper passa a operar com FOCO ESTRITO EM FAVORITOS (-AH) e DNB (0.0 AH).
-        # Exceção Soberana: Reset Tático por Súmula Oficial (habilita linhas de cobertura +0.25 e +0.50)
+        # Exceção Soberana 1: Reset Tático por Súmula Oficial (habilita linhas de cobertura +0.25 e +0.50)
+        # Exceção Soberana 2: Falso Azarão Mandante com Dominância Relativa >= 30% no U5J (Quase Premium Invertido)
         # =========================================================================
         if c_line > 0.0:
-            if not (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)):
+            if not ((is_cand_benefited_by_lineup or is_cand_false_dog_dominant) and c_line in (0.25, 0.50)):
                 continue
 
         # =========================================================================
@@ -985,13 +1010,6 @@ def evaluate_and_select_best_ah_candidate(
         if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75)):
             continue
 
-        cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
-        opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
-        cand_trend = (cand_l5 or {}).get('trend') or cand_trend_info.get("trend", "CURVA_ESTAVEL")
-        opp_trend = (opp_l5 or {}).get('trend') or opp_trend_info.get("trend", "CURVA_ESTAVEL")
-
-        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
-        is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
         u5j_diff = abs(cand_pts_eff - opp_pts_eff)
         opp_ratio = (cand_odd / opp_odd) if opp_odd > 0 else 1.0
         cand_ratio = (opp_odd / cand_odd) if cand_odd > 0 else 1.0
@@ -1040,14 +1058,13 @@ def evaluate_and_select_best_ah_candidate(
         # Clubes de elite (Tier 1) só são isentos se forem super-favoritos absolutos (odd 1X2 < 1.65).
         # Em jogos competitivos (odd 1X2 do visitante >= 2.00 ou cand_odd >= 2.00), ABSTENÇÃO MANDATÓRIA!
         # =========================================================================
-        away_is_competitive = (raw_a_odd >= 2.00) or (cand_odd >= 2.00)
         is_tier1_heavily_favored = is_tier1 and (raw_a_odd > 0 and raw_a_odd < 1.65)
 
-        if c_is_away and c_line <= 0.0 and away_is_competitive and not is_tier1_heavily_favored:
+        if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
             if not is_cand_benefited_by_lineup:
                 if is_home_in_relegation:
                     continue
-                if h_rank_val >= 15 and h_ppg_val > 0.0 and h_ppg_val <= 1.15:
+                if (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or (h_rank_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15):
                     continue
 
         # =========================================================================
@@ -1099,9 +1116,10 @@ def evaluate_and_select_best_ah_candidate(
         # PRISMA QUASE PREMIUM - V2 (ALINHAMENTO DE MERCADO 1X2 E TETO DE COTAÇÃO):
         # O mercado internacional de 1X2 precifica a liquidez profissional das equipes.
         # Se a cotação 1X2 da equipe for de azarão evidente (cand_odd > 2.40),
-        # é expressamente PROIBIDO apoiar essa equipe em linhas de favoritismo ou DNB (c_line <= 0.0).
+        # é expressamente PROIBIDO apoiar essa equipe em linhas de favoritismo ou DNB (c_line <= 0.0),
+        # exceto se qualificada como Falso Azarão Mandante com dominância >= 30% no U5J na linha 0.0 AH.
         # =========================================================================
-        if cand_odd > 2.40 and c_line <= 0.0 and not is_super_fav_crushed:
+        if cand_odd > 2.40 and c_line <= 0.0 and not is_super_fav_crushed and not (is_cand_false_dog_dominant and c_line == 0.0):
             if not is_cand_benefited_by_lineup:
                 continue
 
@@ -1188,7 +1206,7 @@ def evaluate_and_select_best_ah_candidate(
         is_cand_fav = (cand_odd < opp_odd)
         is_cand_underdog = (cand_odd > opp_odd and (cand_odd - opp_odd) >= 0.20)
         if c_line == 0.0:
-            if not is_cand_benefited_by_lineup:
+            if not (is_cand_benefited_by_lineup or is_cand_false_dog_dominant):
                 if c_is_away and cand_odd >= opp_odd:
                     continue
                 if not c_is_away and (cand_odd - opp_odd) >= 0.25:
@@ -1382,7 +1400,7 @@ def evaluate_and_select_best_ah_candidate(
             # Parâmetros Canônicos Comprovados da Época de Ouro:
             required_prob = 55.0  # Retorno ao piso histórico que viabiliza o meio-reembolso
             required_ev = 5.0     # Retorno ao limiar canônico de Valor Esperado Positivo (+EV)
-        elif c_line in standard_allowed_lines or (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)):
+        elif c_line in standard_allowed_lines or ((is_cand_benefited_by_lineup or is_cand_false_dog_dominant) and c_line in (0.25, 0.50)):
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
             if is_super_fav_crushed and c_line == 0.0 and not is_tier1_massacre_close_u5j:
                 continue
@@ -1410,7 +1428,7 @@ def evaluate_and_select_best_ah_candidate(
                     )
                     if not (has_crushed_home or has_standing_dominance or is_cand_benefited_by_lineup):
                         continue
-                required_prob = 50.0 if is_cand_benefited_by_lineup else min_prob
+                required_prob = 50.0 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
             if is_cand_fav and c_line > 0.0 and not is_cand_benefited_by_lineup:
                 continue
@@ -1425,8 +1443,8 @@ def evaluate_and_select_best_ah_candidate(
             continue
 
         # Faixa de odd segura operacional: piso mínimo de 1.50 para Apostas Premium e 1.60 para as demais
-        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if is_super_dominant_tier1 else 1.60)
-        max_op_odd = 2.75 if is_cand_benefited_by_lineup else 2.55
+        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.60)
+        max_op_odd = 2.75 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else 2.55
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 
@@ -1453,8 +1471,8 @@ def evaluate_and_select_best_ah_candidate(
                 mkt_fair_odd = (1.0 / p_justa_c) if p_justa_c > 0 else 99.0
 
             # Se a cotação real da casa for menor que a odd justa de mercado, a aposta não tem margem (+EV negativo)
-            # Exceção Estrutural: Visitante com Superioridade de Fundamentos comprovada ou Beneficiado por Súmula
-            if not (is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup):
+            # Exceção Estrutural: Visitante com Superioridade de Fundamentos comprovada, Beneficiado por Súmula ou Falso Azarão Dominante
+            if not (is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup or is_cand_false_dog_dominant):
                 if mkt_fair_odd > 0.0 and c_odd < mkt_fair_odd:
                     continue
 
@@ -1469,13 +1487,13 @@ def evaluate_and_select_best_ah_candidate(
         # A casa de apostas precifica o 1X2 com altíssima eficiência de mercado.
         # Se a probabilidade pura de vitória estimada por Poisson divergir mais de 18 pontos percentuais
         # da probabilidade implícita justa do mercado 1X2, rejeita a entrada por distorção de Poisson.
-        # Em cenários de Distorção de Banca / Momentum Surge comprovada, a tolerância máxima é de 25.0 pp.
+        # Em cenários de Distorção de Banca / Momentum Surge / Falso Azarão Dominante, a tolerância é ampliada.
         if cand_odd > 0 and opp_odd > 0:
             inv_cand = 1.0 / cand_odd
             inv_opp = 1.0 / opp_odd
             market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
             p_pure_win = sum(p for (x, y), p in poisson_matrix.items() if (y > x if c_is_away else x > y)) * 100.0
-            max_divergence = 30.0 if (cand_is_better_performance or is_away_momentum_surge or is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup) else 18.0
+            max_divergence = 45.0 if is_cand_false_dog_dominant else (30.0 if (cand_is_better_performance or is_away_momentum_surge or is_away_standing_and_u5j_dominant or is_cand_benefited_by_lineup) else 18.0)
             if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
 
@@ -1495,21 +1513,29 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy['mkt_fair_odd'] = round(mkt_fair_odd, 2)
             cand_copy['is_tier1_massacre'] = is_tier1_massacre_close_u5j
             cand_copy['is_super_dominant_tier1'] = is_super_dominant_tier1
+            cand_copy['is_false_dog_dominant'] = is_cand_false_dog_dominant
             if is_cand_benefited_by_lineup:
                 cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
                 cand_copy['tier'] = BetTier.QUASE_PREMIUM
-                cand_copy['gatekeeper_category'] = 'Reset Tático por Súmula'
+                cand_copy['gatekeeper_category'] = 'Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula'
                 cand_copy['is_momentum_surge'] = True
             elif is_super_dominant_tier1 and c_line in (-0.5, -0.75):
                 cand_copy['destaque'] = BetTier.PREMIUM.value
                 cand_copy['is_premium'] = True
                 cand_copy['tier'] = BetTier.PREMIUM
                 cand_copy['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
+            elif is_cand_false_dog_dominant and c_line in (0.0, 0.25, 0.50):
+                cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
+                cand_copy['tier'] = BetTier.QUASE_PREMIUM
+                cand_copy['gatekeeper_category'] = 'Quase Premium'
+                cand_copy['is_momentum_surge'] = True
             elif c_line in (-0.25, 0.0):
-                # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
+                # Prisma Quase Premium: V1 (U5J Eficiência >= 12.0 e dominância mínima de +30% sobre o adversário) e V2 (Odd 1X2 <= 2.40 e mando comprovado)
+                has_30pct_dominance = (cand_pts_eff >= opp_pts_eff * 1.30)
                 is_quase_premium_qualified = (
                     cand_pts_eff >= 12.0 and
                     cand_odd <= 2.40 and
+                    has_30pct_dominance and
                     (not c_is_away or (cand_away_matches and cand_away_pts >= 2))
                 )
                 if is_quase_premium_qualified:
@@ -1530,14 +1556,32 @@ def evaluate_and_select_best_ah_candidate(
     if not approved:
         return None, []
 
-    # Prioridade Soberana no Reset Tático por Súmula Oficial:
-    # Em operações de reversão por sinistro de elenco, prioriza sempre +0.5 AH se tiver +EV; caso contrário, 0.0 AH
-    lineup_reversal_picks = [c for c in approved if c.get('gatekeeper_category') == 'Reset Tático por Súmula']
-    if lineup_reversal_picks:
-        plus50_pick = next((c for c in lineup_reversal_picks if abs(float(c.get('line') or 0.0) - 0.50) < 0.01), None)
+    # Prioridade Soberana no Reset Tático por Súmula Oficial ou Drift de Mercado:
+    # Em operações de reversão por sinistro de elenco ou descarte institucional de mercado, prioriza sempre +0.5 AH se tiver +EV; caso contrário, 0.0 AH ou -0.25 AH
+    tactical_reversal_picks = [c for c in approved if c.get('gatekeeper_category') in ('Reset Tático por Súmula', 'Reset Tático por Drift de Mercado')]
+    if tactical_reversal_picks:
+        plus50_pick = next((c for c in tactical_reversal_picks if abs(float(c.get('line') or 0.0) - 0.50) < 0.01), None)
         if plus50_pick:
             return plus50_pick, approved
-        dnb_pick = next((c for c in lineup_reversal_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
+        dnb_pick = next((c for c in tactical_reversal_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
+        if dnb_pick:
+            return dnb_pick, approved
+        minus25_pick = next((c for c in tactical_reversal_picks if abs(float(c.get('line') or 0.0) - (-0.25)) < 0.01), None)
+        if minus25_pick:
+            return minus25_pick, approved
+
+    # Prioridade Soberana na Modalidade Falso Azarão Mandante (Quase Premium Invertido):
+    # Em operações de assimetria de mercado com dominância U5J >= 30%, prioriza sempre +0.50 AH (Dupla Chance)
+    # se tiver +EV; em seguida +0.25 AH e compulsoriamente 0.0 AH (DNB)
+    false_dog_picks = [c for c in approved if c.get('is_false_dog_dominant')]
+    if false_dog_picks:
+        plus50_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0) - 0.50) < 0.01), None)
+        if plus50_pick:
+            return plus50_pick, approved
+        plus25_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0) - 0.25) < 0.01), None)
+        if plus25_pick:
+            return plus25_pick, approved
+        dnb_pick = next((c for c in false_dog_picks if abs(float(c.get('line') or 0.0)) < 0.01), None)
         if dnb_pick:
             return dnb_pick, approved
 
@@ -1823,19 +1867,51 @@ def calculate_unified_handicap_recommendation(
         if ratio_recalc:
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
 
-    # Injeção de Penalizador de Desfalques Críticos (Reset Tático Pós-Súmula)
+    # Detecção de Movimentação Global de Mercado 1X2 (Drift de Abertura Global)
+    if not desfalques_criticos and fixture_dict:
+        open_h_val = float(fixture_dict.get('odd_home_open') or 0.0)
+        open_a_val = float(fixture_dict.get('odd_away_open') or 0.0)
+        if open_h_val > 1.0 and open_a_val > 1.0 and odd_h > 1.0 and odd_a > 1.0:
+            drift_h_pts = odd_h - open_h_val
+            drift_h_pct = (drift_h_pts / open_h_val) * 100.0 if open_h_val > 0 else 0.0
+            drop_a_pts = open_a_val - odd_a
+            drop_a_pct = (drop_a_pts / open_a_val) * 100.0 if open_a_val > 0 else 0.0
+
+            drift_a_pts = odd_a - open_a_val
+            drift_a_pct = (drift_a_pts / open_a_val) * 100.0 if open_a_val > 0 else 0.0
+            drop_h_pts = open_h_val - odd_h
+            drop_h_pct = (drop_h_pts / open_h_val) * 100.0 if open_h_val > 0 else 0.0
+
+            if (drift_h_pts >= 0.25 and drift_h_pct >= 12.0) or (drop_a_pts >= 0.25 and drop_a_pct >= 15.0):
+                desfalques_criticos = {
+                    'time_desfalcado': home_team,
+                    'motivos': [f'Drift Global 1X2: {home_team} subiu de {open_h_val:.2f} para {odd_h:.2f} (+{drift_h_pct:.1f}%), {away_team} derreteu para {odd_a:.2f}'],
+                    'tipo': 'DRIFT_MERCADO'
+                }
+            elif (drift_a_pts >= 0.25 and drift_a_pct >= 12.0) or (drop_h_pts >= 0.25 and drop_h_pct >= 15.0):
+                desfalques_criticos = {
+                    'time_desfalcado': away_team,
+                    'motivos': [f'Drift Global 1X2: {away_team} subiu de {open_a_val:.2f} para {odd_a:.2f} (+{drift_a_pct:.1f}%), {home_team} derreteu para {odd_h:.2f}'],
+                    'tipo': 'DRIFT_MERCADO'
+                }
+
+    # Injeção de Penalizador de Desfalques Críticos ou Drift de Mercado (Reset Tático)
     if desfalques_criticos and isinstance(desfalques_criticos, dict):
         team_penalizado = str(desfalques_criticos.get('time_desfalcado', '')).lower()
+        is_drift_reversal = (str(desfalques_criticos.get('tipo', '')).upper() == 'DRIFT_MERCADO')
+        penal_factor = 0.65 if is_drift_reversal else 0.60
+        boost_factor = 1.30 if is_drift_reversal else 1.35
+        tag_log = "Reset Tático Drift de Mercado" if is_drift_reversal else "Reset Tático Súmula"
         if team_penalizado and team_penalizado in home_team.lower():
-            xg_h = round(xg_h * 0.60, 2)
-            xg_a = round(xg_a * 1.35, 2)
+            xg_h = round(xg_h * penal_factor, 2)
+            xg_a = round(xg_a * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [Reset Tático Poisson] xG reajustado por desfalques em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}")
         elif team_penalizado and team_penalizado in away_team.lower():
-            xg_a = round(xg_a * 0.60, 2)
-            xg_h = round(xg_h * 1.35, 2)
+            xg_a = round(xg_a * penal_factor, 2)
+            xg_h = round(xg_h * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [Reset Tático Poisson] xG reajustado por desfalques em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}")
 
     # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
     if betano_lines is None:
@@ -2010,11 +2086,59 @@ def calculate_unified_handicap_recommendation(
 
             # Critério rigoroso de Drift anômalo: subida percentual >= 12% E nominal >= 0.20 E rompendo a margem justa
             if pct_drift >= 12.0 and diff_drift >= 0.20 and not odd_esta_na_margem_justa:
+                # O time apoiado previamente inflou e foi descartado pelo mercado.
+                # Dualidade do Drift: Em vez de abortar cegamente com NO_BET sem avaliar a reversão tática,
+                # aciona o Reset Tático por Drift de Mercado para o adversário beneficiado!
+                prior_is_away = (away_team.lower() in prior_palpite_db.lower())
+                time_descartado = away_team if prior_is_away else home_team
+                time_beneficiado = home_team if prior_is_away else away_team
+
+                drift_reversal_ctx = {
+                    'time_desfalcado': time_descartado,
+                    'motivos': [f'Pressão Vendedora / Drift anômalo no mercado (+{pct_drift:.1f}%, +{diff_drift:.2f})'],
+                    'tipo': 'DRIFT_MERCADO'
+                }
+
+                # Recalibra Poisson com o descarte do time que inflou
+                xg_h_drift = round(xg_h * 0.65, 2) if time_descartado == home_team else round(xg_h * 1.30, 2)
+                xg_a_drift = round(xg_a * 0.65, 2) if time_descartado == away_team else round(xg_a * 1.30, 2)
+                poisson_drift = calculate_bivariate_poisson_matrix(xg_h_drift, xg_a_drift)
+
+                best_revert_cand, approved_revert = evaluate_and_select_best_ah_candidate(
+                    poisson_drift, betano_lines, home_team, away_team, odd_h, odd_a,
+                    min_ev=5.0, min_prob=50.0,
+                    home_team_id=h_tid, away_team_id=a_tid,
+                    home_last5=h_l5, away_last5=a_l5,
+                    xg_home=xg_h_drift, xg_away=xg_a_drift,
+                    home_rank=h_rk_val,
+                    away_rank=a_rk_val,
+                    home_ppg=h_ppg_val,
+                    away_ppg=a_ppg_val,
+                    home_zone=fixture_dict.get('home_zone'),
+                    away_zone=fixture_dict.get('away_zone'),
+                    standings_motivation_score=standings_mot_val,
+                    odd_draw=odd_d,
+                    desfalques_criticos=drift_reversal_ctx
+                )
+
+                if best_revert_cand and (best_revert_cand.get('is_away') != prior_is_away):
+                    rev_palpite = best_revert_cand.get('palpite_str') or best_revert_cand.get('palpite')
+                    rev_odd = float(best_revert_cand.get('odd') or 0.0)
+                    rev_ev = float((best_revert_cand.get('eval') or {}).get('ev_percent') or best_revert_cand.get('ev') or 5.0)
+                    reason_revert = (
+                        f"🔄 [Gatekeeper AH / Reset Tático por Drift de Mercado] A seleção prévia '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
+                        f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}). O mercado institucional descartou {time_descartado}. "
+                        f"Reversão Tática executada com sucesso para o adversário {time_beneficiado} na linha {rev_palpite} @ {rev_odd:.2f} (EV +{rev_ev:.1f}%)."
+                    )
+                    clean_gk = format_gatekeeper_result('APROVADO', rev_palpite, reason_revert, category='Reset Tático por Drift de Mercado', best_cand=best_revert_cand)
+                    compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, rev_palpite, home_team, away_team, h_tid, a_tid, reasoning)
+                    return 'APROVADO', rev_palpite, 75.0, compound_r, best_revert_cand, approved_revert
+
                 reason_drift = (
                     f"🚨 [Gatekeeper AH NO_BET / Armadilha da Odd Inflada] A seleção '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
                     f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}, variação de +{diff_drift:.2f}) no mercado da Betano, rompendo a cotação justa. "
-                    f"No mercado esportivo, uma elevação expressiva acima de 12% (+0.20) sinaliza desconfiança ou descarte da equipe pelo fluxo profissional "
-                    f"(risco de desfalques ou desvantagem tática). A entrada perdeu a margem de segurança e recomenda-se cancelamento/saída preventiva."
+                    f"No mercado esportivo, uma elevação expressiva acima de 12% (+0.20) sinaliza desconfiança ou descarte da equipe pelo fluxo profissional. "
+                    f"Tentativa de reversão tática para {time_beneficiado} avaliada, mas nenhuma linha ao vivo atingiu valor esperado seguro (+EV). Abstenção preventiva."
                 )
                 clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção - Odd Inflada)', reason_drift, category='Armadilha da Odd Inflada')
                 compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção - Odd Inflada)', home_team, away_team, h_tid, a_tid, reasoning)
@@ -2119,12 +2243,11 @@ def calculate_unified_handicap_recommendation(
                         approved = [best_cand]
                 elif ia_audit_res.get('is_premium') and not is_strictly_premium:
                     print(f"🛡️ [Veto de Selo PREMIUM pelo Gatekeeper] #{fixture_id} {home_team} ({cand_eff_premium:.1f} pts) vs {away_team} ({opp_eff_premium:.1f} pts): Adversário não atende ao critério de fragilidade (U5J <= 10.0 pts). Mantida aposta padrão.")
-                    p_str = str(best_cand.get('palpite_str') or '')
-                    is_qp = ('0.0' in p_str or '-0.25' in p_str or '+0.25' in p_str)
-                    best_cand['tier'] = BetTier.QUASE_PREMIUM if is_qp else BetTier.REGULAR
+                    best_cand['tier'] = best_cand.get('tier') or BetTier.REGULAR
                     best_cand['destaque'] = best_cand['tier'].value
                     best_cand['is_premium'] = False
-                    best_cand['gatekeeper_category'] = best_cand['tier'].gatekeeper_category
+                    if best_cand.get('gatekeeper_category') not in ('Reset Tático por Súmula', 'Reset Tático por Drift de Mercado'):
+                        best_cand['gatekeeper_category'] = best_cand['tier'].gatekeeper_category
                 best_cand['ia_audit'] = ia_audit_res
         except Exception as e_ia_sent:
             print(f"⚠️ [IA Sentinela AH] Aviso ao processar auditoria cognitiva: {e_ia_sent}")
@@ -2161,14 +2284,14 @@ def calculate_unified_handicap_recommendation(
         # 1. Identificação de Rebaixamento Direto via metadados da liga/tabela (ex: 'relegation', 'play-out', 'rebaixamento')
         is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
 
-        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante:
-        #    - Deve estar categorizado na zona de descenso oficial (is_h_rel), OU
-        #    - Ocupar o 16º lugar ou pior (típica zona de perigo/Z-4 em ligas de 18 a 20 clubes)
-        #      com média de pontos por jogo (PPG) de rebaixado (<= 1.15).
-        #    (Elimina o falso positivo onde times de meio de tabela como o 12º colocado eram chamados de rebaixados).
+        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante (Vetor Dinâmico da Tabela):
+        #    - Categorizado na zona de descenso oficial (is_h_rel), OU
+        #    - Aproveitamento crítico direto de rebaixado: PPG <= 1.05 (menos de 38 pontos em 38 rodadas), OU
+        #    - Ocupar o 14º lugar ou pior com PPG <= 1.15 (típica zona de perigo/Z-4 em ligas de 16 a 20 clubes).
         is_h_under_threat = (
             is_h_rel or
-            (h_rk_val >= 16 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
+            (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or
+            (h_rk_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
         )
 
         is_crisis_clash = (
@@ -2293,9 +2416,9 @@ def calculate_unified_handicap_recommendation(
                 compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
         return 'NO_BET', sug, conf, compound_r, None, []
 
-    eval_res = best_cand['eval']
-    selected_palpite = best_cand['palpite_str']
-    odd_val = best_cand['odd']
+    eval_res = best_cand.get('eval') or {}
+    selected_palpite = best_cand.get('palpite_str') or best_cand.get('palpite') or f"{best_cand.get('team', '')} {best_cand.get('line', '')} AH"
+    odd_val = float(best_cand.get('odd') or 1.50)
     odd_justa = eval_res['odd_justa']
     prob_poisson = eval_res['prob_eff']
     ev_perc = eval_res['ev_percent']
@@ -2383,8 +2506,11 @@ def calculate_unified_handicap_recommendation(
 
     best_cand['tier'] = tier
     best_cand['destaque'] = tier.value
-    app_cat = tier.gatekeeper_category
-    best_cand['gatekeeper_category'] = app_cat
+    if best_cand.get('gatekeeper_category') not in ('Reset Tático por Súmula', 'Reset Tático por Drift de Mercado'):
+        app_cat = tier.gatekeeper_category
+        best_cand['gatekeeper_category'] = app_cat
+    else:
+        app_cat = best_cand['gatekeeper_category']
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
 
@@ -2568,7 +2694,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             team_opp = away_team
         return (
             f"🟢 Vitória do {team_fav}: Você GANHA 100% da simulação de aposta (Lucro Total).\n"
-            f"⚪ Empate: Simulação de Aposta ANULADA (100% Reembolso).\n"
+            f"⚪ Empate: Simulação de Aposta ANULADA (100% Reembolso) — Equivale ao mercado 'Draw No Bet' (Empate Anula a Aposta).\n"
             f"🔴 Vitória do {team_opp}: Simulação de Aposta PERDIDA."
         )
     elif "+0.5" in sug_str:
@@ -3178,8 +3304,10 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
         elif c_line < -0.75:
             motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
+        elif c_line in (0.25, 0.5):
+            motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de dominância >= 30% no U5J do mandante ou desfalques importantes na súmula"
         elif c_line > 0.0:
-            motivo = "Reprovada: Linhas positivas (+AH) são bloqueadas por expectativa matemática negativa histórica"
+            motivo = "Reprovada: Linhas positivas esticadas (+AH > +0.5) são bloqueadas por expectativa matemática negativa histórica"
         elif is_away and c_line < -0.25:
             motivo = "Reprovada: Linhas secas (< -0.25 AH) são restritas exclusivamente a mandantes (trava de mando de campo)"
         elif is_away and c_line <= 0.0 and raw_h > 0 and raw_a > 0 and (raw_a - raw_h) >= 0.15:
@@ -3192,6 +3320,8 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
         elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"
+        elif is_away and c_line == -0.25:
+            motivo = "Reprovada: Apoiar visitante em -0.25 AH exige mandante fragilizado ou em crise no U5J (risco de mando desfavorável)"
         else:
             motivo = "Reprovada pelo Gatekeeper por margem de valor esperado insuficiente ou gestão de risco"
 
@@ -3831,6 +3961,27 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 cursor=cur
             )
 
+            # Checagem de Drift Global de Mercado (Abertura vs Atual)
+            supp_team = a_name if is_away else h_name
+            opp_team = h_name if is_away else a_name
+            open_supp = float((fix.get('odd_away_open') if is_away else fix.get('odd_home_open')) or 0.0)
+            curr_supp = float((fix.get('odd_away') if is_away else fix.get('odd_home')) or 0.0)
+            open_opp = float((fix.get('odd_home_open') if is_away else fix.get('odd_away_open')) or 0.0)
+            curr_opp = float((fix.get('odd_home') if is_away else fix.get('odd_away')) or 0.0)
+
+            drift_warning = None
+            if open_supp > 1.0 and curr_supp > 1.0:
+                drift_pts = curr_supp - open_supp
+                drift_pct = (drift_pts / open_supp) * 100.0
+                drop_opp_pts = open_opp - curr_opp if (open_opp > 1.0 and curr_opp > 1.0) else 0.0
+                drop_opp_pct = (drop_opp_pts / open_opp) * 100.0 if open_opp > 1.0 else 0.0
+
+                if (drift_pts >= 0.25 and drift_pct >= 12.0) or (drop_opp_pts >= 0.25 and drop_opp_pct >= 15.0):
+                    drift_warning = (
+                        f"🚨 ALERTA DE MERCADO (Pressão Vendedora): Cotação de {supp_team} subiu de {open_supp:.2f} para {curr_supp:.2f} "
+                        f"(+{drift_pct:.1f}%) desde a abertura global. Risco de alteração estrutural no pré-jogo."
+                    )
+
             odd_justa = None
             prob_poisson = None
             ev_perc = None
@@ -3848,10 +3999,16 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                         tier = BetTier.QUASE_PREMIUM
                 destaque = tier.value
                 msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
+                if drift_warning:
+                    msg = f"{drift_warning} | {msg}"
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."
+                if drift_warning:
+                    msg = f"{drift_warning} | {msg}"
 
             gk_cat = (best_cand or {}).get('gatekeeper_category') or determine_gatekeeper_category(status, sug, reason, best_cand)
+            if drift_warning and status != 'APROVADO':
+                gk_cat = 'Drift de Mercado / Pressão Vendedora'
             return {
                 "fixtureId": fix['fixture_id'],
                 "oddJusta": odd_justa,

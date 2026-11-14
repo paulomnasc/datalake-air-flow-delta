@@ -5406,25 +5406,10 @@ if (!function_exists('fmtTopValorWithBrl')) {
     const btnConfirm = document.getElementById('btn-confirm-' + apostaId) || (cardEl ? cardEl.querySelector('#btn-confirm-' + apostaId) : null) || (cardEl ? cardEl.querySelector('.btn-confirmar-bloqueado') : null);
     if (!btnConfirm) return;
 
-    // 1. Remover atributos de bloqueio
+    // 1. Remover atributos de checagem prévia
     btnConfirm.removeAttribute('data-needs-check');
-    btnConfirm.removeAttribute('disabled');
-    btnConfirm.disabled = false;
 
-    // 2. Atualizar classes visuais
-    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
-    btnConfirm.classList.add('btn-success', 'pulse-highlight');
-
-    // 3. Forçar estilos inline de botão verde ativo
-    btnConfirm.style.setProperty('background', '#10b981', 'important');
-    btnConfirm.style.setProperty('border-color', '#059669', 'important');
-    btnConfirm.style.setProperty('color', '#ffffff', 'important');
-    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
-    btnConfirm.style.setProperty('opacity', '1', 'important');
-    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
-    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
-
-    // 4. Recuperar metadados atualizados
+    // 2. Recuperar metadados atualizados
     const timeCasa = btnConfirm.getAttribute('data-time-casa') || (cardEl ? cardEl.getAttribute('data-time-casa') : '') || '';
     const timeFora = btnConfirm.getAttribute('data-time-fora') || (cardEl ? cardEl.getAttribute('data-time-fora') : '') || '';
     const mercado = btnConfirm.getAttribute('data-mercado') || 'Handicap Asiático';
@@ -5436,6 +5421,55 @@ if (!function_exists('fmtTopValorWithBrl')) {
     if (palpite) btnConfirm.setAttribute('data-palpite', palpite);
     if (odd) btnConfirm.setAttribute('data-odd', oddFinal);
     if (valorAposta) btnConfirm.setAttribute('data-valor', valFinal);
+
+    // 3. Checagem de Trava de Governança (Súmula Oficial Pendente) e Trava de Risco
+    const isLockedLineup = (btnConfirm.getAttribute('data-locked-lineup') === '1') || (cardEl && cardEl.getAttribute('data-locked-lineup') === '1');
+    const isLockedRisk = (btnConfirm.getAttribute('data-locked-risk') === '1') || (cardEl && cardEl.getAttribute('data-locked-risk') === '1');
+
+    if (isLockedLineup) {
+      btnConfirm.classList.remove('btn-success', 'pulse-highlight', 'btn-confirmar-bloqueado');
+      btnConfirm.classList.add('btn-secondary', 'disabled');
+      btnConfirm.style.removeProperty('background');
+      btnConfirm.style.removeProperty('border-color');
+      btnConfirm.style.removeProperty('color');
+      btnConfirm.style.setProperty('cursor', 'not-allowed', 'important');
+      btnConfirm.title = 'Trava de Governança: Aguardando publicação da súmula oficial e validação da Sentinela Gemini';
+      btnConfirm.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> ⏳ Aguardar Súmula';
+      btnConfirm.onclick = function() {
+        alert('⏳ Trava de Governança de Risco: Esta aposta é classificada como ' + (cardEl && cardEl.getAttribute('data-is-premium') === '1' ? '👑 PREMIUM' : '🛡️ Quase Premium') + '. É obrigatório aguardar a publicação da súmula oficial e o aval positivo (Sinal Verde) da IA Sentinela Gemini antes de confirmar e debitar.');
+        return false;
+      };
+      return;
+    }
+
+    if (isLockedRisk) {
+      btnConfirm.classList.remove('btn-success', 'pulse-highlight', 'btn-confirmar-bloqueado');
+      btnConfirm.classList.add('btn-secondary', 'disabled');
+      btnConfirm.style.removeProperty('background');
+      btnConfirm.style.removeProperty('border-color');
+      btnConfirm.style.removeProperty('color');
+      btnConfirm.style.setProperty('cursor', 'not-allowed', 'important');
+      btnConfirm.title = 'Trava de Segurança da Banca: Linhas além de -0.75 AH para favoritos estão bloqueadas.';
+      btnConfirm.innerHTML = '<i class="bi bi-shield-slash-fill me-1"></i> 🔒 Limite Excedido';
+      btnConfirm.onclick = function() {
+        alert('🔒 Trava de Segurança da Banca: O teto máximo de risco permitido para qualquer favorito é -0.75 AH. Linhas além de -0.75 estão bloqueadas para confirmação e débito na banca.');
+        return false;
+      };
+      return;
+    }
+
+    // 4. Se não estiver bloqueado por súmula nem risco, libera botão de confirmação
+    btnConfirm.removeAttribute('disabled');
+    btnConfirm.disabled = false;
+    btnConfirm.classList.remove('btn-secondary', 'btn-confirmar-bloqueado');
+    btnConfirm.classList.add('btn-success', 'pulse-highlight');
+    btnConfirm.style.setProperty('background', '#10b981', 'important');
+    btnConfirm.style.setProperty('border-color', '#059669', 'important');
+    btnConfirm.style.setProperty('color', '#ffffff', 'important');
+    btnConfirm.style.setProperty('cursor', 'pointer', 'important');
+    btnConfirm.style.setProperty('opacity', '1', 'important');
+    btnConfirm.title = 'Aposta auditada e liberada para confirmação';
+    btnConfirm.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>';
 
     // 5. Vincular função de clique do modal de confirmação
     btnConfirm.onclick = function() {

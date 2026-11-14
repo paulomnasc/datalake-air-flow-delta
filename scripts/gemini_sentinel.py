@@ -1247,9 +1247,9 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     if not is_handicap:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
-    fixture_id = item['fixture_id']
-    home_team = item['home_team']
-    away_team = item['away_team']
+    fixture_id = item.get('fixture_id')
+    home_team = item.get('home_team') or item.get('time_casa')
+    away_team = item.get('away_team') or item.get('time_fora')
     is_confirmada = (int(item.get('confirmada') or 0) == 1) or (int(item.get('tem_debito') or 0) > 0)
 
     try:
@@ -1366,7 +1366,15 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                 'ah_reasoning': item.get('resultado_detalhado') or item.get('ah_reasoning')
             }
 
-        desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco} if (sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco')) else None
+        is_drift_reversal = False
+        if sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco'):
+            desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco, 'tipo': 'SUMULA'}
+        elif houve_distorcao:
+            desf_info = {'time_desfalcado': supported_team, 'motivos': [motivo_distorcao], 'tipo': 'DRIFT_MERCADO'}
+            is_drift_reversal = True
+        else:
+            desf_info = None
+
         status_gk, palpite_sug, confianca, reasoning_gk, best_cand, approved_list = calculate_unified_handicap_recommendation(
             fixture_dict=fix_dict,
             betano_lines=lines,
@@ -1383,6 +1391,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
             prob_poisson = float(best_cand.get('probabilidade', best_cand.get('eval', {}).get('prob_eff', 60.0)))
             ev_perc = float(best_cand.get('ev', best_cand.get('eval', {}).get('ev_percent', 5.0)))
             destaque_val = 2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1
+            gk_cat_troca = best_cand.get('gatekeeper_category') or ('Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula')
 
             if is_confirmada:
                 # Aposta já confirmada no bilhete com débito prévio:
@@ -1396,27 +1405,33 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                         probabilidade_poisson = %s,
                         ev_percentual = %s,
                         status_gatekeeper = 'APROVADO',
-                        gatekeeper_category = 'Reset Tático por Súmula',
+                        gatekeeper_category = %s,
                         destaque = %s,
                         resultado_detalhado = %s,
                         updated_at = NOW()
                     WHERE id = %s
                 """, (
                     novo_palpite, nova_odd, casa_nome, odd_justa, prob_poisson, ev_perc,
-                    destaque_val, reasoning_gk, item['aposta_id']
+                    gk_cat_troca, destaque_val, reasoning_gk, item['aposta_id']
                 ))
 
                 cursor.execute("""
                     UPDATE fixtures_trends
                     SET ah_suggestion = %s,
                         ah_confidence = %s,
-                        gatekeeper_category = 'Reset Tático por Súmula',
+                        gatekeeper_category = %s,
                         ah_reasoning = %s,
                         updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (novo_palpite, confianca, reasoning_gk, fixture_id))
+                """, (novo_palpite, confianca, gk_cat_troca, reasoning_gk, fixture_id))
 
                 # Registra auditoria no ciclo de vida
+                motivo_cat_lf = 'LINHA_TROCADA_DRIFT' if is_drift_reversal else 'LINHA_TROCADA_SINISTRO_SUMULA'
+                motivo_det_lf = (
+                    f"Linha de Handicap revertida dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a forte fluxo vendedor e pressão de mercado institucional contra {supported_team}."
+                    if is_drift_reversal else
+                    f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+                )
                 try:
                     try:
                         from aposta_lifecycle_logger import log_aposta_lifecycle_event
@@ -1429,19 +1444,30 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                         usuario_id=item.get('usuario_id'),
                         status_anterior=item.get('status', 'Pendente'),
                         status_novo=item.get('status', 'Pendente'),
-                        motivo_categoria='LINHA_TROCADA_SINISTRO_SUMULA',
-                        motivo_detalhado=f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+                        motivo_categoria=motivo_cat_lf,
+                        motivo_detalhado=motivo_det_lf
                     )
                 except Exception as e_lf:
                     print(f"⚠️ [Lifecycle Logger] Falha ao registrar troca de linha: {e_lf}")
 
                 # Dispara notificação no Sininho do usuário
-                tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
-                msg_notif = (
-                    f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
-                    f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
-                    f"na {casa_nome} (EV +{ev_perc:.1f}%)."
-                )
+                if is_drift_reversal:
+                    tit_notif = f"🔄 Reset Tático por Drift: {home_team} vs {away_team}"
+                    msg_notif = (
+                        f"A IA Sentinela identificou pressão vendedora massiva e descarte institucional contra {supported_team} "
+                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} revertendo para {novo_palpite} @ {nova_odd:.2f} "
+                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                    )
+                    tipo_notif = 'LINHA_TROCADA_DRIFT'
+                else:
+                    tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
+                    msg_notif = (
+                        f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
+                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
+                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                    )
+                    tipo_notif = 'LINHA_TROCADA_SUMULA'
+
                 lnk_notif = f"/apostas?fixture_id={fixture_id}"
                 for uid in user_ids:
                     try:
@@ -1449,7 +1475,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                             from asian_handicap_engine import registrar_notificacao_usuario
                         except ImportError:
                             from scripts.asian_handicap_engine import registrar_notificacao_usuario
-                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, 'LINHA_TROCADA_SUMULA', tit_notif, msg_notif, lnk_notif)
+                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, tipo_notif, tit_notif, msg_notif, lnk_notif)
                     except Exception as e_ntf:
                         print(f"⚠️ [Notificação Troca Linha] Falha ao enviar para #{uid}: {e_ntf}")
 

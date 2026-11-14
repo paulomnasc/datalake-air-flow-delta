@@ -17,6 +17,7 @@ import os
 import sys
 import pymysql
 import re
+import requests
 from datetime import datetime, timedelta
 
 # Configura caminhos dos scripts
@@ -29,7 +30,7 @@ from betano_direct_api import (
     is_team_match,
     normalize_team_name
 )
-from db_config import get_db_connection
+from db_config import get_db_connection, get_live_env_vars
 
 
 def get_target_user_ids(cursor):
@@ -76,6 +77,153 @@ def registrar_notificacao_live(cursor, usuario_id, fixture_id, titulo, mensagem,
     except Exception as e:
         print(f"⚠️ [Notificação Ao Vivo] Erro ao registrar notificação: {e}")
         return False
+
+
+def enviar_push_mobile(titulo: str, mensagem: str, fixture_id: int = None, prioridade: int = 5, tags: list = None) -> bool:
+    """
+    Dispara notificação push instantânea para o smartphone Android via ntfy.sh (Alta Prioridade).
+    Parâmetros carregados dinamicamente de src/footballweb/.env (Regra 18).
+    Fail-safe: falhas no envio mobile nunca interrompem o fluxo principal do pipeline.
+    """
+    try:
+        env_vars = get_live_env_vars()
+        enabled = os.environ.get("NTFY_ENABLED") or env_vars.get("NTFY_ENABLED", "true")
+        if str(enabled).strip().lower() not in ("true", "1", "yes", "on"):
+            return False
+
+        topic = os.environ.get("NTFY_TOPIC") or env_vars.get("NTFY_TOPIC", "footbalweb_sentinela")
+        if not topic:
+            return False
+
+        server = os.environ.get("NTFY_SERVER") or env_vars.get("NTFY_SERVER", "https://ntfy.sh")
+        server = server.rstrip("/")
+
+        base_url = os.environ.get("NTFY_BASE_URL") or env_vars.get("NTFY_BASE_URL", "https://cristalbet.com.br")
+        click_url = f"{base_url.rstrip('/')}/apostas?fixture_id={fixture_id}" if fixture_id else f"{base_url.rstrip('/')}/apostas"
+
+        payload = {
+            "topic": topic,
+            "title": titulo,
+            "message": mensagem,
+            "priority": prioridade,
+            "tags": tags or ["warning", "soccer"],
+            "click": click_url
+        }
+
+        resp = requests.post(
+            f"{server}",
+            json=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=8
+        )
+        if resp.status_code in (200, 201):
+            print(f"📱 [Push Mobile In-Play Entregue] -> {titulo}")
+            return True
+        else:
+            print(f"⚠️ [Push Mobile In-Play Falhou] Status HTTP {resp.status_code}: {resp.text}")
+            return False
+    except Exception as e:
+        print(f"⚠️ [Push Mobile In-Play Erro de Conexão]: {e}")
+        return False
+
+
+def registrar_alerta_gol_prematuro(cursor, usuario_id, aposta_id, fixture_id, titulo, mensagem, link, tipo="ALERTA_GOL_PREMATURO_UNDER"):
+    """
+    Insere notificação de gol prematuro ou risco crítico no sininho e toast, prevenindo duplicatas.
+    """
+    try:
+        cursor.execute("""
+            SELECT id FROM notificacoes_usuario 
+            WHERE usuario_id = %s 
+              AND fixture_id = %s 
+              AND tipo = %s
+            LIMIT 1
+        """, (usuario_id, fixture_id, tipo))
+        if cursor.fetchone():
+            return False
+
+        cursor.execute("""
+            INSERT INTO notificacoes_usuario (
+                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW())
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
+        print(f"🔔 [Alerta In-Play Under Enviado User #{usuario_id}] {titulo}")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Alerta In-Play Under] Erro ao registrar notificação: {e}")
+        return False
+
+
+def avaliar_risco_under(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed):
+    """
+    Avalia risco in-play para apostas ativas em 'Menos de Gols Asiáticos'.
+    Dispara alerta de Gol Prematuro (até 20') ou Risco Crítico (2 gols no 1T).
+    Garante cobertura homogênea via feed Betano ou contingência de placares API-Sports.
+    """
+    if gh is None or ga is None:
+        return 0
+
+    gh_val = int(gh)
+    ga_val = int(ga)
+    total_gols_live = gh_val + ga_val
+    if total_gols_live < 1:
+        return 0
+
+    try:
+        elapsed_num = int(elapsed) if elapsed is not None else 0
+    except (ValueError, TypeError):
+        elapsed_num = 0
+
+    cursor.execute("""
+        SELECT id, palpite, odd, valor_aposta, moeda_codigo
+        FROM apostas
+        WHERE fixture_id = %s
+          AND status = 'Pendente'
+          AND (mercado = 'Gols Asiáticos' OR palpite LIKE 'Menos de %% Gols%%')
+          AND palpite LIKE 'Menos de %%'
+    """, (fid,))
+    under_bets = cursor.fetchall()
+    if not under_bets:
+        return 0
+
+    alertas_emitidos = 0
+    for ub in under_bets:
+        ap_id = ub['id']
+        palp = ub['palpite']
+        odd_val = float(ub.get('odd') or 1.0)
+        stake_val = float(ub.get('valor_aposta') or 0.0)
+        moeda_val = ub.get('moeda_codigo') or 'USDT'
+
+        # Critério 1: Gol Prematuro nos primeiros 20 minutos (1 gol marcado)
+        if elapsed_num <= 20 and total_gols_live == 1:
+            tit = f"⚠️ Gol Prematuro aos {elapsed_num}'! Risco em {h_team} vs {a_team}"
+            msg = (
+                f"⚽ Gol marcado aos {elapsed_num}' ({h_team} {gh_val}x{ga_val} {a_team})!\n\n"
+                f"🎯 Sua Aposta Ativa: {palp} (@ {odd_val:.2f})\n"
+                f"💰 Investimento: {moeda_val} {stake_val:.2f}\n"
+                f"⚡ O ritmo do jogo acelerou cedo. Avalie a oportunidade de Cash Out "
+                f"defensivo na Betano para preservar a maior parte do capital antes de nova alteração de placar."
+            )
+            lnk = f"/apostas?fixture_id={fid}"
+            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_GOL_PREMATURO_UNDER'):
+                enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["warning", "soccer", "moneybag"])
+                alertas_emitidos += 1
+
+        # Critério 2: Risco Crítico no 1º Tempo (2 gols até 45')
+        elif elapsed_num <= 45 and total_gols_live >= 2:
+            tit = f"🚨 Risco Crítico de Over aos {elapsed_num}': {h_team} vs {a_team}"
+            msg = (
+                f"⚠️ Já foram marcados {total_gols_live} gols no 1º Tempo ({h_team} {gh_val}x{ga_val} {a_team} aos {elapsed_num}')!\n\n"
+                f"🎯 Sua Aposta Ativa: {palp} (@ {odd_val:.2f})\n"
+                f"💰 Investimento: {moeda_val} {stake_val:.2f}\n"
+                f"🔴 A linha de gols está sob risco iminente de perda definitiva. Verifique opções de encerramento imediato."
+            )
+            lnk = f"/apostas?fixture_id={fid}"
+            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_RISCO_CRITICO_UNDER'):
+                enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["rotating_light", "soccer", "skull"])
+                alertas_emitidos += 1
+
+    return alertas_emitidos
 
 
 def main():
@@ -135,6 +283,7 @@ def main():
 
     jogos_atualizados = 0
     oportunidades_geradas = 0
+    alertas_gol_prematuro = 0
 
     for fix in db_fixtures:
         fid = fix['fixture_id']
@@ -167,6 +316,13 @@ def main():
                             WHERE fixture_id = %s
                         """, (status_estimado, elapsed_est, fid))
                         print(f"⏱️ [Relógio Estimado] #{fid} {h_team} vs {a_team} atualizado para {status_estimado} (~{elapsed_est}')")
+            
+            # Se a partida já possuir placar em andamento no banco (via contingência), avalia Under:
+            if fix.get('goals_home') is not None and fix.get('goals_away') is not None:
+                alertas_gol_prematuro += avaliar_risco_under(
+                    cursor, target_uid, fid, h_team, a_team,
+                    fix['goals_home'], fix['goals_away'], fix.get('elapsed')
+                )
             continue
 
         # Dados ao vivo confirmados pela Betano
@@ -232,11 +388,17 @@ def main():
                         oportunidades_geradas += 1
                     break
 
+        # C) Alerta de Risco In-Play: Gol Prematuro em Apostas Under Gols Asiáticos
+        alertas_gol_prematuro += avaliar_risco_under(
+            cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
+        )
+
     conn.close()
     print("-" * 70)
     print(f"📊 Resumo In-Play Betano:")
     print(f"   • Partidas atualizadas com placar/minuto real: {jogos_atualizados}")
     print(f"   • Novas oportunidades ao vivo alertadas: {oportunidades_geradas}")
+    print(f"   • Alertas de risco Under (Gol Prematuro) emitidos: {alertas_gol_prematuro}")
     print("=" * 70)
 
 

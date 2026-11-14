@@ -1547,7 +1547,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
 
-def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, phase: int = 2):
+def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, specific_aposta_id: int = None, phase: int = 2):
     """
     Executa a auditoria da esteira da Sentinela em dois estágios:
     - Fase 1 (Antecipação Matinal - Janela 24h): qualificação prévia com notícias web para emitir Sinal Verde no topo da odd.
@@ -1572,7 +1572,23 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         user_ids = get_target_user_ids(cursor)
 
         # 1. Seleciona apostas elegíveis conforme a Fase da esteira
-        if specific_fixture_id:
+        if specific_aposta_id:
+            query = """
+                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.notificacao_escalacao_enviada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
+                       ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.ah_suggestion, ft.prediction_text
+                FROM apostas a
+                JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+                WHERE a.id = %s
+                  AND a.status IN ('Pendente', 'Não Confirmada')
+            """
+            cursor.execute(query, (specific_aposta_id,))
+        elif specific_fixture_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
@@ -1586,7 +1602,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.fixture_id = %s
                   AND a.status IN ('Pendente', 'Não Confirmada')
-                ORDER BY a.id DESC LIMIT 1
+                ORDER BY a.id ASC
             """
             cursor.execute(query, (specific_fixture_id,))
         elif phase == 1:
@@ -2236,6 +2252,7 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Auditor Sentinela Pré-Jogo (Gemini Pro + Google Search)")
     parser.add_argument("--fixture_id", type=int, help="Auditar fixture_id específico sob demanda")
+    parser.add_argument("--aposta_id", type=int, default=None, help="Auditar aposta_id específica sob demanda")
     parser.add_argument("--window", type=int, default=50, help="Janela de minutos pré-jogo para varredura (padrão: 50)")
     parser.add_argument("--phase", type=int, default=2, choices=[1, 2], help="Fase da esteira: 1 (Antecipação Matinal - 24h) ou 2 (Repescagem Pré-Jogo e Drift - 50m)")
     parser.add_argument("--test-ntfy", action="store_true", help="Disparar push fake de teste forçado para validação no app ntfy")
@@ -2246,21 +2263,31 @@ if __name__ == '__main__':
         testar_push_mobile()
     else:
         win = args.window if (args.phase == 2 or args.window != 50) else 1440
-        processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, phase=args.phase)
+        processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, specific_aposta_id=args.aposta_id, phase=args.phase)
 
-        if args.json_output and args.fixture_id:
+        if args.json_output and (args.fixture_id or args.aposta_id):
             conn = get_db_connection()
             try:
                 with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
-                               a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
-                               f.home_team, f.away_team, f.ah_suggestion
-                        FROM apostas a
-                        JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
-                        WHERE a.fixture_id = %s
-                        ORDER BY a.confirmada DESC, a.id DESC LIMIT 1
-                    """, (args.fixture_id,))
+                    if args.aposta_id:
+                        cur.execute("""
+                            SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
+                                   a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
+                                   f.home_team, f.away_team, f.ah_suggestion
+                            FROM apostas a
+                            JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
+                            WHERE a.id = %s
+                        """, (args.aposta_id,))
+                    else:
+                        cur.execute("""
+                            SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
+                                   a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
+                                   f.home_team, f.away_team, f.ah_suggestion
+                            FROM apostas a
+                            JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
+                            WHERE a.fixture_id = %s
+                            ORDER BY a.confirmada DESC, a.id DESC LIMIT 1
+                        """, (args.fixture_id,))
                     row = cur.fetchone()
                     if row:
                         out = {

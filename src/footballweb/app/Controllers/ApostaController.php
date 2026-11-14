@@ -3744,7 +3744,11 @@ class ApostaController extends BaseController
             }
         }
 
-        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId} --phase=2 --window=1440 --json_output 2>&1";
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId}";
+        if (!empty($apostaId)) {
+            $cmd .= " --aposta_id=" . (int)$apostaId;
+        }
+        $cmd .= " --phase=2 --window=1440 --json_output 2>&1";
         $output = shell_exec($cmd);
         $result = null;
 

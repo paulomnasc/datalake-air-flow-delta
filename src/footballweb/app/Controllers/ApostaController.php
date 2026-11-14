@@ -4916,6 +4916,7 @@ class ApostaController extends BaseController
         $db = \Config\Database::connect();
         $mensagem = $mensagemCustom;
         $titulo = $tituloCustom;
+        $dadosApostaStr = '';
 
         if ($notifId > 0) {
             $notif = $db->table('notificacoes_usuario')->where('id', $notifId)->get()->getRowArray();
@@ -4931,6 +4932,27 @@ class ApostaController extends BaseController
                 }
                 $mensagem = $notif['mensagem'];
                 $titulo = $notif['titulo'];
+
+                $apostaId = !empty($notif['aposta_id']) ? (int)$notif['aposta_id'] : 0;
+                $fixtureId = !empty($notif['fixture_id']) ? (int)$notif['fixture_id'] : 0;
+                $apostaRow = null;
+                if ($apostaId > 0) {
+                    $apostaRow = $db->table('apostas')->where('id', $apostaId)->get()->getRowArray();
+                } elseif ($fixtureId > 0 && !empty($access['user_id'])) {
+                    $apostaRow = $db->table('apostas')
+                        ->where('fixture_id', $fixtureId)
+                        ->where('usuario_id', (int)$access['user_id'])
+                        ->orderBy('id', 'DESC')
+                        ->get()
+                        ->getRowArray();
+                }
+
+                if ($apostaRow) {
+                    $dadosApostaStr = "• Mercado: " . ($apostaRow['mercado'] ?? 'N/D') . "\n"
+                                    . "• Palpite/Linha: " . ($apostaRow['palpite'] ?? 'N/D') . "\n"
+                                    . "• Cotação (Odd): " . ($apostaRow['odd'] ?? 'N/D') . "\n"
+                                    . "• Partida: " . ($apostaRow['time_casa'] ?? '') . " x " . ($apostaRow['time_fora'] ?? '');
+                }
             }
         }
 
@@ -4963,15 +4985,24 @@ class ApostaController extends BaseController
             ]);
         }
 
-        $systemPrompt = "Você é o Grok AI, Analista Tático Oficial do FootballWeb.\n"
-            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo que o apostador recebeu.\n"
-            . "Analise de forma concisa, direta e altamente técnica:\n"
-            . "1) Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
-            . "2) Goleiro e Espinha Dorsal: se o goleiro titular está em campo ou se há desfalques graves nos setores chave (zaga, criação, ataque).\n"
-            . "3) Veredito para o Apostador: emita uma recomendação clara (🟢 Entrada Segura / Mantida ou 🔴 Cautela / Alerta de Risco).\n"
-            . "Responda em formato limpo, direto e profissional em português brasileiro.";
+        $systemPrompt = "Você é o Grok AI, Analista Tático Oficial e Auditor de Gestão de Risco do FootballWeb.\n"
+            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado e Odds).\n\n"
+            . "Estruture sua resposta estritamente nos seguintes tópicos:\n"
+            . "1️⃣ Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
+            . "2️⃣ Goleiro e Espinha Dorsal: se os goleiros titulares e a espinha dorsal (zaga, criação, ataque) estão mantidos.\n"
+            . "3️⃣ Análise Crítica da Linha da Aposta (Handicap / Mercado): cruze o poderio dos 11 titulares confirmados com a linha exata da aposta do usuário. Explique com clareza se a escalação confirmada favorece ou destrói a probabilidade da linha (ex: DNB 0.0 AH, linhas negativas -AH ou positivas +AH).\n"
+            . "4️⃣ Veredito e Gestão de Banca (Ação Recomendada):\n"
+            . "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida)\n"
+            . "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado)\n"
+            . "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desequilíbrio grave contra a linha / Risco iminente de perda integral da stake).\n\n"
+            . "Responda em formato limpo, direto, com formatação rica em markdown, linguagem tática de futebol e foco absoluto na proteção do capital da banca.";
 
-        $userPrompt = "Título do Alerta: {$titulo}\n\nDetalhes da Súmula e Escalação Oficial:\n{$mensagem}\n\nPor favor, emita o seu diagnóstico tático e o veredito para o apostador.";
+        $userPrompt = "Título do Alerta: {$titulo}\n\n";
+        if (!empty($dadosApostaStr)) {
+            $userPrompt .= "🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO:\n{$dadosApostaStr}\n\n";
+        }
+        $userPrompt .= "📋 DETALHES DA SÚMULA E ESCALAÇÃO OFICIAL:\n{$mensagem}\n\n"
+            . "Por favor, emita seu diagnóstico tático completo, correlacionando a escalação oficial com a linha da aposta do usuário e fornecendo a recomendação clara de ação (inclusive sobre CASHOUT).";
 
         try {
             $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
@@ -4989,7 +5020,7 @@ class ApostaController extends BaseController
                     ['role' => 'system', 'content' => $systemPrompt],
                     ['role' => 'user', 'content' => $userPrompt]
                 ],
-                'max_tokens' => 800,
+                'max_tokens' => 2000,
                 'temperature' => 0.2
             ]));
 

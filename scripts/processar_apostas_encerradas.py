@@ -442,11 +442,24 @@ def evaluate_bet(aposta, stats):
         detalhe = f"FT | {target_name}: {actual_cards} ({breakdown}) {comp} Limite {threshold} -> Aposta {status_str.upper()}"
         return status_str, detalhe, (ganhos_reais if won else 0.0)
 
-    # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
+    # 2. MERCADO: GOLS (Gols Asiáticos e Over/Under Tradicional)
     elif 'gol' in mercado_norm or 'gol' in palpite_norm:
-        match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
-        threshold = float(match_thresh.group(1)) if match_thresh else 2.5
+        match_thresh = re.search(r'(\d+(?:[\.,]\d+)?)', palpite)
+        threshold = float(match_thresh.group(1).replace(',', '.')) if match_thresh else 2.5
         
+        is_asian = ('asiatico' in mercado_norm or 'asiatico' in palpite_norm or 'asian' in mercado_norm or 'asian' in palpite_norm or round(threshold % 0.5, 2) != 0.0)
+        
+        if is_asian:
+            from asian_total_engine import settle_asian_total_bet
+            st_asian, ret_asian, luc_asian, det_asian = settle_asian_total_bet(
+                total_goals=total_goals,
+                palpite=palpite,
+                odd=odd_original,
+                valor_aposta=valor_aposta,
+                moeda_codigo=moeda_cod
+            )
+            return st_asian, f"FT 23:00 | {det_asian}", ret_asian
+
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
         

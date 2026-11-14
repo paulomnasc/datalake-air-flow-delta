@@ -545,6 +545,8 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
             is_drift_no_bet = True
     elif 'cart' in mercado and ('status gk: no_bet' in pred_txt or '[gatekeeper cartões no_bet' in pred_txt or 'bloquead' in pred_txt):
         is_no_bet = True
+    elif ('gol' in mercado or 'total' in mercado) and ('status gk: no_bet' in pred_txt or '[gatekeeper gols no_bet' in pred_txt or 'bloquead' in pred_txt):
+        is_no_bet = True
 
     if is_no_bet:
         desc_cat = gk_cat if gk_cat else "Abstenção / Bloqueio do Gatekeeper"
@@ -638,6 +640,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
         if 1.0 < odd_aposta < 1.50:
             alerta_critico = True
             motivos_risco.append(f"Odd de Cartões ({odd_aposta:.2f}) abaixo do piso viável (1.50).")
+    elif 'gol' in mercado or 'total' in mercado:
+        if 1.0 < odd_aposta < 1.50:
+            alerta_critico = True
+            motivos_risco.append(f"Odd de Gols Asiáticos ({odd_aposta:.2f}) abaixo do piso viável (+EV) do Gatekeeper (1.50).")
+        elif odd_aposta > 3.00:
+            alerta_critico = True
+            motivos_risco.append(f"Odd de Gols Asiáticos ({odd_aposta:.2f}) em patamar de extremidade excessiva (> 3.00).")
 
     # 4. Auditoria de Volatilidade de Mercado e Confronto Equilibrado (Abordagem Percentual de Mercado / Delta de Probabilidade)
     delta_p_vantagem = 0.0

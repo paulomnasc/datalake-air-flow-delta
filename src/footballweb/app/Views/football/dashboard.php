@@ -5756,7 +5756,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                 }
 
                 if (data.cards) {
-                    swalHtml += '<div style="padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #fbbf24;">';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #fbbf24;">';
                     swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
                     swalHtml += '    <strong style="color: #fbbf24;">🟨 Mercado de Cartões:</strong>';
                     swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + Number(data.cards.probability || 0).toFixed(1) + '% Poisson</span>';
@@ -5764,6 +5764,21 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                     swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + '</div>';
                     if (data.cards.reason_clean) {
                         swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.cards.reason_clean + '</div>';
+                    }
+                    swalHtml += '</div>';
+                }
+
+                if (data.goals) {
+                    const isGoalsApp = (data.goals.status === 'APPROVED');
+                    const goalsColor = isGoalsApp ? '#10b981' : '#a78bfa';
+                    swalHtml += '<div style="padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid ' + goalsColor + ';">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: ' + goalsColor + ';">⚽ Gols Asiáticos:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + Number(data.goals.probability || 0).toFixed(1) + '% Efetiva</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.goals.suggestion + (data.goals.odd ? ' @ ' + Number(data.goals.odd).toFixed(2) : '') + '</div>';
+                    if (data.goals.reason_clean) {
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.goals.reason_clean + '</div>';
                     }
                     swalHtml += '</div>';
                 }
@@ -5783,6 +5798,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                     let msg = '🔄 Odds e IA Revalidados com Sucesso!\n\n';
                     if (data.handicap) msg += '• Handicap: ' + data.handicap.suggestion + '\n';
                     if (data.cards) msg += '• Cartões: ' + data.cards.suggestion + '\n';
+                    if (data.goals) msg += '• Gols: ' + data.goals.suggestion + '\n';
                     alert(msg);
                 }
             },

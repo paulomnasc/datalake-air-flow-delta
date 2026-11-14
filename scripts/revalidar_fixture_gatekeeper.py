@@ -39,6 +39,10 @@ from cards_engine import (
     is_knockout_round_advanced,
     format_gatekeeper_result as format_cards_gk
 )
+from asian_total_engine import (
+    calculate_unified_goals_recommendation,
+    sync_fixture_and_bet_goals
+)
 
 from db_config import get_db_connection, get_live_env_vars
 
@@ -407,6 +411,27 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s
             """, (pred_text_cards, over_cards_prob, fixture_id))
 
+    # 4. Revalidação de Gols Asiáticos (asian_total_engine)
+    status_goals = "NO_BET"
+    sug_goals = "Sem Entrada (Abstenção)"
+    odd_goals = None
+    prob_goals = 50.0
+    clean_reason_goals = "Nenhuma cotação com valor esperado no mercado de gols."
+
+    try:
+        st_g, palpite_g, conf_g, r_g, best_g, app_g = calculate_unified_goals_recommendation(
+            fixture_dict=fix,
+            cursor=cursor
+        )
+        status_goals = st_g
+        sug_goals = palpite_g
+        prob_goals = float(conf_g or 50.0)
+        clean_reason_goals = clean_natural_language_reason(r_g)
+        if best_g and best_g.get('odd'):
+            odd_goals = float(best_g['odd'])
+    except Exception as e_goals:
+        print(f"⚠️ [Revalidar Gols] Erro: {e_goals}", file=sys.stderr)
+
     return {
         "success": True,
         "fixture_id": fixture_id,
@@ -434,7 +459,14 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             "odd": odd_cards,
             "reason_clean": clean_reason_cards
         },
-        "message": f"Odds da {bm_name} e Gatekeepers (Handicap e Cartões) revalidados com sucesso!"
+        "goals": {
+            "status": status_goals,
+            "suggestion": sug_goals,
+            "probability": prob_goals,
+            "odd": odd_goals,
+            "reason_clean": clean_reason_goals
+        },
+        "message": f"Odds da {bm_name} e Gatekeepers (Handicap, Cartões e Gols) revalidados com sucesso!"
     }
 
 if __name__ == "__main__":

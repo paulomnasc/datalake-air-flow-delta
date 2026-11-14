@@ -153,6 +153,10 @@ def fetch_betano_event_by_teams(home_team: str, away_team: str) -> dict:
 
     return {}
 
+def get_event_markets_by_teams(home_team: str, away_team: str) -> dict:
+    """Alias para fetch_betano_event_by_teams"""
+    return fetch_betano_event_by_teams(home_team, away_team)
+
 def parse_betano_event_markets(event_obj: dict, home_team: str, away_team: str) -> dict:
     """
     Decodifica os mercados (1X2, Handicap Asiático e Cartões) do objeto de evento retornado pela Betano.
@@ -163,7 +167,8 @@ def parse_betano_event_markets(event_obj: dict, home_team: str, away_team: str) 
         'source': 'BETANO_DIRECT',
         'odds_1x2': {},
         'ah_lines': [],
-        'card_lines': []
+        'card_lines': [],
+        'goals_lines': []
     }
 
     markets = event_obj.get('markets', [])
@@ -233,6 +238,60 @@ def parse_betano_event_markets(event_obj: dict, home_team: str, away_team: str) 
                         'label': f"{'Menos de' if is_under else 'Mais de'} {line_f:g} Cartões",
                         'bookmaker': 'Betano'
                     })
+                except Exception:
+                    continue
+
+        # 4. Mercado de Gols Asiáticos (Total de Gols Asiático / Asian Total / Over & Under)
+        if any(term in m_name for term in ['total de gols asiatico', 'asian total', 'total de golos asiatico', 'asiatisches total', 'total de gols - asiatico']):
+            for s in selections:
+                s_name = (s.get('name') or '').strip().lower()
+                s_price = float(s.get('price', 0.0) or 0.0)
+                h_val = s.get('handicap')
+                if s_price <= 1.0:
+                    continue
+                is_under = 'menos' in s_name or 'under' in s_name or 'unter' in s_name
+                is_over = 'mais' in s_name or 'over' in s_name or 'uber' in s_name
+                if not (is_under or is_over):
+                    continue
+                try:
+                    line_f = float(h_val) if h_val is not None else float(re.findall(r'(\d+\.?\d*)', s_name)[0])
+                    line_type = 'Under' if is_under else 'Over'
+                    label = f"{'Menos de' if is_under else 'Mais de'} {line_f:g} Gols"
+                    result['goals_lines'].append({
+                        'line': line_f,
+                        'type': line_type,
+                        'odd': s_price,
+                        'label': label,
+                        'bookmaker': 'Betano',
+                        'is_asian': True
+                    })
+                except Exception:
+                    continue
+        elif any(term in m_name for term in ['mais/menos total de gols', 'total de gols', 'mais de/menos de', 'goals over/under']):
+            for s in selections:
+                s_name = (s.get('name') or '').strip().lower()
+                s_price = float(s.get('price', 0.0) or 0.0)
+                h_val = s.get('handicap')
+                if s_price <= 1.0:
+                    continue
+                is_under = 'menos' in s_name or 'under' in s_name or 'unter' in s_name
+                is_over = 'mais' in s_name or 'over' in s_name or 'uber' in s_name
+                if not (is_under or is_over):
+                    continue
+                try:
+                    line_f = float(h_val) if h_val is not None else float(re.findall(r'(\d+\.?\d*)', s_name)[0])
+                    line_type = 'Under' if is_under else 'Over'
+                    label = f"{'Menos de' if is_under else 'Mais de'} {line_f:g} Gols"
+                    # Só adiciona se a linha não tiver sido incluída pelo mercado asiático estrito
+                    if not any(abs(gl['line'] - line_f) < 0.01 and gl['type'] == line_type for gl in result['goals_lines']):
+                        result['goals_lines'].append({
+                            'line': line_f,
+                            'type': line_type,
+                            'odd': s_price,
+                            'label': label,
+                            'bookmaker': 'Betano',
+                            'is_asian': False
+                        })
                 except Exception:
                     continue
 

@@ -1235,6 +1235,10 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     curr_odd = 0.0
     opp_odd = 0.0
     odd_abertura = float(item.get('odd') or 1.0)
+    open_1x2_supp = 0.0
+    curr_1x2_supp = 0.0
+    open_1x2_opp = 0.0
+    curr_1x2_opp = 0.0
 
     mercado = str(item.get('mercado') or '').lower()
     palpite_atual = str(item.get('palpite') or '').strip()
@@ -1269,6 +1273,23 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
 
     supported_team = away_team if is_away else home_team
     opp_team = home_team if is_away else away_team
+
+    open_1x2_supp = float((item.get('odd_away_open') if is_away else item.get('odd_home_open')) or 0.0)
+    curr_1x2_supp = float((item.get('odd_away') if is_away else item.get('odd_home')) or 0.0)
+    open_1x2_opp = float((item.get('odd_home_open') if is_away else item.get('odd_away_open')) or 0.0)
+    curr_1x2_opp = float((item.get('odd_home') if is_away else item.get('odd_away')) or 0.0)
+
+    if open_1x2_supp <= 1.0 or curr_1x2_supp <= 1.0:
+        try:
+            cursor.execute("SELECT odd_home, odd_away, odd_home_open, odd_away_open FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+            row_ft_odds = cursor.fetchone()
+            if row_ft_odds:
+                open_1x2_supp = float((row_ft_odds.get('odd_away_open') if is_away else row_ft_odds.get('odd_home_open')) or 0.0)
+                curr_1x2_supp = float((row_ft_odds.get('odd_away') if is_away else row_ft_odds.get('odd_home')) or 0.0)
+                open_1x2_opp = float((row_ft_odds.get('odd_home_open') if is_away else row_ft_odds.get('odd_away_open')) or 0.0)
+                curr_1x2_opp = float((row_ft_odds.get('odd_home') if is_away else row_ft_odds.get('odd_away')) or 0.0)
+        except Exception:
+            pass
 
     for l in lines:
         l_line = float(l.get('line', 99))
@@ -1310,6 +1331,23 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         if sinistro_no_time_apoiado or 'goleiro titular ausente' in str(motivos_elenco).lower():
             houve_distorcao = True
             motivo_distorcao = f"Sinistro Crítico na Súmula Oficial ({'; '.join(motivos_elenco[:2])}): Descaracterização estrutural de {supported_team}. Disparando Reset Tático e reavaliação do novo favorito {opp_team}."
+
+    # Cenário F: Movimentação Global de Mercado 1X2 (Drift Global de Abertura >= 12% ou >= 0.25 pts)
+    # Detecta steam moves e vazamento de informação antecipada desde a abertura das cotações
+    if not houve_distorcao and open_1x2_supp > 1.0 and curr_1x2_supp > 1.0:
+        drift_1x2_pts = curr_1x2_supp - open_1x2_supp
+        drift_1x2_pct = (drift_1x2_pts / open_1x2_supp) * 100.0
+        drop_opp_pts = (open_1x2_opp - curr_1x2_opp) if (open_1x2_opp > 1.0 and curr_1x2_opp > 1.0) else 0.0
+        drop_opp_pct = ((drop_opp_pts / open_1x2_opp) * 100.0) if open_1x2_opp > 1.0 else 0.0
+
+        if (drift_1x2_pts >= 0.25 and drift_1x2_pct >= 12.0) or (drop_opp_pts >= 0.25 and drop_opp_pct >= 15.0):
+            houve_distorcao = True
+            motivo_distorcao = (
+                f"Movimentação Global de Mercado (Drift de Abertura): Cotação de {supported_team} disparou de "
+                f"{open_1x2_supp:.2f} para {curr_1x2_supp:.2f} (+{drift_1x2_pct:.1f}%) desde a abertura global "
+                f"(adversário {opp_team} caiu de {open_1x2_opp:.2f} para {curr_1x2_opp:.2f}). "
+                f"Pressão vendedora massiva / fluxo institucional contrário à seleção."
+            )
 
     if not houve_distorcao:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
@@ -1520,7 +1558,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1538,7 +1576,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1559,7 +1597,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
                        ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
-                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
@@ -1767,7 +1805,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
                 # Precedência Soberana de Escalação Confirmada sobre Alertas Secundários de Mercado
                 if tem_escalacao:
-                    if not tem_alerta:
+                    if tem_alerta_mercado:
+                        st = 'ALERTA_RISCO'
+                        badge_risco = '🔴 Risco Crítico de Mercado'
+                        resumo = f"🚨 Alerta de Mercado [Drift Severo / Pressão Vendedora]: {recalib.get('motivo_recalibragem', 'Distorção de mercado')}"
+                        titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    elif not tem_alerta:
                         st = 'CONFIRMADO'
                         resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
                         titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
@@ -1777,11 +1820,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
                     if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
                         parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
-                elif is_confirmada and tem_alerta_mercado:
+                elif tem_alerta_mercado:
                     st = 'ALERTA_RISCO'
                     badge_risco = '🔴 Risco Crítico de Mercado'
                     titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
-                    parecer = f"{recalib['parecer_alerta']}\n\n{parecer}"
+                    parecer = f"{recalib.get('parecer_alerta', recalib.get('motivo_recalibragem'))}\n\n{parecer}"
                 elif era_observacao:
                     if not tem_alerta_mercado and not auditoria_dados.get('alerta_critico'):
                         # Súmula oficial ainda não disponível na API nem confirmada na imprensa
@@ -1858,7 +1901,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                                 titulo=titulo_alerta,
                                 mensagem=parecer,
                                 fixture_id=fixture_id,
-                                prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
+                                prioridade=5 if recalib.get('alerta_risco') else 4,
                                 tags=[tag_color, "clipboard", "soccer"]
                             )
                     else:
@@ -1867,7 +1910,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
                     print(f"📝 [Parecer IA]: {parecer}")
-                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if (is_confirmada and recalib.get('alerta_risco')) else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
                     alerta_enviado = False
                     for uid in user_ids:
                         if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta):
@@ -1881,7 +1924,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
-                            prioridade=5 if (is_confirmada and recalib.get('alerta_risco')) else 4,
+                            prioridade=5 if recalib.get('alerta_risco') else 4,
                             tags=[tag_color, "warning", "soccer"]
                         )
                 else:

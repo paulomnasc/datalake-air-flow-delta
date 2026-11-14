@@ -3868,6 +3868,27 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                 cursor=cur
             )
 
+            # Checagem de Drift Global de Mercado (Abertura vs Atual)
+            supp_team = a_name if is_away else h_name
+            opp_team = h_name if is_away else a_name
+            open_supp = float((fix.get('odd_away_open') if is_away else fix.get('odd_home_open')) or 0.0)
+            curr_supp = float((fix.get('odd_away') if is_away else fix.get('odd_home')) or 0.0)
+            open_opp = float((fix.get('odd_home_open') if is_away else fix.get('odd_away_open')) or 0.0)
+            curr_opp = float((fix.get('odd_home') if is_away else fix.get('odd_away')) or 0.0)
+
+            drift_warning = None
+            if open_supp > 1.0 and curr_supp > 1.0:
+                drift_pts = curr_supp - open_supp
+                drift_pct = (drift_pts / open_supp) * 100.0
+                drop_opp_pts = open_opp - curr_opp if (open_opp > 1.0 and curr_opp > 1.0) else 0.0
+                drop_opp_pct = (drop_opp_pts / open_opp) * 100.0 if open_opp > 1.0 else 0.0
+
+                if (drift_pts >= 0.25 and drift_pct >= 12.0) or (drop_opp_pts >= 0.25 and drop_opp_pct >= 15.0):
+                    drift_warning = (
+                        f"🚨 ALERTA DE MERCADO (Pressão Vendedora): Cotação de {supp_team} subiu de {open_supp:.2f} para {curr_supp:.2f} "
+                        f"(+{drift_pct:.1f}%) desde a abertura global. Risco de alteração estrutural no pré-jogo."
+                    )
+
             odd_justa = None
             prob_poisson = None
             ev_perc = None
@@ -3885,10 +3906,16 @@ def cli_evaluate_handicap_bet(fixture_id: int = None, home_team: str = None, awa
                         tier = BetTier.QUASE_PREMIUM
                 destaque = tier.value
                 msg = f"Gatekeeper AH Green Light (+EV): Odd Real ({c_odd:.2f}) >= Odd Justa ({odd_justa:.2f}) | EV: +{ev_perc:.1f}% | Prob. Efetiva: {prob_poisson:.1f}%."
+                if drift_warning:
+                    msg = f"{drift_warning} | {msg}"
             else:
                 msg = f"Aviso Gatekeeper AH (NO_BET): Entrada rejeitada pela gestão de risco ou sem margem de valor (+EV)."
+                if drift_warning:
+                    msg = f"{drift_warning} | {msg}"
 
             gk_cat = (best_cand or {}).get('gatekeeper_category') or determine_gatekeeper_category(status, sug, reason, best_cand)
+            if drift_warning and status != 'APROVADO':
+                gk_cat = 'Drift de Mercado / Pressão Vendedora'
             return {
                 "fixtureId": fix['fixture_id'],
                 "oddJusta": odd_justa,

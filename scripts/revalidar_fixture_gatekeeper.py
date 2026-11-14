@@ -169,6 +169,22 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             pass
     h_l5 = u5j_json.get('home') if isinstance(u5j_json, dict) else None
     a_l5 = u5j_json.get('away') if isinstance(u5j_json, dict) else None
+
+    # Fail-Safe de Recomposição Imediata (Regra 16): Se U5J tiver < 5 partidas, recompoe via get_team_u5j_from_db
+    try:
+        from asian_handicap_engine import get_team_u5j_from_db
+        if not h_l5 or len(h_l5.get('matches', [])) < 5:
+            h_fresh = get_team_u5j_from_db(cursor, fix.get('home_team_id'), home_team)
+            if h_fresh and len(h_fresh.get('matches', [])) > (len(h_l5.get('matches', [])) if h_l5 else 0):
+                h_l5 = h_fresh
+                u5j_json['home'] = h_l5
+        if not a_l5 or len(a_l5.get('matches', [])) < 5:
+            a_fresh = get_team_u5j_from_db(cursor, fix.get('away_team_id'), away_team)
+            if a_fresh and len(a_fresh.get('matches', [])) > (len(a_l5.get('matches', [])) if a_l5 else 0):
+                a_l5 = a_fresh
+                u5j_json['away'] = a_l5
+    except Exception:
+        pass
     h_trend = (h_l5 or {}).get('trend') or (analyze_trend_and_momentum(home_team, h_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
     a_trend = (a_l5 or {}).get('trend') or (analyze_trend_and_momentum(away_team, a_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
 

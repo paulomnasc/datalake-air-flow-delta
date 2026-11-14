@@ -474,20 +474,31 @@ _team_last5_form_cache = {}
 def _is_match_duplicate(cand, existing_list):
     if not cand or not existing_list:
         return False
+    cand_fid = cand.get('fixture_id')
     cand_opp_norm = _normalize_team_name_for_match(cand.get('opponent', ''))
     cand_score = str(cand.get('score', '')).strip().replace('-', 'x')
     cand_date = str(cand.get('date', '')).strip()
 
     for ex in existing_list:
+        ex_fid = ex.get('fixture_id')
         ex_opp_norm = _normalize_team_name_for_match(ex.get('opponent', ''))
         ex_score = str(ex.get('score', '')).strip().replace('-', 'x')
         ex_date = str(ex.get('date', '')).strip()
 
-        # Se as datas coincidem exatamente (e preenchidas), é a mesma partida
-        if cand_date and ex_date and cand_date == ex_date:
+        # 1. Se ambos têm fixture_id preenchido e coincidem, é exatamente a mesma partida
+        if cand_fid and ex_fid and cand_fid == ex_fid:
             return True
 
-        # Se o placar é o mesmo e os nomes normalizados de oponente batem
+        # 2. Se ambas as datas estiverem preenchidas
+        if cand_date and ex_date:
+            c_d = cand_date.split('/')[:2]
+            e_d = ex_date.split('/')[:2]
+            if c_d == e_d:
+                return True
+            # Se as datas são comprovadamente diferentes, NUNCA é duplicata mesmo com mesmo adversário e placar
+            continue
+
+        # 3. Fallback de contingência apenas se alguma data estiver ausente
         if cand_score and ex_score and cand_score == ex_score:
             if cand_opp_norm == ex_opp_norm or (cand_opp_norm and cand_opp_norm in ex_opp_norm) or (ex_opp_norm and ex_opp_norm in cand_opp_norm):
                 return True
@@ -527,7 +538,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             matches.append(am)
                         if len(matches) >= 5:
                             break
-                    if len(matches) > 0:
+                    if len(matches) >= 5:
                         has_cached_entry = True
         except Exception as e_c:
             pass
@@ -799,6 +810,23 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         }
         _team_last5_form_cache[cache_key] = empty_res
         return empty_res
+
+    # Sincronização e Cura do Cache Local (Regras 1 e 16): Se alcançou 5 jogos, garante persistência no team_last5_cache
+    if len(matches) >= 5 and cursor is not None and team_id:
+        try:
+            cursor.execute("""
+                INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE 
+                    form_json = VALUES(form_json),
+                    updated_at = NOW(),
+                    team_name = VALUES(team_name),
+                    league_id = VALUES(league_id)
+            """, (team_id, team_name, league_id, json.dumps(matches[:5])))
+            if hasattr(cursor, 'connection') and cursor.connection:
+                cursor.connection.commit()
+        except Exception as e_heal:
+            pass
 
     # Limpa fixture_id temporário do objeto de retorno das partidas
     clean_matches = []

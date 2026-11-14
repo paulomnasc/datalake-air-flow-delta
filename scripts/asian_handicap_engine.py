@@ -2590,12 +2590,24 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
                 # Checagem anti-duplicidade com itens já em matches
                 is_dup = False
                 for m in matches:
+                    m_fid = m.get('fixture_id')
                     m_dt = str(m.get('date', '')).strip()
                     m_sc = str(m.get('score', '')).strip().replace('-', 'x')
                     m_opp = str(m.get('opponent', '')).strip().lower()
-                    if dt_str and m_dt and (dt_str == m_dt or dt_str.startswith(m_dt) or m_dt.startswith(dt_str)):
+
+                    if fid and m_fid and fid == m_fid:
                         is_dup = True
                         break
+
+                    if dt_str and m_dt:
+                        c_d = dt_str.split('/')[:2]
+                        m_d = m_dt.split('/')[:2]
+                        if c_d == m_d:
+                            is_dup = True
+                            break
+                        # Se as datas são distintas, não é duplicata mesmo que adversário e placar coincidam
+                        continue
+
                     if m_opp == str(opp).strip().lower() and m_sc and sc and m_sc == sc:
                         is_dup = True
                         break
@@ -2677,6 +2689,20 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
     tr_lbl = res_dict.get("trend_label") or ""
     tr_suffix = f" | {tr_lbl}" if tr_lbl else ""
     res_dict["text"] = f"{num_v}V-{num_e}E-{num_d}D ({pts} pts | {pts_eff:.1f} pts ef.{tr_suffix})" if matches else "Não localizado (0 pts)"
+
+    # Sincronização e Cura do Cache Local (Regras 1 e 16): Se alcançou 5 jogos, garante persistência no team_last5_cache
+    if len(matches) >= 5 and cursor and team_id:
+        try:
+            cursor.execute("""
+                INSERT INTO team_last5_cache (team_id, team_name, form_json, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE form_json = VALUES(form_json), updated_at = NOW()
+            """, (team_id, team_name, json.dumps(matches[:5])))
+            if hasattr(cursor, 'connection') and cursor.connection:
+                cursor.connection.commit()
+        except Exception:
+            pass
+
     return res_dict
 
 
@@ -3056,6 +3082,16 @@ def compose_compound_ah_reasoning(
     h_u5j = None
     a_u5j = None
 
+    if cursor and (not home_team_id or not away_team_id):
+        try:
+            cursor.execute("SELECT home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+            row_f = cursor.fetchone()
+            if row_f:
+                home_team_id = home_team_id or row_f.get("home_team_id")
+                away_team_id = away_team_id or row_f.get("away_team_id")
+        except Exception:
+            pass
+
     # Prioridade Absoluta (Regra 1): Reutiliza o payload U5J_DATA pré-existente no reasoning
     if existing_reasoning and "|| U5J_DATA:" in existing_reasoning:
         try:
@@ -3066,8 +3102,23 @@ def compose_compound_ah_reasoning(
                 h_u5j = parsed_u.get("home", {})
                 a_u5j = parsed_u.get("away", {})
                 
-                # Garante coerência de pts_efficiency com a fórmula oficial compute_team_u5j_efficiency
                 rebuilt_json = False
+
+                # Fail-Safe de Recomposição Imediata (Regra 16): Se algum time tiver < 5 jogos no payload,
+                # consulta o cache/banco via get_team_u5j_from_db para tentar completar 5 partidas
+                if cursor and (len(h_u5j.get("matches", [])) < 5 or len(a_u5j.get("matches", [])) < 5):
+                    if len(h_u5j.get("matches", [])) < 5:
+                        h_fresh = get_team_u5j_from_db(cursor, home_team_id, home_team)
+                        if len(h_fresh.get("matches", [])) > len(h_u5j.get("matches", [])):
+                            h_u5j = h_fresh
+                            rebuilt_json = True
+                    if len(a_u5j.get("matches", [])) < 5:
+                        a_fresh = get_team_u5j_from_db(cursor, away_team_id, away_team)
+                        if len(a_fresh.get("matches", [])) > len(a_u5j.get("matches", [])):
+                            a_u5j = a_fresh
+                            rebuilt_json = True
+
+                # Garante coerência de pts_efficiency com a fórmula oficial compute_team_u5j_efficiency
                 if h_u5j and isinstance(h_u5j, dict) and h_u5j.get("matches"):
                     h_calc = compute_team_u5j_efficiency(h_u5j)
                     if h_u5j.get("pts_efficiency") != h_calc:

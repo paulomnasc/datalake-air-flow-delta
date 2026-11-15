@@ -706,6 +706,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span><?= lang('App.my_bets') ?></span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('observabilidade') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #06b6d4;" title="Painel de Observabilidade Ao Vivo (Play in Live & Cash Out)">
+                        <i class="bi bi-speedometer2" style="font-size: 19px;"></i>
+                        <span>Ao Vivo</span>
+                        <span class="badge bg-danger rounded-pill pulse-live-indicator" style="font-size: 0.58rem; padding: 2px 5px; letter-spacing: 0.5px;">LIVE</span>
+                    </a>
+                </li>
                 <?php 
                 $userNameHeader = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
                 if (\App\Helpers\SessionHelper::isPauloNascimento($userNameHeader)): 

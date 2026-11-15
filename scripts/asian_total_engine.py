@@ -30,6 +30,34 @@ from asian_handicap_engine import calculate_bivariate_poisson_matrix
 _goals_odds_cache = {}
 _goals_raw_fixture_cache = {}
 
+# ==============================================================================
+# LIGAS E COPAS INELEGÍVEIS EXCLUSIVAMENTE PARA GOLS ASIÁTICOS
+# ==============================================================================
+# Torneios de seleções (abismo técnico com seleções semiprofissionais/amadoras)
+# e copas mata-mata domésticas/continentais (onde equipes de 1ª divisão enfrentam
+# times de 4ª/5ª divisão ou divisões semiprofissionais). Nesses cenários, a volatilidade
+# de placares atípicos (goleadas como 7x2, 5x0, 8x0) quebra a premissa de estabilidade do Poisson.
+GOALS_EXCLUDED_LEAGUE_IDS = {
+    # Torneios de Seleções
+    5,    # Nations League (Europa)
+    4,    # Eurocopa / Qualifiers (Europa)
+    9,    # Copa América (América do Sul)
+    1,    # Copa do Mundo / Qualifiers (Mundo)
+
+    # Copas Mata-Mata Domésticas e Continentais Heterogêneas
+    66,   # Coupe de France (França)
+    81,   # DFB Pokal (Alemanha)
+    137,  # Coppa Italia (Itália)
+    130,  # Copa Argentina (Argentina)
+    73,   # Copa do Brasil (Brasil)
+    16,   # CONCACAF Champions Cup (CONCACAF)
+    772,  # Leagues Cup (América)
+    17,   # AFC Champions League (Ásia)
+    15,   # FIFA Club World Cup (Mundo)
+    531,  # UEFA Super Cup (Europa)
+    541,  # Recopa Sudamericana (América do Sul)
+}
+
 def evaluate_asian_total_line_poisson(matrix: dict, is_over: bool, line: float, odd: float) -> dict:
     """
     Avalia rigorosamente uma linha de Gols Asiáticos a partir da matriz de Poisson.
@@ -363,7 +391,8 @@ def evaluate_and_select_best_goals_candidate(
     xg_h: float,
     xg_a: float,
     u5j_h: dict = None,
-    u5j_a: dict = None
+    u5j_a: dict = None,
+    has_superfavorite: bool = False
 ) -> tuple:
     """
     Aplica o Gatekeeper de Gols Asiáticos para filtrar e ranquear candidatos viáveis.
@@ -371,6 +400,7 @@ def evaluate_and_select_best_goals_candidate(
     - Faixa Sweet Spot de Odd: 1.65 a 2.25
     - Valor Esperado Positivo (+EV >= 3.0%)
     - Probabilidade Efetiva >= 52.0%
+    - Trava Universal Anti-Goleada: Se 1X2 <= 1.20, veta terminantemente apostas em Under
     - Filtro de Coerência de Gols (Over exige histórico de gols recentes; Under exige consistência defensiva)
     Retorna: (status_gk, best_cand, approved_list, reason_msg)
     """
@@ -397,11 +427,17 @@ def evaluate_and_select_best_goals_candidate(
         if c_type == 'Under' and line >= 4.0:
             continue
 
-        # 3. Filtro de Valor Esperado e Probabilidade
+        # 3. Trava Universal Anti-Goleada: Superfavorito Nominal (1X2 <= 1.20)
+        # Se uma das equipes possui odd 1X2 <= 1.20, o mercado antecipa vitória avassaladora.
+        # Linhas de UNDER são expressamente proibidas contra superfavoritos.
+        if c_type == 'Under' and has_superfavorite:
+            continue
+
+        # 4. Filtro de Valor Esperado e Probabilidade
         if ev_pct < 3.0 or prob < 52.0:
             continue
 
-        # 4. Filtro de Consistência Tática e de Mercado
+        # 5. Filtro de Consistência Tática e de Mercado
         # Se for OVER e a linha for alta (ex: >= 2.5), o total projetado xG não pode ser excessivamente baixo
         if c_type == 'Over' and line >= 2.5 and total_xg < 2.00:
             continue
@@ -447,6 +483,25 @@ def calculate_unified_goals_recommendation(
     a_id = fixture_dict.get('away_team_id')
     l_id = fixture_dict.get('league_id')
 
+    # Trava 1: Exclusão de Competições Inelegíveis para Gols Asiáticos (Seleções e Copas Mata-Mata)
+    if l_id is not None:
+        try:
+            lid_int = int(l_id)
+            if lid_int in GOALS_EXCLUDED_LEAGUE_IDS:
+                lname = fixture_dict.get('league_name') or 'Copa/Seleções'
+                reason_msg = (
+                    f"Gatekeeper Gols (NO_BET): Competição ID {lid_int} ({lname}) é inelegível para o mercado de Gols Asiáticos "
+                    f"devido a desnível técnico acentuado e alta volatilidade de placares atípicos."
+                )
+                return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_msg, None, []
+        except (ValueError, TypeError):
+            pass
+
+    # Trava 2: Verificação de Superfavorito Nominal (1X2 <= 1.20)
+    odd_h = float(fixture_dict.get('odd_home') or 0.0)
+    odd_a = float(fixture_dict.get('odd_away') or 0.0)
+    has_superfavorite = (0.0 < odd_h <= 1.20) or (0.0 < odd_a <= 1.20)
+
     # 1. Obter Histórico U5J e Calcular xG
     h_sc, h_con = [], []
     a_sc, a_con = [], []
@@ -463,14 +518,14 @@ def calculate_unified_goals_recommendation(
                     sc = m.get('score', '')
                     if 'x' in sc:
                         p = sc.split('x')
-                        h_sc.append(min(3, int(p[0])))
-                        h_con.append(min(3, int(p[1])))
+                        h_sc.append(min(5, int(p[0])))
+                        h_con.append(min(5, int(p[1])))
                 for m in a_form.get('matches', []):
                     sc = m.get('score', '')
                     if 'x' in sc:
                         p = sc.split('x')
-                        a_sc.append(min(3, int(p[0])))
-                        a_con.append(min(3, int(p[1])))
+                        a_sc.append(min(5, int(p[0])))
+                        a_con.append(min(5, int(p[1])))
         except Exception as e_u5j:
             print(f"⚠️ [U5J Goals] Falha ao extrair U5J: {e_u5j}", file=sys.stderr)
 
@@ -511,7 +566,8 @@ def calculate_unified_goals_recommendation(
 
     # 5. Executar Gatekeeper
     status_gk, best_cand, approved_list, reason_msg = evaluate_and_select_best_goals_candidate(
-        candidates, home_team, away_team, xg_h, xg_a, u_json.get('home'), u_json.get('away')
+        candidates, home_team, away_team, xg_h, xg_a, u_json.get('home'), u_json.get('away'),
+        has_superfavorite=has_superfavorite
     )
 
     if status_gk != 'APPROVED' or not best_cand:
@@ -694,6 +750,26 @@ def cli_evaluate_goals_bet(
                     "destaque": 0
                 }
 
+            # Trava 1: Exclusão de Competições Inelegíveis para Gols Asiáticos (Seleções e Copas Mata-Mata)
+            l_id = fix.get('league_id')
+            if l_id is not None:
+                try:
+                    lid_int = int(l_id)
+                    if lid_int in GOALS_EXCLUDED_LEAGUE_IDS:
+                        lname = fix.get('league_name') or 'Copa/Seleções'
+                        return {
+                            "fixtureId": fix['fixture_id'],
+                            "oddJusta": odd,
+                            "probPoisson": 50.0,
+                            "evPercentual": 0.0,
+                            "statusGatekeeper": "NO_BET",
+                            "gatekeeperCategory": "Competição Inelegível para Gols",
+                            "gatekeeperMsg": f"Gatekeeper Gols (NO_BET): Competição ({lname}) é inelegível para o mercado de Gols Asiáticos devido a desnível técnico acentuado.",
+                            "destaque": 0
+                        }
+                except (ValueError, TypeError):
+                    pass
+
             # 2. Extrair linha e direção (Over / Under) do palpite
             is_over = bool(re.search(r'(?:mais|over)', palpite, re.IGNORECASE))
             m_line = re.search(r'(\d+\.\d+|\d+)', palpite)
@@ -735,15 +811,15 @@ def cli_evaluate_goals_bet(
                     sc = m.get('score', '')
                     if 'x' in sc:
                         p = sc.split('x')
-                        h_sc.append(min(3, int(p[0])))
-                        h_con.append(min(3, int(p[1])))
+                        h_sc.append(min(5, int(p[0])))
+                        h_con.append(min(5, int(p[1])))
             if a_form:
                 for m in a_form.get('matches', []):
                     sc = m.get('score', '')
                     if 'x' in sc:
                         p = sc.split('x')
-                        a_sc.append(min(3, int(p[0])))
-                        a_con.append(min(3, int(p[1])))
+                        a_sc.append(min(5, int(p[0])))
+                        a_con.append(min(5, int(p[1])))
 
             xg_h = round(((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0) * 1.08, 2) if (h_sc and a_con) else 1.30
             xg_a = round(((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0) * 0.92, 2) if (a_sc and h_con) else 1.05
@@ -765,7 +841,16 @@ def cli_evaluate_goals_bet(
                 f"(Prob: {prob_eff:.1f}%) | Expectativa total: {total_xg:.2f} gols ({h_name} xG {xg_h:.2f} vs {xg_a:.2f} {a_name})."
             )
 
-            if odd < 1.60 or odd > 2.30:
+            # Trava 2: Verificação de Superfavorito Nominal (1X2 <= 1.20)
+            odd_h = float(fix.get('odd_home') or 0.0)
+            odd_a = float(fix.get('odd_away') or 0.0)
+            has_superfavorite = (0.0 < odd_h <= 1.20) or (0.0 < odd_a <= 1.20)
+
+            if not is_over and has_superfavorite:
+                status_gk = "NO_BET"
+                cat_gk = "Risco Extremo de Goleada (Superfavorito)"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Entrada em Under bloqueada para partidas com superfavorito nominal (odd 1X2 <= 1.20)."
+            elif odd < 1.60 or odd > 2.30:
                 status_gk = "NO_BET"
                 cat_gk = "Odd Fora do Sweet Spot"
                 msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.60 a 2.30)."

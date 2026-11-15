@@ -93,6 +93,10 @@ $routes->post('/apostas/salvar-linha-ah', 'ApostaController::salvarLinhaAh', ['a
 $routes->post('/apostas/revalidar-fixture-gatekeeper', 'ApostaController::revalidarFixtureGatekeeper', ['as' => 'apostas.revalidar_fixture_gatekeeper']);
 $routes->get('/apostas/card-origem/(:num)', 'ApostaController::cardOrigem/$1', ['as' => 'apostas.card_origem']);
 
+// Observabilidade Ao Vivo (Play in Live & Velocímetro de Risco / Cash Out)
+$routes->get('/observabilidade', 'ApostaController::observabilidade', ['as' => 'apostas.observabilidade']);
+$routes->get('/observabilidade/dados', 'ApostaController::getDadosObservabilidadeAjax', ['as' => 'apostas.observabilidade_dados']);
+
 // Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
 $routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
 $routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);

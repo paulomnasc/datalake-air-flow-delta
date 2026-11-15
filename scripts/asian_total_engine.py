@@ -653,3 +653,158 @@ def sync_fixture_and_bet_goals(
         inserted_count += 1
 
     return inserted_count
+
+
+def cli_evaluate_goals_bet(
+    fixture_id: int = None,
+    home_team: str = "",
+    away_team: str = "",
+    palpite: str = "",
+    odd: float = 1.80
+) -> dict:
+    """
+    Avalia uma aposta específica no mercado de Gols Asiáticos via Poisson e Gatekeeper.
+    Fonte Única da Verdade (SSOT) para consumo pelo ApostaController.php.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 1. Localizar a partida
+            fix = None
+            if fixture_id:
+                cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+                fix = cursor.fetchone()
+            if not fix and home_team and away_team:
+                cursor.execute("""
+                    SELECT * FROM fixtures_trends 
+                    WHERE home_team LIKE %s AND away_team LIKE %s 
+                    ORDER BY fixture_date DESC LIMIT 1
+                """, (f"%{home_team}%", f"%{away_team}%"))
+                fix = cursor.fetchone()
+
+            if not fix:
+                return {
+                    "fixtureId": fixture_id,
+                    "oddJusta": None,
+                    "probPoisson": None,
+                    "evPercentual": None,
+                    "statusGatekeeper": "NO_BET",
+                    "gatekeeperCategory": "Partida Não Encontrada",
+                    "gatekeeperMsg": "Partida não localizada no banco para validação de gols.",
+                    "destaque": 0
+                }
+
+            # 2. Extrair linha e direção (Over / Under) do palpite
+            is_over = bool(re.search(r'(?:mais|over)', palpite, re.IGNORECASE))
+            m_line = re.search(r'(\d+\.\d+|\d+)', palpite)
+            line_val = float(m_line.group(1)) if m_line else 2.5
+
+            # 3. Obter Histórico U5J e Lambdas de Poisson
+            h_name = fix.get('home_team') or home_team
+            a_name = fix.get('away_team') or away_team
+            h_id = fix.get('home_team_id')
+            a_id = fix.get('away_team_id')
+            l_id = fix.get('league_id')
+
+            h_form = None
+            a_form = None
+
+            try:
+                from football_ingest_trends import fetch_team_last5_form
+                h_form = fetch_team_last5_form(cursor, h_name, h_id, l_id)
+                a_form = fetch_team_last5_form(cursor, a_name, a_id, l_id)
+            except Exception as e_u5j:
+                print(f"⚠️ [U5J Goals] Falha ao extrair U5J via fetch: {e_u5j}", file=sys.stderr)
+
+            # Fallback seguro: extrair U5J_DATA de ah_reasoning
+            if (not h_form or not a_form) and fix.get('ah_reasoning') and 'U5J_DATA:' in fix['ah_reasoning']:
+                try:
+                    m_u5 = re.search(r'U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)', fix['ah_reasoning'], re.DOTALL)
+                    if m_u5:
+                        u_data = json.loads(m_u5.group(1))
+                        if not h_form:
+                            h_form = u_data.get('home')
+                        if not a_form:
+                            a_form = u_data.get('away')
+                except Exception:
+                    pass
+
+            h_sc, h_con, a_sc, a_con = [], [], [], []
+            if h_form:
+                for m in h_form.get('matches', []):
+                    sc = m.get('score', '')
+                    if 'x' in sc:
+                        p = sc.split('x')
+                        h_sc.append(min(3, int(p[0])))
+                        h_con.append(min(3, int(p[1])))
+            if a_form:
+                for m in a_form.get('matches', []):
+                    sc = m.get('score', '')
+                    if 'x' in sc:
+                        p = sc.split('x')
+                        a_sc.append(min(3, int(p[0])))
+                        a_con.append(min(3, int(p[1])))
+
+            xg_h = round(((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0) * 1.08, 2) if (h_sc and a_con) else 1.30
+            xg_a = round(((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0) * 0.92, 2) if (a_sc and h_con) else 1.05
+
+            # 4. Avaliar na Matriz Bivariada de Poisson
+            matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+            eval_res = evaluate_asian_total_line_poisson(matrix, is_over, line_val, odd)
+
+            prob_eff = eval_res['prob_efetiva']
+            fair_odd = eval_res['fair_odd']
+            ev_pct = eval_res['ev_pct']
+            total_xg = round(xg_h + xg_a, 2)
+
+            # 5. Critérios do Gatekeeper
+            status_gk = "APROVADO"
+            cat_gk = "Gols Asiáticos (+EV)"
+            msg_gk = (
+                f"Gatekeeper Gols APROVADO (+EV +{ev_pct:.1f}%): Linha {palpite} @ {odd:.2f} vs Odd Justa {fair_odd:.2f} "
+                f"(Prob: {prob_eff:.1f}%) | Expectativa total: {total_xg:.2f} gols ({h_name} xG {xg_h:.2f} vs {xg_a:.2f} {a_name})."
+            )
+
+            if odd < 1.60 or odd > 2.30:
+                status_gk = "NO_BET"
+                cat_gk = "Odd Fora do Sweet Spot"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.60 a 2.30)."
+            elif ev_pct < 3.0 or prob_eff < 52.0:
+                status_gk = "NO_BET"
+                cat_gk = "Sem Valor Esperado (+EV)"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Probabilidade ({prob_eff:.1f}%) ou Valor Esperado (+EV {ev_pct:.1f}%) insuficientes."
+
+            return {
+                "fixtureId": fix['fixture_id'],
+                "oddJusta": fair_odd,
+                "probPoisson": prob_eff,
+                "evPercentual": ev_pct,
+                "statusGatekeeper": status_gk,
+                "gatekeeperCategory": cat_gk,
+                "gatekeeperMsg": msg_gk,
+                "destaque": 1 if (status_gk == 'APROVADO' and ev_pct >= 15.0) else 0
+            }
+    finally:
+        conn.close()
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Motor canônico de Gols Asiáticos")
+    parser.add_argument("--eval_bet", action="store_true", help="Avaliar aposta via Gatekeeper")
+    parser.add_argument("--fixture_id", type=int, default=None)
+    parser.add_argument("--home_team", type=str, default="")
+    parser.add_argument("--away_team", type=str, default="")
+    parser.add_argument("--palpite", type=str, default="")
+    parser.add_argument("--odd", type=float, default=1.80)
+    args = parser.parse_args()
+
+    if args.eval_bet:
+        res = cli_evaluate_goals_bet(
+            fixture_id=args.fixture_id,
+            home_team=args.home_team,
+            away_team=args.away_team,
+            palpite=args.palpite,
+            odd=args.odd
+        )
+        print(json.dumps(res, ensure_ascii=False))

@@ -1568,6 +1568,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
                 if (container && data.notificacoes && data.notificacoes.length > 0) {
+                    // Ordenação estrita por data-hora de criação em ordem descendente (mais recente primeiro)
+                    data.notificacoes.sort((a, b) => {
+                        const pinA = (parseInt(a.pinada || 0) === 1 && parseInt(a.lida || 0) === 0) ? 1 : 0;
+                        const pinB = (parseInt(b.pinada || 0) === 1 && parseInt(b.lida || 0) === 0) ? 1 : 0;
+                        if (pinA !== pinB) return pinB - pinA;
+
+                        const timeA = new Date((a.criado_em || '').replace(' ', 'T')).getTime() || 0;
+                        const timeB = new Date((b.criado_em || '').replace(' ', 'T')).getTime() || 0;
+                        if (timeA !== timeB) return timeB - timeA;
+
+                        return parseInt(b.id || 0) - parseInt(a.id || 0);
+                    });
+
                     let html = '';
                     data.notificacoes.forEach(n => {
                         const isUnread = (parseInt(n.lida) === 0);

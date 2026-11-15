@@ -370,6 +370,56 @@ if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$
     $u5j_data = json_decode($mU5[1], true);
 }
 
+// Cálculo de xG Previsto via U5J (Cruzamento Real de Ataque x Defesa)
+$xg_u5j_home = null;
+$xg_u5j_away = null;
+$xg_u5j_total = null;
+
+if (!empty($u5j_data['home']['matches']) && !empty($u5j_data['away']['matches'])) {
+    $hSc = []; $hCon = []; $aSc = []; $aCon = [];
+    foreach ($u5j_data['home']['matches'] as $m) {
+        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+            $p = explode('x', $m['score']);
+            $hSc[] = min(3, (int)$p[0]);
+            $hCon[] = min(3, (int)$p[1]);
+        }
+    }
+    foreach ($u5j_data['away']['matches'] as $m) {
+        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+            $p = explode('x', $m['score']);
+            $aSc[] = min(3, (int)$p[0]);
+            $aCon[] = min(3, (int)$p[1]);
+        }
+    }
+    if (count($hSc) > 0 && count($aCon) > 0) {
+        $xg_u5j_home = round(((array_sum($hSc) / count($hSc) + array_sum($aCon) / count($aCon)) / 2.0) * 1.08, 2);
+    }
+    if (count($aSc) > 0 && count($hCon) > 0) {
+        $xg_u5j_away = round(((array_sum($aSc) / count($aSc) + array_sum($hCon) / count($hCon)) / 2.0) * 0.92, 2);
+    }
+    if ($xg_u5j_home !== null && $xg_u5j_away !== null) {
+        $xg_u5j_total = round($xg_u5j_home + $xg_u5j_away, 2);
+    }
+}
+
+if ($xg_u5j_total === null) {
+    $xgH = (float)($fix->xg_home ?? 0);
+    $xgA = (float)($fix->xg_away ?? 0);
+    if ($xgH > 0 || $xgA > 0) {
+        $xg_u5j_home = $xgH;
+        $xg_u5j_away = $xgA;
+        $xg_u5j_total = round($xgH + $xgA, 2);
+    } else {
+        $hAtk = (float)($fix->home_avg_goals_scored ?? 1.30);
+        $hDef = (float)($fix->home_avg_goals_conceded ?? 1.00);
+        $aAtk = (float)($fix->away_avg_goals_scored ?? 1.05);
+        $aDef = (float)($fix->away_avg_goals_conceded ?? 1.20);
+        $xg_u5j_home = round((($hAtk + $aDef) / 2.0) * 1.08, 2);
+        $xg_u5j_away = round((($aAtk + $hDef) / 2.0) * 0.92, 2);
+        $xg_u5j_total = round($xg_u5j_home + $xg_u5j_away, 2);
+    }
+}
+
 // Extração de Motivação e Explicação
 $nl_explanation = '';
 if (!empty($fix->ah_reasoning) && preg_match('/EXPLICACAO:\s*([^\|]+)/u', $fix->ah_reasoning, $mExp)) {
@@ -775,10 +825,10 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
           <strong class="text-warning" style="font-size: 0.88rem;"><?= htmlspecialchars($fix->prediction_text ?? 'Sem palpite de cartões') ?></strong>
         </div>
         <div class="d-flex gap-2">
-          <div class="stat-badge-box flex-fill">
-            <span class="stat-badge-title">Gols Esperados</span>
+          <div class="stat-badge-box flex-fill" title="xG Previsto (U5J) cruzando ataque x defesa (<?= htmlspecialchars($fix->home_team ?? 'Casa') ?>: <?= number_format($xg_u5j_home ?? 0, 2) ?> x <?= number_format($xg_u5j_away ?? 0, 2) ?> <?= htmlspecialchars($fix->away_team ?? 'Fora') ?>)">
+            <span class="stat-badge-title">xG Previsto (U5J)</span>
             <span class="stat-badge-val text-success">
-              <?= number_format(((float)($fix->home_avg_goals_scored ?? 0) + (float)($fix->away_avg_goals_scored ?? 0)), 2) ?>
+              <?= number_format($xg_u5j_total ?? 0, 2) ?>
             </span>
           </div>
           <div class="stat-badge-box flex-fill">

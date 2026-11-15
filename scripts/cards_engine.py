@@ -716,6 +716,145 @@ def evaluate_cards_conflict_scenario(
     return False, False, "", ""
 
 
+def evaluate_elite_over_cards_line(
+    exp_cards: float,
+    fixture_id: int = None,
+    allow_api: bool = True,
+    referee_cards_avg: float = None,
+    home_team: str = "",
+    away_team: str = "",
+    is_referee_confirmed: bool = True,
+    fixture_dict: dict = None,
+    odd_override: float = None,
+    cursor = None
+):
+    """
+    Avalia estritamente o Cenário de Elite: Mais de 3.5 Cartões (+EV com Árbitro Rigoroso).
+    Regras de Ouro:
+    1. Linha estritamente Mais de 3.5 Cartões (Over 4.5 e 5.5 permanecem bloqueadas).
+    2. Árbitro oficial confirmado com rigor comprovado (média amarelos >= 4.20 ou faltas >= 22.0).
+    3. Expectativa disciplinar da partida (xC) >= 4.20 cartões.
+    4. Sweet Spot de odd real de bookmaker: 1.55 <= odd <= 1.95 (sem odds sintéticas - Regra 12).
+    5. Probabilidade Poisson >= 62.0% e Valor Esperado (+EV) >= 5.0%.
+    Retorna tupla: (candidate_dict, reason_str)
+    """
+    if not is_referee_confirmed:
+        return None, "🛡️ [Gatekeeper Cartões NO_BET / Sem Árbitro Definido] Partida sem árbitro oficial confirmado na escala."
+
+    if exp_cards is None or float(exp_cards) < 4.20:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / Expectativa Insuficiente] Expectativa disciplinar ({exp_cards} cartões) abaixo do piso de 4.20 para Over de Elite."
+
+    # 1. Validação de Rigor do Árbitro na base local
+    ref_name = (fixture_dict or {}).get('referee_name') or ''
+    ref_yellows = 0.0
+    ref_fouls = 0.0
+
+    close_conn = False
+    cur = cursor
+    if not cur:
+        try:
+            from db_config import get_db_connection
+            conn = get_db_connection()
+            cur = conn.cursor()
+            close_conn = True
+        except Exception as e_db:
+            print(f"⚠️ [Elite Over Cards] Não foi possível conectar ao banco para validar árbitro: {e_db}")
+            cur = None
+
+    if cur and fixture_id and not ref_name:
+        cur.execute("SELECT referee_name FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        r_fix = cur.fetchone()
+        if r_fix:
+            ref_name = r_fix.get('referee_name') or ''
+
+    if cur and ref_name:
+        cur.execute("""
+            SELECT average_yellow_cards, average_red_cards, average_fouls, total_games 
+            FROM referee_stats 
+            WHERE name = %s OR name LIKE %s 
+            ORDER BY total_games DESC LIMIT 1
+        """, (ref_name, f"%{ref_name}%"))
+        r_stat = cur.fetchone()
+        if r_stat:
+            ref_yellows = float(r_stat.get('average_yellow_cards') or 0.0)
+            ref_fouls = float(r_stat.get('average_fouls') or 0.0)
+
+    if close_conn and cur:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+    is_rigorous = (ref_yellows >= 4.20 or ref_fouls >= 22.0 or (referee_cards_avg and float(referee_cards_avg) >= 4.20))
+    if not is_rigorous:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / Árbitro Sem Rigor] Árbitro '{ref_name}' com histórico disciplinar abaixo do piso de rigor (amarelos: {ref_yellows:.2f} < 4.20 e faltas: {ref_fouls:.1f} < 22.0)."
+
+    # 2. Probabilidade Poisson para Mais de 3.5 Cartões (k <= 3)
+    p_under_35 = calculate_poisson_under_cdf(float(exp_cards), 3.5)
+    prob_over = round(max(0.0, min(100.0, 100.0 - p_under_35)), 2)
+
+    if prob_over < 62.0:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / Probabilidade Insuficiente] Probabilidade Poisson para Over 3.5 ({prob_over:.1f}%) abaixo do limiar de 62.0%."
+
+    odd_justa = round(100.0 / prob_over, 2) if prob_over > 0 else 99.00
+
+    # 3. Busca de Odd Real de Mercado (Betano / Bookmakers reais)
+    real_odd = None
+    odd_source = None
+
+    if odd_override and float(odd_override) > 1.0:
+        real_odd = float(odd_override)
+        odd_source = 'Betano'
+    elif allow_api and fixture_id:
+        real_odd, odd_source = fetch_real_card_odds(fixture_id, "Mais de 3.5 Cartões", 3.5)
+
+    if not real_odd or real_odd <= 1.0:
+        return None, "🛡️ [Gatekeeper Cartões NO_BET / Sem Odd Real] Nenhuma cotação real ativa de bookmaker encontrada para Mais de 3.5 Cartões (Regra nº 12)."
+
+    # 4. Sweet Spot de Cotação (1.55 a 1.95)
+    if real_odd < 1.55:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / Odd Baixa] Cotação da casa ({real_odd:.2f}) abaixo do piso mínimo de 1.55 para Over 3.5 de Elite."
+
+    if real_odd > 1.95:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / Odd Excessiva] Cotação da casa ({real_odd:.2f}) acima do teto de 1.95 do Sweet Spot para Over 3.5 de Elite."
+
+    # 5. Valor Esperado Positivo (+EV >= 5.0%)
+    ev_calc = round(((prob_over / 100.0) * real_odd - 1.0) * 100.0, 2)
+    if ev_calc < 5.0:
+        return None, f"🛡️ [Gatekeeper Cartões NO_BET / EV Insuficiente] Valor esperado (+EV: {ev_calc:+.1f}%) abaixo da margem mínima de +5.0% para Over 3.5 de Elite."
+
+    bookmaker_name = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
+    ref_display = f"{ref_name} ({ref_yellows:.2f} amarelos / {ref_fouls:.1f} faltas/jogo)" if ref_yellows > 0 else f"{ref_name} (Árbitro Rigoroso)"
+    
+    gk_reason = format_gatekeeper_result(
+        'APROVADO',
+        'Mais de 3.5 Cartões',
+        f"🎯 GATEKEEPER CARTÕES APROVADO (+EV {ev_calc:+.1f}%) | "
+        f"Cenário de Elite Mais de 3.5 Cartões (+EV com Árbitro Rigoroso) | "
+        f"Linha Mais de 3.5 Cartões @ {real_odd:.2f} ({bookmaker_name}) vs Odd Justa {odd_justa:.2f} (Prob: {prob_over:.1f}%) | "
+        f"xC Ajustado: {exp_cards} cartões | Árbitro: {ref_display}"
+    )
+
+    candidate = {
+        'line_val': 3.5,
+        'palpite_str': 'Mais de 3.5 Cartões',
+        'label': 'Over 3.5',
+        'prob': prob_over,
+        'odd_justa': odd_justa,
+        'real_odd': real_odd,
+        'odd_source': odd_source,
+        'bookmaker': bookmaker_name,
+        'ev_calc': ev_calc,
+        'exp_cards': exp_cards,
+        'status_gk': 'APROVADO',
+        'gatekeeper_category': 'Over 3.5 Cartões de Elite (+EV)',
+        'gatekeeper_reason': gk_reason
+    }
+
+    return candidate, gk_reason
+
+
 def evaluate_best_card_under_line(
     exp_cards: float,
     fixture_id: int = None,
@@ -802,117 +941,135 @@ def evaluate_best_card_under_line(
         league_id=league_id
     )
 
+    under_block_reason = None
+
     # Bloqueio total por conflito severo (Caldeirão da Degola ou Duelo de Crises)
     if is_blocked_under_all:
-        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', conflict_reason)
-        return None, [], pred_text, over_cards_prob
+        under_block_reason = conflict_reason
 
     is_severe_u5j_risk = (h_eff is not None and a_eff is not None and (h_eff <= 3.0 and a_eff <= 3.0)) or (friction_mult >= 1.20)
     has_elevated_friction = is_severe_u5j_risk or (friction_mult >= 1.15 and exp_cards >= 4.50)
 
     # 1. Trava Sistêmica Mandatória de Atrito Disciplinar U5J:
-    if has_elevated_friction:
+    if not under_block_reason and has_elevated_friction:
         h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
         a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
-        reason = (
+        under_block_reason = (
             f"🛡️ [Gatekeeper Cartões NO_BET / Risco de Atrito Disciplinar] {home_team} ({h_str}) vs {away_team} ({a_str}) -> "
             f"Equipes sob forte pressão ou colapso disciplinar ({friction_desc}), elevando a expectativa disciplinar para {exp_cards} cartões. "
             f"Risco de estouro de cartões incompatível com margem de segurança para estratégia Under. Abstenção mandatória."
         )
-        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
-        return None, [], pred_text, over_cards_prob
 
     # 2. Trava Sistêmica de Mata-Mata Oitavas+ com Expectativa Elevada:
-    if is_knockout and exp_cards >= 4.50:
-        reason = (
+    if not under_block_reason and (is_knockout and exp_cards >= 4.50):
+        under_block_reason = (
             f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Partida eliminatória com alta tensão e cartões projetados em {exp_cards}. "
             f"Risco de catimba e faltas eliminatórias incompatível com margem de segurança para estratégia Under. Abstenção mandatória."
         )
-        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
-        return None, [], pred_text, over_cards_prob
 
-    for line_val in standard_lines:
-        # Veto mandatório a linhas inferiores a 6.5 por volatilidade estatística e armadilha de mercado
-        if line_val < 6.49:
-            continue
-
-        # Trava de Piso do Árbitro Confirmado por Linha:
-        if line_val >= 6.49 and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
-            continue
-
-        prob = under_probs.get(line_val, 0.0)
-        odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
-        palpite_str = f"Menos de {line_val} Cartões"
-
-        # Crivo de status estrito do Gatekeeper com margem mínima de 1.0 cartão por linha
-        max_xc_allowed = line_val - 1.00
-        if line_val >= 6.49:
-            status_gk = 'APROVADO' if (exp_cards <= max_xc_allowed and prob >= 60.0) else 'NO_BET'
-        else:
-            status_gk = 'NO_BET'
-
-        candidates.append({
-            'line_val': line_val,
-            'palpite_str': palpite_str,
-            'label': f"Under {line_val}",
-            'prob': prob,
-            'odd_justa': odd_justa,
-            'status_gk': status_gk
-        })
-
-    # Filtrar candidatos rigorosamente aprovados pelo Gatekeeper
-    valid_candidates = [c for c in candidates if c['status_gk'] == 'APROVADO' and c['prob'] >= 60.0]
-    valid_candidates.sort(key=lambda x: x['prob'], reverse=True)
-
+    valid_candidates = []
     selected_cand = None
 
-    for cand in valid_candidates:
-        line_val = cand['line_val']
-        palpite_str = cand['palpite_str']
-        prob = cand['prob']
-        odd_justa = cand['odd_justa']
-
-        real_odd = None
-        odd_source = None
-
-        if allow_api and fixture_id:
-            real_odd, odd_source = fetch_real_card_odds(fixture_id, palpite_str, line_val)
-
-        # Fallback de mercado estruturado: na criação de apostas reais (allow_api=True), NUNCA aceita odd sintética
-        if not real_odd or real_odd <= 1.0:
-            if allow_api:
+    if not under_block_reason:
+        for line_val in standard_lines:
+            # Veto mandatório a linhas inferiores a 6.5 por volatilidade estatística e armadilha de mercado
+            if line_val < 6.49:
                 continue
-            if odd_justa and odd_justa >= 1.40:
-                real_odd = round(max(1.55, odd_justa * 1.08), 2)
-                odd_source = 'MODEL_FALLBACK'
+
+            # Trava de Piso do Árbitro Confirmado por Linha:
+            if line_val >= 6.49 and referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
+                continue
+
+            prob = under_probs.get(line_val, 0.0)
+            odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
+            palpite_str = f"Menos de {line_val} Cartões"
+
+            # Crivo de status estrito do Gatekeeper com margem mínima de 1.0 cartão por linha
+            max_xc_allowed = line_val - 1.00
+            if line_val >= 6.49:
+                status_gk = 'APROVADO' if (exp_cards <= max_xc_allowed and prob >= 60.0) else 'NO_BET'
             else:
+                status_gk = 'NO_BET'
+
+            candidates.append({
+                'line_val': line_val,
+                'palpite_str': palpite_str,
+                'label': f"Under {line_val}",
+                'prob': prob,
+                'odd_justa': odd_justa,
+                'status_gk': status_gk
+            })
+
+        # Filtrar candidatos rigorosamente aprovados pelo Gatekeeper
+        valid_candidates = [c for c in candidates if c['status_gk'] == 'APROVADO' and c['prob'] >= 60.0]
+        valid_candidates.sort(key=lambda x: x['prob'], reverse=True)
+
+        for cand in valid_candidates:
+            line_val = cand['line_val']
+            palpite_str = cand['palpite_str']
+            prob = cand['prob']
+            odd_justa = cand['odd_justa']
+
+            real_odd = None
+            odd_source = None
+
+            if allow_api and fixture_id:
+                real_odd, odd_source = fetch_real_card_odds(fixture_id, palpite_str, line_val)
+
+            # Fallback de mercado estruturado: na criação de apostas reais (allow_api=True), NUNCA aceita odd sintética
+            if not real_odd or real_odd <= 1.0:
+                if allow_api:
+                    continue
+                if odd_justa and odd_justa >= 1.40:
+                    real_odd = round(max(1.55, odd_justa * 1.08), 2)
+                    odd_source = 'MODEL_FALLBACK'
+                else:
+                    continue
+
+            # Piso de odd viável: >= 1.50 para Under 6.5+ (evita cotas deprimidas)
+            min_odd_req = 1.50
+            if real_odd < min_odd_req:
                 continue
 
-        # Piso de odd viável: >= 1.50 para Under 6.5+ (evita cotas deprimidas)
-        min_odd_req = 1.50
-        if real_odd < min_odd_req:
-            continue
+            ev_calc = round(((prob / 100.0) * real_odd - 1.0) * 100.0, 2)
+            if ev_calc < 0.0:
+                continue
 
-        ev_calc = round(((prob / 100.0) * real_odd - 1.0) * 100.0, 2)
-        if ev_calc < 0.0:
-            continue
+            cand_copy = dict(cand)
+            cand_copy['real_odd'] = real_odd
+            cand_copy['odd_source'] = odd_source
+            cand_copy['bookmaker'] = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
+            cand_copy['ev_calc'] = ev_calc
+            cand_copy['exp_cards'] = exp_cards
+            cand_copy['gatekeeper_category'] = 'Valor Esperado Positivo (+EV)'
+            ref_context_note = "Árbitro Oficial Confirmado"
+            cand_copy['gatekeeper_reason'] = format_gatekeeper_result(
+                'APROVADO',
+                palpite_str,
+                f"🎯 GATEKEEPER CARTÕES APROVADO (+EV {ev_calc:+.1f}%) | "
+                f"Linha {palpite_str} @ {real_odd:.2f} ({cand_copy['bookmaker']}) vs Odd Justa {odd_justa:.2f} (Prob: {prob:.1f}%) | "
+                f"xC Ajustado: {exp_cards} cartões | {ref_context_note} | {friction_desc}"
+            )
+            selected_cand = cand_copy
+            break
 
-        cand_copy = dict(cand)
-        cand_copy['real_odd'] = real_odd
-        cand_copy['odd_source'] = odd_source
-        cand_copy['bookmaker'] = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
-        cand_copy['ev_calc'] = ev_calc
-        cand_copy['exp_cards'] = exp_cards
-        ref_context_note = "Árbitro Oficial Confirmado"
-        cand_copy['gatekeeper_reason'] = format_gatekeeper_result(
-            'APROVADO',
-            palpite_str,
-            f"🎯 GATEKEEPER CARTÕES APROVADO (+EV {ev_calc:+.1f}%) | "
-            f"Linha {palpite_str} @ {real_odd:.2f} ({cand_copy['bookmaker']}) vs Odd Justa {odd_justa:.2f} (Prob: {prob:.1f}%) | "
-            f"xC Ajustado: {exp_cards} cartões | {ref_context_note} | {friction_desc}"
+    # Se nenhum candidato Under foi aprovado, avalia o Cenário de Elite: Mais de 3.5 Cartões (+EV com Árbitro Rigoroso)
+    if not selected_cand:
+        elite_over_cand, elite_over_reason = evaluate_elite_over_cards_line(
+            exp_cards=exp_cards,
+            fixture_id=fixture_id,
+            allow_api=allow_api,
+            referee_cards_avg=referee_cards_avg,
+            home_team=home_team,
+            away_team=away_team,
+            is_referee_confirmed=is_referee_confirmed,
+            fixture_dict=fixture_dict
         )
-        selected_cand = cand_copy
-        break
+        if elite_over_cand:
+            selected_cand = elite_over_cand
+            valid_candidates = [selected_cand]
+            pred_text = f"🎯 Estratégia Over de Elite (Expectativa: {exp_cards} cartões). Sugestão de valor: {selected_cand['label']} ({selected_cand['prob']}% | Odd Justa: {selected_cand['odd_justa']} | Odd Real: {selected_cand['real_odd']} @ {selected_cand['bookmaker']})."
+            return selected_cand, valid_candidates, pred_text, over_cards_prob
 
     # Monta texto estruturado de prediction_text
     if valid_candidates and selected_cand:
@@ -923,7 +1080,9 @@ def evaluate_best_card_under_line(
             extra_note += " [Mata-Mata Oitavas+]"
         pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
     else:
-        if conflict_reason:
+        if under_block_reason:
+            reason = under_block_reason
+        elif conflict_reason:
             reason = conflict_reason
         elif referee_cards_avg and float(referee_cards_avg) >= 6.20:
             reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under 6.5+. Entrada bloqueada."
@@ -973,6 +1132,7 @@ def sync_fixture_and_bet_cards(
 
         bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
         gk_detalhado = selected_cand.get('gatekeeper_reason')
+        gk_category = selected_cand.get('gatekeeper_category') or ('Over 3.5 Cartões de Elite (+EV)' if 'Mais de 3.5' in palpite_str else 'Valor Esperado Positivo (+EV)')
 
         # Consulta a moeda padrão ativa no sistema para criação de apostas (Regra Multi-Moedas)
         cursor.execute("SELECT codigo, cotacao_brl, casas_decimais FROM moedas_config WHERE is_default = 1 AND ativo = 1 LIMIT 1")
@@ -1037,11 +1197,12 @@ def sync_fixture_and_bet_cards(
                             ganhos_potenciais = %s,
                             casa_de_aposta = %s,
                             status_gatekeeper = 'APROVADO',
+                            gatekeeper_category = %s,
                             status = 'Pendente',
                             resultado_detalhado = %s,
                             updated_at = NOW()
                         WHERE id = %s
-                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, valor_aposta, ganhos_potenciais, bookmaker_name, gk_detalhado, ja_existe['id']))
+                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, valor_aposta, ganhos_potenciais, bookmaker_name, gk_category, gk_detalhado, ja_existe['id']))
                     updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:
@@ -1057,16 +1218,16 @@ def sync_fixture_and_bet_cards(
                 cursor.execute("""
                     INSERT INTO apostas (
                         usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
-                        odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
+                        odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper, gatekeeper_category,
                         valor_aposta, ganhos_potenciais, status, confirmada, resultado_detalhado, data_hora_jogo, criado_em, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
-                        %s, %s, %s, 'APROVADO',
+                        %s, %s, %s, 'APROVADO', %s,
                         %s, %s, 'Pendente', 0, %s, %s, NOW(), NOW()
                     )
                 """, (
                     uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
-                    odd_justa, prob_poisson, ev_perc,
+                    odd_justa, prob_poisson, ev_perc, gk_category,
                     valor_aposta, ganhos_potenciais, gk_detalhado, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
@@ -1080,13 +1241,24 @@ def sync_fixture_and_bet_cards(
 
     # Sincroniza fixtures_trends com o texto de predição estruturado (se não houver aposta confirmada conflitante)
     if not has_confirmed_bet and prediction_text:
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                prediction_text = %s,
-                over_cards_probability = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (prediction_text, over_cards_prob, fixture_id))
+        gk_cat_fixture = selected_cand.get('gatekeeper_category') if selected_cand else None
+        if gk_cat_fixture:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    over_cards_probability = %s,
+                    gatekeeper_category = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (prediction_text, over_cards_prob, gk_cat_fixture, fixture_id))
+        else:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    over_cards_probability = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (prediction_text, over_cards_prob, fixture_id))
         print(f"🔗 [Sincronismo Card Cartões] fixtures_trends #{fixture_id} sincronizado com prediction_text.")
 
     return created_count, updated_count

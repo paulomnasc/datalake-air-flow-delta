@@ -493,16 +493,9 @@ class ApostaController extends BaseController
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
         $isHandicap = (stripos($mercado, 'handicap') !== false || stripos($palpite, 'ah') !== false);
+        $isGols = (stripos($mercado, 'gol') !== false || stripos($palpite, 'gol') !== false);
 
-        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over para Cartões)
-        if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
-            $statusGatekeeper = 'AVISO_RISCO_OVER';
-            $gatekeeperCategory = 'Aviso de Risco Over';
-            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
-        }
-
-        if (!$isCartoes && !$isHandicap) {
+        if (!$isCartoes && !$isHandicap && !$isGols) {
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 
@@ -529,6 +522,82 @@ class ApostaController extends BaseController
             if ($fixture) {
                 $fixtureId = (int)$fixture->fixture_id;
             }
+        }
+
+        // AVALIAÇÃO DE CARTÕES OVER (Cenário de Elite Mais de 3.5 vs Aviso de Risco Padrão)
+        if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
+            $isOver35 = (bool)preg_match('/(?:mais|over)\s*(?:de\s*)?3\.5/i', $palpite);
+
+            if ($isOver35 && $fixture) {
+                // 1. Árbitro oficial confirmado e rigor comprovado
+                $refName = !empty($fixture->referee_name) ? trim($fixture->referee_name) : '';
+                $isUnknownRef = empty($refName) 
+                    || stripos($refName, 'Não Informado') !== false 
+                    || stripos($refName, 'Desconhecido') !== false 
+                    || stripos($refName, 'unassigned') !== false 
+                    || stripos($refName, 'tbd') !== false
+                    || stripos($refName, 'sem arbitro') !== false;
+
+                $refYellows = 0.0;
+                $refFouls = 0.0;
+                if (!$isUnknownRef) {
+                    $refRow = $db->table('referee_stats')
+                        ->groupStart()
+                            ->where('name', $refName)
+                            ->orLike('name', $refName)
+                        ->groupEnd()
+                        ->orderBy('total_games', 'DESC')
+                        ->get()->getRow();
+                    if ($refRow) {
+                        $refYellows = (float)($refRow->average_yellow_cards ?? 0.0);
+                        $refFouls = (float)($refRow->average_fouls ?? 0.0);
+                    }
+                }
+
+                $isRefRigoroso = (!$isUnknownRef && ($refYellows >= 4.20 || $refFouls >= 22.0));
+
+                // 2. Expectativa disciplinar da partida xC >= 4.20
+                $xc = null;
+                if (!empty($fixture->prediction_text)) {
+                    if (preg_match('/(?:xC|Expectativa)(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $mXc)) {
+                        $xc = (float)$mXc[1];
+                    }
+                }
+                if ($xc === null && $refYellows > 0) {
+                    $xc = $refYellows;
+                }
+
+                $isXcTense = ($xc !== null && $xc >= 4.20);
+
+                // 3. Sweet Spot da Odd Real (1.55 a 1.95)
+                $isSweetSpot = ($odd >= 1.55 && $odd <= 1.95);
+
+                // 4. Probabilidade Poisson >= 62.0% e +EV >= 5.0%
+                if ($isRefRigoroso && $isXcTense && $isSweetSpot) {
+                    $probUnder3 = 0.0;
+                    for ($k = 0; $k <= 3; $k++) {
+                        $probUnder3 += (exp(-$xc) * pow($xc, $k)) / $this->factorial($k);
+                    }
+                    $probOver35 = round(min(100.0, max(0.0, (1.0 - $probUnder3) * 100.0)), 2);
+                    $oddJusta = ($probOver35 > 0) ? round(100.0 / $probOver35, 2) : 99.0;
+                    $evPercentual = round((($probOver35 / 100.0) * $odd - 1.0) * 100.0, 2);
+                    $probPoisson = $probOver35;
+
+                    if ($probPoisson >= 62.0 && $evPercentual >= 5.0) {
+                        $statusGatekeeper = 'APROVADO';
+                        $gatekeeperCategory = 'Over 3.5 Cartões de Elite (+EV)';
+                        $gatekeeperMsg = "🎯 GATEKEEPER CARTÕES APROVADO (+EV +{$evPercentual}%): Cenário de Elite Mais de 3.5 Cartões (+EV com Árbitro Rigoroso) | Linha Over 3.5 @ {$odd} vs Odd Justa {$oddJusta} (Prob: {$probPoisson}%) | xC: {$xc} | Árbitro: {$refName} ({$refYellows} amarelos / {$refFouls} faltas/jogo).";
+                        $destaque = 1;
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+                    }
+                }
+            }
+
+            // Fallback padrão para outros cenários de Over
+            $statusGatekeeper = 'AVISO_RISCO_OVER';
+            $gatekeeperCategory = 'Aviso de Risco Over';
+            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas o cenário de elite Over 3.5 com árbitro rigoroso e +EV é passível de aprovação. Deseja prosseguir mesmo com o risco apontado?";
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 
         if ($fixture) {
@@ -583,6 +652,20 @@ class ApostaController extends BaseController
             $statusGatekeeper = 'NO_BET';
             $gatekeeperCategory = 'Falha na Avaliação de Handicap';
             $gatekeeperMsg = 'Aviso Gatekeeper AH (NO_BET): Não foi possível validar os parâmetros estatísticos do handicap para esta partida.';
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+        }
+
+        // =========================================================================
+        // RAMO 3: GATEKEEPER PARA GOLS ASIÁTICOS (DELEGAÇÃO CANÔNICA AO PYTHON)
+        // =========================================================================
+        if ($isGols) {
+            $evalPy = $this->evaluateGoalsGatekeeperPython($fixtureId, $timeCasa, $timeFora, $palpite, $odd);
+            if ($evalPy !== null) {
+                return $evalPy;
+            }
+            $statusGatekeeper = 'NO_BET';
+            $gatekeeperCategory = 'Falha na Avaliação de Gols';
+            $gatekeeperMsg = 'Aviso Gatekeeper Gols (NO_BET): Não foi possível validar os parâmetros estatísticos de gols para esta partida.';
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 
@@ -817,6 +900,54 @@ class ApostaController extends BaseController
         $scriptPath = '/datalake-root/scripts/asian_handicap_engine.py';
         if (!file_exists($scriptPath)) {
             $scriptPath = '/root/datalake-air-flow-delta/scripts/asian_handicap_engine.py';
+        }
+        if (!file_exists($scriptPath)) {
+            return null;
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --eval_bet"
+             . " --fixture_id=" . escapeshellarg((string)($fixtureId ?? 0))
+             . " --home_team=" . escapeshellarg($timeCasa)
+             . " --away_team=" . escapeshellarg($timeFora)
+             . " --palpite=" . escapeshellarg($palpite)
+             . " --odd=" . escapeshellarg((string)$odd)
+             . " 2>/dev/null";
+
+        $output = shell_exec($cmd);
+        if (empty($output)) {
+            return null;
+        }
+
+        $jsonStr = trim($output);
+        if (preg_match('/\{[\s\S]*"statusGatekeeper"[\s\S]*\}/', $output, $mJson)) {
+            $jsonStr = $mJson[0];
+        }
+
+        $res = json_decode($jsonStr, true);
+        if (!$res || !isset($res['statusGatekeeper'])) {
+            return null;
+        }
+
+        return [
+            'fixtureId'          => $res['fixtureId'] ?? $fixtureId,
+            'oddJusta'           => $res['oddJusta'] ?? null,
+            'probPoisson'        => $res['probPoisson'] ?? null,
+            'evPercentual'       => $res['evPercentual'] ?? null,
+            'statusGatekeeper'   => $res['statusGatekeeper'],
+            'gatekeeperCategory' => $res['gatekeeperCategory'] ?? null,
+            'gatekeeperMsg'      => $res['gatekeeperMsg'] ?? '',
+            'destaque'           => (int)($res['destaque'] ?? 0)
+        ];
+    }
+
+    /**
+     * Invoca o motor canônico em Python (asian_total_engine.py) como Fonte Única da Verdade (SSOT).
+     */
+    private function evaluateGoalsGatekeeperPython(?int $fixtureId, string $timeCasa, string $timeFora, string $palpite, float $odd): ?array
+    {
+        $scriptPath = '/datalake-root/scripts/asian_total_engine.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/asian_total_engine.py';
         }
         if (!file_exists($scriptPath)) {
             return null;
@@ -4237,7 +4368,7 @@ class ApostaController extends BaseController
             ->where("n.tipo != 'APOSTA_CANCELADA'")
             ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
             ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
-            ->orderBy('COALESCE(ft.fixture_date, n.criado_em)', 'DESC', false)
+            ->orderBy('n.criado_em', 'DESC', false)
             ->orderBy('n.id', 'DESC')
             ->limit(35)
             ->get()

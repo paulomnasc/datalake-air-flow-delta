@@ -4297,11 +4297,48 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
                                     <!-- Seção Retrátil 4: Estatísticas Detalhadas & Insights -->
                                     <div id="sec-stats-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                        <?php
+                                            $xgCardTotal = null;
+                                            if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fix->ah_reasoning, $mU5Dash)) {
+                                                $u5Dash = json_decode($mU5Dash[1], true);
+                                                if (!empty($u5Dash['home']['matches']) && !empty($u5Dash['away']['matches'])) {
+                                                    $hScD = []; $hConD = []; $aScD = []; $aConD = [];
+                                                    foreach ($u5Dash['home']['matches'] as $m) {
+                                                        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+                                                            $p = explode('x', $m['score']);
+                                                            $hScD[] = min(3, (int)$p[0]);
+                                                            $hConD[] = min(3, (int)$p[1]);
+                                                        }
+                                                    }
+                                                    foreach ($u5Dash['away']['matches'] as $m) {
+                                                        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+                                                            $p = explode('x', $m['score']);
+                                                            $aScD[] = min(3, (int)$p[0]);
+                                                            $aConD[] = min(3, (int)$p[1]);
+                                                        }
+                                                    }
+                                                    if (count($hScD) > 0 && count($aConD) > 0 && count($aScD) > 0 && count($hConD) > 0) {
+                                                        $xgHD = round(((array_sum($hScD) / count($hScD) + array_sum($aConD) / count($aConD)) / 2.0) * 1.08, 2);
+                                                        $xgAD = round(((array_sum($aScD) / count($aScD) + array_sum($hConD) / count($hConD)) / 2.0) * 0.92, 2);
+                                                        $xgCardTotal = round($xgHD + $xgAD, 2);
+                                                    }
+                                                }
+                                            }
+                                            if ($xgCardTotal === null) {
+                                                $xgH = (float)($fix->xg_home ?? 0);
+                                                $xgA = (float)($fix->xg_away ?? 0);
+                                                if ($xgH > 0 || $xgA > 0) {
+                                                    $xgCardTotal = round($xgH + $xgA, 2);
+                                                } else {
+                                                    $xgCardTotal = round((((float)($fix->home_avg_goals_scored ?? 1.3) + (float)($fix->away_avg_goals_conceded ?? 1.0) + (float)($fix->away_avg_goals_scored ?? 1.0) + (float)($fix->home_avg_goals_conceded ?? 1.0)) / 2.0), 2);
+                                                }
+                                            }
+                                        ?>
                                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 10px;">
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;"><?= lang('App.exp_total_goals') ?></span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">xG Previsto (U5J)</span>
                                                 <strong style="color: #10b981; font-size: 0.88rem;">
-                                                    <?= number_format(($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0), 2) ?>
+                                                    <?= number_format($xgCardTotal, 2) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
@@ -4351,7 +4388,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                         </table>
 
                                         <?php
-                                            $expGolsTotal = ($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0);
+                                            $expGolsTotal = $xgCardTotal ?? (($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0));
                                             $expCantosTotal = ($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0);
                                             $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
 

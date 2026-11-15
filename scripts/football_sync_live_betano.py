@@ -226,6 +226,91 @@ def avaliar_risco_under(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
     return alertas_emitidos
 
 
+def notificar_gol_ao_vivo(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed, live_status):
+    """
+    Detecta e dispara notificação em tempo real (Sininho/Toast e Push Mobile)
+    sempre que um gol for marcado em partida ao vivo monitorada.
+    Se o usuário possuir aposta ativa na partida, vincula os detalhes da aposta e eleva para prioridade máxima.
+    Prevenção de duplicatas: cada placar específico (ex: '0x1') só é notificado uma única vez por partida.
+    """
+    if gh is None or ga is None:
+        return 0
+
+    try:
+        gh_val = int(gh)
+        ga_val = int(ga)
+        elapsed_num = int(elapsed) if elapsed is not None else 0
+    except (ValueError, TypeError):
+        return 0
+
+    if (gh_val + ga_val) == 0:
+        return 0
+
+    tag_placar = f"{gh_val}x{ga_val}"
+
+    # Trava anti-duplicidade estrita por partida e placar exato
+    cursor.execute("""
+        SELECT id FROM notificacoes_usuario 
+        WHERE usuario_id = %s 
+          AND fixture_id = %s 
+          AND tipo = 'GOL_AO_VIVO'
+          AND mensagem LIKE %s
+        LIMIT 1
+    """, (target_uid, fid, f"%({h_team} {tag_placar} {a_team})%"))
+    if cursor.fetchone():
+        return 0
+
+    # Busca se o usuário possui aposta pendente nesta partida
+    cursor.execute("""
+        SELECT id, mercado, palpite, odd, valor_aposta, moeda_codigo
+        FROM apostas
+        WHERE fixture_id = %s
+          AND usuario_id = %s
+          AND status = 'Pendente'
+        ORDER BY id DESC
+    """, (fid, target_uid))
+    active_bets = cursor.fetchall()
+
+    # FILTRO ESTRITO: Notifica gols exclusivamente para jogos com apostas ativas do usuário
+    if not active_bets:
+        return 0
+
+    minuto_str = f"{elapsed_num}'" if elapsed_num > 0 else (live_status or "Ao Vivo")
+
+    notifs_enviadas = 0
+    # Notificação contextualizada com as apostas ativas do usuário
+    for ab in active_bets:
+        ap_id = ab['id']
+        mercado = ab['mercado']
+        palp = ab['palpite']
+        odd_val = float(ab.get('odd') or 1.0)
+        stake_val = float(ab.get('valor_aposta') or 0.0)
+        moeda_val = ab.get('moeda_codigo') or 'USDT'
+
+        tit = f"⚽ GOL aos {minuto_str}! {h_team} {gh_val}x{ga_val} {a_team}"
+        msg = (
+            f"⚽ GOL marcado aos {minuto_str}!\n"
+            f"🏟️ Placar: ({h_team} {tag_placar} {a_team})\n\n"
+            f"🎯 Sua Aposta Ativa: {palp} ({mercado} @ {odd_val:.2f})\n"
+            f"💰 Investimento: {moeda_val} {stake_val:.2f}\n"
+            f"⚡ Acompanhe o andamento no Dashboard ou avalie a partida na Betano."
+        )
+        lnk = f"/apostas?fixture_id={fid}"
+        try:
+            cursor.execute("""
+                INSERT INTO notificacoes_usuario (
+                    usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                ) VALUES (%s, %s, %s, 'GOL_AO_VIVO', %s, %s, %s, 0, 0, NOW())
+            """, (target_uid, ap_id, fid, tit, msg, lnk))
+            enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["soccer", "goal", "bell"])
+            print(f"🔔 [Gol Ao Vivo com Aposta Enviado User #{target_uid}] #{fid} {tit}")
+            notifs_enviadas += 1
+        except Exception as e_notif:
+            print(f"⚠️ [Gol Ao Vivo] Erro ao registrar notificação com aposta: {e_notif}")
+
+    return notifs_enviadas
+
+
 def main():
     print("=" * 70)
     print(f"⚡ [FootballWeb In-Play] Sincronização Ao Vivo Betano - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -278,12 +363,27 @@ def main():
             }
             sync_pending_past_fixtures(conn, headers)
             print("✅ Placares e status oficiais atualizados com sucesso pela contingência.")
+            # Recarrega partidas atualizadas do banco para obter os placares recém-sincronizados
+            cursor.execute("""
+                SELECT ft.fixture_id, ft.home_team, ft.away_team, ft.status, ft.goals_home, ft.goals_away, ft.elapsed,
+                       ft.fixture_date, ft.ah_suggestion, ft.ah_confidence, ft.ah_reasoning, ft.prediction_text,
+                       ft.home_team_id, ft.away_team_id, ft.referee_name, ft.league_id, ft.league_name,
+                       rs.average_yellow_cards, rs.average_red_cards, rs.rigor_level
+                FROM fixtures_trends ft
+                LEFT JOIN referee_stats rs ON ft.referee_name = rs.name
+                WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 140 MINUTE)
+                  AND ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+                  AND ft.status NOT IN ('FT', 'AET', 'PEN', 'CANC', 'POSTPONED', 'FINISHED')
+                ORDER BY ft.fixture_date ASC
+            """)
+            db_fixtures = cursor.fetchall()
         except Exception as e_sync:
             print(f"⚠️ Erro ao acionar contingência de placares: {e_sync}")
 
     jogos_atualizados = 0
     oportunidades_geradas = 0
     alertas_gol_prematuro = 0
+    alertas_gols_ao_vivo = 0
 
     for fix in db_fixtures:
         fid = fix['fixture_id']
@@ -317,11 +417,17 @@ def main():
                         """, (status_estimado, elapsed_est, fid))
                         print(f"⏱️ [Relógio Estimado] #{fid} {h_team} vs {a_team} atualizado para {status_estimado} (~{elapsed_est}')")
             
-            # Se a partida já possuir placar em andamento no banco (via contingência), avalia Under:
+            # Se a partida já possuir placar em andamento no banco (via contingência), avalia gols e Under:
             if fix.get('goals_home') is not None and fix.get('goals_away') is not None:
+                gh_db = fix['goals_home']
+                ga_db = fix['goals_away']
+                el_db = fix.get('elapsed')
+                st_db = fix.get('status')
+                alertas_gols_ao_vivo += notificar_gol_ao_vivo(
+                    cursor, target_uid, fid, h_team, a_team, gh_db, ga_db, el_db, st_db
+                )
                 alertas_gol_prematuro += avaliar_risco_under(
-                    cursor, target_uid, fid, h_team, a_team,
-                    fix['goals_home'], fix['goals_away'], fix.get('elapsed')
+                    cursor, target_uid, fid, h_team, a_team, gh_db, ga_db, el_db
                 )
             continue
 
@@ -388,16 +494,23 @@ def main():
                         oportunidades_geradas += 1
                     break
 
-        # C) Alerta de Risco In-Play: Gol Prematuro em Apostas Under Gols Asiáticos
+        # C) Alerta de Gols Ao Vivo (Tempo Real)
+        alertas_gols_ao_vivo += notificar_gol_ao_vivo(
+            cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed, live_status
+        )
+
+        # D) Alerta de Risco In-Play: Gol Prematuro em Apostas Under Gols Asiáticos
         alertas_gol_prematuro += avaliar_risco_under(
             cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
         )
 
+    conn.commit()
     conn.close()
     print("-" * 70)
     print(f"📊 Resumo In-Play Betano:")
     print(f"   • Partidas atualizadas com placar/minuto real: {jogos_atualizados}")
     print(f"   • Novas oportunidades ao vivo alertadas: {oportunidades_geradas}")
+    print(f"   • Alertas de Gols ao Vivo emitidos: {alertas_gols_ao_vivo}")
     print(f"   • Alertas de risco Under (Gol Prematuro) emitidos: {alertas_gol_prematuro}")
     print("=" * 70)
 

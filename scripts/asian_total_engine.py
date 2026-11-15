@@ -595,6 +595,9 @@ def sync_fixture_and_bet_goals(
         valor_aposta = round(user_stake, user_decimais)
         retorno_potencial = round(valor_aposta * odd, user_decimais)
 
+        ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
+        ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
+
         cursor.execute("""
             INSERT INTO apostas (
                 usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora,
@@ -612,8 +615,8 @@ def sync_fixture_and_bet_goals(
                 %s, %s, 'Pendente', %s,
                 %s, %s,
                 'CONFIRMADO',
-                'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)',
-                'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.',
+                %s,
+                %s,
                 NOW(), 1,
                 NOW(), NOW()
             )
@@ -622,7 +625,8 @@ def sync_fixture_and_bet_goals(
             palpite, odd, fair_odd,
             prob, ev,
             valor_aposta, retorno_potencial, confirmada,
-            reasoning, data_jogo
+            reasoning, data_jogo,
+            ia_resumo, ia_parecer
         ))
         aposta_id = cursor.lastrowid
 

@@ -1697,15 +1697,17 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # Governança de Isolamento: Mercado de Gols Asiáticos opera sob Matemática Pura de Poisson
             if 'gol' in mercado_str or 'gol' in palpite_str:
                 print(f"ℹ️ [Sentinela IA] Aposta #{aposta_id} é do mercado de Gols Asiáticos. Isolada de auditoria qualitativa (Regra Matemática Pura).")
+                ia_gols_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
+                ia_gols_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
                 cursor.execute("""
                     UPDATE apostas SET
                         auditoria_ia_status = 'CONFIRMADO',
-                        auditoria_ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)',
-                        auditoria_ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.',
+                        auditoria_ia_resumo = %s,
+                        auditoria_ia_parecer = %s,
                         auditoria_ia_checked_at = NOW(),
                         notificacao_escalacao_enviada = 1
                     WHERE id = %s
-                """, (aposta_id,))
+                """, (ia_gols_resumo, ia_gols_parecer, aposta_id))
                 conn.commit()
                 continue
 

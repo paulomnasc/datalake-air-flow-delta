@@ -36,6 +36,61 @@
         </div>
     </div>
 
+    <!-- BARRA DE GESTÃO DO CICLO DE BANCA (MARCO ZERO: 09/11/2026 21:09 • $15.67 USDT) -->
+    <?php if (!empty($metricasCiclo) && !empty($metricasCiclo['has_ciclo'])): ?>
+    <div class="p-3 rounded-3 mb-3 border border-info border-opacity-30" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-info bg-opacity-20 text-info" style="width: 44px; height: 44px; font-size: 1.3rem;">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2">
+                        <strong class="text-white font-monospace fs-6"><?= htmlspecialchars($metricasCiclo['nome_ciclo']) ?></strong>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 font-monospace" style="font-size: 0.68rem;">ATIVO</span>
+                    </div>
+                    <span class="text-white-50 small d-block font-monospace" style="font-size: 0.75rem;">
+                        Ponto de Corte: <span class="text-white"><?= $metricasCiclo['data_inicio_fmt'] ?></span> • Aporte Base: <strong class="text-info"><?= $metricasCiclo['deposito_inicial_fmt'] ?> <?= $metricasCiclo['moeda'] ?></strong>
+                    </span>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center gap-4">
+                <div class="text-end">
+                    <span class="text-white-50 small d-block font-monospace" style="font-size: 0.72rem;">SALDO DISPONÍVEL</span>
+                    <strong class="text-white fs-5 font-monospace" id="ciclo-saldo-disp"><?= $metricasCiclo['saldo_disponivel_fmt'] ?></strong>
+                    <span class="text-info small font-monospace"><?= $metricasCiclo['moeda'] ?></span>
+                </div>
+
+                <div class="text-end border-start border-secondary border-opacity-25 ps-3">
+                    <span class="text-white-50 small d-block font-monospace" style="font-size: 0.72rem;">EM CAMPO (AO VIVO)</span>
+                    <strong class="text-warning fs-5 font-monospace" id="ciclo-capital-campo"><?= $metricasCiclo['capital_em_campo_fmt'] ?></strong>
+                    <span class="text-warning small font-monospace"><?= $metricasCiclo['moeda'] ?></span>
+                </div>
+
+                <div class="text-end border-start border-secondary border-opacity-25 ps-3">
+                    <span class="text-white-50 small d-block font-monospace" style="font-size: 0.72rem;">PATRIMÔNIO TOTAL</span>
+                    <strong class="text-success fs-5 font-monospace" id="ciclo-patrimonio-total"><?= $metricasCiclo['patrimonio_total_fmt'] ?></strong>
+                    <span class="text-success small font-monospace"><?= $metricasCiclo['moeda'] ?></span>
+                </div>
+
+                <div class="text-end border-start border-secondary border-opacity-25 ps-3">
+                    <span class="text-white-50 small d-block font-monospace" style="font-size: 0.72rem;">EVOLUÇÃO DO CICLO</span>
+                    <span class="badge <?= $metricasCiclo['crescimento_banca_pct'] >= 0 ? 'bg-success' : 'bg-danger' ?> fs-6 font-monospace px-2.5 py-1" id="ciclo-crescimento-badge">
+                        <?= ($metricasCiclo['crescimento_banca_pct'] >= 0 ? '+' : '') . number_format($metricasCiclo['crescimento_banca_pct'], 1) ?>%
+                    </span>
+                </div>
+
+                <div class="ps-2">
+                    <a href="<?= base_url('conta-corrente/extrato?ciclo=1') ?>" class="btn btn-outline-info btn-sm d-flex align-items-center gap-1 font-monospace" style="border-radius: 6px; font-size: 0.78rem;">
+                        <i class="bi bi-graph-up"></i> Extrato do Ciclo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- CARDS DE MÉTRICAS CONSOLIDADAS (KPIs) -->
     <div class="row g-2 mb-4">
         <!-- 1. Apostas em Jogo -->
@@ -419,6 +474,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('kpi-total-cashout').textContent = data.totalAlertasCashout;
                     
                     if (lastSyncTime) lastSyncTime.textContent = data.timestamp;
+
+                    // Atualiza Métricas do Ciclo de Banca se presente
+                    if (data.metricasCiclo && data.metricasCiclo.has_ciclo) {
+                        const mc = data.metricasCiclo;
+                        const elSaldo = document.getElementById('ciclo-saldo-disp');
+                        const elCampo = document.getElementById('ciclo-capital-campo');
+                        const elPatrimonio = document.getElementById('ciclo-patrimonio-total');
+                        const elBadge = document.getElementById('ciclo-crescimento-badge');
+                        if (elSaldo) elSaldo.textContent = mc.saldo_disponivel_fmt;
+                        if (elCampo) elCampo.textContent = mc.capital_em_campo_fmt;
+                        if (elPatrimonio) elPatrimonio.textContent = mc.patrimonio_total_fmt;
+                        if (elBadge) {
+                            const sign = mc.crescimento_banca_pct >= 0 ? '+' : '';
+                            elBadge.textContent = `${sign}${mc.crescimento_banca_pct.toFixed(1)}%`;
+                            elBadge.className = `badge ${mc.crescimento_banca_pct >= 0 ? 'bg-success' : 'bg-danger'} fs-6 font-monospace px-2.5 py-1`;
+                        }
+                    }
 
                     // Re-renderiza Cards no DOM
                     renderizarCards(data.cards);

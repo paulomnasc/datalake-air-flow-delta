@@ -488,10 +488,12 @@ class ContaCorrenteModel extends Model
         $builder = $db->table($this->table)->where('usuario_id', $usuarioId);
 
         if (!empty($dataInicio)) {
-            $builder->where('criado_em >=', $dataInicio . ' 00:00:00');
+            $dtInicioSql = (strlen($dataInicio) === 10) ? $dataInicio . ' 00:00:00' : $dataInicio;
+            $builder->where('criado_em >=', $dtInicioSql);
         }
         if (!empty($dataFim)) {
-            $builder->where('criado_em <=', $dataFim . ' 23:59:59');
+            $dtFimSql = (strlen($dataFim) === 10) ? $dataFim . ' 23:59:59' : $dataFim;
+            $builder->where('criado_em <=', $dtFimSql);
         }
         if (!empty($tipo)) {
             $builder->where('tipo', $tipo);
@@ -556,18 +558,21 @@ class ContaCorrenteModel extends Model
     /**
      * Dados consolidados para o Gráfico de Evolução Financeira da Conta Corrente
      */
-    public function getEvolucaoFinanceira(int $usuarioId, ?string $dataInicio = null, ?string $dataFim = null): array
+    public function getEvolucaoFinanceira(int $usuarioId, ?string $dataInicio = null, ?string $dataFim = null, ?float $saldoBaseOverride = null): array
     {
         $db = \Config\Database::connect();
 
         $saldoInicial = 0.0;
 
-        // Se houver filtro por data_inicio, recupera o saldo acumulado antes do período
-        if (!empty($dataInicio)) {
+        if ($saldoBaseOverride !== null) {
+            $saldoInicial = (float)$saldoBaseOverride;
+        } elseif (!empty($dataInicio)) {
+            // Se houver filtro por data_inicio, recupera o saldo acumulado antes do período
+            $dtInicioBefore = (strlen($dataInicio) === 10) ? $dataInicio . ' 00:00:00' : $dataInicio;
             $qBefore = $db->table($this->table)
                 ->select('saldo_posterior')
                 ->where('usuario_id', $usuarioId)
-                ->where('criado_em <', $dataInicio . ' 00:00:00')
+                ->where('criado_em <', $dtInicioBefore)
                 ->orderBy('criado_em', 'DESC')
                 ->orderBy('id', 'DESC')
                 ->limit(1)
@@ -582,10 +587,12 @@ class ContaCorrenteModel extends Model
         $builder = $db->table($this->table)->where('usuario_id', $usuarioId);
 
         if (!empty($dataInicio)) {
-            $builder->where('criado_em >=', $dataInicio . ' 00:00:00');
+            $dtInicioSql = (strlen($dataInicio) === 10) ? $dataInicio . ' 00:00:00' : $dataInicio;
+            $builder->where('criado_em >=', $dtInicioSql);
         }
         if (!empty($dataFim)) {
-            $builder->where('criado_em <=', $dataFim . ' 23:59:59');
+            $dtFimSql = (strlen($dataFim) === 10) ? $dataFim . ' 23:59:59' : $dataFim;
+            $builder->where('criado_em <=', $dtFimSql);
         }
 
         $qRows = $builder->orderBy('criado_em', 'ASC')
@@ -604,18 +611,20 @@ class ContaCorrenteModel extends Model
         $acumRetornos = 0.0;
 
         $dec = $this->getDecimais();
+        $runningBalance = $saldoInicial;
 
-        // Se houver filtro de data_inicio, adiciona o ponto inicial do gráfico (Saldo Inicial do Período)
-        if (!empty($dataInicio)) {
-            $dtInicialLabel = date('d/m/Y H:i', strtotime($dataInicio . ' 00:00:00'));
+        // Se houver filtro de data_inicio ou saldoBaseOverride, adiciona o ponto inicial do gráfico (Saldo Inicial do Período)
+        if (!empty($dataInicio) || $saldoBaseOverride !== null) {
+            $dtRef = !empty($dataInicio) ? ((strlen($dataInicio) === 10) ? $dataInicio . ' 00:00:00' : $dataInicio) : date('Y-m-d H:i:s');
+            $dtInicialLabel = date('d/m/Y H:i', strtotime($dtRef));
             $labels[] = $dtInicialLabel;
             $saldoEvolucao[] = round($saldoInicial, $dec);
             $creditosAdicionadosAcum[] = 0.0;
             $retornosApostasAcum[] = 0.0;
 
             $rawItems[] = [
-                'criado_em'       => $dataInicio . ' 00:00:00',
-                'tipo'            => 'SALDO_INICIAL',
+                'criado_em'       => $dtRef,
+                'tipo'            => 'MARCO_ZERO',
                 'valor'           => 0.0,
                 'saldo_posterior' => round($saldoInicial, $dec)
             ];
@@ -631,8 +640,18 @@ class ContaCorrenteModel extends Model
                 $acumRetornos += $val;
             }
 
+            if ($saldoBaseOverride !== null) {
+                // Se for o lançamento inicial de pareamento, não subtrai da banca base
+                if ($r->tipo !== 'RESGATE_CREDITO' || !stripos($r->descricao, 'pareamento')) {
+                    $runningBalance += $val;
+                }
+                $saldoAtualPonto = round($runningBalance, $dec);
+            } else {
+                $saldoAtualPonto = (float)$r->saldo_posterior;
+            }
+
             $labels[] = $dt;
-            $saldoEvolucao[] = (float)$r->saldo_posterior;
+            $saldoEvolucao[] = $saldoAtualPonto;
             $creditosAdicionadosAcum[] = round($acumCreditos, $dec);
             $retornosApostasAcum[] = round($acumRetornos, $dec);
 
@@ -640,7 +659,7 @@ class ContaCorrenteModel extends Model
                 'criado_em'       => $r->criado_em,
                 'tipo'            => $r->tipo,
                 'valor'           => $val,
-                'saldo_posterior' => (float)$r->saldo_posterior
+                'saldo_posterior' => $saldoAtualPonto
             ];
         }
 

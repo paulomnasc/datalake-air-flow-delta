@@ -72,9 +72,20 @@ class ContaCorrenteController extends BaseController
         $dataInicio = trim((string)$this->request->getGet('data_inicio'));
         $dataFim    = trim((string)$this->request->getGet('data_fim'));
         $tipo       = trim((string)$this->request->getGet('tipo'));
+        $filtrarCiclo = ($this->request->getGet('ciclo') === '1');
 
-        $extratoData = $this->contaCorrenteModel->getExtrato($userId, $dataInicio, $dataFim, $tipo);
-        $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId, $dataInicio, $dataFim);
+        $bancaCicloModel = new \App\Models\BancaCicloModel();
+        $cicloAtivo = $bancaCicloModel->getCicloAtivo($userId);
+        $metricasCiclo = $bancaCicloModel->getMetricasCiclo($userId);
+
+        if ($filtrarCiclo && $cicloAtivo) {
+            $dataInicio = $cicloAtivo->data_inicio;
+            $extratoData = $this->contaCorrenteModel->getExtrato($userId, $dataInicio, $dataFim, $tipo);
+            $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId, $dataInicio, $dataFim, (float)$cicloAtivo->deposito_inicial);
+        } else {
+            $extratoData = $this->contaCorrenteModel->getExtrato($userId, $dataInicio, $dataFim, $tipo);
+            $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId, $dataInicio, $dataFim);
+        }
 
         // Identifica a moeda corrente ativa no sistema
         $moedaConfigModel = new \App\Models\MoedaConfigModel();
@@ -105,7 +116,10 @@ class ContaCorrenteController extends BaseController
             'activeDecimais'     => $activeDecimais,
             'activeCotacao'      => $activeCotacao,
             'isCryptoActive'     => $isCryptoActive,
-            'moedaAtivaObj'      => $moedaAtivaObj
+            'moedaAtivaObj'      => $moedaAtivaObj,
+            'cicloAtivo'         => $cicloAtivo,
+            'metricasCiclo'      => $metricasCiclo,
+            'filtrarCiclo'       => $filtrarCiclo
         ];
 
         return view('header', $data)

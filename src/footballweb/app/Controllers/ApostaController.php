@@ -5342,6 +5342,9 @@ class ApostaController extends BaseController
 
         $dadosLive = $this->obterColecaoObservabilidade($userId, $db);
 
+        $bancaCicloModel = new \App\Models\BancaCicloModel();
+        $metricasCiclo = $bancaCicloModel->getMetricasCiclo($userId);
+
         $data = [
             'title'               => 'Observabilidade Ao Vivo • Play in Live',
             'cards'               => $dadosLive['cards'],
@@ -5353,6 +5356,7 @@ class ApostaController extends BaseController
             'totalAmarelo'        => $dadosLive['totalAmarelo'],
             'totalVermelho'       => $dadosLive['totalVermelho'],
             'moedaPadrao'         => $dadosLive['moedaPadrao'],
+            'metricasCiclo'       => $metricasCiclo,
         ];
 
         return view('football/observabilidade_live', $data);
@@ -5372,6 +5376,9 @@ class ApostaController extends BaseController
 
         $dadosLive = $this->obterColecaoObservabilidade($userId, $db);
 
+        $bancaCicloModel = new \App\Models\BancaCicloModel();
+        $metricasCiclo = $bancaCicloModel->getMetricasCiclo($userId);
+
         return $this->response->setJSON([
             'status'              => 'success',
             'timestamp'           => date('H:i:s'),
@@ -5383,6 +5390,7 @@ class ApostaController extends BaseController
             'totalAmarelo'        => $dadosLive['totalAmarelo'],
             'totalVermelho'       => $dadosLive['totalVermelho'],
             'moedaPadrao'         => $dadosLive['moedaPadrao'],
+            'metricasCiclo'       => $metricasCiclo,
             'cards'               => $dadosLive['cards']
         ]);
     }

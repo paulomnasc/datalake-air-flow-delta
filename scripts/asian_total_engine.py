@@ -414,13 +414,13 @@ def evaluate_and_select_best_goals_candidate(
         ev_pct = cand['ev_pct']
         prob = cand['prob_efetiva']
 
-        # 1. Filtro Sweet Spot de Odd
-        if odd < 1.60 or odd > 2.30:
+        # 1. Filtro Sweet Spot de Odd Conservador (Alta Assertividade 1.50 a 1.95)
+        if odd < 1.50 or odd > 1.95:
             continue
 
         # 2. Trava de Sanidade de Mercado (Full Time 90 min)
         # Em 90 minutos de jogo, linhas de Over <= 1.25 JAMAIS pagam acima de 1.50 em pré-jogo.
-        # Se uma linha Over <= 1.25 possuir odd no sweet spot (1.60-2.30), trata-se de mercado parcial contaminado (1º tempo ou time individual).
+        # Se uma linha Over <= 1.25 possuir odd no sweet spot (1.50-1.95), trata-se de mercado parcial contaminado (1º tempo ou time individual).
         if c_type == 'Over' and line <= 1.25:
             continue
         # Da mesma forma, Under >= 4.0 não tem liquidez no sweet spot em ligas regulares
@@ -433,8 +433,8 @@ def evaluate_and_select_best_goals_candidate(
         if c_type == 'Under' and has_superfavorite:
             continue
 
-        # 4. Filtro de Valor Esperado e Probabilidade
-        if ev_pct < 3.0 or prob < 52.0:
+        # 4. Filtro de Valor Esperado e Probabilidade Rigorosa (Piso de 60.0% para Alta Assertividade)
+        if ev_pct < 3.0 or prob < 60.0:
             continue
 
         # 5. Filtro de Consistência Tática e de Mercado
@@ -448,10 +448,10 @@ def evaluate_and_select_best_goals_candidate(
         approved_list.append(cand)
 
     if not approved_list:
-        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha com valor esperado (+EV >= 3.0%) no Sweet Spot (1.65 - 2.25)."
+        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.50 - 1.95)."
 
-    # Ordenação por maior EV% e, em caso de empate, maior probabilidade efetiva
-    approved_list.sort(key=lambda x: (x['ev_pct'], x['prob_efetiva']), reverse=True)
+    # Ordenação Soberana por Maior Probabilidade Efetiva (Win-Rate First) e desempate por maior EV%
+    approved_list.sort(key=lambda x: (x['prob_efetiva'], x['ev_pct']), reverse=True)
     best_cand = approved_list[0]
 
     tipo_str = "Mais de" if best_cand['type'] == 'Over' else "Menos de"
@@ -850,14 +850,14 @@ def cli_evaluate_goals_bet(
                 status_gk = "NO_BET"
                 cat_gk = "Risco Extremo de Goleada (Superfavorito)"
                 msg_gk = f"Gatekeeper Gols (NO_BET): Entrada em Under bloqueada para partidas com superfavorito nominal (odd 1X2 <= 1.20)."
-            elif odd < 1.60 or odd > 2.30:
+            elif odd < 1.50 or odd > 1.95:
                 status_gk = "NO_BET"
                 cat_gk = "Odd Fora do Sweet Spot"
-                msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.60 a 2.30)."
-            elif ev_pct < 3.0 or prob_eff < 52.0:
+                msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.50 a 1.95)."
+            elif ev_pct < 3.0 or prob_eff < 60.0:
                 status_gk = "NO_BET"
-                cat_gk = "Sem Valor Esperado (+EV)"
-                msg_gk = f"Gatekeeper Gols (NO_BET): Probabilidade ({prob_eff:.1f}%) ou Valor Esperado (+EV {ev_pct:.1f}%) insuficientes."
+                cat_gk = "Sem Valor Esperado (+EV) ou Probabilidade Baixa"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Probabilidade ({prob_eff:.1f}%) abaixo de 60.0% ou Valor Esperado (+EV {ev_pct:.1f}%) abaixo de +3.0%."
 
             return {
                 "fixtureId": fix['fixture_id'],

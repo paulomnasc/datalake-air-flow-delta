@@ -771,7 +771,7 @@ def evaluate_and_select_best_ah_candidate(
     odd_home: float,
     odd_away: float,
     min_ev: float = 5.0,
-    min_prob: float = 58.0,
+    min_prob: float = 60.0,
     home_team_id: int = None,
     away_team_id: int = None,
     home_last5: dict = None,
@@ -978,6 +978,7 @@ def evaluate_and_select_best_ah_candidate(
         is_cand_false_dog_dominant = (
             not c_is_away and
             (cand_odd > opp_odd or cand_odd >= 2.40) and
+            cand_odd <= 2.75 and
             cand_pts_eff >= 8.0 and
             has_30pct_u5j_dominance and
             cand_trend != "CURVA_DESCENDENTE" and
@@ -1449,9 +1450,9 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # Faixa de odd segura operacional: piso mínimo de 1.50 para Apostas Premium e 1.60 para as demais
-        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.60)
-        max_op_odd = 2.75 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else 2.55
+        # Faixa de odd segura operacional: piso mínimo de 1.45/1.50 e teto conservador de 1.95 (Alta Assertividade)
+        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.55)
+        max_op_odd = 1.95
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 
@@ -2153,7 +2154,7 @@ def calculate_unified_handicap_recommendation(
 
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
-        min_ev=5.0, min_prob=58.0,
+        min_ev=5.0, min_prob=60.0,
         home_team_id=h_tid, away_team_id=a_tid,
         home_last5=h_l5, away_last5=a_l5,
         xg_home=xg_h, xg_away=xg_a,

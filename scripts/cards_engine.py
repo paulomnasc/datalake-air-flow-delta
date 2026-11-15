@@ -729,15 +729,9 @@ def evaluate_elite_over_cards_line(
     cursor = None
 ):
     """
-    Avalia estritamente o Cenário de Elite: Mais de 3.5 Cartões (+EV com Árbitro Rigoroso).
-    Regras de Ouro:
-    1. Linha estritamente Mais de 3.5 Cartões (Over 4.5 e 5.5 permanecem bloqueadas).
-    2. Árbitro oficial confirmado com rigor comprovado (média amarelos >= 4.20 ou faltas >= 22.0).
-    3. Expectativa disciplinar da partida (xC) >= 4.20 cartões.
-    4. Sweet Spot de odd real de bookmaker: 1.55 <= odd <= 1.95 (sem odds sintéticas - Regra 12).
-    5. Probabilidade Poisson >= 62.0% e Valor Esperado (+EV) >= 5.0%.
-    Retorna tupla: (candidate_dict, reason_str)
+    Avaliação de Over Cartões DESATIVADA: Estratégia 100% restrita ao mercado Under Cartões.
     """
+    return None, "🛡️ [Gatekeeper Cartões NO_BET] Estratégia de Cartões restrita exclusivamente ao mercado Under Cartões para salvaguarda de banca e maximização da assertividade."
     if not is_referee_confirmed:
         return None, "🛡️ [Gatekeeper Cartões NO_BET / Sem Árbitro Definido] Partida sem árbitro oficial confirmado na escala."
 
@@ -1053,23 +1047,9 @@ def evaluate_best_card_under_line(
             selected_cand = cand_copy
             break
 
-    # Se nenhum candidato Under foi aprovado, avalia o Cenário de Elite: Mais de 3.5 Cartões (+EV com Árbitro Rigoroso)
+    # Estratégia de Cartões 100% restrita a Under: Se nenhum candidato Under foi aprovado, NO_BET mandatório
     if not selected_cand:
-        elite_over_cand, elite_over_reason = evaluate_elite_over_cards_line(
-            exp_cards=exp_cards,
-            fixture_id=fixture_id,
-            allow_api=allow_api,
-            referee_cards_avg=referee_cards_avg,
-            home_team=home_team,
-            away_team=away_team,
-            is_referee_confirmed=is_referee_confirmed,
-            fixture_dict=fixture_dict
-        )
-        if elite_over_cand:
-            selected_cand = elite_over_cand
-            valid_candidates = [selected_cand]
-            pred_text = f"🎯 Estratégia Over de Elite (Expectativa: {exp_cards} cartões). Sugestão de valor: {selected_cand['label']} ({selected_cand['prob']}% | Odd Justa: {selected_cand['odd_justa']} | Odd Real: {selected_cand['real_odd']} @ {selected_cand['bookmaker']})."
-            return selected_cand, valid_candidates, pred_text, over_cards_prob
+        pass
 
     # Monta texto estruturado de prediction_text
     if valid_candidates and selected_cand:

@@ -524,79 +524,11 @@ class ApostaController extends BaseController
             }
         }
 
-        // AVALIAÇÃO DE CARTÕES OVER (Cenário de Elite Mais de 3.5 vs Aviso de Risco Padrão)
+        // AVALIAÇÃO DE CARTÕES OVER (DESATIVADA - ESTRATÉGIA 100% EXCLUSIVA UNDER CARTÕES)
         if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
-            $isOver35 = (bool)preg_match('/(?:mais|over)\s*(?:de\s*)?3\.5/i', $palpite);
-
-            if ($isOver35 && $fixture) {
-                // 1. Árbitro oficial confirmado e rigor comprovado
-                $refName = !empty($fixture->referee_name) ? trim($fixture->referee_name) : '';
-                $isUnknownRef = empty($refName) 
-                    || stripos($refName, 'Não Informado') !== false 
-                    || stripos($refName, 'Desconhecido') !== false 
-                    || stripos($refName, 'unassigned') !== false 
-                    || stripos($refName, 'tbd') !== false
-                    || stripos($refName, 'sem arbitro') !== false;
-
-                $refYellows = 0.0;
-                $refFouls = 0.0;
-                if (!$isUnknownRef) {
-                    $refRow = $db->table('referee_stats')
-                        ->groupStart()
-                            ->where('name', $refName)
-                            ->orLike('name', $refName)
-                        ->groupEnd()
-                        ->orderBy('total_games', 'DESC')
-                        ->get()->getRow();
-                    if ($refRow) {
-                        $refYellows = (float)($refRow->average_yellow_cards ?? 0.0);
-                        $refFouls = (float)($refRow->average_fouls ?? 0.0);
-                    }
-                }
-
-                $isRefRigoroso = (!$isUnknownRef && ($refYellows >= 4.20 || $refFouls >= 22.0));
-
-                // 2. Expectativa disciplinar da partida xC >= 4.20
-                $xc = null;
-                if (!empty($fixture->prediction_text)) {
-                    if (preg_match('/(?:xC|Expectativa)(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $mXc)) {
-                        $xc = (float)$mXc[1];
-                    }
-                }
-                if ($xc === null && $refYellows > 0) {
-                    $xc = $refYellows;
-                }
-
-                $isXcTense = ($xc !== null && $xc >= 4.20);
-
-                // 3. Sweet Spot da Odd Real (1.55 a 1.95)
-                $isSweetSpot = ($odd >= 1.55 && $odd <= 1.95);
-
-                // 4. Probabilidade Poisson >= 62.0% e +EV >= 5.0%
-                if ($isRefRigoroso && $isXcTense && $isSweetSpot) {
-                    $probUnder3 = 0.0;
-                    for ($k = 0; $k <= 3; $k++) {
-                        $probUnder3 += (exp(-$xc) * pow($xc, $k)) / $this->factorial($k);
-                    }
-                    $probOver35 = round(min(100.0, max(0.0, (1.0 - $probUnder3) * 100.0)), 2);
-                    $oddJusta = ($probOver35 > 0) ? round(100.0 / $probOver35, 2) : 99.0;
-                    $evPercentual = round((($probOver35 / 100.0) * $odd - 1.0) * 100.0, 2);
-                    $probPoisson = $probOver35;
-
-                    if ($probPoisson >= 62.0 && $evPercentual >= 5.0) {
-                        $statusGatekeeper = 'APROVADO';
-                        $gatekeeperCategory = 'Over 3.5 Cartões de Elite (+EV)';
-                        $gatekeeperMsg = "🎯 GATEKEEPER CARTÕES APROVADO (+EV +{$evPercentual}%): Cenário de Elite Mais de 3.5 Cartões (+EV com Árbitro Rigoroso) | Linha Over 3.5 @ {$odd} vs Odd Justa {$oddJusta} (Prob: {$probPoisson}%) | xC: {$xc} | Árbitro: {$refName} ({$refYellows} amarelos / {$refFouls} faltas/jogo).";
-                        $destaque = 1;
-                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
-                    }
-                }
-            }
-
-            // Fallback padrão para outros cenários de Over
             $statusGatekeeper = 'AVISO_RISCO_OVER';
             $gatekeeperCategory = 'Aviso de Risco Over';
-            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas o cenário de elite Over 3.5 com árbitro rigoroso e +EV é passível de aprovação. Deseja prosseguir mesmo com o risco apontado?";
+            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under Cartões): O mercado de cartões opera com foco restrito em Under Cartões para salvaguarda de banca e alta assertividade. Entradas em Over Cartões não são recomendadas pela esteira.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
         }
 

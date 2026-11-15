@@ -177,7 +177,8 @@ def processar_alertas_5_minutos():
                    ft.home_team, ft.away_team, ft.league_name, ft.fixture_date, ft.status as fixture_status
             FROM apostas a
             JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
-            WHERE a.status IN ('Pendente', 'Não Confirmada')
+            WHERE a.status = 'Pendente'
+              AND a.confirmada = 1
               AND ft.status IN ('NS', 'TBD', 'POSTP')
               AND ft.fixture_date BETWEEN UTC_TIMESTAMP() 
                                       AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 6 MINUTE)

@@ -179,6 +179,7 @@ def avaliar_risco_under(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
         FROM apostas
         WHERE fixture_id = %s
           AND status = 'Pendente'
+          AND confirmada = 1
           AND (mercado = 'Gols Asiáticos' OR palpite LIKE 'Menos de %% Gols%%')
           AND palpite LIKE 'Menos de %%'
     """, (fid,))
@@ -260,13 +261,15 @@ def notificar_gol_ao_vivo(cursor, target_uid, fid, h_team, a_team, gh, ga, elaps
     if cursor.fetchone():
         return 0
 
-    # Busca se o usuário possui aposta pendente nesta partida
+    # Busca se o usuário possui aposta pendente e confirmada nesta partida
     cursor.execute("""
         SELECT id, mercado, palpite, odd, valor_aposta, moeda_codigo
         FROM apostas
         WHERE fixture_id = %s
           AND usuario_id = %s
           AND status = 'Pendente'
+          AND confirmada = 1
+          AND (mercado IN ('Gols Asiáticos', 'Handicap Asiático') OR palpite LIKE '%%Gol%%' OR palpite LIKE '%%AH%%' OR palpite LIKE '%%Handicap%%')
         ORDER BY id DESC
     """, (fid, target_uid))
     active_bets = cursor.fetchall()

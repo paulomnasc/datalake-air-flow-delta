@@ -1144,6 +1144,15 @@ class ApostaController extends BaseController
                 ]);
             }
 
+            // Se a aposta saiu do status 'Pendente', silencia/marca como lidas as notificações pendentes desta aposta
+            if ($status !== 'Pendente') {
+                $dbSilenciar = \Config\Database::connect();
+                $dbSilenciar->table('notificacoes_usuario')
+                    ->where('aposta_id', $apostaId)
+                    ->where('lida', 0)
+                    ->update(['lida' => 1]);
+            }
+
             // Credita o retorno na Conta Corrente apenas se a aposta estiver confirmada e com débito prévio registrado
             if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
                 $isConfirmada = (isset($aposta->confirmada) && (int)$aposta->confirmada === 1);
@@ -1633,6 +1642,12 @@ class ApostaController extends BaseController
             'resultado_detalhado' => $motivo,
             'updated_at'          => date('Y-m-d H:i:s')
         ]);
+
+        // Silencia/marca como lidas as notificações da aposta cancelada
+        $db->table('notificacoes_usuario')
+            ->where('aposta_id', $apostaId)
+            ->where('lida', 0)
+            ->update(['lida' => 1]);
 
         $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
 
@@ -4351,22 +4366,26 @@ class ApostaController extends BaseController
             log_message('error', '[StopLoss Alerta] Falha ao verificar stop loss no sininho: ' . $e->getMessage());
         }
 
-        // Contar total de não lidas para o usuário (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
+        // Contar total de não lidas para o usuário (apenas alertas de hoje ou sem fixture, excluindo cancelamentos e apostas que não estejam Pendentes)
         $totalNaoLidas = $db->table('notificacoes_usuario n')
             ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
+            ->join('apostas a', 'n.aposta_id = a.id', 'left')
             ->where('n.usuario_id', $userId)
             ->where('n.lida', 0)
             ->where("n.tipo != 'APOSTA_CANCELADA'")
             ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
+            ->where('(n.aposta_id IS NULL OR a.status = "Pendente")')
             ->countAllResults();
 
-        // Buscar as últimas 15 notificações (apenas alertas de hoje ou sem fixture, excluindo cancelamentos)
+        // Buscar as últimas notificações (apenas alertas de hoje ou sem fixture, excluindo cancelamentos e apostas que não estejam Pendentes)
         $notificacoes = $db->table('notificacoes_usuario n')
             ->select('n.*')
             ->join('fixtures_trends ft', 'n.fixture_id = ft.fixture_id', 'left')
+            ->join('apostas a', 'n.aposta_id = a.id', 'left')
             ->where('n.usuario_id', $userId)
             ->where("n.tipo != 'APOSTA_CANCELADA'")
             ->where('(n.fixture_id IS NULL OR DATE(CONVERT_TZ(ft.fixture_date, "+00:00", "-03:00")) = CURDATE())')
+            ->where('(n.aposta_id IS NULL OR a.status = "Pendente")')
             ->orderBy("CASE WHEN (n.pinada = 1 AND n.lida = 0) THEN 0 WHEN n.pinada = 1 THEN 1 ELSE 2 END", 'ASC', false)
             ->orderBy('n.criado_em', 'DESC', false)
             ->orderBy('n.id', 'DESC')

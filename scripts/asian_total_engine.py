@@ -414,13 +414,13 @@ def evaluate_and_select_best_goals_candidate(
         ev_pct = cand['ev_pct']
         prob = cand['prob_efetiva']
 
-        # 1. Filtro Sweet Spot de Odd Conservador (Alta Assertividade 1.50 a 1.95)
-        if odd < 1.50 or odd > 1.95:
+        # 1. Filtro Sweet Spot de Odd Conservador (Alta Assertividade 1.60 a 1.95)
+        if odd < 1.60 or odd > 1.95:
             continue
 
         # 2. Trava de Sanidade de Mercado (Full Time 90 min)
         # Em 90 minutos de jogo, linhas de Over <= 1.25 JAMAIS pagam acima de 1.50 em pré-jogo.
-        # Se uma linha Over <= 1.25 possuir odd no sweet spot (1.50-1.95), trata-se de mercado parcial contaminado (1º tempo ou time individual).
+        # Se uma linha Over <= 1.25 possuir odd no sweet spot (1.60-1.95), trata-se de mercado parcial contaminado (1º tempo ou time individual).
         if c_type == 'Over' and line <= 1.25:
             continue
         # Da mesma forma, Under >= 4.0 não tem liquidez no sweet spot em ligas regulares
@@ -448,7 +448,7 @@ def evaluate_and_select_best_goals_candidate(
         approved_list.append(cand)
 
     if not approved_list:
-        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.50 - 1.95)."
+        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.60 - 1.95)."
 
     # Ordenação Soberana por Maior Probabilidade Efetiva (Win-Rate First) e desempate por maior EV%
     approved_list.sort(key=lambda x: (x['prob_efetiva'], x['ev_pct']), reverse=True)
@@ -850,10 +850,10 @@ def cli_evaluate_goals_bet(
                 status_gk = "NO_BET"
                 cat_gk = "Risco Extremo de Goleada (Superfavorito)"
                 msg_gk = f"Gatekeeper Gols (NO_BET): Entrada em Under bloqueada para partidas com superfavorito nominal (odd 1X2 <= 1.20)."
-            elif odd < 1.50 or odd > 1.95:
+            elif odd < 1.60 or odd > 1.95:
                 status_gk = "NO_BET"
                 cat_gk = "Odd Fora do Sweet Spot"
-                msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.50 a 1.95)."
+                msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.60 a 1.95)."
             elif ev_pct < 3.0 or prob_eff < 60.0:
                 status_gk = "NO_BET"
                 cat_gk = "Sem Valor Esperado (+EV) ou Probabilidade Baixa"

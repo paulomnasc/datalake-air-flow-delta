@@ -344,6 +344,44 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
       display: block; /* Mostra o fundo */
     }
 
+    /* Estilos do Highlight Fixo: Sweet Spot Seguro */
+    .header-sticky-wrapper {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1040 !important;
+        width: 100% !important;
+    }
+    .sweet-spot-pulse-dot {
+        width: 16px;
+        height: 16px;
+        background-color: #10b981;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+        animation: sweetSpotDotGlow 1.4s infinite;
+    }
+    @keyframes sweetSpotDotGlow {
+        0% { transform: scale(0.90); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.9); }
+        70% { transform: scale(1.35); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.90); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .sweet-spot-blink-text {
+        animation: sweetSpotBlinkGlow 2.0s infinite ease-in-out;
+    }
+    @keyframes sweetSpotBlinkGlow {
+        0%, 100% {
+            opacity: 1;
+            color: #38bdf8;
+            text-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 28px rgba(56, 189, 248, 0.4);
+        }
+        50% {
+            opacity: 0.50;
+            color: #facc15;
+            text-shadow: 0 0 8px rgba(250, 204, 21, 0.6), 0 0 16px rgba(250, 204, 21, 0.3);
+        }
+    }
+
     #head-bar {
         background: url('<?= base_url("assets/img/header-banner.jpg"); ?>?v=<?= time() ?>') center/cover no-repeat !important;
         border: none;
@@ -684,8 +722,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     <!-- button class="nav-button" onclick="toggleSidebar()">☰</button-->
 
-    <!-- side bar -->
-    <nav class="navbar navbar-expand-lg bg-white navbar-light shadow sticky-top p-0">
+    <!-- CONTAINER STICKY UNIFICADO (NAVBAR + BANNER FIXADOS NO TOPO) -->
+    <div class="sticky-top shadow p-0 header-sticky-wrapper" style="z-index: 1020; width: 100%;">
+        <nav class="navbar navbar-expand-lg bg-white navbar-light p-0">
         
         <button type="button" class="navbar-toggler me-4" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
             <span class="navbar-toggler-icon"></span>
@@ -788,6 +827,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         </div>
     
     </nav>
+    <!-- fecha navbar -->
+
+    <!-- BARRA HIGHLIGHT FIXADA: SWEET SPOT SEGURO (LOGO ABAIXO DO MENU PRINCIPAL) -->
+    <div class="w-100 py-2.5 px-3 text-center sweet-spot-banner-wrapper" style="background: linear-gradient(90deg, #0b1120 0%, #1e293b 50%, #0b1120 100%); border-top: 2px solid rgba(56, 189, 248, 0.35); border-bottom: 3px solid #0284c7; box-shadow: 0 4px 16px rgba(0,0,0,0.45); position: relative; z-index: 1039;">
+        <div class="d-inline-flex align-items-center justify-content-center gap-3">
+            <span class="sweet-spot-pulse-dot"></span>
+            <span class="sweet-spot-blink-text fw-bold text-uppercase" style="font-size: 1.64rem; letter-spacing: 0.8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25;">
+                🎯 Sweet Spot seguro de 1.60 a 1.95
+            </span>
+        </div>
+    </div>
+</div>
+<!-- fecha sticky wrapper -->
     <!-- fecha sidebar -->
 
     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
@@ -1127,15 +1179,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         transform: scale(1.08);
     }
 
-    /* Blindagem Global contra Overflow Horizontal e Proteção da Navbar */
+    /* Blindagem Global contra Overflow Horizontal e Proteção do Header Fixo */
     html, body {
-        overflow-x: hidden !important;
+        overflow-x: clip !important;
         max-width: 100vw !important;
     }
-    .navbar.sticky-top {
+    .header-sticky-wrapper, .navbar.sticky-top {
         width: 100% !important;
         max-width: 100vw !important;
         box-sizing: border-box !important;
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1040 !important;
     }
 
     /* Barra Lateral Dock Retrátil Permanente no Canto Direito */

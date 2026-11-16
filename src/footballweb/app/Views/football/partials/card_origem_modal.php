@@ -361,8 +361,62 @@ $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($fix->league_id ?
 $leagueCountry = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : ($leagueInfo['country'] ?? '');
 $leagueFlag = $leagueInfo['flag'] ?? '';
 $displayLeague = $fix->league_name ?? 'Liga';
-$prob = !empty($fix->win_probability) ? (float)$fix->win_probability : 50.0;
-$class = ($prob >= 70) ? 'high' : (($prob >= 55) ? 'safe' : 'risky');
+
+// Resolução da Probabilidade Real e Configuração do Hint Explicativo (Regra 8)
+$prob = null;
+$probLabel = 'Confiança / Probabilidade Projetada';
+$probTooltip = 'Probabilidade matemática calculada pelo modelo preditivo (Poisson/Estatística) de a aposta recomendada bater. No nosso modelo de Alta Assertividade, operamos preferencialmente com probabilidades iguais ou superiores a 60% dentro do Sweet Spot (1.60 a 1.95).';
+
+// 1. Se aberto a partir de uma aposta selecionada ($aposta)
+if (!empty($aposta) && isset($aposta->probabilidade_poisson) && is_numeric($aposta->probabilidade_poisson) && (float)$aposta->probabilidade_poisson > 0) {
+    $prob = (float)$aposta->probabilidade_poisson;
+    $palpiteDesc = !empty($aposta->palpite) ? $aposta->palpite : (!empty($aposta->mercado) ? $aposta->mercado : 'Palpite');
+    $probLabel = 'Probabilidade do Palpite (' . $palpiteDesc . ')';
+    $probTooltip = 'Probabilidade estatística calculada pelo modelo Poisson para ' . $palpiteDesc . ' @ ' . number_format((float)($aposta->odd ?? 0), 2) . ' (' . number_format($prob, 1) . '%). Calculada pela esteira de valor esperado (+EV).';
+}
+
+// 2. Se houver palpite em Gols Asiáticos em $fix
+if ($prob === null && isset($fix->asian_total_prob) && is_numeric($fix->asian_total_prob) && (float)$fix->asian_total_prob > 0) {
+    $prob = (float)$fix->asian_total_prob;
+    $totalPick = !empty($fix->asian_total_pick) ? $fix->asian_total_pick : 'Gols Asiáticos';
+    $probLabel = 'Probabilidade Projetada (' . $totalPick . ')';
+    $probTooltip = 'Probabilidade matemática calculada pelo modelo para o mercado de ' . $totalPick . ' (' . number_format($prob, 1) . '%).';
+}
+
+// 3. Se houver recomendação ativa em Handicap Asiático
+if ($prob === null && isset($fix->ah_confidence) && is_numeric($fix->ah_confidence) && (float)$fix->ah_confidence > 0 && !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|no_bet)/i', $fix->ah_suggestion)) {
+    $prob = (float)$fix->ah_confidence;
+    $probLabel = 'Confiança Handicap (' . $fix->ah_suggestion . ')';
+    $probTooltip = 'Nível de confiança estatística do Gatekeeper para a linha ' . $fix->ah_suggestion . ' (' . number_format($prob, 1) . '%).';
+}
+
+// 4. Se for Cartões
+if ($prob === null && isset($fix->over_cards_probability) && is_numeric($fix->over_cards_probability) && (float)$fix->over_cards_probability > 0) {
+    $prob = (float)$fix->over_cards_probability;
+    $probLabel = 'Probabilidade Cartões';
+    $probTooltip = 'Probabilidade estimada para a linha de cartões da partida (' . number_format($prob, 1) . '%).';
+}
+
+// 5. Fallback: Probabilidade Implícita das Odds 1X2 ou Equilíbrio
+if ($prob === null) {
+    $oddH = (float)($fix->odd_home ?? 0);
+    $oddA = (float)($fix->odd_away ?? 0);
+    if ($oddH > 1.0 && ($oddA <= 1.0 || $oddH <= $oddA)) {
+        $prob = round((1.0 / $oddH) * 100, 1);
+        $probLabel = 'Probabilidade Implícita 1X2 (' . ($fix->home_team ?? 'Casa') . ')';
+        $probTooltip = 'Probabilidade implícita das cotações 1X2 para vitória do mandante (' . ($fix->home_team ?? 'Casa') . ' @ ' . number_format($oddH, 2) . '). Partida sem aposta ativa recomendada.';
+    } elseif ($oddA > 1.0) {
+        $prob = round((1.0 / $oddA) * 100, 1);
+        $probLabel = 'Probabilidade Implícita 1X2 (' . ($fix->away_team ?? 'Fora') . ')';
+        $probTooltip = 'Probabilidade implícita das cotações 1X2 para vitória do visitante (' . ($fix->away_team ?? 'Fora') . ' @ ' . number_format($oddA, 2) . '). Partida sem aposta ativa recomendada.';
+    } else {
+        $prob = 50.0;
+        $probLabel = 'Equilíbrio Teórico 1X2';
+        $probTooltip = 'Probabilidade matemática neutra. Não há aposta ativa aprovada e as forças do confronto estão equilibradas.';
+    }
+}
+
+$class = ($prob >= 65.0) ? 'high' : (($prob >= 55.0) ? 'safe' : 'risky');
 
 // Extração de U5J
 $u5j_data = null;
@@ -715,11 +769,14 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
         <span style="color: #a78bfa;">2 (Fora): <strong><?= number_format((float)($fix->odd_away ?? 0), 2) ?></strong></span>
       </div>
       <div class="mt-2 px-1">
-        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.70rem; color: #94a3b8;">
-          <span>Confiança / Probabilidade Projetada</span>
-          <strong class="text-info"><?= number_format($prob, 1) ?>%</strong>
+        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.70rem; color: #94a3b8; margin-bottom: 3px;">
+          <span style="display: inline-flex; align-items: center; gap: 4px; cursor: help;" title="<?= htmlspecialchars($probTooltip, ENT_QUOTES) ?>">
+            <span><?= htmlspecialchars($probLabel) ?></span>
+            <i class="bi bi-info-circle text-info" style="font-size: 0.75rem;"></i>
+          </span>
+          <strong class="<?= ($prob >= 65.0 ? 'text-success' : ($prob >= 55.0 ? 'text-info' : 'text-warning')) ?> fw-bold"><?= number_format($prob, 1) ?>%</strong>
         </div>
-        <div class="prob-bar-container">
+        <div class="prob-bar-container" title="<?= htmlspecialchars($probTooltip, ENT_QUOTES) ?>" style="cursor: help;">
           <div class="prob-bar-fill <?= $class ?>" style="width: <?= min(100, max(10, $prob)) ?>%;"></div>
         </div>
       </div>

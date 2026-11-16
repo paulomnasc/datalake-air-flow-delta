@@ -3470,46 +3470,158 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_home) && $fix->goals_home !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_home ?? '' ?></span>
                                             </div>
-                                            <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                            <?php
+                                                // Variáveis numéricas e estruturas de Eficiência e Mando U5J (Regra 8)
+                                                $effHomePts = 0.0;
+                                                $effAwayPts = 0.0;
+                                                $hasEffHome = false;
+                                                $hasEffAway = false;
+                                                $effHomeColor = '#94a3b8';
+                                                $effAwayColor = '#94a3b8';
+
+                                                if (!empty($u5j_data_pre['home'])) {
+                                                    if (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency'])) {
+                                                        $effHomePts = floatval($u5j_data_pre['home']['pts_efficiency']);
+                                                        $hasEffHome = true;
+                                                    } elseif (isset($u5j_data_pre['home']['pts']) && is_numeric($u5j_data_pre['home']['pts'])) {
+                                                        $effHomePts = floatval($u5j_data_pre['home']['pts']);
+                                                        $hasEffHome = true;
+                                                    }
+                                                    if ($effHomePts >= 5.0) {
+                                                        $effHomeColor = '#10b981';
+                                                    } elseif ($effHomePts >= 0.0) {
+                                                        $effHomeColor = '#38bdf8';
+                                                    } else {
+                                                        $effHomeColor = '#f87171';
+                                                    }
+                                                }
+
+                                                if (!empty($u5j_data_pre['away'])) {
+                                                    if (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency'])) {
+                                                        $effAwayPts = floatval($u5j_data_pre['away']['pts_efficiency']);
+                                                        $hasEffAway = true;
+                                                    } elseif (isset($u5j_data_pre['away']['pts']) && is_numeric($u5j_data_pre['away']['pts'])) {
+                                                        $effAwayPts = floatval($u5j_data_pre['away']['pts']);
+                                                        $hasEffAway = true;
+                                                    }
+                                                    if ($effAwayPts >= 5.0) {
+                                                        $effAwayColor = '#10b981';
+                                                    } elseif ($effAwayPts >= 0.0) {
+                                                        $effAwayColor = '#a78bfa';
+                                                    } else {
+                                                        $effAwayColor = '#f87171';
+                                                    }
+                                                }
+
+                                                // Inicialização mandatória de contadores locais de mando (Regra 8)
+                                                $hVenueWins = 0;
+                                                $hVenueDraws = 0;
+                                                $hVenueLosses = 0;
+                                                $hVenueGames = 0;
+                                                $hVenuePts = 0;
+                                                $hVenuePct = 0;
+                                                $hasVenueHome = false;
+
+                                                if (!empty($u5j_data_pre['home']['matches']) && is_array($u5j_data_pre['home']['matches'])) {
+                                                    foreach ($u5j_data_pre['home']['matches'] as $mH) {
+                                                        if (!empty($mH['is_home'])) {
+                                                            $hVenueGames++;
+                                                            $resH = strtoupper(trim($mH['result'] ?? ''));
+                                                            if ($resH === 'V') {
+                                                                $hVenueWins++;
+                                                                $hVenuePts += 3;
+                                                            } elseif ($resH === 'E') {
+                                                                $hVenueDraws++;
+                                                                $hVenuePts += 1;
+                                                            } elseif ($resH === 'D') {
+                                                                $hVenueLosses++;
+                                                            }
+                                                        }
+                                                    }
+                                                    if ($hVenueGames > 0) {
+                                                        $hasVenueHome = true;
+                                                        $hVenuePct = (int)round(($hVenuePts / ($hVenueGames * 3)) * 100);
+                                                    }
+                                                }
+
+                                                $aVenueWins = 0;
+                                                $aVenueDraws = 0;
+                                                $aVenueLosses = 0;
+                                                $aVenueGames = 0;
+                                                $aVenuePts = 0;
+                                                $aVenuePct = 0;
+                                                $hasVenueAway = false;
+
+                                                if (!empty($u5j_data_pre['away']['matches']) && is_array($u5j_data_pre['away']['matches'])) {
+                                                    foreach ($u5j_data_pre['away']['matches'] as $mA) {
+                                                        if (isset($mA['is_home']) && !$mA['is_home']) {
+                                                            $aVenueGames++;
+                                                            $resA = strtoupper(trim($mA['result'] ?? ''));
+                                                            if ($resA === 'V') {
+                                                                $aVenueWins++;
+                                                                $aVenuePts += 3;
+                                                            } elseif ($resA === 'E') {
+                                                                $aVenueDraws++;
+                                                                $aVenuePts += 1;
+                                                            } elseif ($resA === 'D') {
+                                                                $aVenueLosses++;
+                                                            }
+                                                        }
+                                                    }
+                                                    if ($aVenueGames > 0) {
+                                                        $hasVenueAway = true;
+                                                        $aVenuePct = (int)round(($aVenuePts / ($aVenueGames * 3)) * 100);
+                                                    }
+                                                }
+                                            ?>
+                                            <?php if (isset($fix->home_avg_goals_scored) || $hasEffHome || $hasVenueHome): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_goals') ?>">
-                                                        <i class="bi bi-activity"></i>
-                                                        <span class="label"><?= lang('App.goals') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
-                                                        <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
-                                                        <i class="bi bi-flag-fill"></i>
-                                                        <span class="label"><?= lang('App.corners') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cards') ?>">
-                                                        <i class="bi bi-card-amber"></i>
-                                                        <span class="label"><?= lang('App.cards') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
-                                                    </div>
+                                                    <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_goals') ?>">
+                                                            <i class="bi bi-activity"></i>
+                                                            <span class="label"><?= lang('App.goals') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
+                                                            <i class="bi bi-shield-fill-check"></i>
+                                                            <span class="label"><?= lang('App.clean_sheets') ?>:</span>
+                                                            <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasEffHome): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Eficiência U5J Ponderada pela IA (Força dos adversários Tier 1 e momentum recente)">
+                                                            <i class="bi bi-lightning-charge-fill" style="color: <?= $effHomeColor ?> !important;"></i>
+                                                            <span class="label">Eficiência:</span>
+                                                            <span class="val" style="color: <?= $effHomeColor ?>; font-weight: 700;"><?= ($effHomePts > 0 ? '+' : '') . number_format($effHomePts, 1) ?> pts</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasVenueHome): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Aproveitamento Recente em Casa (U5J): <?= $hVenueWins ?>V-<?= $hVenueDraws ?>E-<?= $hVenueLosses ?>D (<?= $hVenuePts ?> pts em <?= $hVenueGames ?> jogos)">
+                                                            <i class="bi bi-house-door-fill" style="color: #38bdf8 !important;"></i>
+                                                            <span class="label">U5J Casa:</span>
+                                                            <span class="val" style="color: <?= ($hVenuePct >= 50 ? '#10b981' : ($hVenuePct > 0 ? '#fbbf24' : '#f87171')) ?>; font-weight: 700;"><?= $hVenueWins ?>V-<?= $hVenueDraws ?>E-<?= $hVenueLosses ?>D (<?= $hVenuePct ?>%)</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
+                                                            <i class="bi bi-flag-fill"></i>
+                                                            <span class="label"><?= lang('App.corners') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cards') ?>">
+                                                            <i class="bi bi-card-amber"></i>
+                                                            <span class="label"><?= lang('App.cards') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </div>
                                             <?php endif; ?>
                                         </div>
 
                                         <!-- Widget Eficiência U5J (Twin Progress Bars) -->
                                         <?php 
-                                            $effHome = null;
-                                            $effAway = null;
-                                            if (!empty($u5j_data_pre['home'])) {
-                                                $effHome = (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency']))
-                                                    ? floatval($u5j_data_pre['home']['pts_efficiency']) 
-                                                    : floatval($u5j_data_pre['home']['pts'] ?? 0);
-                                            }
-                                            if (!empty($u5j_data_pre['away'])) {
-                                                $effAway = (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency']))
-                                                    ? floatval($u5j_data_pre['away']['pts_efficiency']) 
-                                                    : floatval($u5j_data_pre['away']['pts'] ?? 0);
-                                            }
+                                            $effHome = $hasEffHome ? $effHomePts : null;
+                                            $effAway = $hasEffAway ? $effAwayPts : null;
                                         ?>
                                         <?php if ($effHome !== null || $effAway !== null): ?>
                                             <?php
@@ -3571,28 +3683,46 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_away) && $fix->goals_away !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_away ?? '' ?></span>
                                             </div>
-                                            <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                            <?php if (isset($fix->away_avg_goals_scored) || $hasEffAway || $hasVenueAway): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_goals') ?>">
-                                                        <i class="bi bi-activity"></i>
-                                                        <span class="label"><?= lang('App.goals') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
-                                                        <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
-                                                        <i class="bi bi-flag-fill"></i>
-                                                        <span class="label"><?= lang('App.corners') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cards') ?>">
-                                                        <i class="bi bi-card-amber"></i>
-                                                        <span class="label"><?= lang('App.cards') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
-                                                    </div>
+                                                    <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_goals') ?>">
+                                                            <i class="bi bi-activity"></i>
+                                                            <span class="label"><?= lang('App.goals') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
+                                                            <i class="bi bi-shield-fill-check"></i>
+                                                            <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
+                                                            <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasEffAway): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Eficiência U5J Ponderada pela IA (Força dos adversários Tier 1 e momentum recente)">
+                                                            <i class="bi bi-lightning-charge-fill" style="color: <?= $effAwayColor ?> !important;"></i>
+                                                            <span class="label">Eficiência:</span>
+                                                            <span class="val" style="color: <?= $effAwayColor ?>; font-weight: 700;"><?= ($effAwayPts > 0 ? '+' : '') . number_format($effAwayPts, 1) ?> pts</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasVenueAway): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Aproveitamento Recente Fora de Casa (U5J): <?= $aVenueWins ?>V-<?= $aVenueDraws ?>E-<?= $aVenueLosses ?>D (<?= $aVenuePts ?> pts em <?= $aVenueGames ?> jogos = <?= $aVenuePct ?>%)">
+                                                            <i class="bi bi-airplane-fill" style="color: #a78bfa !important;"></i>
+                                                            <span class="label">U5J Fora:</span>
+                                                            <span class="val" style="color: <?= ($aVenuePct >= 50 ? '#10b981' : ($aVenuePct > 0 ? '#fbbf24' : '#f87171')) ?>; font-weight: 700;"><?= $aVenueWins ?>V-<?= $aVenueDraws ?>E-<?= $aVenueLosses ?>D (<?= $aVenuePct ?>%)</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
+                                                            <i class="bi bi-flag-fill"></i>
+                                                            <span class="label"><?= lang('App.corners') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cards') ?>">
+                                                            <i class="bi bi-card-amber"></i>
+                                                            <span class="label"><?= lang('App.cards') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </div>
                                             <?php endif; ?>
                                         </div>

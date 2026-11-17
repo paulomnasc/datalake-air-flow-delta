@@ -21,13 +21,15 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 try:
-    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club, get_team_pedigree_bonus
+    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club, get_team_pedigree_bonus, is_relevant_national_friendly
 except Exception:
     ALLOWED_LEAGUES = {}
     def is_tier_1_elite_club(team_id=None, team_name=None):
         return False
     def get_team_pedigree_bonus(team_id=None, team_name=None):
         return 0.0
+    def is_relevant_national_friendly(home_id=None, home_name=None, away_id=None, away_name=None):
+        return False
 
 try:
     from asian_handicap_engine import (
@@ -3327,13 +3329,21 @@ def main():
     # Filtra partidas pelas ligas permitidas e desconsidera jogos femininos ou de categorias de base (Sub-17, Sub-21, U17, U21, etc.)
     filtered_fixtures = []
     for f in fixtures:
-        if f.get("league", {}).get("id") not in ALLOWED_LEAGUES:
+        lid = f.get("league", {}).get("id")
+        if lid not in ALLOWED_LEAGUES:
             continue
 
         h_name = f.get("teams", {}).get("home", {}).get("name", "")
         a_name = f.get("teams", {}).get("away", {}).get("name", "")
         l_name = f.get("league", {}).get("name", "")
+        h_id = f.get("teams", {}).get("home", {}).get("id")
+        a_id = f.get("teams", {}).get("away", {}).get("id")
+
         if is_women_game(h_name, a_name, l_name) or is_youth_game(h_name, a_name, l_name):
+            continue
+
+        # Para Amistosos (ID 10): aceita apenas confrontos com seleções internacionais relevantes
+        if lid == 10 and not is_relevant_national_friendly(h_id, h_name, a_id, a_name):
             continue
         
         if is_live_mode:

@@ -28,8 +28,9 @@ _betano_cards_odds_cache = _cards_odds_cache
 _betano_cards_raw_fixture_cache = _cards_raw_fixture_cache
 _betano_cards_api_disabled = _cards_api_disabled
 
-# Ligas excluídas pelo Gatekeeper de Cartões por apresentarem taxa histórica de Reds > 10.0%
+# Ligas excluídas pelo Gatekeeper de Cartões por apresentarem taxa histórica de Reds > 10.0% ou falta de rigor competitivo
 CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS = {
+    10,   # Friendlies (Amistosos de Seleções) - Proibido operar cartões por falta de intensidade competitiva
     265,  # Primera División (Chile) - 100.0% Reds
     197,  # Super League 1 (Grécia) - 66.7% Reds
     239,  # Primera A (Colômbia) - 100.0% Reds

@@ -53,7 +53,7 @@ ALLOWED_LEAGUES = {
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
     253: "Major League Soccer (EUA)",
-    ## 10: "Friendlies (Amistosos de Selecoes)",
+    10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
     17: "AFC Champions League (Asia)"
@@ -86,14 +86,16 @@ ALLOWED_LEAGUE_NAMES = [
     'k league', 'k-league', 'k league 1',
     'ekstraklasa', 'czech first league',
     'mls', 'major league soccer',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
+    'friendlies', 'amistoso', 'amistosos'
 ]
 
 
-def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bool:
+def is_allowed_league(league_id, league_name: str = "", fixture_date=None, home_id=None, home_name: str = "", away_id=None, away_name: str = "") -> bool:
     """
     Verifica se a liga informada (por ID ou Nome) pertence ao escopo global unificado de ligas monitoradas.
     Filtra automaticamente partidas femininas, torneios de base e divisões secundárias não autorizadas.
+    Para amistosos (ID 10), valida relevância internacional caso os times sejam informados.
     """
     if not league_name and league_id is None:
         return False
@@ -108,7 +110,17 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bo
     if any(w in l_name_low for w in ['u17', 'u19', 'u20', 'u21', 'u23', 'sub-17', 'sub-20', 'sub-23']):
         return False
 
-    # 3. Validação primária por ID Numérico Oficial (O(1))
+    # 3. Validação especial de Amistosos (Liga ID 10)
+    try:
+        lid_check = int(league_id) if league_id is not None else None
+    except (ValueError, TypeError):
+        lid_check = None
+
+    if lid_check == 10 or 'amistoso' in l_name_low or 'friendlies' in l_name_low:
+        if home_name or away_name or home_id or away_id:
+            return is_relevant_national_friendly(home_id, home_name, away_id, away_name)
+
+    # 4. Validação primária por ID Numérico Oficial (O(1))
     if league_id is not None:
         try:
             lid = int(league_id)
@@ -592,6 +604,48 @@ def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
             return True
 
     return False
+
+
+def is_relevant_national_friendly(home_id=None, home_name: str = "", away_id=None, away_name: str = "") -> bool:
+    """
+    Verifica se um amistoso (Liga ID 10) possui relevância internacional comprovada.
+    Exige que pelo menos uma das equipes seja uma seleção Tier 1, uma seleção registrada
+    na Copa do Mundo (world_cup_standings_cache) ou seleção de relevância competitiva.
+    Bloqueia amistosos obscuros entre clubes ou equipes amadoras.
+    """
+    # 1. Verifica se mandante ou visitante é Tier 1
+    if is_tier_1_elite_club(team_id=home_id, team_name=home_name):
+        return True
+    if is_tier_1_elite_club(team_id=away_id, team_name=away_name):
+        return True
+
+    # 2. Verifica se mandante ou visitante está no catálogo de seleções de Copa do Mundo
+    info_h = get_world_cup_team_info(team_id=home_id, team_name=home_name)
+    if info_h and info_h.get('team_name'):
+        return True
+    info_a = get_world_cup_team_info(team_id=away_id, team_name=away_name)
+    if info_a and info_a.get('team_name'):
+        return True
+
+    # 3. Lista expandida de seleções nacionais reconhecidas
+    national_keywords = [
+        'argentina', 'brasil', 'colombia', 'chile', 'uruguai', 'venezuela', 'peru', 'equador', 'bolivia', 'paraguai',
+        'russia', 'alemanha', 'franca', 'inglaterra', 'espanha', 'portugal', 'italia', 'holanda', 'belgica',
+        'noruega', 'dinamarca', 'suica', 'suecia', 'croacia', 'polonia', 'ucrania', 'turquia', 'servia',
+        'australia', 'japao', 'coreia do sul', 'arabia saudita', 'iraque', 'ira', 'jordania', 'uzbequistao', 'eau', 'emirados arabes',
+        'estados unidos', 'mexico', 'canada', 'costa rica', 'honduras', 'panama', 'jamaica', 'siria', 'kuwait',
+        'marrocos', 'egito', 'senegal', 'argelia', 'tunisia', 'nigeria', 'costa do marfim', 'gana', 'camaroes'
+    ]
+    import unicodedata
+    for t_name in [home_name, away_name]:
+        if not t_name:
+            continue
+        norm = unicodedata.normalize('NFKD', str(t_name).lower().strip()).encode('ASCII', 'ignore').decode('utf-8')
+        if any(nk in norm for nk in national_keywords):
+            return True
+
+    return False
+
 
 
 

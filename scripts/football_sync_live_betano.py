@@ -549,6 +549,14 @@ def main():
 
     conn.commit()
     conn.close()
+
+    # E) Avaliação e Execução de Cash Out In-Play (Cloudbet, Betano e casas monitoradas)
+    try:
+        from cloudbet_live_cashout import check_and_execute_cloudbet_live_cashouts
+        check_and_execute_cloudbet_live_cashouts()
+    except Exception as e_co:
+        print(f"Aviso no monitor in-play de cash out: {e_co}")
+
     print("-" * 70)
     print(f"📊 Resumo In-Play Betano:")
     print(f"   • Partidas atualizadas com placar/minuto real: {jogos_atualizados}")

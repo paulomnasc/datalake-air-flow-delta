@@ -77,18 +77,75 @@ def enviar_push_cashout(
         return False
 
 
-def extract_cloudbet_bet_id(resultado_detalhado: str, aposta_id: int) -> str:
+def extract_cloudbet_metadata(resultado_detalhado: str) -> Dict[str, Any]:
     """
-    Extrai o identificador do bilhete (betId) da Cloudbet a partir do JSON de auditoria.
+    Extrai os metadados da Cloudbet (bet_id, event_id, market_url, is_simulated) gravados em resultado_detalhado.
     """
     if resultado_detalhado and "|| CLOUDBET:" in resultado_detalhado:
         try:
             part = resultado_detalhado.split("|| CLOUDBET:")[1].split("||")[0].strip()
-            data = json.loads(part)
-            if "bet_id" in data and data["bet_id"]:
-                return str(data["bet_id"])
+            return json.loads(part)
         except Exception:
             pass
+    return {}
+
+
+def derive_opposite_market_url(market_url: str) -> Optional[str]:
+    """
+    Determina o marketUrl canônico da ponta oposta para realização de Hedge in-play.
+    Exemplos:
+      - Over vira Under: soccer.total_goals/over?total=2.5 -> soccer.total_goals/under?total=2.5
+      - Home vira Away: soccer.asian_handicap/home?handicap=-0.25 -> soccer.asian_handicap/away?handicap=-0.25
+    """
+    if not market_url:
+        return None
+    if "/over?" in market_url:
+        return market_url.replace("/over?", "/under?")
+    elif "/under?" in market_url:
+        return market_url.replace("/under?", "/over?")
+    elif "/home?" in market_url:
+        return market_url.replace("/home?", "/away?")
+    elif "/away?" in market_url:
+        return market_url.replace("/away?", "/home?")
+    elif market_url.endswith("/yes"):
+        return market_url[:-4] + "/no"
+    elif market_url.endswith("/no"):
+        return market_url[:-3] + "/yes"
+    return None
+
+
+def get_live_opposite_quote(client: CloudbetClient, event_id: str, opposite_market_url: str) -> Optional[Dict[str, Any]]:
+    """
+    Consulta o book de ofertas ao vivo da Cloudbet para localizar a cotação e liquidez da ponta de cobertura.
+    """
+    try:
+        odds_raw = client.get_event_odds(event_id)
+        markets = odds_raw.get("markets", {}) if isinstance(odds_raw, dict) else {}
+        for mk, mv in markets.items():
+            for subk, subv in mv.get("submarkets", {}).items():
+                for sel in subv.get("selections", []):
+                    if sel.get("marketUrl") == opposite_market_url:
+                        price = float(sel.get("price") or 0.0)
+                        status = sel.get("status")
+                        if status == "SELECTION_ENABLED" and price > 1.0:
+                            return {
+                                "market_url": opposite_market_url,
+                                "price": price,
+                                "min_stake": float(sel.get("minStake") or 0.10),
+                                "max_stake": float(sel.get("maxStake") or 0.0)
+                            }
+    except Exception as e:
+        print(f"⚠️ [Hedge Quote Error] Erro ao buscar cotação in-play de hedge: {e}")
+    return None
+
+
+def extract_cloudbet_bet_id(resultado_detalhado: str, aposta_id: int) -> str:
+    """
+    Extrai o identificador do bilhete (betId) da Cloudbet a partir do JSON de auditoria.
+    """
+    meta = extract_cloudbet_metadata(resultado_detalhado)
+    if "bet_id" in meta and meta["bet_id"]:
+        return str(meta["bet_id"])
     return f"sim_cb_{aposta_id}"
 
 
@@ -196,10 +253,11 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
     print(f"   • Modo Operacional: {'DRY-RUN / SIMULAÇÃO 🛡️' if client.dry_run else 'PRODUÇÃO REAL ⚠️'}")
     print("=" * 70)
 
-    # Consulta apostas ativas da Cloudbet com dados live de fixtures_trends
+    # Consulta apostas ativas (Cloudbet e outras casas monitoradas) com dados live de fixtures_trends
     cursor.execute("""
         SELECT a.id, a.usuario_id, a.fixture_id, a.palpite, a.mercado, a.odd,
                a.valor_aposta, a.moeda_codigo, a.ganhos_potenciais, a.resultado_detalhado,
+               a.casa_de_aposta,
                ft.status as fixture_status, ft.home_team as time_casa, ft.away_team as time_fora,
                ft.home_team_id, ft.away_team_id, ft.ah_reasoning,
                ft.goals_home, ft.goals_away, ft.elapsed,
@@ -208,8 +266,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                ft.corners_home, ft.corners_away, ft.fixture_date
         FROM apostas a
         INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
-        WHERE a.casa_de_aposta = 'Cloudbet'
-          AND a.status = 'Pendente'
+        WHERE a.status = 'Pendente'
+          AND a.casa_de_aposta IN ('Cloudbet', 'Betano', 'Stake', 'Pinnacle', '1xBet')
           AND ft.status IN ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED')
         ORDER BY ft.elapsed DESC
     """)
@@ -217,7 +275,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
     total_abertas_cloudbet = len(active_bets)
 
     if not active_bets:
-        print("ℹ️ Nenhuma aposta ativa da Cloudbet em jogos ao vivo no momento.")
+        print("ℹ️ Nenhuma aposta ativa monitorada em jogos ao vivo no momento.")
         cursor.close()
         conn.close()
         return {
@@ -236,10 +294,11 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         gh = bet['goals_home']
         ga = bet['goals_away']
         palpite = bet['palpite']
+        casa_nome = bet.get('casa_de_aposta') or 'Cloudbet'
         stake = float(bet['valor_aposta'] or 0.0)
         cur = bet.get('moeda_codigo') or client.currency
 
-        print(f"\n📊 Analisando Aposta #{aposta_id}: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
+        print(f"\n📊 Analisando Aposta #{aposta_id} [{casa_nome}]: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
 
         should_cashout, motivo, fator_cashout = evaluate_live_cashout_trigger(bet)
 
@@ -249,15 +308,52 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"   🚨 [GATILHO DE CASHOUT ATIVADO]: {motivo}")
 
-        # 1. Extração do Bet ID
-        bet_id = extract_cloudbet_bet_id(bet.get('resultado_detalhado', ''), aposta_id)
+        # 1. Se for Cloudbet, executa via HEDGE AUTOMÁTICO na API; se for Betano/outras, notifica para ação assistida
+        hedge_info = {}
+        if casa_nome == 'Cloudbet':
+            cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
+            bet_id = str(cb_meta.get('bet_id') or f"sim_cb_{aposta_id}")
+            event_id = str(cb_meta.get('event_id') or '')
+            market_url = str(cb_meta.get('market_url') or '')
+            opposite_market_url = derive_opposite_market_url(market_url)
 
-        # 2. Execução do Cash Out via API oficial da Cloudbet
-        res_co = client.execute_cashout(bet_id)
-        if not res_co.get("success") and not res_co.get("is_simulated"):
-            print(f"   ❌ Falha ao processar Cash Out na API Cloudbet: {res_co}")
-            total_erros += 1
-            continue
+            if client.dry_run or bet_id.startswith("sim_"):
+                print(f"   ⚡ [Cloudbet DRY-RUN] Simulando Cash Out / Hedge in-play...")
+                res_co = client.execute_cashout(bet_id)
+                hedge_info = {"mode": "dry_run_simulated", "bet_id": bet_id, "opposite_market_url": opposite_market_url}
+            else:
+                # MODO REAL: Executa o Hedge In-Play comprando a ponta contrária
+                if not event_id or not opposite_market_url:
+                    print(f"   ⚠️ [Hedge Cloudbet] Metadados de mercado ausentes para hedge em #{aposta_id}. Abortando.")
+                    total_erros += 1
+                    continue
+
+                quote = get_live_opposite_quote(client, event_id, opposite_market_url)
+                if not quote:
+                    print(f"   ⚠️ [Hedge Cloudbet] Mercado oposto '{opposite_market_url}' suspenso/sem liquidez neste instante. Tentará no próximo ciclo.")
+                    continue
+
+                hedge_price = quote['price']
+                min_stake = quote['min_stake']
+                hedge_stake = max(min_stake, round(stake * fator_cashout, 2))
+
+                print(f"   🚀 [Disparando Hedge Real via API] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+                res_co = client.execute_cashout(
+                    bet_id=bet_id,
+                    event_id=event_id,
+                    market_url=opposite_market_url,
+                    price=hedge_price,
+                    stake=hedge_stake,
+                    dry_run=False
+                )
+
+                if not res_co.get("success") and not res_co.get("referenceId"):
+                    print(f"   ❌ Falha ao processar ordem de cobertura na API Cloudbet: {res_co}")
+                    total_erros += 1
+                    continue
+                hedge_info = {"mode": "real_hedge", "hedge_ref": res_co.get("referenceId"), "market_url": opposite_market_url, "price": hedge_price, "stake": hedge_stake}
+        else:
+            print(f"   ℹ️ [{casa_nome}] Aposta requer confirmação de Cash Out no app da casa. Disparando alerta mobile imediato...")
 
         # 3. Cálculo do valor de retorno do Cash Out
         valor_cashout = round(stake * fator_cashout, 2)
@@ -275,6 +371,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             away_team_id=bet.get('away_team_id'),
             existing_reasoning=bet.get('resultado_detalhado') or bet.get('ah_reasoning')
         )
+        final_r = f"|| HEDGE: {json.dumps(hedge_info)} || " + compound_r if hedge_info else compound_r
 
         cursor.execute("""
             UPDATE apostas SET
@@ -283,14 +380,19 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 resultado_detalhado = %s,
                 updated_at = NOW()
             WHERE id = %s
-        """, (valor_cashout, compound_r, aposta_id))
+        """, (valor_cashout, final_r, aposta_id))
         conn.commit()
 
         print(f"   ✅ [Cash Out Concluído] Aposta #{aposta_id} atualizada para 'Cashout' no MySQL (Retorno: {valor_cashout:.2f} {cur}).")
 
         # 5. Notificação Mobile Push via ntfy
-        tit = f"⚡ Cash Out Realizado: {home} vs {away}"
-        msg = f"Aposta {palpite} encerrada pelo robô aos {elapsed}' ({gh}x{ga}). Retorno salvo: {valor_cashout:.2f} {cur}. Motivo: {motivo}"
+        if casa_nome == 'Cloudbet':
+            tit = f"⚡ Cash Out Realizado (Cloudbet): {home} vs {away}"
+            msg = f"Aposta {palpite} encerrada pelo robô aos {elapsed}' ({gh}x{ga}). Retorno salvo: {valor_cashout:.2f} {cur}. Motivo: {motivo}"
+        else:
+            tit = f"⚡ Alerta Cash Out ({casa_nome}): {home} vs {away}"
+            msg = f"Aposta {palpite} aos {elapsed}' ({gh}x{ga}). Toque para abrir e encerrar na {casa_nome}. Motivo: {motivo}"
+            
         enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
 
         # 6. Rastreamento transversal de ciclo de vida

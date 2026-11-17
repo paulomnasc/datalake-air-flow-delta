@@ -57,16 +57,24 @@ Para garantir que o sistema não quebre ao alternar para o modo real:
 
 ---
 
-## 3. Peculiaridade do Cash Out na Cloudbet e Gestão In-Play
+## 3. Mecanismo Canônico de Cash Out: Hedge In-Play 100% Automático
 
-A API pública de trading da Cloudbet disponibiliza endpoints para colocação de apostas, histórico e odds, porém **não expõe um endpoint público direto para execução de Cash Out** (o botão de encerramento antecipado é exclusivo da interface web/mobile da casa).
+Como a Cloudbet não possui uma rota direta de `/cashout` na sua API pública (recurso exclusivo de sua interface web/app), o sistema executa o Cash Out da forma profissional e matematicamente equivalente utilizada por fundos de trading quantitativo: **o Hedge Automático In-Play (Aposta de Cobertura)**.
 
-### Como o Sistema Opera a Saída Antecipada:
-1. O monitor `cloudbet_live_cashout.py` acompanha o placar e o minuto em tempo real;
-2. Quando a partida atinge um cenário de risco crítico (ex: desvantagem no 2º tempo aos 76'+ minutos ou 0x0 prolongado em Over Gols aos 72'+ minutos), o gatilho é disparado;
-3. O robô dispara imediatamente uma **notificação push de alta prioridade via ntfy.sh** para o celular do apostador;
-4. A notificação contém o link direto da partida. Com **1 único toque no celular**, a tela da Cloudbet se abre e o apostador clica no botão "Encerrar Aposta / Cash Out";
-5. A aposta é atualizada no banco de dados local com `status = 'Cashout'`.
+### Como Funciona o Hedge Automático na Prática:
+1. **Identificação de Risco**: O monitor [cloudbet_live_cashout.py](file:///root/datalake-air-flow-delta/scripts/cloudbet_live_cashout.py) acompanha o jogo a cada 3 minutos (integrado à DAG do Airflow `football_trends_live_dag`);
+2. **Inversão Dinâmica de Mercado (`derive_opposite_market_url`)**:
+   - `soccer.total_goals/over?total=2.5` ➔ Inverte para `soccer.total_goals/under?total=2.5`
+   - `soccer.asian_handicap/home?handicap=-0.25` ➔ Inverte para `soccer.asian_handicap/away?handicap=-0.25`
+3. **Consulta de Liquidez Ao Vivo (`get_live_opposite_quote`)**:
+   - O robô consulta a odd e a liquidez atual da ponta contrária na Cloudbet naquele instante;
+4. **Disparo da Ordem de Cobertura via API**:
+   - O robô chama `POST /pub/v3/bets/place` comprando a ponta oposta com micro-stake (ex: 0.10 USDT) através do proxy suíço;
+5. **Resultado Travado e Posição Encerrada**:
+   - A posição é neutralizada matematicamente na Cloudbet;
+   - O registro no MySQL é atualizado para `status = 'Cashout'` e armazena o bloco `|| HEDGE: {...} ||` preservando integralmente `|| U5J_DATA:`;
+   - Um alerta push no **ntfy.sh** avisa o smartphone da conclusão do Cash Out.
+   - **Zero cliques do usuário, zero necessidade de abrir site e zero dependência de VPN no celular.**
 
 ---
 

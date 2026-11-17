@@ -204,26 +204,47 @@ class CloudbetClient:
 
         return res
 
-    def execute_cashout(self, bet_id: str, dry_run: Optional[bool] = None) -> Dict[str, Any]:
+    def execute_cashout(
+        self,
+        bet_id: str,
+        event_id: Optional[str] = None,
+        market_url: Optional[str] = None,
+        price: Optional[float] = None,
+        stake: Optional[float] = None,
+        dry_run: Optional[bool] = None
+    ) -> Dict[str, Any]:
         """
-        Executa o Cash Out antecipado de uma aposta em andamento.
+        Executa o Cash Out de uma posição.
+        Como a Cloudbet não possui mutação de cashout direto na API pública,
+        o cash out é executado via HEDGE IN-PLAY (colocando a ordem na ponta oposta)
+        ou por simulação se for Dry-Run.
         """
         is_simulated = self.dry_run if dry_run is None else dry_run
 
         if is_simulated or str(bet_id).startswith("sim_"):
-            print(f"⚡ [Cloudbet DRY-RUN] Cash Out simulado com sucesso para bilhete #{bet_id}!")
+            print(f"⚡ [Cloudbet DRY-RUN Hedge] Cash Out / Hedge simulado com sucesso para bilhete #{bet_id}!")
             return {
                 "success": True,
                 "is_simulated": True,
                 "betId": bet_id,
                 "status": "CASHOUT_EXECUTED_SIMULATED",
-                "message": "Cash out simulado pelo Gatekeeper in-play."
+                "message": "Cash Out / Hedge simulado com sucesso pelo Gatekeeper in-play."
             }
 
-        print(f"⚡ [Cloudbet REAL CASHOUT] Solicitando encerramento imediato para bilhete #{bet_id}...")
-        # Chamada ao endpoint de cashout oficial
-        res = self._request("POST", f"/pub/v1/bets/{bet_id}/cashout")
-        return res
+        if event_id and market_url and price and stake:
+            print(f"🚀 [Cloudbet REAL HEDGE IN-PLAY] Executando ordem de cobertura para travar posição:")
+            print(f"   • Evento: {event_id} | Mercado Oposto: {market_url} | Odd: {price} | Stake: {stake} {self.currency}")
+            return self.place_bet(
+                event_id=str(event_id),
+                market_url=market_url,
+                price=price,
+                stake=stake,
+                currency=self.currency,
+                dry_run=False
+            )
+
+        print(f"⚠️ [Cloudbet Cashout] Parâmetros de hedge in-play não fornecidos para bilhete #{bet_id}.")
+        return {"error": "Missing hedge parameters for Cloudbet execution", "status_code": 400}
 
 
 # =========================================================================

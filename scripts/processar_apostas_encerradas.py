@@ -644,6 +644,31 @@ def process_pending_bets():
     print(f"🔴 Apostas Perdidas: {perdidas}")
     print("=======================================================")
 
+    # Reconciliação Fail-Safe: Creditar apostas com status 'Cashout' que ainda não tenham registro em conta_corrente
+    try:
+        cursor.execute("""
+            SELECT a.id, a.usuario_id, a.cash_out, a.time_casa, a.time_fora, a.moeda_codigo
+            FROM apostas a
+            WHERE a.status = 'Cashout'
+              AND a.cash_out > 0
+              AND a.confirmada = 1
+              AND NOT EXISTS (
+                  SELECT 1 FROM conta_corrente cc 
+                  WHERE cc.aposta_id = a.id AND cc.tipo = 'CREDITO_RETORNO_APOSTA'
+              )
+        """)
+        cashouts_pendentes = cursor.fetchall()
+        for c_bet in cashouts_pendentes:
+            c_id = c_bet['id']
+            c_uid = c_bet['usuario_id']
+            c_val = float(c_bet['cash_out'])
+            c_desc = f"Retorno Aposta #{c_id} ({c_bet['time_casa']} x {c_bet['time_fora']} - Cashout)"
+            if creditar_retorno_aposta(cursor, c_uid, c_id, c_val, 'Cashout', c_desc):
+                print(f"💰 [Reconciliação Cashout] Aposta #{c_id} creditada com sucesso ({c_val} {c_bet.get('moeda_codigo')})")
+                conn.commit()
+    except Exception as e_rec:
+        print(f"⚠️ [Erro Reconciliação Cashout]: {e_rec}")
+
     # Processar liquidação dos palpites gerados pela IA
     process_palpites_gerados(cursor)
 

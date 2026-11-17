@@ -287,6 +287,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
     for bet in active_bets:
         aposta_id = bet['id']
+        bet_id = str(aposta_id)
         f_id = bet['fixture_id']
         home = bet['time_casa']
         away = bet['time_fora']
@@ -385,6 +386,17 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"   ✅ [Cash Out Concluído] Aposta #{aposta_id} atualizada para 'Cashout' no MySQL (Retorno: {valor_cashout:.2f} {cur}).")
 
+        # 4.1 Liquidação Financeira Imediata em Conta Corrente
+        try:
+            from processar_apostas_encerradas import creditar_retorno_aposta
+            uid = bet.get('usuario_id')
+            desc_cc = f"Retorno Aposta #{aposta_id} ({home} x {away} - Cashout)"
+            if creditar_retorno_aposta(cursor, uid, aposta_id, valor_cashout, 'Cashout', desc_cc):
+                conn.commit()
+                print(f"   💰 [Crédito Salvo] +{valor_cashout:.2f} {cur} adicionado ao saldo do Usuário #{uid}.")
+        except Exception as e_cc:
+            print(f"   ⚠️ [Erro Crédito Conta Corrente Cash Out #{aposta_id}]: {e_cc}")
+
         # 5. Notificação Mobile Push via ntfy
         if casa_nome == 'Cloudbet':
             tit = f"⚡ Cash Out Realizado (Cloudbet): {home} vs {away}"
@@ -412,8 +424,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 motivo=motivo
             )
             conn.commit()
-        except Exception:
-            pass
+        except Exception as e_lf:
+            print(f"   ⚠️ [Erro Lifecycle Logger Cash Out #{aposta_id}]: {e_lf}")
 
     cursor.close()
     conn.close()
@@ -553,6 +565,18 @@ def executar_hedge_prejogo_cloudbet(
         if conn:
             conn.commit()
 
+        # Liquidação Financeira Imediata em Conta Corrente
+        try:
+            from processar_apostas_encerradas import creditar_retorno_aposta
+            uid = bet.get('usuario_id')
+            desc_cc = f"Retorno Aposta #{aposta_id} ({home} x {away} - Hedge Pré-Jogo)"
+            if creditar_retorno_aposta(cursor, uid, aposta_id, valor_cashout, 'Cashout', desc_cc):
+                if conn:
+                    conn.commit()
+                print(f"💰 [Crédito Salvo] +{valor_cashout:.2f} {client.currency} adicionado ao saldo do Usuário #{uid}.")
+        except Exception as e_cc:
+            print(f"⚠️ [Erro Crédito Conta Corrente Hedge Pré-Jogo #{aposta_id}]: {e_cc}")
+
         tit_push = f"🛡️ Hedge Pré-Jogo Executado: {home} vs {away}"
         msg_push = (
             f"O Grok IA identificou desequilíbrio crítico na súmula oficial de {home} x {away}. "
@@ -583,8 +607,8 @@ def executar_hedge_prejogo_cloudbet(
             )
             if conn:
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as e_lf:
+            print(f"⚠️ [Erro Lifecycle Logger Hedge Pré-Jogo #{aposta_id}]: {e_lf}")
 
         print(f"✅ [Hedge Pré-Jogo Concluído] Aposta #{aposta_id} encerrada e protegida com sucesso!")
         return {"success": True, "valor_cashout": valor_cashout, "hedge_info": hedge_info}

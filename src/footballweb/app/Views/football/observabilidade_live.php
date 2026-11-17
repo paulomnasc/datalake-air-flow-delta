@@ -46,6 +46,11 @@
                 </div>
             </div>
 
+            <button type="button" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1.5 px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalRegrasCashout" style="border-radius: 8px;">
+                <i class="bi bi-question-circle-fill text-warning"></i>
+                <span>Regras de Cash Out</span>
+            </button>
+
             <button id="btn-refresh-manual" class="btn btn-outline-info btn-sm d-flex align-items-center gap-1.5 px-3 py-2 fw-semibold" style="border-radius: 8px;">
                 <i class="bi bi-arrow-repeat" id="icon-refresh"></i>
                 <span>Atualizar Agora</span>
@@ -366,6 +371,134 @@
                     </div>
                     <p class="text-white small mt-2">Carregando auditoria completa da partida...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BOTÃO FLUTUANTE DE DÚVIDAS / REGRAS DE CASHOUT (CANTO INFERIOR DIREITO) -->
+<button type="button" class="btn btn-warning shadow-lg d-flex align-items-center gap-2 position-fixed fw-bold" 
+        data-bs-toggle="modal" data-bs-target="#modalRegrasCashout"
+        id="btn-floating-regras"
+        title="Dúvidas & Regras de Cash Out"
+        style="bottom: 24px; right: 24px; z-index: 1040; border-radius: 50px; padding: 10px 18px; border: 2px solid rgba(255, 255, 255, 0.35); box-shadow: 0 4px 20px rgba(234, 179, 8, 0.45) !important;">
+    <i class="bi bi-question-circle-fill fs-5 text-dark"></i>
+    <span class="text-dark font-monospace" style="font-size: 0.85rem; letter-spacing: 0.3px;">REGRAS CASHOUT</span>
+</button>
+
+<!-- MODAL DE DÚVIDAS E REGRAS DE CASHOUT -->
+<div class="modal fade" id="modalRegrasCashout" tabindex="-1" aria-labelledby="modalRegrasCashoutLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content text-white" style="background: #0f172a; border: 1px solid rgba(234, 179, 8, 0.35); box-shadow: 0 10px 40px rgba(0,0,0,0.6);">
+            <div class="modal-header border-secondary border-opacity-25 py-3" style="background: rgba(30, 41, 59, 0.7);">
+                <h5 class="modal-title fs-5 fw-bold text-warning d-flex align-items-center gap-2" id="modalRegrasCashoutLabel">
+                    <i class="bi bi-question-circle-fill text-warning fs-4"></i>
+                    Guia Prático de Cash Out & Zonas de Risco
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-4" style="font-size: 0.92rem; line-height: 1.6;">
+                
+                <!-- 1. AS 3 ZONAS TEMPORAIS -->
+                <div class="mb-4">
+                    <h6 class="fw-bold text-info text-uppercase font-monospace mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history"></i> 1. Zonas Temporais do Jogo (Quando Agir)
+                    </h6>
+                    <p class="text-white-50 small mb-3">
+                        O sistema não avalia apenas os gols, mas cruza os gols com o minuto de jogo (<span class="text-white font-monospace">elapsed</span>) para evitar saídas prematuras da aposta.
+                    </p>
+
+                    <div class="row g-2">
+                        <!-- Zona 1 -->
+                        <div class="col-12 col-md-4">
+                            <div class="p-3 rounded-3 h-100 border border-danger border-opacity-40" style="background: rgba(239, 68, 68, 0.08);">
+                                <span class="badge bg-danger mb-2 font-monospace">0' a 45' (1º TEMPO)</span>
+                                <strong class="d-block text-white mb-1">Zona de Alerta Crítico</strong>
+                                <p class="small text-white-50 mb-0">
+                                    Se saírem <strong>2 gols no 1T</strong>, o cash out é disparado. Restam 45 minutos pela frente e o ritmo ofensivo está alto.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Zona 2 -->
+                        <div class="col-12 col-md-4">
+                            <div class="p-3 rounded-3 h-100 border border-warning border-opacity-40" style="background: rgba(234, 179, 8, 0.08);">
+                                <span class="badge bg-warning text-dark mb-2 font-monospace">46' a 79' (MEIO DE JOGO)</span>
+                                <strong class="d-block text-white mb-1">Janela Nobre de Cash Out</strong>
+                                <p class="small text-white-50 mb-0">
+                                    A 1 gol do limite: <strong>Momento ideal de agir</strong> na Thunderpick/Betano. Resgate de capital ou garantia de lucro parcial com boas cotações.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Zona 3 -->
+                        <div class="col-12 col-md-4">
+                            <div class="p-3 rounded-3 h-100 border border-success border-opacity-40" style="background: rgba(16, 185, 129, 0.08);">
+                                <span class="badge bg-success mb-2 font-monospace">80' aos 90'+ (FIM)</span>
+                                <strong class="d-block text-white mb-1">Cash Out DESATIVADO</strong>
+                                <p class="small text-white-50 mb-0">
+                                    <strong>Segure para o Green!</strong> O relógio corre a seu favor. A probabilidade de 2 gols nos minutos finais é desprezível (&lt;1%).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. DIFERENÇA DE LINHAS (INTEIRA VS FRACIONADA) -->
+                <div class="mb-4 p-3 rounded-3 border border-secondary border-opacity-30" style="background: rgba(30, 41, 59, 0.5);">
+                    <h6 class="fw-bold text-warning text-uppercase font-monospace mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-check"></i> 2. O Seguro da Linha Inteira (ex: Menos de 3.0 Gols)
+                    </h6>
+                    <p class="small text-white-50 mb-2">
+                        Linhas asiáticas inteiras possuem um <strong>airbag protetor</strong> exclusivo contra perdas:
+                    </p>
+                    <ul class="small text-white-50 mb-0 ps-3">
+                        <li class="mb-1"><strong class="text-success">0, 1 ou 2 gols</strong>: <strong>Green Total</strong> (Lucro 100% creditado).</li>
+                        <li class="mb-1"><strong class="text-warning">Exatamente 3 gols</strong>: <strong>Reembolso Total (Push)</strong>. 100% da sua stake volta para a conta. O sistema avisa como <em>"Zona de Reembolso Protegido"</em>, e não como derrota.</li>
+                        <li><strong class="text-danger">4 ou mais gols</strong>: Aposta perdida (Red).</li>
+                    </ul>
+                </div>
+
+                <!-- 3. CARTÕES E HANDICAP -->
+                <div class="mb-4">
+                    <h6 class="fw-bold text-info text-uppercase font-monospace mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-layers"></i> 3. Mercados de Cartões e Handicap
+                    </h6>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <div class="p-2.5 rounded-3 border border-secondary border-opacity-25 h-100" style="background: rgba(15, 23, 42, 0.6);">
+                                <strong class="text-white small d-block mb-1"><i class="bi bi-card-heading text-warning me-1"></i> Total de Cartões (Under)</strong>
+                                <p class="small text-white-50 mb-0" style="font-size: 0.82rem;">
+                                    Linhas altas (como Menos de 6.5) só geram alerta no 1T se ultrapassarem <strong>60% da linha contratada</strong> (4+ cartões no 1T). 3 cartões no 1T é ritmo normal e seguro.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="p-2.5 rounded-3 border border-secondary border-opacity-25 h-100" style="background: rgba(15, 23, 42, 0.6);">
+                                <strong class="text-white small d-block mb-1"><i class="bi bi-flag text-info me-1"></i> Handicap Asiático (AH)</strong>
+                                <p class="small text-white-50 mb-0" style="font-size: 0.82rem;">
+                                    Partidas empatadas aos 65'+ acionam cash out preventivo em linhas com cobertura (0.0 e -0.25) para proteger a banca de viradas tardias.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. LEGENDA DE CORES DO PAINEL -->
+                <div class="p-3 rounded-3 border border-secondary border-opacity-25" style="background: rgba(15, 23, 42, 0.7);">
+                    <h6 class="fw-bold text-white text-uppercase font-monospace mb-2" style="font-size: 0.8rem;">
+                        Legenda de Cores nos Cards:
+                    </h6>
+                    <div class="d-flex flex-wrap gap-3 small">
+                        <div><span class="badge bg-success me-1">Verde</span> Situação Estável / Reta Final Segura</div>
+                        <div><span class="badge bg-warning text-dark me-1">Amarelo</span> Atenção ao Ritmo / Zona de Reembolso</div>
+                        <div><span class="badge bg-danger text-white pulse-live me-1">⚡ Borda Pulsante</span> Ação Imediata de Cash Out</div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer border-secondary border-opacity-25 py-2">
+                <button type="button" class="btn btn-secondary btn-sm px-3 font-monospace" data-bs-dismiss="modal">Entendido, Fechar</button>
             </div>
         </div>
     </div>

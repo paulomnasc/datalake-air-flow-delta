@@ -227,7 +227,7 @@ def coletar_sumula_e_desfalques_apisports(
     # Identifica qual é o time apoiado na aposta (se for Handicap Asiático)
     palpite_lower = (palpite or "").lower()
     is_under_cards = ("menos" in palpite_lower) or ("under" in palpite_lower)
-    apoiado_is_away = (away_team.lower() in palpite_lower) if not is_under_cards else None
+    apoiado_is_away = (away_team.lower() in palpite_lower) if (palpite and not is_under_cards) else None
 
     blocos_sumula = []
     motivos_alerta = []
@@ -360,7 +360,8 @@ def coletar_sumula_e_desfalques_apisports(
             titulares_cache_away = list(titulares_nomes)
 
         is_time_apoiado = (
-            (apoiado_is_away is False and is_home_entry)
+            (apoiado_is_away is None)
+            or (apoiado_is_away is False and is_home_entry)
             or (apoiado_is_away is True and not is_home_entry)
         )
 
@@ -1573,6 +1574,207 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
 
+
+def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: list = None):
+    """
+    PILAR OFENSIVO DA SENTINELA (FASE 2 - JANELA T-50m a T-15m):
+    Monitora partidas em NO_BET / Abstenção nas ligas permitidas (Tier 1 e Tier 2).
+    Ao receber a Súmula Oficial de 11 Titulares da API-Sports (gravada em match_lineups_cache),
+    investiga desfalques estruturais, goleiro reserva ou time misto (>= 5 titulares poupados).
+    Se identificado desequilíbrio e a nova cotação se enquadrar no Sweet Spot (1.60 a 1.95)
+    com probabilidade >= 60.0% e +EV >= 5.0%, reverte o status para APROVADO, insere a aposta
+    via sync_fixture_and_bet_handicap e dispara push imediato (Reset Tático por Súmula).
+    Regra 8: inicialização prévia mandatória de variáveis numéricas locais.
+    Regra 16: preservação obrigatória de U5J via compose_compound_ah_reasoning.
+    """
+    total_nobet_avaliados = 0
+    total_reversoes_aprovadas = 0
+    total_sem_sumula_ainda = 0
+    total_erros_repescagem = 0
+
+    if not user_ids:
+        user_ids = get_target_user_ids(cursor)
+
+    try:
+        from leagues_config import is_allowed_league
+        from asian_handicap_engine import (
+            calculate_unified_handicap_recommendation,
+            sync_fixture_and_bet_handicap,
+            fetch_all_betano_ah_lines,
+            compose_compound_ah_reasoning
+        )
+    except ImportError as e_imp:
+        print(f"⚠️ [Sentinela Repescagem] Falha ao importar dependências do motor: {e_imp}")
+        return
+
+    query_nobet = """
+        SELECT ft.fixture_id, ft.league_id, ft.league_name, ft.home_team_id, ft.away_team_id,
+               ft.home_team, ft.away_team, ft.fixture_date, ft.ah_reasoning,
+               ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away,
+               ft.ah_suggestion, ft.gatekeeper_category
+        FROM fixtures_trends ft
+        WHERE ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
+                                  AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
+          AND (ft.ah_suggestion IS NULL 
+               OR ft.ah_suggestion LIKE '%%Absten%%' 
+               OR ft.ah_suggestion LIKE '%%NO_BET%%' 
+               OR ft.ah_suggestion LIKE '%%Sem Entrada%%'
+               OR ft.ah_suggestion LIKE '%%bloquead%%')
+          AND NOT EXISTS (
+              SELECT 1 FROM apostas a 
+              WHERE a.fixture_id = ft.fixture_id 
+                AND a.status IN ('Pendente', 'Não Confirmada', 'Aprovado')
+          )
+        ORDER BY ft.fixture_date ASC
+        LIMIT 10
+    """
+    cursor.execute(query_nobet, (window_minutes,))
+    nobet_matches = cursor.fetchall()
+
+    if not nobet_matches:
+        print(f"ℹ️ [Sentinela Repescagem] Nenhuma partida em NO_BET elegível na janela T-{window_minutes}m.")
+        return
+
+    print(f"📡 [Sentinela Repescagem] {len(nobet_matches)} partida(s) em NO_BET para conferência de Súmula Oficial...")
+
+    for fix in nobet_matches:
+        total_nobet_avaliados += 1
+        fid = fix['fixture_id']
+        lid = fix.get('league_id')
+        lname = fix.get('league_name') or ''
+        fdate = fix.get('fixture_date')
+        home = (fix.get('home_team') or '').strip()
+        away = (fix.get('away_team') or '').strip()
+        home_id = fix.get('home_team_id')
+        away_id = fix.get('away_team_id')
+
+        if not is_allowed_league(lid, lname, fdate):
+            continue
+
+        # Coleta a Súmula Oficial (com cache local prévio em match_lineups_cache)
+        sumula = coletar_sumula_e_desfalques_apisports(
+            cursor=cursor,
+            fixture_id=fid,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            home_team=home,
+            away_team=away,
+            palpite="",
+            league_id=lid
+        )
+
+        if not sumula.get("tem_sumula"):
+            total_sem_sumula_ainda += 1
+            print(f"⏳ [Sentinela Súmula] #{fid} {home} vs {away}: Súmula oficial ainda não liberada pela federação.")
+            continue
+
+        # Identifica desfalques críticos / time misto
+        time_desfalcado = ""
+        motivo_desfalque = ""
+        rot_h = int(sumula.get("rotacao_home_cnt") or 0)
+        rot_a = int(sumula.get("rotacao_away_cnt") or 0)
+        desf_h = int(sumula.get("desfalques_home_cnt") or 0)
+        desf_a = int(sumula.get("desfalques_away_cnt") or 0)
+
+        # 1. Goleiro reserva
+        for m in sumula.get("motivos_alerta_elenco", []):
+            m_lower = m.lower()
+            if "goleiro reserva" in m_lower or "goleiro titular ausente" in m_lower:
+                if home.lower() in m_lower:
+                    time_desfalcado = home
+                    motivo_desfalque = f"Goleiro reserva escalado no {home}"
+                    break
+                elif away.lower() in m_lower:
+                    time_desfalcado = away
+                    motivo_desfalque = f"Goleiro reserva escalado no {away}"
+                    break
+
+        # 2. Rodízio de elenco (>= 5 alterações nos titulares) ou surto de lesões
+        if not time_desfalcado:
+            if rot_h >= 5 or desf_h >= 4:
+                time_desfalcado = home
+                motivo_desfalque = f"{home} com time misto ({rot_h} alterações nos 11 titulares) e {desf_h} desfalques"
+            elif rot_a >= 5 or desf_a >= 4:
+                time_desfalcado = away
+                motivo_desfalque = f"{away} com time misto ({rot_a} alterações nos 11 titulares) e {desf_a} desfalques"
+
+        desfalques_ctx = None
+        if time_desfalcado:
+            desfalques_ctx = {
+                'time_desfalcado': time_desfalcado,
+                'tipo': 'SUMULA',
+                'motivo': motivo_desfalque
+            }
+            print(f"⚡ [Alerta Súmula Oficial] #{fid} {home} vs {away} -> {motivo_desfalque}!")
+
+        # Reavalia pelo motor canônico de Handicap Asiático
+        try:
+            status_gk, palpite_sug, conf_val, detalhe_calc, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+                fixture_dict=fix,
+                allow_api_fetch=True,
+                cursor=cursor,
+                desfalques_criticos=desfalques_ctx
+            )
+
+            if status_gk in ('APPROVED', 'APROVADO') and best_cand:
+                cand_odd = float(best_cand.get('odd') or 0.0)
+                cand_prob = float(best_cand.get('eval', {}).get('prob_eff') or 0.0)
+                cand_ev = float(best_cand.get('eval', {}).get('ev_percent') or 0.0)
+
+                # Critério estrito de Alta Assertividade: Sweet Spot 1.60 a 1.95 e Prob >= 60%
+                if 1.60 <= cand_odd <= 1.95 and cand_prob >= 60.0:
+                    total_reversoes_aprovadas += 1
+                    cat_nome = "Reset Tático por Súmula" if time_desfalcado else "Reversão de Odds no Sweet Spot"
+                    best_cand['gatekeeper_category'] = cat_nome
+
+                    print(f"🎯 [REVERSÃO TÁTICA CONFIRMADA!] #{fid} ({home} vs {away})")
+                    print(f"   ↳ {cat_nome}: {palpite_sug} @ {cand_odd:.2f} (Prob {cand_prob:.1f}%, +EV {cand_ev:.1f}%)")
+
+                    # Sincroniza Card e Aposta de forma atômica (Regra 16 garantida)
+                    sync_fixture_and_bet_handicap(
+                        cursor=cursor,
+                        fixture_id=fid,
+                        home_team=home,
+                        away_team=away,
+                        fixture_date=fdate,
+                        selected_palpite=palpite_sug,
+                        odd_val=cand_odd,
+                        odd_justa=float(best_cand.get('eval', {}).get('odd_justa') or (100.0 / cand_prob)),
+                        prob_poisson=cand_prob,
+                        ev_perc=cand_ev,
+                        detalhe_calculo=detalhe_calc,
+                        user_ids=user_ids,
+                        confirmada_val=0,
+                        destaque_val=0,
+                        best_cand=best_cand
+                    )
+                    conn.commit()
+
+                    # Notificação Sininho In-App
+                    tit_notif = f"🔄 Reversão Tática [{cat_nome}]: {home} vs {away}"
+                    msg_notif = f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). {motivo_desfalque}"
+                    for uid in user_ids:
+                        registrar_alerta_sininho(cursor, uid, aposta_id=None, fixture_id=fid, titulo=tit_notif, msg=msg_notif, tipo="REVERSAO_TATICA_SUMULA")
+                    conn.commit()
+
+                    # Push Mobile via NTFY
+                    enviar_push_mobile(
+                        titulo=tit_notif,
+                        mensagem=msg_notif,
+                        fixture_id=fid,
+                        prioridade=4,
+                        tags=["arrows_counterclockwise", "dart", "moneybag"]
+                    )
+            else:
+                print(f"ℹ️ [Sentinela Repescagem] #{fid} ({home} vs {away}) mantida em NO_BET após conferência de súmula.")
+        except Exception as e_rev:
+            total_erros_repescagem += 1
+            conn.rollback()
+            print(f"❌ [Sentinela Repescagem] Erro ao reavaliar #{fid} ({home} vs {away}): {e_rev}")
+
+    print(f"🏁 [Sentinela Repescagem] Concluída. Avaliados: {total_nobet_avaliados} | Reversões Aprovadas: {total_reversoes_aprovadas} | Sem súmula: {total_sem_sumula_ainda}")
+
+
 def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, specific_aposta_id: int = None, phase: int = 2):
     """
     Executa a auditoria da esteira da Sentinela em dois estágios:
@@ -1683,6 +1885,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
         if not apostas_para_auditar:
             print(f"ℹ️ [Sentinela IA - Fase {phase}] Nenhuma aposta pendente necessitando auditoria na janela de {window_minutes} min.")
+            # PILAR OFENSIVO (FASE 2): Mesmo sem apostas pré-existentes, checa repescagem de NO_BET por Súmula Oficial
+            if phase == 2 and not specific_aposta_id and not specific_fixture_id:
+                print(f"📡 [Sentinela IA - Fase 2 Ofensiva] Verificando se há jogos em NO_BET para repescagem via Súmula Oficial...")
+                repescar_nobet_por_sumula(cursor, conn, window_minutes, user_ids)
             return
 
         print(f"🚀 [Sentinela IA - Fase {phase}] Iniciando auditoria para {len(apostas_para_auditar)} aposta(s) elegível(is)...")
@@ -2074,6 +2280,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 print(f"❌ [Banco de Dados] Falha ao persistir auditoria da aposta #{aposta_id}: {e_sql}")
 
         print(f"\n🏁 [Sentinela IA] Varredura concluída. Total: {total_processados} | Confirmados: {total_confirmados} | Alertas: {total_alertas} | Erros: {total_erros}")
+
+        # PILAR OFENSIVO (FASE 2): Após auditar apostas pendentes, executa repescagem de NO_BET por Súmula Oficial
+        if phase == 2 and not specific_aposta_id and not specific_fixture_id:
+            print(f"\n📡 [Sentinela IA - Fase 2 Ofensiva] Iniciando varredura de Súmulas Oficiais em partidas NO_BET...")
+            repescar_nobet_por_sumula(cursor, conn, window_minutes, user_ids)
 
     finally:
         conn.close()

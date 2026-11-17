@@ -17,15 +17,32 @@
             </p>
         </div>
 
+        <?php
+            $initialHasLive = false;
+            if (!empty($cards)) {
+                foreach ($cards as $c) {
+                    if (!empty($c['is_live'])) {
+                        $initialHasLive = true;
+                        break;
+                    }
+                }
+            }
+        ?>
         <div class="d-flex align-items-center gap-3 w-100 w-md-auto justify-content-between justify-content-md-end">
-            <!-- TIMER DE 3 MINUTOS -->
-            <div class="bg-dark bg-opacity-75 px-3 py-1.5 rounded-3 border border-secondary border-opacity-50 text-end" style="min-width: 190px;">
+            <!-- TIMER ADAPTATIVO (TEMPO REAL AO VIVO: 8s / PRÉ-JOGO: 45s) -->
+            <div class="bg-dark bg-opacity-75 px-3 py-1.5 rounded-3 border border-secondary border-opacity-50 text-end" style="min-width: 205px;">
                 <div class="d-flex justify-content-between align-items-center small text-white mb-1">
-                    <span><i class="bi bi-clock-history text-info me-1"></i>Varredura:</span>
-                    <strong class="text-white font-monospace" id="countdown-text">03:00</strong>
+                    <span id="countdown-label-box">
+                        <?php if ($initialHasLive): ?>
+                            <i class="bi bi-broadcast text-danger me-1"></i><span class="text-danger fw-bold">Ao Vivo (8s):</span>
+                        <?php else: ?>
+                            <i class="bi bi-clock-history text-info me-1"></i><span>Varredura (45s):</span>
+                        <?php endif; ?>
+                    </span>
+                    <strong class="text-white font-monospace" id="countdown-text"><?= $initialHasLive ? '00:08' : '00:45' ?></strong>
                 </div>
                 <div class="progress" style="height: 4px; background: rgba(255,255,255,0.1);">
-                    <div id="countdown-bar" class="progress-bar bg-info" role="progressbar" style="width: 100%; transition: width 1s linear;"></div>
+                    <div id="countdown-bar" class="progress-bar <?= $initialHasLive ? 'bg-danger' : 'bg-info' ?>" role="progressbar" style="width: 100%; transition: width 0.4s linear;"></div>
                 </div>
             </div>
 
@@ -408,13 +425,17 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const COUNTDOWN_TOTAL_SECONDS = 180; // 3 minutos
+    const LIVE_POLL_SECONDS = 8;    // 8 segundos para partidas ao vivo (latência quase zero)
+    const IDLE_POLL_SECONDS = 45;   // 45 segundos para modo pré-jogo
+    let isLiveActive = <?= $initialHasLive ? 'true' : 'false' ?>;
+    let COUNTDOWN_TOTAL_SECONDS = isLiveActive ? LIVE_POLL_SECONDS : IDLE_POLL_SECONDS;
     let secondsLeft = COUNTDOWN_TOTAL_SECONDS;
     let refreshInterval = null;
     let countdownInterval = null;
 
     const countdownText = document.getElementById('countdown-text');
     const countdownBar = document.getElementById('countdown-bar');
+    const countdownLabelBox = document.getElementById('countdown-label-box');
     const btnRefreshManual = document.getElementById('btn-refresh-manual');
     const iconRefresh = document.getElementById('icon-refresh');
     const lastSyncTime = document.getElementById('last-sync-time');
@@ -427,18 +448,29 @@ document.addEventListener('DOMContentLoaded', function () {
         return `${m}:${s}`;
     }
 
-    // Atualiza barra regressiva
+    // Atualiza barra regressiva e rótulo adaptativo
     function updateCountdownUI() {
         if (countdownText) countdownText.textContent = formatTime(secondsLeft);
         if (countdownBar) {
             const pct = (secondsLeft / COUNTDOWN_TOTAL_SECONDS) * 100;
             countdownBar.style.width = pct + '%';
-            if (pct <= 20) {
-                countdownBar.className = 'progress-bar bg-danger';
-            } else if (pct <= 50) {
-                countdownBar.className = 'progress-bar bg-warning';
+            if (isLiveActive) {
+                countdownBar.className = (pct <= 30) ? 'progress-bar bg-warning' : 'progress-bar bg-danger';
             } else {
-                countdownBar.className = 'progress-bar bg-info';
+                if (pct <= 20) {
+                    countdownBar.className = 'progress-bar bg-danger';
+                } else if (pct <= 50) {
+                    countdownBar.className = 'progress-bar bg-warning';
+                } else {
+                    countdownBar.className = 'progress-bar bg-info';
+                }
+            }
+        }
+        if (countdownLabelBox) {
+            if (isLiveActive) {
+                countdownLabelBox.innerHTML = '<i class="bi bi-broadcast text-danger me-1"></i><span class="text-danger fw-bold">Ao Vivo (8s):</span>';
+            } else {
+                countdownLabelBox.innerHTML = '<i class="bi bi-clock-history text-info me-1"></i><span>Varredura (45s):</span>';
             }
         }
     }
@@ -458,6 +490,13 @@ document.addEventListener('DOMContentLoaded', function () {
             updateCountdownUI();
         }, 1000);
     }
+
+    // Reatividade de Foco na Janela: Se o usuário voltar para a aba da Observabilidade, atualiza imediatamente
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            executarSincronizacaoLive();
+        }
+    });
 
     // Requisição AJAX que busca os dados de observabilidade ao vivo
     function executarSincronizacaoLive() {
@@ -492,6 +531,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }
 
+                    // Ajusta dinamicamente a cadência de polling:
+                    // Se houver jogo ao vivo, modo agressivo (8 segundos); se não houver, modo tranquilo (45 segundos)
+                    const hasLiveNow = (data.cards && data.cards.some(c => c.is_live));
+                    if (hasLiveNow !== isLiveActive) {
+                        isLiveActive = hasLiveNow;
+                        COUNTDOWN_TOTAL_SECONDS = isLiveActive ? LIVE_POLL_SECONDS : IDLE_POLL_SECONDS;
+                    }
+
                     // Re-renderiza Cards no DOM
                     renderizarCards(data.cards);
                 }
@@ -501,7 +548,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .finally(() => {
                 if (iconRefresh) iconRefresh.classList.remove('spin-animation');
-                startCountdown(); // Reinicia o timer de 3 minutos
+                startCountdown(); // Reinicia o timer adaptativo (8s ao vivo / 45s pré-jogo)
             });
     }
 

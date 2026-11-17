@@ -57,28 +57,84 @@ Para garantir que o sistema não quebre ao alternar para o modo real:
 
 ---
 
-## 3. Mecanismo Canônico de Cash Out: Hedge In-Play 100% Automático
+## 3. Mecanismo Canônico de Hedge Real na Linha Oposta (Proibição Absoluta de Fatores Sintéticos)
 
-Como a Cloudbet não possui uma rota direta de `/cashout` na sua API pública (recurso exclusivo de sua interface web/app), o sistema executa o Cash Out da forma profissional e matematicamente equivalente utilizada por fundos de trading quantitativo: **o Hedge Automático In-Play (Aposta de Cobertura)**.
+Em cumprimento rigoroso à **Regra de Ouro 12 do AGENTS.md** (proibição de dados sintéticos, cotações fictícias e valores arbitrados), o sistema **NUNCA utiliza multiplicadores sintéticos** (como `fator_cashout = 0.40` ou estimativas inventadas).
 
-### Como Funciona o Hedge Automático na Prática:
-1. **Identificação de Risco**: O monitor [cloudbet_live_cashout.py](file:///root/datalake-air-flow-delta/scripts/cloudbet_live_cashout.py) acompanha o jogo a cada 3 minutos (integrado à DAG do Airflow `football_trends_live_dag`);
+A Cloudbet não possui um botão de `/cashout` na sua API pública. Portanto, a saída e neutralização ocorrem da forma profissional e matematicamente comprovada utilizada por fundos quantitativos: **o Hedge Real In-Play e Pré-Jogo através de uma segunda ordem real na ponta contrária**.
+
+### Arquitetura Contábil dos 2 Bilhetes Reais:
+Quando o gatilho de risco é ativado, o sistema **NÃO altera magicamente o bilhete original para um status sintético de Cashout**. Ele opera com total transparência contábil:
+
+```
+[ Aposta Original #A (ex: Dinamarca 0.0 AH @ 1.94) ] ──▶ Débito: -1.10 USDT
+                        │
+                        ▼ (Gatilho In-Play aos 90' ou Alerta Vermelho Pré-Jogo)
+[ Ordem de Hedge Real #B (ex: Noruega 0.0 AH @ 1.94) ] ──▶ Débito: -1.10 USDT (via place_bet na API)
+                        │
+                        ▼ (Apito Final / FT: Dinamarca 2 x 3 Noruega)
+┌───────────────────────┴────────────────────────┐
+▼                                                ▼
+Aposta Original #A: PERDIDA (Red)          Aposta de Hedge #B: GANHA (GREEN!)
+(Nenhum crédito adicional)                 (Crédito Real: +2.13 USDT na conta_corrente)
+```
+
+### Como Funciona o Ciclo de Execução:
+1. **Identificação de Risco**: O monitor [cloudbet_live_cashout.py](file:///root/datalake-air-flow-delta/scripts/cloudbet_live_cashout.py) avalia a partida a cada 3 minutos (via DAG `football_trends_live_dag`);
 2. **Inversão Dinâmica de Mercado (`derive_opposite_market_url`)**:
    - `soccer.total_goals/over?total=2.5` ➔ Inverte para `soccer.total_goals/under?total=2.5`
    - `soccer.asian_handicap/home?handicap=-0.25` ➔ Inverte para `soccer.asian_handicap/away?handicap=-0.25`
-3. **Consulta de Liquidez Ao Vivo (`get_live_opposite_quote`)**:
-   - O robô consulta a odd e a liquidez atual da ponta contrária na Cloudbet naquele instante;
-4. **Disparo da Ordem de Cobertura via API**:
-   - O robô chama `POST /pub/v3/bets/place` comprando a ponta oposta com micro-stake (ex: 0.10 USDT) através do proxy suíço;
-5. **Resultado Travado e Posição Encerrada**:
-   - A posição é neutralizada matematicamente na Cloudbet;
-   - O registro no MySQL é atualizado para `status = 'Cashout'` e armazena o bloco `|| HEDGE: {...} ||` preservando integralmente `|| U5J_DATA:`;
-   - Um alerta push no **ntfy.sh** avisa o smartphone da conclusão do Cash Out.
-   - **Zero cliques do usuário, zero necessidade de abrir site e zero dependência de VPN no celular.**
+3. **Consulta de Cotação Real no Livro de Ofertas (`get_live_opposite_quote`)**:
+   - O robô consulta a odd e liquidez ativas da ponta contrária na Cloudbet naquele segundo;
+4. **Disparo da Ordem de Hedge via Trading API**:
+   - O robô chama `POST /pub/v3/bets/place` comprando a ponta oposta pelo proxy suíço;
+5. **Criação do Segundo Bilhete Real no Banco de Dados (`apostas`)**:
+   - Insere um novo registro com `tipo = 'Hedge Real'`, `palpite = 'Norway 0.0 AH'`, odd real do bookmaker e stake da cobertura;
+   - Registra a transação de `DEBITO_APOSTA` na tabela `conta_corrente`;
+   - O bilhete original armazena o vínculo cruzado `|| HEDGE_COBERTO_POR: #ID_HEDGE`;
+6. **Liquidação Oficial no Apito Final (FT)**:
+   - Ambas as apostas são liquidadas pelas regras oficiais do esporte pela DAG `processar_apostas_encerradas_dag`;
+   - A aposta vencedora tem seu retorno financeiro (`CREDITO_RETORNO_APOSTA`) creditado integralmente no saldo do usuário;
+   - **Zero fatores sintéticos, zero números inventados e 100% de integridade com a banca real.**
+
+### Governança Multi-Casas (Cloudbet vs. Betano / Outras):
+* **Na Cloudbet:** O Hedge é 100% autônomo, programático e executado via API.
+* **Na Betano / Casas sem Trading API:** O robô **apenas dispara notificação push de alta prioridade via ntfy** com link direto da partida para que o operador decida. **É expressamente proibido arbitrar valores sintéticos ou alterar saldo no banco para casas sem API.**
 
 ---
 
-## 4. Roteiro Passo a Passo para Viabilizar a Virada (`CLOUDBET_DRY_RUN=false`)
+## 4. Árbitro Tático Soberano Pré-Jogo: Grok IA & Blindagem contra Falsos Positivos
+
+### O Princípio da Antecipação de Cotações (+EV)
+No modelo quantitativo, aguardar a súmula oficial a 45 minutos do apito inicial para tentar comprar apostas destrói o retorno: o mercado profissional já absorve as notícias, as cotações derretem (*steam moves*) e quase tudo é reprovado pelo Gatekeeper por odd esmagada, gerando abstenção em massa (`NO_BET`).
+
+Por isso, o robô **compra a aposta com antecedência (até 24h antes)**, cravando a cotação no ápice do valor esperado (ex: @ 1.95 antes de derreter para @ 1.62).
+
+### O Papel do Grok IA como Árbitro de Súmula (T-45m a T-15m)
+Para evitar que rotações normais de elenco gerem falsos positivos (como contadores estáticos de desfalques fariam), a esteira pré-jogo aciona o **Grok IA (`scripts/grok_tactical_auditor.py`)** assim que a súmula oficial de 11 titulares é disponibilizada pela API-Sports.
+
+O Grok IA cruza a formação, goleiros e espinha dorsal **diretamente com a linha de Handicap apostada** e emite 3 vereditos padronizados:
+
+```
+Súmula Oficial Publicada (T-45 min)
+              │
+              ▼
+    [ Grok IA Auditor ] (Prompt Canônico do Robozinho + openai/gpt-oss-120b)
+              │
+    ┌─────────┴───────────────────────────────────────┐
+    ▼                                                 ▼
+🟢 MANTER APOSTA ou 🟡 ATENÇÃO               🔴 ALERTA DE CASHOUT IMEDIATO
+    │                                                 │
+    ▼                                                 ▼
+Preserva a aposta comprada no topo          Aciona Hedge Pré-Jogo na Cloudbet
+(Zero falso positivo / Segue pro jogo)      (Compra linha contrária via Trading API)
+```
+
+* **Cache Automático no Sininho:** A análise tática completa em Markdown é gravada na coluna `notificacoes_usuario.analise_ia`. Quando o operador clica no botão do "Robozinho" na plataforma web, o relatório tático do Grok já abre instantaneamente na tela (`cached: true`), sem nenhum tempo de espera.
+
+---
+
+## 5. Roteiro Passo a Passo para Viabilizar a Virada (`CLOUDBET_DRY_RUN=false`)
 
 O desenvolvedor/apostador deve seguir rigorosamente a sequência abaixo para ligar a operação real com risco mínimo:
 
@@ -151,7 +207,7 @@ Após a validação bem-sucedida do Canary Test no Passo 3 e 4:
 
 ---
 
-## 5. Procedimentos de Emergência e Salvaguardas (Kill Switch)
+## 6. Procedimentos de Emergência e Salvaguardas (Kill Switch)
 
 ### Como Reverter Instantaneamente para Simulação
 Se for detectada qualquer anomalia de mercado, latência de rede ou comportamento inesperado, o operador pode retornar para o modo de simulação em menos de 5 segundos:

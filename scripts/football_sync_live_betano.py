@@ -314,6 +314,23 @@ def notificar_gol_ao_vivo(cursor, target_uid, fid, h_team, a_team, gh, ga, elaps
     return notifs_enviadas
 
 
+def get_api_sports_remaining_quota(headers: dict) -> int:
+    """
+    Retorna o saldo restante de requisições diárias da API-Sports.
+    Se a cota não puder ser validada, retorna 0 por segurança para evitar estouro acidental.
+    """
+    try:
+        r = requests.get('https://v3.football.api-sports.io/status', headers=headers, timeout=6)
+        if r.status_code == 200:
+            req_info = r.json().get('response', {}).get('requests', {})
+            curr = int(req_info.get('current') or 0)
+            limit = int(req_info.get('limit_day') or 7500)
+            return max(0, limit - curr)
+    except Exception as e:
+        print(f"⚠️ [API-Sports Status Check Erro]: {e}")
+    return 0
+
+
 def main():
     print("=" * 70)
     print(f"⚡ [FootballWeb In-Play] Sincronização Ao Vivo Betano - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -352,36 +369,59 @@ def main():
     live_events = fetch_betano_live_football_events()
     print(f"✅ Jogos ao vivo recebidos da Betano: {len(live_events)}")
 
-    # Contingência de Placares: se o catálogo da Betano estiver vazio (Cloudflare/403),
-    # sincroniza placares oficiais via API-Sports (1 única chamada para a data de hoje)
-    if not live_events:
+    # Contingência de Placares In-Play e Partidas Passadas:
+    # Se o catálogo da Betano estiver vazio (Cloudflare/403) ou não contiver as partidas em andamento,
+    # verifica se a API-Sports possui saldo diário suficiente (mínimo de 200 requisições restantes).
+    if not live_events and db_fixtures:
         print("⚠️ Feed ao vivo da Betano inacessível (bloqueio 403 / Cloudflare).")
-        print("🔄 Acionando contingência de sincronização de placares oficiais (sync_pending_past_fixtures)...")
         try:
-            from football_ingest_trends import sync_pending_past_fixtures
-            api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
+            env_vars = get_live_env_vars()
+            api_key = os.environ.get("FOOTBALL_API_KEY") or env_vars.get("FOOTBALL_API_KEY") or "0327019c6fab54df2ea46009b5f0844b"
             headers = {
                 "x-apisports-key": api_key,
                 "Content-Type": "application/json"
             }
-            sync_pending_past_fixtures(conn, headers)
-            print("✅ Placares e status oficiais atualizados com sucesso pela contingência.")
-            # Recarrega partidas atualizadas do banco para obter os placares recém-sincronizados
-            cursor.execute("""
-                SELECT ft.fixture_id, ft.home_team, ft.away_team, ft.status, ft.goals_home, ft.goals_away, ft.elapsed,
-                       ft.fixture_date, ft.ah_suggestion, ft.ah_confidence, ft.ah_reasoning, ft.prediction_text,
-                       ft.home_team_id, ft.away_team_id, ft.referee_name, ft.league_id, ft.league_name,
-                       rs.average_yellow_cards, rs.average_red_cards, rs.rigor_level
-                FROM fixtures_trends ft
-                LEFT JOIN referee_stats rs ON ft.referee_name = rs.name
-                WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 140 MINUTE)
-                  AND ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
-                  AND ft.status NOT IN ('FT', 'AET', 'PEN', 'CANC', 'POSTPONED', 'FINISHED')
-                ORDER BY ft.fixture_date ASC
-            """)
-            db_fixtures = cursor.fetchall()
+
+            # Verificação Estrita de Saldo da API (Salvaguarda Mandatória solicitada pelo Usuário)
+            remaining_quota = get_api_sports_remaining_quota(headers)
+            print(f"📊 [API-Sports Quota Check] Saldo Restante de Requisições: {remaining_quota} (Mínimo de Segurança: 200)")
+
+            if remaining_quota >= 200:
+                print("🔄 [API-Sports In-Play Fallback] Saldo suficiente confirmado. Sincronizando partidas ao vivo...")
+                fids_in_play = [str(f['fixture_id']) for f in db_fixtures if f.get('fixture_id')]
+                if fids_in_play:
+                    ids_param = "-".join(fids_in_play[:20])
+                    url_inplay = f"https://v3.football.api-sports.io/fixtures?ids={ids_param}"
+                    resp_inplay = requests.get(url_inplay, headers=headers, timeout=12).json()
+                    inplay_items = resp_inplay.get('response', [])
+                    for item in inplay_items:
+                        f_info = item.get('fixture', {})
+                        g_info = item.get('goals', {})
+                        t_info = item.get('teams', {})
+                        st_short = f_info.get('status', {}).get('short')
+                        el_item = f_info.get('status', {}).get('elapsed')
+                        gh_item = g_info.get('home')
+                        ga_item = g_info.get('away')
+
+                        live_events.append({
+                            'home_team': t_info.get('home', {}).get('name', ''),
+                            'away_team': t_info.get('away', {}).get('name', ''),
+                            'status': st_short,
+                            'goals_home': gh_item,
+                            'goals_away': ga_item,
+                            'elapsed': el_item,
+                            'card_lines': [],
+                            'source': 'API-Sports Contingência In-Play'
+                        })
+                    print(f"✅ [API-Sports In-Play Fallback] {len(live_events)} partidas ao vivo recuperadas com placares e minutos oficiais!")
+
+                # Executa também a sincronização de partidas encerradas pendentes
+                from football_ingest_trends import sync_pending_past_fixtures
+                sync_pending_past_fixtures(conn, headers)
+            else:
+                print(f"⚠️ [API-Sports In-Play Fallback Abortado] Saldo de requisições insuficiente ({remaining_quota} < 200). Protegendo cota da API.")
         except Exception as e_sync:
-            print(f"⚠️ Erro ao acionar contingência de placares: {e_sync}")
+            print(f"⚠️ Erro ao acionar contingência in-play via API-Sports: {e_sync}")
 
     jogos_atualizados = 0
     oportunidades_geradas = 0

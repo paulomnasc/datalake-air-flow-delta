@@ -216,6 +216,14 @@
                             </div>
                         <?php endif; ?>
 
+                        <!-- TOPO DO CARD: DATA E HORA CENTRALIZADA -->
+                        <div class="text-center py-1.5 px-3" style="background: rgba(0, 0, 0, 0.55); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                            <span class="text-white font-monospace fw-semibold d-inline-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.5px;">
+                                <i class="bi bi-calendar-event text-white-50"></i>
+                                <?= htmlspecialchars($c['data_hora_jogo_fmt'] ?? '') ?>
+                            </span>
+                        </div>
+
                         <div class="card-body p-3 d-flex flex-column justify-content-between">
                             
                             <!-- CABEÇALHO DO JOGO: LIGA E STATUS TEMPO REAL -->
@@ -737,6 +745,14 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <i class="bi bi-lightning-charge-fill animate-bounce"></i>
                             </div>
                         ` : ''}
+
+                        <!-- TOPO DO CARD: DATA E HORA CENTRALIZADA -->
+                        <div class="text-center py-1.5 px-3" style="background: rgba(0, 0, 0, 0.55); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                            <span class="text-white font-monospace fw-semibold d-inline-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.78rem; letter-spacing: 0.5px;">
+                                <i class="bi bi-calendar-event text-white-50"></i>
+                                ${escapeHtml(c.data_hora_jogo_fmt || '')}
+                            </span>
+                        </div>
 
                         <div class="card-body p-3 d-flex flex-column justify-content-between">
                             

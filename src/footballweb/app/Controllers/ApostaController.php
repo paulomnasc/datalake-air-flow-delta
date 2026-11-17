@@ -5457,6 +5457,19 @@ class ApostaController extends BaseController
             $statusBadge = 'bg-dark';
         }
 
+        // Formatação de Data e Hora da Partida (Convertido de UTC para America/Sao_Paulo)
+        $rawDate = !empty($row->fixture_date) ? $row->fixture_date : ($row->data_hora_jogo ?? null);
+        $dataHoraJogoFmt = 'Data a Definir';
+        if (!empty($rawDate)) {
+            try {
+                $dt = new \DateTime($rawDate, new \DateTimeZone('UTC'));
+                $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
+                $dataHoraJogoFmt = $dt->format('d/m/Y • H:i');
+            } catch (\Exception $e) {
+                $dataHoraJogoFmt = date('d/m/Y • H:i', strtotime($rawDate));
+            }
+        }
+
         // Variáveis do Velocímetro e Regras de Negócio (Inicialização Obrigatória - Regra 8)
         $gaugePct = 15;
         $faixaCor = 'verde';
@@ -5727,6 +5740,7 @@ class ApostaController extends BaseController
         return [
             'aposta_id'          => (int)$row->id,
             'fixture_id'         => (int)$row->fixture_id,
+            'data_hora_jogo_fmt' => $dataHoraJogoFmt,
             'time_casa'          => $row->time_casa ?? 'Mandante',
             'time_fora'          => $row->time_fora ?? 'Visitante',
             'league_name'        => $row->league_name ?? 'Competição',

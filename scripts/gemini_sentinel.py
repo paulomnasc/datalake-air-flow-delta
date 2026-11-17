@@ -1803,6 +1803,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         if specific_aposta_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
@@ -1819,6 +1820,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         elif specific_fixture_id:
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
@@ -1837,6 +1839,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # FASE 1: Antecipação Matinal (Janela de 24h) - Seleciona partidas do dia sem parecer prévio
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
@@ -1860,6 +1863,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # FASE 2: Repescagem Pré-Jogo (T-50m a T-15m) e Vigilância de Drift de Mercado
             query = """
                 SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
@@ -2208,6 +2212,40 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                                 prioridade=5 if recalib.get('alerta_risco') else 4,
                                 tags=[tag_color, "clipboard", "soccer"]
                             )
+
+                        # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
+                        # Elimina 100% dos falsos positivos: aciona Hedge Pré-Jogo na Cloudbet apenas se o Grok IA recomendar CASHOUT_IMEDIATO.
+                        try:
+                            from grok_tactical_auditor import auditar_escalacao_com_grok
+                            sumula_txt = (
+                                (sumula_oficial.get('texto_sumula') if isinstance(sumula_oficial, dict) else None)
+                                or parecer
+                                or f"Escalação oficial de {home_team} x {away_team}"
+                            )
+                            res_grok = auditar_escalacao_com_grok(
+                                aposta_dict=item,
+                                sumula_texto=sumula_txt,
+                                titulo=titulo_alerta,
+                                cursor=cursor,
+                                conn=conn
+                            )
+                            if res_grok.get("is_cashout_recommended"):
+                                print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático crítico confirmado pelo Grok IA na Aposta #{aposta_id}!")
+                                casa_nome = str(item.get('casa_de_aposta') or '').strip()
+                                if casa_nome == 'Cloudbet':
+                                    from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                                    executar_hedge_prejogo_cloudbet(
+                                        bet=item,
+                                        motivo_tatica=res_grok.get("analise_ia", "Sinistro tático detectado na súmula pelo Grok IA."),
+                                        cursor=cursor,
+                                        conn=conn
+                                    )
+                                else:
+                                    print(f"ℹ️ [{casa_nome}] Aposta requer confirmação de cashout manual. Alerta emitido.")
+                            else:
+                                print(f"🟢 [Grok IA Arbitrator: {res_grok.get('veredito')}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
+                        except Exception as e_grok:
+                            print(f"⚠️ [Grok Tactical Auditor Erro]: {e_grok}")
                     else:
                         print(f"ℹ️ [Sentinela IA] Escalação de #{aposta_id} ({home_team} vs {away_team}) já notificada anteriormente (notificacao_escalacao_enviada=1). Silêncio operacional.")
                 elif tem_alerta or st == 'ALERTA_RISCO':

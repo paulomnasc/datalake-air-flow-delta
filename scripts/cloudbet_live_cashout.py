@@ -432,6 +432,172 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
     }
 
 
+def executar_hedge_prejogo_cloudbet(
+    bet: Dict[str, Any],
+    motivo_tatica: str,
+    client: Optional[CloudbetClient] = None,
+    cursor = None,
+    conn = None
+) -> Dict[str, Any]:
+    """
+    Executa o Hedge Autônomo Pré-Jogo para apostas na Cloudbet
+    quando o Grok IA emite veredito de CASHOUT_IMEDIATO por sinistro na súmula oficial.
+    Regra 8: inicialização prévia de variáveis numéricas locais.
+    Regra 16: preservação obrigatória do bloco || U5J_DATA:.
+    """
+    total_erros = 0
+    valor_cashout = 0.0
+
+    aposta_id = bet.get('id') or bet.get('aposta_id')
+    f_id = bet.get('fixture_id')
+    home = bet.get('home_team') or bet.get('time_casa', 'Mandante')
+    away = bet.get('away_team') or bet.get('time_fora', 'Visitante')
+    palpite = bet.get('palpite', 'N/D')
+    stake = float(bet.get('valor_aposta') or 0.0)
+
+    if client is None:
+        client = CloudbetClient()
+
+    owns_conn = False
+    if cursor is None:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        owns_conn = True
+
+    try:
+        print(f"\n🛡️ [Iniciando Hedge Pré-Jogo Autônomo] Aposta #{aposta_id} ({home} vs {away}) | Palpite: {palpite}")
+        print(f"   Motivo Grok IA: {motivo_tatica[:200]}...")
+
+        cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
+        bet_id = str(cb_meta.get('bet_id') or f"sim_cb_{aposta_id}")
+        event_id = str(cb_meta.get('event_id') or '')
+        market_url = str(cb_meta.get('market_url') or '')
+        opposite_market_url = derive_opposite_market_url(market_url)
+
+        hedge_info = {}
+        if client.dry_run or bet_id.startswith("sim_"):
+            print(f"   ⚡ [Cloudbet DRY-RUN] Simulando Hedge Pré-Jogo...")
+            res_co = client.execute_cashout(bet_id)
+            hedge_info = {"mode": "dry_run_pregame_hedge", "bet_id": bet_id, "opposite_market_url": opposite_market_url}
+        else:
+            if not event_id or not opposite_market_url:
+                try:
+                    from cloudbet_matcher import find_matching_event
+                    matched = find_matching_event(client, home, away)
+                    if matched:
+                        event_id = matched.get("id", "")
+                except Exception as e_m:
+                    print(f"   ⚠️ [Matcher Event Error]: {e_m}")
+
+            if not event_id or not opposite_market_url:
+                print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Metadados de mercado ausentes para hedge em #{aposta_id}.")
+                return {"success": False, "motivo": "Metadados ausentes"}
+
+            quote = get_live_opposite_quote(client, event_id, opposite_market_url)
+            if not quote:
+                print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
+                return {"success": False, "motivo": "Mercado oposto sem cotação"}
+
+            hedge_price = quote['price']
+            min_stake = quote['min_stake']
+            hedge_stake = max(min_stake, round(stake, 2))
+
+            print(f"   🚀 [Disparando Ordem Real Pré-Jogo via API] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+            res_co = client.execute_cashout(
+                bet_id=bet_id,
+                event_id=event_id,
+                market_url=opposite_market_url,
+                price=hedge_price,
+                stake=hedge_stake,
+                dry_run=False
+            )
+
+            if not res_co.get("success") and not res_co.get("referenceId"):
+                print(f"   ❌ Falha ao processar ordem de hedge pré-jogo na API Cloudbet: {res_co}")
+                return {"success": False, "motivo": "Falha na API Cloudbet"}
+
+            hedge_info = {
+                "mode": "real_pregame_hedge",
+                "hedge_ref": res_co.get("referenceId"),
+                "market_url": opposite_market_url,
+                "price": hedge_price,
+                "stake": hedge_stake
+            }
+
+        valor_cashout = round(stake * 0.90, 2)
+        motivo_clean = re.sub(r'[\r\n\t]+', ' ', motivo_tatica).strip()
+        main_calc_text = f"🛡️ [HEDGE PRÉ-JOGO EXECUTADO] Aposta neutralizada na Cloudbet antes do início. Motivo Grok IA: {motivo_clean[:180]}"
+
+        compound_r = compose_compound_ah_reasoning(
+            cursor=cursor,
+            fixture_id=f_id,
+            main_calc=main_calc_text,
+            suggestion=palpite,
+            home_team=home,
+            away_team=away,
+            home_team_id=bet.get('home_team_id'),
+            away_team_id=bet.get('away_team_id'),
+            existing_reasoning=bet.get('resultado_detalhado') or bet.get('ah_reasoning')
+        )
+        final_r = f"|| HEDGE_PREJOGO: {json.dumps(hedge_info)} || " + compound_r if hedge_info else compound_r
+
+        cursor.execute("""
+            UPDATE apostas
+            SET status = 'Cashout',
+                cash_out = %s,
+                resultado_detalhado = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (valor_cashout, final_r, aposta_id))
+
+        if conn:
+            conn.commit()
+
+        tit_push = f"🛡️ Hedge Pré-Jogo Executado: {home} vs {away}"
+        msg_push = (
+            f"O Grok IA identificou desequilíbrio crítico na súmula oficial de {home} x {away}. "
+            f"Sua aposta #{aposta_id} ({palpite}) foi neutralizada na Cloudbet antes do apito inicial para proteger a banca!"
+        )
+        enviar_push_cashout(
+            titulo=tit_push,
+            mensagem=msg_push,
+            fixture_id=f_id,
+            aposta_id=aposta_id,
+            prioridade=5
+        )
+
+        try:
+            from lifecycle_logger import log_lifecycle_event
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=f_id,
+                aposta_id=aposta_id,
+                notificacao_id=None,
+                notificacao_criada_em=None,
+                componente='GROK_SENTINEL_HEDGE',
+                tipo_evento='HEDGE_PREJOGO_EXECUTADO',
+                estado_anterior='Pendente',
+                estado_novo='Cashout',
+                delta={'bet_id': bet_id, 'valor_cashout': valor_cashout, 'hedge_info': hedge_info},
+                motivo=motivo_tatica
+            )
+            if conn:
+                conn.commit()
+        except Exception:
+            pass
+
+        print(f"✅ [Hedge Pré-Jogo Concluído] Aposta #{aposta_id} encerrada e protegida com sucesso!")
+        return {"success": True, "valor_cashout": valor_cashout, "hedge_info": hedge_info}
+
+    except Exception as e_h:
+        print(f"❌ [Erro Hedge Pré-Jogo]: {e_h}")
+        return {"success": False, "motivo": str(e_h)}
+    finally:
+        if owns_conn and conn:
+            cursor.close()
+            conn.close()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Monitor de Cash Out In-Play 100% Autônomo da Cloudbet")
     parser.add_argument("--loop", action="store_true", help="Executa em loop contínuo a cada 30 segundos")

@@ -56,7 +56,20 @@ ALLOWED_LEAGUES = {
     10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)"
+    17: "AFC Champions League (Asia)",
+    # Principais Ligas e Copas Femininas de Elite Mundial
+    525: "UEFA Champions League Women (Europa)",
+    44:  "FA WSL (Inglaterra Feminino)",
+    74:  "Brasileirao Feminino (Brasil)",
+    254: "NWSL (EUA Feminino)",
+    142: "Liga F (Espanha Feminino)",
+    82:  "Frauen Bundesliga (Alemanha Feminino)",
+    64:  "Premiere Ligue (Franca Feminino)",
+    139: "Serie A Women (Italia Feminino)",
+    949: "Copa Libertadores Femenina (America do Sul)",
+    8:   "Copa do Mundo Feminina (Mundo)",
+    926: "Copa America Femenina (America do Sul)",
+    698: "FA Women's Cup (Inglaterra Feminino)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
@@ -87,7 +100,14 @@ ALLOWED_LEAGUE_NAMES = [
     'ekstraklasa', 'czech first league',
     'mls', 'major league soccer',
     'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
-    'friendlies', 'amistoso', 'amistosos'
+    'friendlies', 'amistoso', 'amistosos',
+    'uefa champions league women', 'champions league women', 'uwcl',
+    'fa wsl', 'women\'s super league', 'wsl',
+    'brasileirão feminino', 'brasileirao feminino',
+    'nwsl', 'liga f', 'frauen-bundesliga', 'frauen bundesliga',
+    'première ligue', 'premiere ligue', 'feminine division 1',
+    'serie a women', 'libertadores femenina', 'copa libertadores femenina',
+    'world cup - women', 'copa do mundo feminina'
 ]
 
 
@@ -102,8 +122,19 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None, home_
 
     l_name_low = str(league_name or '').lower().strip()
 
-    # 1. Bloqueia partidas femininas
+    # 1. Validação primária por ID Numérico Oficial (O(1))
+    if league_id is not None:
+        try:
+            lid = int(league_id)
+            if lid in ALLOWED_LEAGUE_IDS:
+                return True
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Bloqueia partidas femininas genéricas (não autorizadas no catálogo oficial)
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina', ' w ', '(w)']):
+        if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
+            return True
         return False
 
     # 2. Bloqueia categorias de base
@@ -119,14 +150,6 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None, home_
     if lid_check == 10 or 'amistoso' in l_name_low or 'friendlies' in l_name_low:
         if home_name or away_name or home_id or away_id:
             return is_relevant_national_friendly(home_id, home_name, away_id, away_name)
-
-    # 4. Validação primária por ID Numérico Oficial (O(1))
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            return lid in ALLOWED_LEAGUE_IDS
-        except (ValueError, TypeError):
-            pass
 
     # 4. Bloqueia divisões secundárias genéricas (Fallback para validação apenas textual)
     if any(tier in l_name_low for tier in ['2. liga', '2. bundesliga', 'segunda division', 'segunda división', 'serie c', 'serie d', 'championship', 'league one', 'league two']):

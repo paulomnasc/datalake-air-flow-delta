@@ -212,10 +212,24 @@ def calculate_team_poisson_under_lines(xc, phi=1.15):
         
     return results
 
-def is_women_game(home_team="", away_team="", league_name=""):
+def is_women_game(home_team="", away_team="", league_name="", league_id=None):
     """
-    Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
+    Filtra e desconsidera partidas femininas não autorizadas no catálogo global leagues_config.py.
     """
+    if league_id is not None:
+        try:
+            if int(league_id) in ALLOWED_LEAGUES:
+                return False
+        except (ValueError, TypeError):
+            pass
+
+    if league_name:
+        l_norm = league_name.lower().strip()
+        for allowed_id, allowed_name in ALLOWED_LEAGUES.items():
+            a_norm = allowed_name.lower().strip()
+            if l_norm in a_norm or a_norm in l_norm:
+                return False
+
     home = str(home_team or "").strip()
     away = str(away_team or "").strip()
     league = str(league_name or "").strip()
@@ -3339,7 +3353,7 @@ def main():
         h_id = f.get("teams", {}).get("home", {}).get("id")
         a_id = f.get("teams", {}).get("away", {}).get("id")
 
-        if is_women_game(h_name, a_name, l_name) or is_youth_game(h_name, a_name, l_name):
+        if is_women_game(h_name, a_name, l_name, lid) or is_youth_game(h_name, a_name, l_name):
             continue
 
         # Para Amistosos (ID 10): aceita apenas confrontos com seleções internacionais relevantes
@@ -3455,17 +3469,17 @@ def main():
         print(f"Aviso ao carregar existing_db_referees: {e_ref}")
 
     try:
-        cursor.execute("SELECT fixture_id, home_team, away_team, league_name FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, league_name, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
         recent_db_fixtures = cursor.fetchall()
         to_delete = [
             r['fixture_id'] for r in recent_db_fixtures 
-            if is_women_game(r['home_team'], r['away_team'], r['league_name']) or is_youth_game(r['home_team'], r['away_team'], r['league_name'])
+            if is_women_game(r['home_team'], r['away_team'], r['league_name'], r.get('league_id')) or is_youth_game(r['home_team'], r['away_team'], r['league_name'])
         ]
         if to_delete:
             format_strings = ','.join(['%s'] * len(to_delete))
             cursor.execute(f"DELETE FROM fixtures_trends WHERE fixture_id IN ({format_strings})", tuple(to_delete))
             conn.commit()
-            print(f"🧹 Limpeza automática: removidas {len(to_delete)} partidas de categorias de base / femininas da base de dados.")
+            print(f"🧹 Limpeza automática: removidas {len(to_delete)} partidas de categorias de base / femininas não autorizadas da base de dados.")
     except Exception as e_clean:
         print(f"Aviso ao executar limpeza de jogos de base/femininos: {e_clean}")
 
@@ -3504,8 +3518,8 @@ def main():
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
 
-            # Desconsiderar partidas/ligas femininas (W) e categorias de base (Sub-17, Sub-21, U17, U21, etc.)
-            if is_women_game(home_team, away_team, league_name) or is_youth_game(home_team, away_team, league_name):
+            # Desconsiderar partidas/ligas femininas não autorizadas e categorias de base (Sub-17, Sub-21, U17, U21, etc.)
+            if is_women_game(home_team, away_team, league_name, league_id) or is_youth_game(home_team, away_team, league_name):
                 continue
 
             # Sanitização: Corrigir atribuição de liga se a API enviar times da Série B sob Série A (league 71)

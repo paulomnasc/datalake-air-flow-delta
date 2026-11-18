@@ -149,6 +149,107 @@ def extract_cloudbet_bet_id(resultado_detalhado: str, aposta_id: int) -> str:
     return f"sim_cb_{aposta_id}"
 
 
+def find_cloudbet_opposite_market_and_quote(
+    client: CloudbetClient,
+    home: str,
+    away: str,
+    palpite: str,
+    market_url: Optional[str] = None,
+    event_id: Optional[str] = None
+) -> Tuple[Optional[str], Optional[str], float, float, Optional[str]]:
+    """
+    Localiza o evento e a seleção da ponta oposta com cotação e liquidez na Cloudbet.
+    Suporta tanto apostas nativas da Cloudbet quanto Hedge Cruzado para apostas Betano/outras casas.
+    Retorna: (event_id, opposite_market_url, price, min_stake, opposite_palpite)
+    """
+    opp_market_url = None
+    opp_palpite = None
+    price = 0.0
+    min_stake = 0.10
+
+    # 1. Se já temos market_url nativa Cloudbet, deriva a ponta oposta
+    if market_url:
+        opp_market_url = derive_opposite_market_url(market_url)
+
+    # 2. Se temos event_id e opp_market_url, tenta a cotação direta
+    if event_id and opp_market_url:
+        quote = get_live_opposite_quote(client, str(event_id), opp_market_url)
+        if quote:
+            opposite_team = home if away.lower() in palpite.lower() else away
+            opp_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opp_market_url})"
+            return str(event_id), opp_market_url, float(quote['price']), float(quote['min_stake']), opp_palpite
+
+    # 3. Hedge Cruzado via CloudbetMatcher (procura o evento e o mercado oposto)
+    try:
+        from cloudbet_matcher import CloudbetMatcher
+        matcher = CloudbetMatcher(client)
+        matched = matcher.find_matching_event(home, away)
+        if matched:
+            matched_event_id = str(matched.get("event_id") or matched.get("id") or "")
+            if matched_event_id:
+                cb_markets = matcher.get_event_markets(int(matched_event_id))
+
+                # Caso Handicap Asiático
+                if "ah" in palpite.lower() or "handicap" in palpite.lower() or "0.0" in palpite:
+                    is_home_bet = (home.lower() in palpite.lower())
+                    opp_outcome = "away" if is_home_bet else "home"
+                    opp_team = away if is_home_bet else home
+
+                    m_hcap = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite)
+                    hcap_val = float(m_hcap.group(1)) if m_hcap else 0.0
+                    opp_hcap = -hcap_val
+
+                    ah_dict = cb_markets.get("asian_handicap", {})
+                    sel_cand = None
+                    if opp_hcap in ah_dict and opp_outcome in ah_dict[opp_hcap]:
+                        sel_cand = ah_dict[opp_hcap][opp_outcome]
+                    elif 0.0 in ah_dict and opp_outcome in ah_dict[0.0]:
+                        sel_cand = ah_dict[0.0][opp_outcome]
+                        opp_hcap = 0.0
+                    elif ah_dict:
+                        for h_k, h_v in ah_dict.items():
+                            if opp_outcome in h_v:
+                                sel_cand = h_v[opp_outcome]
+                                opp_hcap = h_k
+                                break
+
+                    if sel_cand:
+                        opp_market_url = sel_cand["market_url"]
+                        price = float(sel_cand["price"])
+                        min_stake = float(sel_cand["min_stake"])
+                        opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
+                        return matched_event_id, opp_market_url, price, min_stake, opp_palpite
+
+                # Caso Total de Gols (Over / Under)
+                elif "gol" in palpite.lower() or "over" in palpite.lower() or "under" in palpite.lower():
+                    m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
+                    tot_val = float(m_tot.group(1)) if m_tot else 2.5
+                    is_over = ("mais" in palpite.lower() or "over" in palpite.lower())
+                    opp_tot_outcome = "under" if is_over else "over"
+
+                    tg_dict = cb_markets.get("total_goals", {})
+                    sel_cand = None
+                    if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
+                        sel_cand = tg_dict[tot_val][opp_tot_outcome]
+                    elif tg_dict:
+                        for t_k, t_v in tg_dict.items():
+                            if opp_tot_outcome in t_v:
+                                sel_cand = t_v[opp_tot_outcome]
+                                tot_val = t_k
+                                break
+
+                    if sel_cand:
+                        opp_market_url = sel_cand["market_url"]
+                        price = float(sel_cand["price"])
+                        min_stake = float(sel_cand["min_stake"])
+                        opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
+                        return matched_event_id, opp_market_url, price, min_stake, opp_palpite
+    except Exception as e_m:
+        print(f"⚠️ [Cross-Hedge Matcher Error] Falha ao resolver mercado oposto na Cloudbet: {e_m}")
+
+    return None, None, 0.0, 0.10, None
+
+
 def evaluate_live_cashout_trigger(bet_row: Dict[str, Any]) -> Tuple[bool, str]:
     """
     Avalia se uma aposta em andamento atingiu as condições críticas para Hedge Real na ponta oposta.
@@ -299,45 +400,38 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"   🚨 [GATILHO DE HEDGE ATIVADO]: {motivo}")
 
-        # Se for Betano/outras casas sem API de trading, apenas alerta mobile para decisão do usuário
-        if casa_nome != 'Cloudbet':
-            print(f"   ℹ️ [{casa_nome}] Aposta em casa sem API de trading. Disparando alerta mobile imediato para decisão do usuário...")
+        # Localiza o evento e cotação oposta na Cloudbet (para Cloudbet nativa ou Hedge Cruzado Betano)
+        cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
+        bet_id = str(cb_meta.get('bet_id') or f"cross_hedge_{aposta_id}")
+        meta_event_id = str(cb_meta.get('event_id') or '')
+        meta_market_url = str(cb_meta.get('market_url') or '')
+
+        event_id, opposite_market_url, hedge_price, min_stake, opp_palpite = find_cloudbet_opposite_market_and_quote(
+            client=client,
+            home=home,
+            away=away,
+            palpite=palpite,
+            market_url=meta_market_url,
+            event_id=meta_event_id
+        )
+
+        if not event_id or not opposite_market_url:
+            print(f"   ℹ️ [{casa_nome}] Evento sem mercado oposto líquido na Cloudbet. Enviando alerta mobile...")
             tit = f"⚡ Alerta de Hedge ({casa_nome}): {home} vs {away}"
             msg = f"Aposta {palpite} aos {elapsed}' ({gh}x{ga}). Avalie cobertura na ponta oposta. Motivo: {motivo}"
             enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
             continue
 
-        # PARA CLOUDBET: EXECUTA O HEDGE REAL VIA API NA PONTA CONTRÁRIA
-        cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
-        bet_id = str(cb_meta.get('bet_id') or f"sim_cb_{aposta_id}")
-        event_id = str(cb_meta.get('event_id') or '')
-        market_url = str(cb_meta.get('market_url') or '')
-        opposite_market_url = derive_opposite_market_url(market_url)
-
-        if not event_id or not opposite_market_url:
-            try:
-                from cloudbet_matcher import find_matching_event
-                matched = find_matching_event(client, home, away)
-                if matched:
-                    event_id = matched.get("id", "")
-            except Exception as e_m:
-                print(f"   ⚠️ [Matcher Event Error]: {e_m}")
-
-        if not event_id or not opposite_market_url:
-            print(f"   ⚠️ [Hedge Cloudbet] Metadados de mercado ausentes para hedge em #{aposta_id}. Abortando.")
-            total_erros += 1
-            continue
-
-        quote = get_live_opposite_quote(client, event_id, opposite_market_url)
-        if not quote and not client.dry_run:
+        if hedge_price <= 1.0 and not client.dry_run:
             print(f"   ⚠️ [Hedge Cloudbet] Mercado oposto '{opposite_market_url}' suspenso/sem liquidez neste instante.")
             continue
 
-        hedge_price = float(quote['price']) if quote else 1.90
-        min_stake = float(quote['min_stake']) if quote else 0.10
+        if hedge_price <= 1.0:
+            hedge_price = 1.90
         hedge_stake = max(min_stake, stake)
+        opposite_palpite = opp_palpite or (f"{home if away.lower() in palpite.lower() else away} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})")
 
-        print(f"   🚀 [Disparando Hedge Real via API] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+        print(f"   🚀 [Disparando Hedge Real via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
             event_id=event_id,
@@ -353,8 +447,6 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             continue
 
         # Inserção da Nova Aposta Real de Cobertura no Banco de Dados
-        opposite_team = home if away.lower() in palpite.lower() else away
-        opposite_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})"
         cursor.execute("""
             INSERT INTO apostas (
                 usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
@@ -482,64 +574,59 @@ def executar_hedge_prejogo_cloudbet(
         print(f"   Motivo Grok IA: {motivo_tatica[:200]}...")
 
         cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
-        bet_id = str(cb_meta.get('bet_id') or f"sim_cb_{aposta_id}")
-        event_id = str(cb_meta.get('event_id') or '')
-        market_url = str(cb_meta.get('market_url') or '')
-        opposite_market_url = derive_opposite_market_url(market_url)
+        bet_id = str(cb_meta.get('bet_id') or f"cross_pregame_{aposta_id}")
+        meta_event_id = str(cb_meta.get('event_id') or '')
+        meta_market_url = str(cb_meta.get('market_url') or '')
+
+        event_id, opposite_market_url, hedge_price, min_stake, opp_palpite = find_cloudbet_opposite_market_and_quote(
+            client=client,
+            home=home,
+            away=away,
+            palpite=palpite,
+            market_url=meta_market_url,
+            event_id=meta_event_id
+        )
 
         hedge_info = {}
-        if client.dry_run or bet_id.startswith("sim_"):
-            print(f"   ⚡ [Cloudbet DRY-RUN] Simulando Hedge Pré-Jogo...")
-            res_co = client.execute_cashout(bet_id)
-            hedge_info = {"mode": "dry_run_pregame_hedge", "bet_id": bet_id, "opposite_market_url": opposite_market_url}
-        else:
-            if not event_id or not opposite_market_url:
-                try:
-                    from cloudbet_matcher import find_matching_event
-                    matched = find_matching_event(client, home, away)
-                    if matched:
-                        event_id = matched.get("id", "")
-                except Exception as e_m:
-                    print(f"   ⚠️ [Matcher Event Error]: {e_m}")
+        if not event_id or not opposite_market_url:
+            print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Evento/Mercado oposto não localizado na Cloudbet para partida #{f_id} ({home} vs {away}).")
+            tit_push = f"⚠️ Alerta Pré-Jogo ({casa_nome}): {home} vs {away}"
+            msg_push = f"Escalação desfavorável para {palpite}. Motivo Grok IA: {motivo_tatica[:150]}"
+            enviar_push_cashout(tit_push, msg_push, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
+            return {"success": False, "motivo": "Mercado Cloudbet não disponível"}
 
-            if not event_id or not opposite_market_url:
-                print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Metadados de mercado ausentes para hedge em #{aposta_id}.")
-                return {"success": False, "motivo": "Metadados ausentes"}
+        if hedge_price <= 1.0 and not client.dry_run:
+            print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
+            return {"success": False, "motivo": "Mercado oposto sem cotação"}
 
-            quote = get_live_opposite_quote(client, event_id, opposite_market_url)
-            if not quote:
-                print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
-                return {"success": False, "motivo": "Mercado oposto sem cotação"}
+        if hedge_price <= 1.0:
+            hedge_price = 1.90
+        hedge_stake = max(min_stake, round(stake, 2))
+        opposite_palpite = opp_palpite or (f"{home if away.lower() in palpite.lower() else away} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})")
 
-            hedge_price = quote['price']
-            min_stake = quote['min_stake']
-            hedge_stake = max(min_stake, round(stake, 2))
+        print(f"   🚀 [Disparando Ordem Real Pré-Jogo via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+        res_co = client.execute_cashout(
+            bet_id=bet_id,
+            event_id=event_id,
+            market_url=opposite_market_url,
+            price=hedge_price,
+            stake=hedge_stake,
+            dry_run=client.dry_run
+        )
 
-            print(f"   🚀 [Disparando Ordem Real Pré-Jogo via API] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
-            res_co = client.execute_cashout(
-                bet_id=bet_id,
-                event_id=event_id,
-                market_url=opposite_market_url,
-                price=hedge_price,
-                stake=hedge_stake,
-                dry_run=False
-            )
+        if not client.dry_run and not res_co.get("success") and not res_co.get("referenceId"):
+            print(f"   ❌ Falha ao processar ordem de hedge pré-jogo na API Cloudbet: {res_co}")
+            return {"success": False, "motivo": "Falha na API Cloudbet"}
 
-            if not res_co.get("success") and not res_co.get("referenceId"):
-                print(f"   ❌ Falha ao processar ordem de hedge pré-jogo na API Cloudbet: {res_co}")
-                return {"success": False, "motivo": "Falha na API Cloudbet"}
-
-            hedge_info = {
-                "mode": "real_pregame_hedge",
-                "hedge_ref": res_co.get("referenceId"),
-                "market_url": opposite_market_url,
-                "price": hedge_price,
-                "stake": hedge_stake
-            }
+        hedge_info = {
+            "mode": "dry_run_pregame_hedge" if client.dry_run else "real_pregame_hedge",
+            "hedge_ref": res_co.get("referenceId") or res_co.get("betId"),
+            "market_url": opposite_market_url,
+            "price": hedge_price,
+            "stake": hedge_stake
+        }
 
         # Inserção da Nova Aposta Real de Cobertura Pré-Jogo no Banco de Dados
-        opposite_team = home if away.lower() in palpite.lower() else away
-        opposite_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})"
         cursor.execute("""
             INSERT INTO apostas (
                 usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,

@@ -4238,8 +4238,14 @@ def main():
                                                 else: ra += 1
                                                 last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
                                         elif ev_type == "Goal":
-                                            goals_list.append(f"{time_str} {player_name}".strip())
-                                            last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                                            if "Missed" in detail or "Disallowed" in detail or "Cancelled" in detail:
+                                                last_ev_text = f"{time_str} Pênalti Desperdiçado/Gol Anulado: {team_name_ev} ({player_name})"
+                                            else:
+                                                goal_text = f"{time_str} {player_name}".strip()
+                                                if "Own" in detail:
+                                                    goal_text += " (GC)"
+                                                goals_list.append(goal_text)
+                                                last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
                                         elif ev_type in ["subst", "Subst", "Substitution"]:
                                             sub_count += 1
                                             if assist_name:

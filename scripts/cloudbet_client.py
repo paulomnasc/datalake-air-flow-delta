@@ -221,17 +221,7 @@ class CloudbetClient:
         """
         is_simulated = self.dry_run if dry_run is None else dry_run
 
-        if is_simulated or str(bet_id).startswith("sim_"):
-            print(f"⚡ [Cloudbet DRY-RUN Hedge] Cash Out / Hedge simulado com sucesso para bilhete #{bet_id}!")
-            return {
-                "success": True,
-                "is_simulated": True,
-                "betId": bet_id,
-                "status": "CASHOUT_EXECUTED_SIMULATED",
-                "message": "Cash Out / Hedge simulado com sucesso pelo Gatekeeper in-play."
-            }
-
-        if event_id and market_url and price and stake:
+        if not is_simulated and event_id and market_url and price and stake:
             print(f"🚀 [Cloudbet REAL HEDGE IN-PLAY] Executando ordem de cobertura para travar posição:")
             print(f"   • Evento: {event_id} | Mercado Oposto: {market_url} | Odd: {price} | Stake: {stake} {self.currency}")
             return self.place_bet(
@@ -242,6 +232,16 @@ class CloudbetClient:
                 currency=self.currency,
                 dry_run=False
             )
+
+        if is_simulated or str(bet_id).startswith("sim_"):
+            print(f"⚡ [Cloudbet DRY-RUN Hedge] Cash Out / Hedge simulado com sucesso para bilhete #{bet_id}!")
+            return {
+                "success": True,
+                "is_simulated": True,
+                "betId": bet_id,
+                "status": "CASHOUT_EXECUTED_SIMULATED",
+                "message": "Cash Out / Hedge simulado com sucesso pelo Gatekeeper in-play."
+            }
 
         print(f"⚠️ [Cloudbet Cashout] Parâmetros de hedge in-play não fornecidos para bilhete #{bet_id}.")
         return {"error": "Missing hedge parameters for Cloudbet execution", "status_code": 400}

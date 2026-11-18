@@ -287,9 +287,28 @@ def run_cloudbet_bet_creator(
                 cand_destaque, final_resultado_detalhado
             ))
             new_aposta_id = cursor.lastrowid
+
+            # Registra Débito Imediato em Conta Corrente para a aposta confirmada
+            s_ant = 0.0
+            s_post = 0.0
+            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
+            u_row = cursor.fetchone()
+            if u_row:
+                s_ant = float(u_row['saldo_conta_corrente'] or 0.0)
+            s_post = round(s_ant - valor_aposta, 8)
+            desc_deb = f"Débito Aposta #{new_aposta_id} (Cloudbet: {home} x {away} - {selected_palpite})"
+            cursor.execute("""
+                INSERT INTO conta_corrente (
+                    usuario_id, aposta_id, tipo, moeda_codigo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                ) VALUES (
+                    %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
+                )
+            """, (uid, new_aposta_id, client.currency, desc_deb, -valor_aposta, s_ant, s_post))
+            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
+
             conn.commit()
 
-            print(f"✅ [Aposta Registrada com Sucesso] Aposta ID #{new_aposta_id} salva na tabela 'apostas'.")
+            print(f"✅ [Aposta Registrada com Sucesso] Aposta ID #{new_aposta_id} salva na tabela 'apostas' e debitada na conta corrente.")
             apostas_criadas += 1
 
             # Rastreamento transversal de ciclo de vida

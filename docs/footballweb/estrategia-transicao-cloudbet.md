@@ -188,7 +188,8 @@ python3 scripts/criar_apostas_cloudbet_diario.py --fixture_id <ID_PARTIDA_ABERTA
 * Confirmar que a partida e o bilhete da Cloudbet aparecem listados nos cards ao vivo com:
   * Badge da casa: `Cloudbet`;
   * Moeda: `USDT`;
-  * Stake: `0.10`;
+  * Stake: `1.00 USDT` (Stake padrão oficial calibrada para a banca do usuário #558);
+  * Débito atômico imediato refletido no extrato da `conta_corrente`;
   * Velocímetro de risco em tempo real.
 
 ---
@@ -217,7 +218,19 @@ sed -i 's/CLOUDBET_DRY_RUN=false/CLOUDBET_DRY_RUN=true/g' src/footballweb/.env
 Isso congela imediatamente as chamadas de ordens financeiras e faz o robô voltar a operar em modo *Paper Trading*.
 
 ### Proteção contra Saldo Insuficiente
-Se o saldo na carteira da Cloudbet for inferior a `0.10 USDT`, a Cloudbet rejeita a transação nativamente com `PENDING_ACCEPTANCE -> REJECTED`. O robô não insiste repetidamente, registrando a abstenção no log.
+Se o saldo na carteira da Cloudbet for inferior a `1.00 USDT`, a Cloudbet rejeita a transação nativamente com `PENDING_ACCEPTANCE -> REJECTED`. O robô não insiste repetidamente, registrando a abstenção no log.
 
 ### Proteção de IP e Proxy Fail-Fast
 Toda e qualquer chamada destinada aos domínios da Cloudbet é roteada obrigatoriamente através do proxy SOCKS5 da Suíça configurado em `CLOUDBET_PROXY_URL`. Se o proxy cair ou falhar na autenticação, a requisição sofre timeout e aborta, **nunca vazando o IP direto do servidor de Nuremberg**, protegendo a conta contra bloqueios regulatórios alemães.
+
+---
+
+## 7. Mecanismo de Hedge Cruzado Automático (Cross-Hedge Cloudbet para Apostas Externas)
+
+1. **Monitoramento e Alertas Desfavoráveis**:
+   - Sempre que o **Sentinela Pré-Jogo (Fase 2 / T-45m com Grok IA)** ou o **Monitor In-Play (`cloudbet_live_cashout.py`)** detectarem risco iminente (desfalques de força máxima ou desvantagem no placar) em uma aposta originada em qualquer casa (inclusive Betano):
+   - O sistema aciona o `CloudbetMatcher` para localizar a partida nos mercados da Cloudbet.
+   - Identifica a linha contrária equivalente (ex: `Norway 0.0 AH` para cobrir `Denmark 0.0 AH`, ou `Menos de 2 Gols` para cobrir `Mais de 2 Gols`).
+   - Se o mercado estiver ativo e com liquidez, a ordem de contra-aposta de cobertura é emitida automaticamente via Trading API na Cloudbet com stake proporcional.
+   - O bilhete de Hedge Real é salvo no banco de dados com `confirmada = 1` e seu débito é registrado na `conta_corrente` no mesmo segundo.
+   - Se a partida não existir na Cloudbet ou o mercado oposto estiver suspenso/sem liquidez, o sistema dispara o alerta mobile via ntfy/Telegram para que o operador decida a condução manual.

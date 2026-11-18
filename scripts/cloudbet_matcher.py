@@ -117,13 +117,21 @@ class CloudbetMatcher:
         self,
         home_team: str,
         away_team: str,
-        fixture_date: datetime,
+        fixture_date: Optional[datetime] = None,
         threshold: float = 0.65
     ) -> Optional[Dict[str, Any]]:
         """
         Localiza o evento correspondente na Cloudbet para uma partida do MySQL.
         Pesquisa na data exata e datas adjacentes (+/- 1 dia) para acomodar fusos horários UTC.
         """
+        if fixture_date is None:
+            fixture_date = datetime.now()
+        elif isinstance(fixture_date, str):
+            try:
+                fixture_date = datetime.fromisoformat(fixture_date.replace('Z', ''))
+            except Exception:
+                fixture_date = datetime.now()
+
         target_dates = [
             fixture_date.strftime('%Y-%m-%d'),
             (fixture_date - timedelta(days=1)).strftime('%Y-%m-%d'),

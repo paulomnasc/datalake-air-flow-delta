@@ -31,6 +31,103 @@ from db_config import get_db_connection, get_live_env_vars
 from cloudbet_client import CloudbetClient
 from asian_handicap_engine import compose_compound_ah_reasoning
 
+# Caches em memória para evitar chamadas de API repetidas e auditorias redundantes no in-play
+_LAST_STATS_FETCH: Dict[int, float] = {}
+_LAST_TEMP_AUDIT_LOG: Dict[str, bool] = {}
+
+
+def fetch_inplay_match_statistics(
+    fixture_id: int,
+    home_team_id: Optional[int] = None,
+    away_team_id: Optional[int] = None,
+    cursor = None,
+    conn = None
+) -> Dict[str, int]:
+    """
+    Busca estatísticas in-play (chutes no gol, chutes totais, escanteios) diretamente
+    na API-Sports para partidas com apostas ativas em andamento, respeitando cache de 180s.
+    Atualiza fixtures_trends no MySQL.
+    """
+    now = time.time()
+    last_fetch = _LAST_STATS_FETCH.get(fixture_id, 0.0)
+    if now - last_fetch < 180.0:
+        return {}
+
+    try:
+        env_vars = get_live_env_vars()
+        api_key = os.environ.get("FOOTBALL_API_KEY") or env_vars.get("FOOTBALL_API_KEY") or "0327019c6fab54df2ea46009b5f0844b"
+        headers = {
+            "x-apisports-key": api_key,
+            "Content-Type": "application/json"
+        }
+        url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return {}
+
+        res_json = resp.json()
+        if res_json.get("errors"):
+            print(f"⚠️ [Stats In-Play API Warning]: {res_json.get('errors')}")
+            return {}
+
+        data = res_json.get("response", [])
+        if not data:
+            return {}
+
+        _LAST_STATS_FETCH[fixture_id] = now
+
+        sh, sa = 0, 0
+        ch, ca = 0, 0
+
+        for team_st in data:
+            t_id = team_st.get("team", {}).get("id")
+            is_home = (t_id == home_team_id) if home_team_id else (team_st == data[0])
+            stats_list = team_st.get("statistics", [])
+            sg, s_tot, ck = 0, 0, 0
+            for s in stats_list:
+                stype = (s.get("type") or "").strip().lower()
+                sval = s.get("value")
+                if sval is not None:
+                    try:
+                        val_int = int(sval)
+                        if "corner" in stype:
+                            ck = val_int
+                        elif "shots on goal" in stype or "shots on target" in stype:
+                            sg = val_int
+                        elif "total shots" in stype or stype == "shots":
+                            s_tot = val_int
+                    except (ValueError, TypeError):
+                        pass
+            effective_shots = sg if sg > 0 else s_tot
+            if is_home:
+                sh = effective_shots
+                ch = ck
+            else:
+                sa = effective_shots
+                ca = ck
+
+        if cursor and conn:
+            cursor.execute("""
+                UPDATE fixtures_trends
+                SET shots_home = %s, shots_away = %s,
+                    corners_home = %s, corners_away = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (sh, sa, ch, ca, fixture_id))
+            conn.commit()
+
+        return {
+            "shots_home": sh,
+            "shots_away": sa,
+            "corners_home": ch,
+            "corners_away": ca,
+            "total_shots": sh + sa,
+            "total_corners": ch + ca
+        }
+    except Exception as e:
+        print(f"⚠️ [Erro ao buscar estatísticas in-play fixture #{fixture_id}]: {e}")
+        return {}
+
 
 def enviar_push_cashout(
     titulo: str,
@@ -155,7 +252,8 @@ def find_cloudbet_opposite_market_and_quote(
     away: str,
     palpite: str,
     market_url: Optional[str] = None,
-    event_id: Optional[str] = None
+    event_id: Optional[str] = None,
+    fixture_date: Optional[Any] = None
 ) -> Tuple[Optional[str], Optional[str], float, float, Optional[str]]:
     """
     Localiza o evento e a seleção da ponta oposta com cotação e liquidez na Cloudbet.
@@ -183,7 +281,7 @@ def find_cloudbet_opposite_market_and_quote(
     try:
         from cloudbet_matcher import CloudbetMatcher
         matcher = CloudbetMatcher(client)
-        matched = matcher.find_matching_event(home, away)
+        matched = matcher.find_matching_event(home, away, fixture_date=fixture_date)
         if matched:
             matched_event_id = str(matched.get("event_id") or matched.get("id") or "")
             if matched_event_id:
@@ -250,7 +348,12 @@ def find_cloudbet_opposite_market_and_quote(
     return None, None, 0.0, 0.10, None
 
 
-def evaluate_live_cashout_trigger(bet_row: Dict[str, Any]) -> Tuple[bool, str]:
+def evaluate_live_cashout_trigger(
+    bet_row: Dict[str, Any],
+    stats_inplay: Optional[Dict[str, int]] = None,
+    cursor = None,
+    conn = None
+) -> Tuple[bool, str]:
     """
     Avalia se uma aposta em andamento atingiu as condições críticas para Hedge Real na ponta oposta.
     Retorna: (should_hedge, motivo)
@@ -313,6 +416,103 @@ def evaluate_live_cashout_trigger(bet_row: Dict[str, Any]) -> Tuple[bool, str]:
         line_total = float(m_tot.group(1)) if m_tot else 2.5
 
         if is_over:
+            # A) Inferência de Ritmo e Temperatura do Jogo (Janela de Ouro: 52' a 68')
+            sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
+            sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
+            ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
+            ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
+            tot_shots = sh + sa
+            tot_corners = ch + ca
+            f_id = bet_row.get('fixture_id')
+            ap_id = bet_row.get('id')
+
+            if 52 <= elapsed <= 68 and f_id:
+                window_bucket = "50_60" if elapsed < 60 else "60_70"
+                audit_key = f"{f_id}_{window_bucket}"
+
+                # Cenário Jogo Morno / Travado (Cold Game) -> Dispara Hedge Antecipado
+                if total_gols == 0 and tot_shots <= 4 and tot_corners <= 3:
+                    motivo_morno = (
+                        f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
+                        f"Ritmo insuficiente para sustentar aposta de Mais de {line_total} Gols. Antecipando Hedge de Under para capturar odds líquidas."
+                    )
+                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                        try:
+                            from lifecycle_logger import log_lifecycle_event
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                aposta_id=ap_id,
+                                componente='LIVE_GAME_TEMPERATURE',
+                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                estado_anterior='Pendente',
+                                estado_novo='Pendente',
+                                minuto_jogo=elapsed,
+                                fase_jogo='2H',
+                                placar_momento=f"{gh}x{ga}",
+                                delta={
+                                    'minuto': elapsed,
+                                    'fase': '2H',
+                                    'placar': f"{gh}x{ga}",
+                                    'shots_home': sh,
+                                    'shots_away': sa,
+                                    'corners_home': ch,
+                                    'corners_away': ca,
+                                    'total_shots': tot_shots,
+                                    'total_corners': tot_corners,
+                                    'temperatura': 'MORNO',
+                                    'decisao': 'DISPARAR_HEDGE_ANTECIPADO'
+                                },
+                                motivo=f"🌡️ {motivo_morno}"
+                            )
+                            conn.commit()
+                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                        except Exception as e_lt:
+                            print(f"⚠️ [Erro Auditoria Temperatura Jogo Morno]: {e_lt}")
+
+                    return True, motivo_morno
+
+                # Cenário Jogo Quente / Pressão Ofensiva Alta -> Mantém aposta
+                elif tot_shots >= 6 or tot_corners >= 4 or total_gols > 0:
+                    motivo_quente = (
+                        f"Temperatura do Jogo: Jogo Quente/Pressão Ofensiva (Placar: {gh}x{ga} | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
+                        f"Volume ofensivo consistente. Posição mantida sem hedge antecipado."
+                    )
+                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                        try:
+                            from lifecycle_logger import log_lifecycle_event
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                aposta_id=ap_id,
+                                componente='LIVE_GAME_TEMPERATURE',
+                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                estado_anterior='Pendente',
+                                estado_novo='Pendente',
+                                minuto_jogo=elapsed,
+                                fase_jogo='2H',
+                                placar_momento=f"{gh}x{ga}",
+                                delta={
+                                    'minuto': elapsed,
+                                    'fase': '2H',
+                                    'placar': f"{gh}x{ga}",
+                                    'shots_home': sh,
+                                    'shots_away': sa,
+                                    'corners_home': ch,
+                                    'corners_away': ca,
+                                    'total_shots': tot_shots,
+                                    'total_corners': tot_corners,
+                                    'temperatura': 'QUENTE',
+                                    'decisao': 'MANTER_APOSTA'
+                                },
+                                motivo=f"🌡️ {motivo_quente}"
+                            )
+                            conn.commit()
+                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                        except Exception as e_lt:
+                            print(f"⚠️ [Erro Auditoria Temperatura Jogo Quente]: {e_lt}")
+
+            # B) Seca Prolongada (Fallback clássico para 72'+)
             if total_gols == 0 and elapsed >= 72:
                 motivo = f"Seca Prolongada: Placar 0x0 aos {elapsed}' em aposta {palpite}. Hedge para Under necessário."
                 return True, motivo
@@ -354,7 +554,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                ft.goals_home, ft.goals_away, ft.elapsed,
                ft.yellow_cards_home, ft.yellow_cards_away,
                ft.red_cards_home, ft.red_cards_away,
-               ft.corners_home, ft.corners_away, ft.fixture_date
+               ft.corners_home, ft.corners_away,
+               ft.shots_home, ft.shots_away, ft.fixture_date
         FROM apostas a
         INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
         WHERE a.status = 'Pendente'
@@ -392,7 +593,23 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"\n📊 Analisando Aposta #{aposta_id} [{casa_nome}]: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
 
-        should_hedge, motivo = evaluate_live_cashout_trigger(bet)
+        # Se a partida estiver no 2º tempo (janela in-play crítica >= 48'), busca/atualiza chutes e escanteios in-play
+        stats_inplay = {}
+        if elapsed and elapsed >= 48:
+            stats_inplay = fetch_inplay_match_statistics(
+                fixture_id=f_id,
+                home_team_id=bet.get('home_team_id'),
+                away_team_id=bet.get('away_team_id'),
+                cursor=cursor,
+                conn=conn
+            )
+
+        should_hedge, motivo = evaluate_live_cashout_trigger(
+            bet_row=bet,
+            stats_inplay=stats_inplay,
+            cursor=cursor,
+            conn=conn
+        )
 
         if not should_hedge:
             print(f"   🟢 Cenário Seguro / Controlado: {motivo}")
@@ -412,7 +629,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             away=away,
             palpite=palpite,
             market_url=meta_market_url,
-            event_id=meta_event_id
+            event_id=meta_event_id,
+            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo')
         )
 
         if not event_id or not opposite_market_url:
@@ -420,10 +638,50 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             tit = f"⚡ Alerta de Hedge ({casa_nome}): {home} vs {away}"
             msg = f"Aposta {palpite} aos {elapsed}' ({gh}x{ga}). Avalie cobertura na ponta oposta. Motivo: {motivo}"
             enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                fase_calc = '2H' if elapsed > 45 else '1H'
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='CLOUDBET_LIVE_HEDGE',
+                    tipo_evento='HEDGE_ABORTADO_SEM_LIQUIDEZ',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    minuto_jogo=elapsed,
+                    fase_jogo=fase_calc,
+                    placar_momento=f"{gh}x{ga}",
+                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo},
+                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie cashout manual na {casa_nome}."
+                )
+                conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Hedge Abortado]: {e_log}")
             continue
 
         if hedge_price <= 1.0 and not client.dry_run:
             print(f"   ⚠️ [Hedge Cloudbet] Mercado oposto '{opposite_market_url}' suspenso/sem liquidez neste instante.")
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                fase_calc = '2H' if elapsed > 45 else '1H'
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='CLOUDBET_LIVE_HEDGE',
+                    tipo_evento='HEDGE_ABORTADO_MERCADO_SUSPENSO',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    minuto_jogo=elapsed,
+                    fase_jogo=fase_calc,
+                    placar_momento=f"{gh}x{ga}",
+                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'market_url': opposite_market_url},
+                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto '{opposite_market_url}' suspenso/trancado pela casa de aposta."
+                )
+                conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Mercado Suspenso]: {e_log}")
             continue
 
         min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
@@ -432,6 +690,26 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             tit_der = f"⚠️ Hedge Abortado (Odd Derretida): {home} vs {away}"
             msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger o patrimônio da banca."
             enviar_push_cashout(tit_der, msg_der, fixture_id=f_id, aposta_id=aposta_id, prioridade=4)
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                fase_calc = '2H' if elapsed > 45 else '1H'
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='CLOUDBET_LIVE_HEDGE',
+                    tipo_evento='HEDGE_ABORTADO_ODD_DERRETIDA',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    minuto_jogo=elapsed,
+                    fase_jogo=fase_calc,
+                    placar_momento=f"{gh}x{ga}",
+                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'hedge_price': hedge_price, 'min_odd': min_hedge_odd},
+                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Cotação de cobertura derreteu para @ {hedge_price:.2f} (abaixo do piso seguro de {min_hedge_odd:.2f})."
+                )
+                conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Odd Derretida]: {e_log}")
             continue
 
         if hedge_price <= 1.0:
@@ -511,6 +789,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         # 6. Rastreamento transversal de ciclo de vida
         try:
             from lifecycle_logger import log_lifecycle_event
+            fase_calc = '2H' if elapsed > 45 else '1H'
             log_lifecycle_event(
                 cursor=cursor,
                 fixture_id=f_id,
@@ -521,8 +800,11 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 tipo_evento='HEDGE_ORDEM_REAL_EXECUTADA',
                 estado_anterior='Pendente',
                 estado_novo='Pendente',
-                delta={'bet_id': bet_id, 'hedge_aposta_id': new_hedge_aposta_id, 'stake': hedge_stake, 'price': hedge_price},
-                motivo=motivo
+                minuto_jogo=elapsed,
+                fase_jogo=fase_calc,
+                placar_momento=f"{gh}x{ga}",
+                delta={'bet_id': bet_id, 'hedge_aposta_id': new_hedge_aposta_id, 'stake': hedge_stake, 'price': hedge_price, 'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}"},
+                motivo=f"Hedge executado aos {elapsed}' ({gh}x{ga}): {motivo}"
             )
             conn.commit()
         except Exception as e_lf:
@@ -592,7 +874,8 @@ def executar_hedge_prejogo_cloudbet(
             away=away,
             palpite=palpite,
             market_url=meta_market_url,
-            event_id=meta_event_id
+            event_id=meta_event_id,
+            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo')
         )
 
         hedge_info = {}
@@ -601,10 +884,44 @@ def executar_hedge_prejogo_cloudbet(
             tit_push = f"⚠️ Alerta Pré-Jogo ({casa_nome}): {home} vs {away}"
             msg_push = f"Escalação desfavorável para {palpite}. Motivo Grok IA: {motivo_tatica[:150]}"
             enviar_push_cashout(tit_push, msg_push, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='GROK_SENTINEL_HEDGE',
+                    tipo_evento='HEDGE_PREJOGO_ABORTADO_SEM_MERCADO',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    delta={'motivo_tatica': motivo_tatica},
+                    motivo=f"Hedge pré-jogo recomendado pela IA, mas abortado: Mercado oposto não localizado na Cloudbet."
+                )
+                if owns_conn:
+                    conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Hedge Pré-Jogo]: {e_log}")
             return {"success": False, "motivo": "Mercado Cloudbet não disponível"}
 
         if hedge_price <= 1.0 and not client.dry_run:
             print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='GROK_SENTINEL_HEDGE',
+                    tipo_evento='HEDGE_PREJOGO_ABORTADO_SEM_COTACAO',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    delta={'market_url': opposite_market_url},
+                    motivo=f"Hedge pré-jogo abortado: Mercado oposto '{opposite_market_url}' sem cotação disponível na Cloudbet."
+                )
+                if owns_conn:
+                    conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Sem Cotação Pré-Jogo]: {e_log}")
             return {"success": False, "motivo": "Mercado oposto sem cotação"}
 
         min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
@@ -613,6 +930,23 @@ def executar_hedge_prejogo_cloudbet(
             tit_der = f"⚠️ Hedge Pré-Jogo Abortado (Odd Derretida): {home} vs {away}"
             msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger a banca."
             enviar_push_cashout(tit_der, msg_der, fixture_id=f_id, aposta_id=aposta_id, prioridade=4)
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    aposta_id=aposta_id,
+                    componente='GROK_SENTINEL_HEDGE',
+                    tipo_evento='HEDGE_PREJOGO_ABORTADO_ODD_DERRETIDA',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    delta={'hedge_price': hedge_price, 'min_odd': min_hedge_odd},
+                    motivo=f"Hedge pré-jogo abortado: Cotação derreteu para @ {hedge_price:.2f} (abaixo do piso de {min_hedge_odd:.2f})."
+                )
+                if owns_conn:
+                    conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Erro Lifecycle Logger Odd Derretida Pré-Jogo]: {e_log}")
             return {"success": False, "motivo": f"Odd oposta {hedge_price:.2f} inferior ao piso de {min_hedge_odd:.2f}"}
 
         if hedge_price <= 1.0:

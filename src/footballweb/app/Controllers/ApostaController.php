@@ -4157,7 +4157,7 @@ class ApostaController extends BaseController
                 // Extração do Momento da Partida (Pré-Jogo, 0' Apito Inicial, 1H, Intervalo HT, 2H, Fim de Jogo FT)
                 $momentoTag = $delta['momento_formatado'] ?? null;
                 $fase = $delta['fase'] ?? null;
-                $minuto = isset($delta['minuto']) ? (int)$delta['minuto'] : null;
+                $minuto = isset($delta['minuto']) ? (int)$delta['minuto'] : (isset($delta['elapsed']) ? (int)$delta['elapsed'] : null);
 
                 if (empty($momentoTag)) {
                     if ($evTipo === 'APITO_INICIAL') {
@@ -4226,6 +4226,10 @@ class ApostaController extends BaseController
                     $badgeClass = 'success';
                     $badgeIcon = 'bi-clipboard-check';
                     $tituloAmigavel = $tituloAmigavel ?: '📋 Súmula Oficial Confirmada';
+                } elseif (stripos($evTipo, 'TEMPERATURA') !== false || stripos($comp, 'TEMPERATURE') !== false) {
+                    $badgeClass = 'warning';
+                    $badgeIcon = 'bi-thermometer-half';
+                    $tituloAmigavel = $tituloAmigavel ?: '🌡️ Auditoria de Ritmo e Temperatura do Jogo';
                 } elseif (stripos($evTipo, 'HEDGE') !== false || stripos($evTipo, 'CASHOUT') !== false) {
                     $badgeClass = 'danger';
                     $badgeIcon = 'bi-shield-shaded';
@@ -4249,6 +4253,11 @@ class ApostaController extends BaseController
                     'momento_tag' => $momentoTag,
                     'titulo' => $tituloAmigavel,
                     'descricao' => $motivoLimpo,
+                    'motivo_detalhado' => $motivoLimpo,
+                    'notificacao_id' => $row['notificacao_id'] ?? null,
+                    'notif_titulo' => $row['notif_titulo'] ?? null,
+                    'notif_mensagem' => $row['notif_mensagem'] ?? null,
+                    'delta_json' => !empty($row['delta_json']) ? (is_string($row['delta_json']) ? $row['delta_json'] : json_encode($row['delta_json'])) : null,
                     'badge_class' => $badgeClass,
                     'badge_icon' => $badgeIcon,
                     'placar' => $delta['placar'] ?? null,

@@ -6055,8 +6055,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
         const dataHora = item.notificacao_criada_em || item.criado_em || 'Data n/d';
         const componente = item.componente || 'SISTEMA';
         const tipoEvento = item.tipo_evento || 'EVENTO';
+        const momentoTag = item.momento_tag ? `${item.momento_tag} ` : '';
 
-        plainText += `[${idx + 1}] ${dataHora} | ${componente} | ${tipoEvento}\n`;
+        plainText += `[${idx + 1}] ${dataHora} ${momentoTag}| ${componente} | ${tipoEvento}\n`;
         if (item.notificacao_id) {
           plainText += `    ID do Alerta: #${item.notificacao_id}\n`;
         }
@@ -6066,8 +6067,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
         if (item.notif_mensagem) {
           plainText += `    Mensagem: ${item.notif_mensagem}\n`;
         }
-        if (item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem) {
-          plainText += `    Motivo Detalhado: ${item.motivo_detalhado}\n`;
+        const diagnostico = item.motivo_detalhado || item.descricao || '';
+        if (diagnostico && diagnostico !== item.notif_mensagem) {
+          plainText += `    Diagnóstico: ${diagnostico}\n`;
         }
         if (item.delta_json) {
           plainText += `    Parâmetros: ${item.delta_json}\n`;
@@ -6080,6 +6082,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50" style="font-size: 0.72rem;">${componente}</span>
                 <span class="badge bg-dark border border-secondary text-light" style="font-size: 0.72rem;">${tipoEvento}</span>
+                ${item.momento_tag ? `<span class="badge bg-primary bg-opacity-25 text-info border border-primary border-opacity-50" style="font-size: 0.72rem;"><i class="bi bi-stopwatch me-1"></i>${item.momento_tag}</span>` : ''}
                 ${notifBadge}
               </div>
               <small class="text-white-50" style="font-size: 0.78rem;">
@@ -6096,9 +6099,9 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 ${item.notif_mensagem}
               </div>
             ` : ''}
-            ${item.motivo_detalhado && item.motivo_detalhado !== item.notif_mensagem ? `
+            ${diagnostico && diagnostico !== item.notif_mensagem ? `
               <div class="text-light small mt-2" style="font-size: 0.82rem; line-height: 1.45;">
-                <strong class="text-info"><i class="bi bi-file-text me-1"></i> Diagnóstico:</strong> ${item.motivo_detalhado}
+                <strong class="text-info"><i class="bi bi-file-text me-1"></i> Diagnóstico:</strong> ${diagnostico}
               </div>
             ` : ''}
             ${item.delta_json ? `

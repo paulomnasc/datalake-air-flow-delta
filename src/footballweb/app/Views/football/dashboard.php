@@ -4099,6 +4099,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 <i class="bi bi-arrow-repeat me-1 icon-revalidar"></i> Revalidar Odds & IA
                                             </button>
                                         <?php endif; ?>
+                                        <?php if ($isFinishedCard): ?>
+                                            <button type="button" 
+                                                    id="btn-auditoria-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge cyan" 
+                                                    style="background: rgba(6, 182, 212, 0.14) !important; border: 1px solid rgba(6, 182, 212, 0.45) !important; color: #22d3ee !important; font-weight: 700;" 
+                                                    onclick="abrirModalAuditoriaJogo(<?= $fix->fixture_id ?>, '<?= htmlspecialchars(addslashes($fix->home_team ?? ''), ENT_QUOTES) ?>', '<?= htmlspecialchars(addslashes($fix->away_team ?? ''), ENT_QUOTES) ?>')"
+                                                    title="Consultar a linha do tempo e auditoria do jogo">
+                                                <i class="bi bi-journal-check me-1"></i> Auditoria do Jogo
+                                            </button>
+                                        <?php endif; ?>
                                         <button type="button" 
                                                 id="btn-cards-<?= $fix->fixture_id ?>" 
                                                 class="bet-toggle-badge <?= ($isFinished && !empty($cardsFinishedBtnClass)) ? $cardsFinishedBtnClass : 'yellow' ?>" 
@@ -4756,6 +4766,52 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     </div>
 </div>
 
+<!-- Modal Auditoria do Jogo -->
+<div class="bet-modal" id="modalAuditoriaJogo" style="display: none; z-index: 1060;">
+    <div class="bet-modal-content" style="max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 24px; position: relative;">
+        <button class="bet-modal-close" onclick="fecharModalAuditoriaJogo()" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.08); border: none; color: #94a3b8; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;"><i class="bi bi-x-lg"></i></button>
+        
+        <!-- Cabeçalho do Confronto -->
+        <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span class="badge" style="background: rgba(6, 182, 212, 0.18); border: 1px solid rgba(6, 182, 212, 0.4); color: #22d3ee; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;" id="auditoriaLeague">LIGA</span>
+                <span class="badge" style="background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; font-size: 0.75rem; font-weight: 700;" id="auditoriaStatus">FINALIZADO (FT)</span>
+                <span style="font-size: 0.8rem; color: #94a3b8;" id="auditoriaDate">--/--/----</span>
+            </div>
+            <h3 class="bet-modal-title" id="auditoriaMatchTitle" style="font-size: 1.4rem; font-weight: 800; color: #f8fafc; margin: 0 0 4px 0;">Time Mandante 0 x 0 Time Visitante</h3>
+            <div style="font-size: 0.82rem; color: #94a3b8;" id="auditoriaReferee"><i class="bi bi-person-badge"></i> Árbitro: Não informado</div>
+        </div>
+
+        <!-- Seção: Resumo das Apostas Associadas -->
+        <div id="auditoriaApostasSection" style="margin-bottom: 20px;">
+            <h5 style="font-size: 0.9rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-ticket-perforated-fill text-warning"></i> Apostas Geradas para o Confronto
+            </h5>
+            <div id="auditoriaApostasContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Cards de apostas inseridos dinamicamente -->
+            </div>
+        </div>
+
+        <!-- Seção: Linha do Tempo Cronológica do Jogo -->
+        <div>
+            <h5 style="font-size: 0.9rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-clock-history text-info"></i> Linha do Tempo e Auditoria Tática do Jogo
+            </h5>
+            <div id="auditoriaTimelineSpinner" style="text-align: center; padding: 30px 0;">
+                <div class="spinner-border text-info" role="status" style="width: 2.5rem; height: 2.5rem;"></div>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 10px;">Carregando eventos cronológicos da partida...</p>
+            </div>
+            <div id="auditoriaTimelineList" style="display: none; position: relative; padding-left: 20px; border-left: 2px solid rgba(56, 189, 248, 0.25); margin-left: 10px;">
+                <!-- Eventos inseridos dinamicamente -->
+            </div>
+            <div id="auditoriaTimelineEmpty" style="display: none; text-align: center; padding: 25px 0; color: #94a3b8; font-size: 0.88rem;">
+                <i class="bi bi-journal-x" style="font-size: 2rem; display: block; margin-bottom: 8px; color: #64748b;"></i>
+                Nenhum evento registrado no log para esta partida.
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Overlay Ingest -->
 <div class="bet-overlay" id="ingestOverlay">
     <div class="bet-spinner"></div>
@@ -5406,11 +5462,165 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         setTimeout(() => modal.style.display = 'none', 300);
     }
 
+    // Modal de Auditoria do Jogo (Linha do Tempo Cronológica com Minutos e Fases de Jogo)
+    function abrirModalAuditoriaJogo(fixtureId, homeTeam, awayTeam) {
+        const modal = document.getElementById('modalAuditoriaJogo');
+        if (!modal) return;
+
+        // Reset de estado
+        document.getElementById('auditoriaMatchTitle').innerText = `${homeTeam} vs ${awayTeam}`;
+        document.getElementById('auditoriaLeague').innerText = 'CONSULTANDO...';
+        document.getElementById('auditoriaStatus').innerText = 'FT';
+        document.getElementById('auditoriaDate').innerText = '';
+        document.getElementById('auditoriaReferee').innerHTML = '<i class="bi bi-person-badge"></i> Árbitro: Carregando...';
+        document.getElementById('auditoriaApostasContainer').innerHTML = '';
+        document.getElementById('auditoriaTimelineSpinner').style.display = 'block';
+        document.getElementById('auditoriaTimelineList').style.display = 'none';
+        document.getElementById('auditoriaTimelineEmpty').style.display = 'none';
+
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        fetch(`/apostas/timeline/${fixtureId}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('auditoriaTimelineSpinner').style.display = 'none';
+                if (!data.success) {
+                    document.getElementById('auditoriaTimelineEmpty').innerText = data.message || 'Erro ao carregar auditoria.';
+                    document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+                    return;
+                }
+
+                // Atualiza cabeçalho com dados reais
+                const fix = data.fixture || {};
+                const placar = (fix.goals_home !== null && fix.goals_away !== null) ? `${fix.goals_home} x ${fix.goals_away}` : 'vs';
+                document.getElementById('auditoriaMatchTitle').innerText = `${fix.home_team || homeTeam} ${placar} ${fix.away_team || awayTeam}`;
+                document.getElementById('auditoriaLeague').innerText = fix.league_name ? `${fix.league_name} (${fix.country || ''})` : 'PARTIDA';
+                document.getElementById('auditoriaStatus').innerText = fix.status || 'FT';
+                document.getElementById('auditoriaDate').innerText = fix.fixture_date_br || '';
+                document.getElementById('auditoriaReferee').innerHTML = `<i class="bi bi-whistle"></i> Árbitro: ${fix.referee_name || 'Não informado'}`;
+
+                // Renderiza Apostas Associadas ao Confronto
+                const apostas = data.apostas || [];
+                const apostasContainer = document.getElementById('auditoriaApostasContainer');
+                if (apostas.length === 0) {
+                    apostasContainer.innerHTML = '<div style="font-size: 0.82rem; color: #64748b; font-style: italic;">Nenhuma aposta gerada para este confronto (Abstenção / NO_BET preventivo pelo Gatekeeper).</div>';
+                } else {
+                    let apHtml = '';
+                    apostas.forEach(ap => {
+                        let stBg = 'rgba(148, 163, 184, 0.15)';
+                        let stColor = '#94a3b8';
+                        let stText = ap.status || 'Pendente';
+                        const stLower = stText.toLowerCase();
+                        if (stLower === 'ganha') {
+                            stBg = 'rgba(34, 197, 94, 0.2)';
+                            stColor = '#4ade80';
+                        } else if (stLower === 'perdida') {
+                            stBg = 'rgba(239, 68, 68, 0.2)';
+                            stColor = '#f87171';
+                        } else if (stLower === 'cashout') {
+                            stBg = 'rgba(245, 158, 11, 0.2)';
+                            stColor = '#fbbf24';
+                        } else if (stLower === 'reembolso' || stLower === 'anulada') {
+                            stBg = 'rgba(56, 189, 248, 0.2)';
+                            stColor = '#38bdf8';
+                        }
+
+                        apHtml += `
+                            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                <div>
+                                    <span style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; text-transform: uppercase;">${ap.mercado || 'Aposta'}</span>
+                                    <div style="font-size: 0.92rem; font-weight: 700; color: #f1f5f9;">${ap.palpite || 'Palpite'} <span style="color: #22d3ee; font-weight: 600;">@ ${parseFloat(ap.odd || 1).toFixed(2)}</span> (${ap.casa_de_aposta || 'Casa'})</div>
+                                    ${ap.resultado_detalhado ? `<div style="font-size: 0.78rem; color: #94a3b8; margin-top: 3px;">${ap.resultado_detalhado}</div>` : ''}
+                                </div>
+                                <div style="text-align: right; min-width: 90px;">
+                                    <span style="background: ${stBg}; color: ${stColor}; border: 1px solid ${stColor}; font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">${stText}</span>
+                                    <div style="font-size: 0.76rem; color: #64748b; margin-top: 4px;">#${ap.id}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    apostasContainer.innerHTML = apHtml;
+                }
+
+                // Renderiza Linha do Tempo Cronológica com Minutos e Fases de Jogo
+                const timeline = data.timeline || [];
+                const timelineList = document.getElementById('auditoriaTimelineList');
+                if (timeline.length === 0) {
+                    document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+                } else {
+                    let tlHtml = '';
+                    timeline.forEach(ev => {
+                        let badgeBg = 'rgba(6, 182, 212, 0.18)';
+                        let badgeColor = '#22d3ee';
+                        let badgeBorder = 'rgba(6, 182, 212, 0.4)';
+                        if (ev.badge_class === 'warning') {
+                            badgeBg = 'rgba(245, 158, 11, 0.18)';
+                            badgeColor = '#fbbf24';
+                            badgeBorder = 'rgba(245, 158, 11, 0.4)';
+                        } else if (ev.badge_class === 'danger') {
+                            badgeBg = 'rgba(239, 68, 68, 0.18)';
+                            badgeColor = '#f87171';
+                            badgeBorder = 'rgba(239, 68, 68, 0.4)';
+                        } else if (ev.badge_class === 'success') {
+                            badgeBg = 'rgba(34, 197, 94, 0.18)';
+                            badgeColor = '#4ade80';
+                            badgeBorder = 'rgba(34, 197, 94, 0.4)';
+                        } else if (ev.badge_class === 'purple') {
+                            badgeBg = 'rgba(168, 85, 247, 0.18)';
+                            badgeColor = '#c084fc';
+                            badgeBorder = 'rgba(168, 85, 247, 0.4)';
+                        }
+
+                        tlHtml += `
+                            <div style="position: relative; margin-bottom: 22px;">
+                                <div style="position: absolute; left: -29px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #0f172a; border: 3px solid ${badgeColor}; box-shadow: 0 0 10px ${badgeColor};"></div>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.3px;">
+                                            ${ev.momento_tag || '[Momento]'}
+                                        </span>
+                                        <span style="font-size: 0.88rem; font-weight: 700; color: #f8fafc;">
+                                            <i class="bi ${ev.badge_icon || 'bi-info-circle'} me-1" style="color: ${badgeColor};"></i> ${ev.titulo}
+                                        </span>
+                                    </div>
+                                    <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">${ev.hora_formatada || ''}</span>
+                                </div>
+
+                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 14px; font-size: 0.84rem; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap;">${ev.descricao}</div>
+                            </div>
+                        `;
+                    });
+                    timelineList.innerHTML = tlHtml;
+                    timelineList.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                document.getElementById('auditoriaTimelineSpinner').style.display = 'none';
+                document.getElementById('auditoriaTimelineEmpty').innerText = 'Falha ao consultar auditoria: ' + err;
+                document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+            });
+    }
+
+    function fecharModalAuditoriaJogo() {
+        const modal = document.getElementById('modalAuditoriaJogo');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.style.display = 'none', 250);
+        }
+    }
+
     // Fechar modal ao clicar fora dele
     window.onclick = function(event) {
         const modal = document.getElementById('refereeModal');
         if (event.target === modal) {
             closeRefereeModal();
+        }
+
+        const modalAuditoria = document.getElementById('modalAuditoriaJogo');
+        if (event.target === modalAuditoria) {
+            fecharModalAuditoriaJogo();
         }
         
         const drawer = document.getElementById('chatDrawer');
@@ -5424,6 +5634,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         if (e.key === 'Escape') {
             closeAiChat();
             closeRefereeModal();
+            fecharModalAuditoriaJogo();
         }
     });
 

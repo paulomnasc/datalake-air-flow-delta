@@ -221,6 +221,15 @@ class CloudbetClient:
         """
         is_simulated = self.dry_run if dry_run is None else dry_run
 
+        min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+        if price is not None and price < min_hedge_odd and not is_simulated:
+            print(f"🛑 [Cloudbet SLIPPAGE LOCK] Ordem rejeitada: odd {price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}).")
+            return {
+                "success": False,
+                "status": "REJECTED_SLIPPAGE",
+                "message": f"Ordem rejeitada: cotação {price:.2f} derreteu abaixo do piso de segurança de {min_hedge_odd:.2f}."
+            }
+
         if not is_simulated and event_id and market_url and price and stake:
             print(f"🚀 [Cloudbet REAL HEDGE IN-PLAY] Executando ordem de cobertura para travar posição:")
             print(f"   • Evento: {event_id} | Mercado Oposto: {market_url} | Odd: {price} | Stake: {stake} {self.currency}")

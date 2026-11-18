@@ -16,6 +16,11 @@ from datetime import datetime, timedelta
 
 from db_config import get_db_connection
 
+try:
+    from lifecycle_logger import log_match_milestone, log_lifecycle_event
+except ImportError:
+    from scripts.lifecycle_logger import log_match_milestone, log_lifecycle_event
+
 def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descricao=None):
     """
     Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
@@ -611,6 +616,30 @@ def process_pending_bets():
                 updated_at = NOW()
             WHERE id = %s
         """, (novo_status, detalhe, valor_computado, aposta_id))
+
+        # Registra liquidação da aposta e marco de encerramento no log transversal da partida
+        try:
+            gh_val = stats.get('goals_home')
+            ga_val = stats.get('goals_away')
+            placar_final = f"{gh_val}x{ga_val}" if gh_val is not None and ga_val is not None else None
+            fix_id_val = aposta.get('fixture_id')
+            if fix_id_val:
+                log_match_milestone(cursor, fix_id_val, 'FIM_DE_JOGO', placar=placar_final)
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fix_id_val,
+                    componente="LIQUIDACAO_ENGINE",
+                    tipo_evento=f"APOSTA_LIQUIDADA_{novo_status.upper().replace(' ', '_')}",
+                    estado_anterior="Pendente",
+                    estado_novo=novo_status,
+                    aposta_id=aposta_id,
+                    fase_jogo="FT",
+                    minuto_jogo=90,
+                    placar_momento=placar_final,
+                    motivo=f"Aposta #{aposta_id} ({aposta.get('mercado')} - {aposta.get('palpite')}) liquidada como {novo_status.upper()}. {detalhe}"
+                )
+        except Exception as e_lf:
+            print(f"⚠️ [Settlement Logger] Falha ao registrar log de liquidação: {e_lf}")
 
         if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
             is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True

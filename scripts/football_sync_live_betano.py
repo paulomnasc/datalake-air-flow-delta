@@ -32,6 +32,11 @@ from betano_direct_api import (
 )
 from db_config import get_db_connection, get_live_env_vars
 
+try:
+    from lifecycle_logger import log_match_milestone, log_lifecycle_event
+except ImportError:
+    from scripts.lifecycle_logger import log_match_milestone, log_lifecycle_event
+
 
 def get_target_user_ids(cursor):
     """
@@ -479,6 +484,18 @@ def main():
         gh = matched_ev['goals_home']
         ga = matched_ev['goals_away']
         elapsed = matched_ev['elapsed']
+        old_status = fix.get('status')
+        placar_str = f"{gh}x{ga}"
+
+        # Registra marcos cronológicos da partida no log de ciclo de vida (Apito Inicial, Intervalo, Retorno e Fim de Jogo)
+        if old_status in ('NS', 'TBD', 'PRE') and live_status in ('1H', 'LIVE'):
+            log_match_milestone(cursor, fid, 'APITO_INICIAL', placar=placar_str, minuto=elapsed or 0)
+        elif old_status == '1H' and live_status == 'HT':
+            log_match_milestone(cursor, fid, 'INTERVALO_INICIO', placar=placar_str, minuto=45)
+        elif old_status == 'HT' and live_status == '2H':
+            log_match_milestone(cursor, fid, 'INTERVALO_RETORNO', placar=placar_str, minuto=45)
+        elif old_status in ('1H', '2H', 'HT', 'LIVE') and live_status in ('FT', 'FINISHED'):
+            log_match_milestone(cursor, fid, 'FIM_DE_JOGO', placar=placar_str, minuto=elapsed or 90)
 
         # Atualiza banco de dados com dados reais
         cursor.execute("""

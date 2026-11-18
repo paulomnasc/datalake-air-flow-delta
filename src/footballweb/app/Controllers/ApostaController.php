@@ -4049,12 +4049,7 @@ class ApostaController extends BaseController
     public function timeline($fixtureId)
     {
         $access = $this->checkAccess();
-        if (!$access['authenticated']) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Você precisa estar logado para consultar a linha do tempo.'
-            ])->setStatusCode(401);
-        }
+        $userId = $access['authenticated'] ? $access['user_id'] : null;
 
         $fixtureId = (int)$fixtureId;
         if (empty($fixtureId)) {
@@ -4066,7 +4061,53 @@ class ApostaController extends BaseController
 
         try {
             $db = \Config\Database::connect();
-            $logs = $db->table('pipeline_lifecycle_logs l')
+
+            // 1. Metadados Completos da Partida
+            $fix = $db->table('fixtures_trends')
+                ->where('fixture_id', $fixtureId)
+                ->get()
+                ->getFirstRow('array');
+
+            // 2. Todas as apostas vinculadas ao confronto
+            $apostas = $db->table('apostas')
+                ->select('id, fixture_id, time_casa, time_fora, mercado, palpite, odd, odd_justa, valor_aposta, moeda_codigo, confirmada, casa_de_aposta, status, status_gatekeeper, resultado_detalhado, criado_em')
+                ->where('fixture_id', $fixtureId)
+                ->orderBy('id', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            // Higieniza resultado_detalhado das apostas (Regra 17)
+            foreach ($apostas as &$ap) {
+                if (!empty($ap['resultado_detalhado'])) {
+                    $r = $ap['resultado_detalhado'];
+                    $r = preg_replace('/\s*\|\|\s*U5J_DATA:.*$/isu', '', $r);
+                    $r = preg_replace('/\s*\|\|\s*MEMÓRIA DE CÁLCULO.*$/isu', '', $r);
+                    $r = preg_replace('/\s*\|\|\s*PROBABILIDADES_1X2:.*$/isu', '', $r);
+                    $r = preg_replace('/^\|\|\s*EXPLICACAO:\s*/isu', '', $r);
+                    $r = preg_replace('/\|\|\s*MOTIVACAO:\s*/isu', "\n\n", $r);
+                    $ap['resultado_detalhado'] = trim($r, " \t\n\r\0\x0B|");
+                }
+            }
+            unset($ap);
+
+            // 3. Estatísticas oficiais consolidadas de cartões se a partida estiver encerrada
+            $stats = $db->table('match_statistics_cache')
+                ->where('fixture_id', $fixtureId)
+                ->get()
+                ->getFirstRow('array');
+
+            // 4. Parecer mais recente da IA Gravado em Notificações (Grok / Gemini)
+            $notifIa = $db->table('notificacoes_usuario')
+                ->select('id, titulo, mensagem, analise_ia, criado_em')
+                ->where('fixture_id', $fixtureId)
+                ->where('analise_ia IS NOT NULL')
+                ->where('analise_ia !=', '')
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getFirstRow('array');
+
+            // 5. Linha do Tempo Primária: pipeline_lifecycle_logs
+            $rawLogs = $db->table('pipeline_lifecycle_logs l')
                 ->select('l.*, n.titulo as notif_titulo, n.mensagem as notif_mensagem')
                 ->join('notificacoes_usuario n', 'l.notificacao_id = n.id', 'left')
                 ->where('l.fixture_id', $fixtureId)
@@ -4074,15 +4115,15 @@ class ApostaController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // Fallback resiliente: se não houver registros em lifecycle_logs, busca direto em notificacoes_usuario
-            if (empty($logs)) {
+            // Fallback: se não houver lifecycle_logs, busca direto em notificacoes_usuario
+            if (empty($rawLogs)) {
                 $notifs = $db->table('notificacoes_usuario')
                     ->where('fixture_id', $fixtureId)
                     ->orderBy('id', 'ASC')
                     ->get()
                     ->getResultArray();
                 foreach ($notifs as $n) {
-                    $logs[] = [
+                    $rawLogs[] = [
                         'id' => null,
                         'fixture_id' => $fixtureId,
                         'aposta_id' => $n['aposta_id'],
@@ -4099,22 +4140,148 @@ class ApostaController extends BaseController
                 }
             }
 
-            $aposta = $db->table('apostas')
-                ->select('id, fixture_id, time_casa, time_fora, mercado, palpite, odd, odd_justa, valor_aposta, moeda_codigo, confirmada, casa_de_aposta, status, status_gatekeeper, resultado_detalhado, criado_em')
-                ->where('fixture_id', $fixtureId)
-                ->orderBy('id', 'DESC')
-                ->get()
-                ->getFirstRow('array');
+            // 6. Formatação e Normalização dos Eventos com Marcador Temporal do Jogo
+            $timeline = [];
+            $matchStartDt = !empty($fix['fixture_date']) ? strtotime($fix['fixture_date']) : null;
+
+            foreach ($rawLogs as $row) {
+                $delta = null;
+                if (!empty($row['delta_json'])) {
+                    $delta = is_array($row['delta_json']) ? $row['delta_json'] : json_decode($row['delta_json'], true);
+                }
+
+                $evTipo = strtoupper($row['tipo_evento'] ?? '');
+                $comp = strtoupper($row['componente'] ?? '');
+                $logDt = !empty($row['criado_em']) ? strtotime($row['criado_em']) : time();
+
+                // Extração do Momento da Partida (Pré-Jogo, 0' Apito Inicial, 1H, Intervalo HT, 2H, Fim de Jogo FT)
+                $momentoTag = $delta['momento_formatado'] ?? null;
+                $fase = $delta['fase'] ?? null;
+                $minuto = isset($delta['minuto']) ? (int)$delta['minuto'] : null;
+
+                if (empty($momentoTag)) {
+                    if ($evTipo === 'APITO_INICIAL') {
+                        $momentoTag = "[0' · Apito Inicial]";
+                    } elseif ($evTipo === 'INTERVALO_INICIO' || $fase === 'HT') {
+                        $momentoTag = "[Intervalo · HT]";
+                    } elseif ($evTipo === 'INTERVALO_RETORNO') {
+                        $momentoTag = "[45' · Retorno 2H]";
+                    } elseif ($evTipo === 'FIM_DE_JOGO' || $fase === 'FT') {
+                        $momentoTag = "[90'+ · Fim de Jogo (FT)]";
+                    } elseif ($minuto !== null && $minuto > 0) {
+                        $faseNome = ($minuto <= 45) ? '1º Tempo' : '2º Tempo';
+                        $momentoTag = "[{$minuto}' · {$faseNome}]";
+                    } elseif ($matchStartDt && $logDt < ($matchStartDt - 300)) {
+                        $diffMinPre = round(($matchStartDt - $logDt) / 60);
+                        $momentoTag = ($diffMinPre >= 15 && $diffMinPre <= 60) ? "[Pré-Jogo · T-{$diffMinPre}m]" : "[Pré-Jogo]";
+                    } elseif ($matchStartDt && $logDt >= $matchStartDt) {
+                        $elapsedCalc = min(round(($logDt - $matchStartDt) / 60), 95);
+                        if ($elapsedCalc <= 45) {
+                            $momentoTag = "[{$elapsedCalc}' · 1º Tempo]";
+                        } elseif ($elapsedCalc <= 60) {
+                            $momentoTag = "[Intervalo · HT]";
+                        } else {
+                            $min2h = $elapsedCalc - 15;
+                            $momentoTag = "[{$min2h}' · 2º Tempo]";
+                        }
+                    } else {
+                        $momentoTag = "[Pré-Jogo]";
+                    }
+                }
+
+                // Higienização rigorosa do texto descritivo (Regra 17)
+                $motivoLimpo = $row['motivo_detalhado'] ?? $row['notif_mensagem'] ?? '';
+                $motivoLimpo = preg_replace('/\s*\|\|\s*U5J_DATA:.*$/isu', '', $motivoLimpo);
+                $motivoLimpo = preg_replace('/\s*\|\|\s*MEMÓRIA DE CÁLCULO.*$/isu', '', $motivoLimpo);
+                $motivoLimpo = preg_replace('/\s*\|\|\s*PROBABILIDADES_1X2:.*$/isu', '', $motivoLimpo);
+                $motivoLimpo = preg_replace('/^\|\|\s*EXPLICACAO:\s*/isu', '', $motivoLimpo);
+                $motivoLimpo = preg_replace('/\|\|\s*MOTIVACAO:\s*/isu', "\n\n", $motivoLimpo);
+                $motivoLimpo = trim($motivoLimpo, " \t\n\r\0\x0B|");
+
+                // Remoção de tags repetidas do próprio motivo
+                $motivoLimpo = preg_replace('/^\[.*?\]\s*/', '', $motivoLimpo);
+
+                // Ícones e cores temáticas por tipo de evento
+                $badgeClass = 'info';
+                $badgeIcon = 'bi-info-circle';
+                $tituloAmigavel = $row['notif_titulo'] ?? '';
+
+                if (in_array($evTipo, ['APITO_INICIAL', 'INTERVALO_INICIO', 'INTERVALO_RETORNO', 'FIM_DE_JOGO'])) {
+                    $badgeClass = 'cyan';
+                    $badgeIcon = 'bi-clock-history';
+                    if (empty($tituloAmigavel)) {
+                        $titulosMarcos = [
+                            'APITO_INICIAL' => '⏱️ Apito Inicial (0\')',
+                            'INTERVALO_INICIO' => '⏸️ Fim do 1º Tempo (Intervalo)',
+                            'INTERVALO_RETORNO' => '▶️ Início do 2º Tempo (Retorno)',
+                            'FIM_DE_JOGO' => '🏁 Fim de Partida (Encerrado)'
+                        ];
+                        $tituloAmigavel = $titulosMarcos[$evTipo] ?? 'Marco Cronológico';
+                    }
+                } elseif (stripos($evTipo, 'DRIFT') !== false || stripos($motivoLimpo, 'drift') !== false) {
+                    $badgeClass = 'warning';
+                    $badgeIcon = 'bi-graph-up-arrow';
+                    $tituloAmigavel = $tituloAmigavel ?: '⚠️ Alerta de Mercado (Drift de Odds)';
+                } elseif (stripos($evTipo, 'SUMULA') !== false || stripos($comp, 'LINEUP') !== false) {
+                    $badgeClass = 'success';
+                    $badgeIcon = 'bi-clipboard-check';
+                    $tituloAmigavel = $tituloAmigavel ?: '📋 Súmula Oficial Confirmada';
+                } elseif (stripos($evTipo, 'HEDGE') !== false || stripos($evTipo, 'CASHOUT') !== false) {
+                    $badgeClass = 'danger';
+                    $badgeIcon = 'bi-shield-shaded';
+                    $tituloAmigavel = $tituloAmigavel ?: '🛡️ Gestão de Risco (Hedge / Cashout)';
+                } elseif (stripos($evTipo, 'ALERTA_PREJOGO') !== false) {
+                    $badgeClass = 'primary';
+                    $badgeIcon = 'bi-bell';
+                    $tituloAmigavel = $tituloAmigavel ?: '⏰ Alerta Pré-Jogo da Sentinela';
+                } elseif (stripos($comp, 'GROK') !== false || stripos($comp, 'GEMINI') !== false || stripos($comp, 'IA') !== false) {
+                    $badgeClass = 'purple';
+                    $badgeIcon = 'bi-cpu';
+                    $tituloAmigavel = $tituloAmigavel ?: '🧠 Auditoria Tática da IA';
+                } else {
+                    $tituloAmigavel = $tituloAmigavel ?: 'Registro de Evento do Jogo';
+                }
+
+                $timeline[] = [
+                    'id' => $row['id'],
+                    'tipo_evento' => $evTipo,
+                    'componente' => $comp,
+                    'momento_tag' => $momentoTag,
+                    'titulo' => $tituloAmigavel,
+                    'descricao' => $motivoLimpo,
+                    'badge_class' => $badgeClass,
+                    'badge_icon' => $badgeIcon,
+                    'placar' => $delta['placar'] ?? null,
+                    'criado_em' => $row['criado_em'],
+                    'hora_formatada' => date('H:i:s', $logDt),
+                    'data_formatada' => date('d/m/Y', $logDt)
+                ];
+            }
 
             return $this->response->setJSON([
                 'success' => true,
                 'fixture_id' => $fixtureId,
-                'total' => count($logs),
-                'timeline' => $logs,
-                'aposta' => $aposta
+                'fixture' => [
+                    'id' => $fixtureId,
+                    'home_team' => $fix['home_team'] ?? 'Mandante',
+                    'away_team' => $fix['away_team'] ?? 'Visitante',
+                    'status' => $fix['status'] ?? 'FT',
+                    'goals_home' => $fix['goals_home'] ?? 0,
+                    'goals_away' => $fix['goals_away'] ?? 0,
+                    'league_name' => $fix['league_name'] ?? '',
+                    'country' => $fix['country'] ?? '',
+                    'referee_name' => $fix['referee_name'] ?? 'Não informado',
+                    'fixture_date' => $fix['fixture_date'] ?? null,
+                    'fixture_date_br' => !empty($fix['fixture_date']) ? date('d/m/Y H:i', strtotime($fix['fixture_date'])) : ''
+                ],
+                'apostas' => $apostas,
+                'stats' => $stats,
+                'notif_ia' => $notifIa,
+                'timeline' => $timeline,
+                'total_eventos' => count($timeline)
             ]);
         } catch (\Throwable $e) {
-            log_message('error', '[ApostaController::timeline] Erro ao consultar linha do tempo fixture ' . $fixtureId . ': ' . $e->getMessage());
+            log_message('error', '[ApostaController::timeline] Erro ao consultar auditoria do jogo fixture ' . $fixtureId . ': ' . $e->getMessage());
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Erro ao carregar auditoria: ' . $e->getMessage()

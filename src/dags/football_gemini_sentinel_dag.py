@@ -65,7 +65,7 @@ default_args = {
 dag = DAG(
     'football_gemini_sentinel_dag',
     default_args=default_args,
-    schedule_interval='*/15 * * * *',  # Executa a cada 15 minutos cobrindo Fase 1 e Fase 2
+    schedule_interval='*/5 * * * *',  # Executa a cada 5 minutos cobrindo Fase 1 e Fase 2 em alta frequência pré-jogo
     catchup=False,
     description="Esteira da Sentinela em Dois Estágios: Fase 1 (Antecipação Matinal 24h para Sinal Verde no topo da odd) e Fase 2 (Repescagem Pré-Jogo T-50m e Vigilância de Mercado).",
     tags=['football', 'sentinela', 'gemini', 'ia', 'fase1', 'fase2', 'repescagem', 'prejogo', 'drift']

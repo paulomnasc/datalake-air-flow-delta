@@ -2231,17 +2231,13 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             )
                             if res_grok.get("is_cashout_recommended"):
                                 print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático crítico confirmado pelo Grok IA na Aposta #{aposta_id}!")
-                                casa_nome = str(item.get('casa_de_aposta') or '').strip()
-                                if casa_nome == 'Cloudbet':
-                                    from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
-                                    executar_hedge_prejogo_cloudbet(
-                                        bet=item,
-                                        motivo_tatica=res_grok.get("analise_ia", "Sinistro tático detectado na súmula pelo Grok IA."),
-                                        cursor=cursor,
-                                        conn=conn
-                                    )
-                                else:
-                                    print(f"ℹ️ [{casa_nome}] Aposta requer confirmação de cashout manual. Alerta emitido.")
+                                from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                                executar_hedge_prejogo_cloudbet(
+                                    bet=item,
+                                    motivo_tatica=res_grok.get("analise_ia", "Sinistro tático detectado na súmula pelo Grok IA."),
+                                    cursor=cursor,
+                                    conn=conn
+                                )
                             else:
                                 print(f"🟢 [Grok IA Arbitrator: {res_grok.get('veredito')}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
                         except Exception as e_grok:

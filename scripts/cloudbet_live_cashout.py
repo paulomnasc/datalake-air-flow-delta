@@ -426,6 +426,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             print(f"   ⚠️ [Hedge Cloudbet] Mercado oposto '{opposite_market_url}' suspenso/sem liquidez neste instante.")
             continue
 
+        min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+        if hedge_price < min_hedge_odd and not client.dry_run:
+            print(f"   🛑 [Hedge Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}). Abortando para evitar risco assimétrico prejudicial à banca.")
+            tit_der = f"⚠️ Hedge Abortado (Odd Derretida): {home} vs {away}"
+            msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger o patrimônio da banca."
+            enviar_push_cashout(tit_der, msg_der, fixture_id=f_id, aposta_id=aposta_id, prioridade=4)
+            continue
+
         if hedge_price <= 1.0:
             hedge_price = 1.90
         hedge_stake = max(min_stake, stake)
@@ -598,6 +606,14 @@ def executar_hedge_prejogo_cloudbet(
         if hedge_price <= 1.0 and not client.dry_run:
             print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
             return {"success": False, "motivo": "Mercado oposto sem cotação"}
+
+        min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+        if hedge_price < min_hedge_odd and not client.dry_run:
+            print(f"   🛑 [Hedge Pré-Jogo Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso ({min_hedge_odd:.2f}).")
+            tit_der = f"⚠️ Hedge Pré-Jogo Abortado (Odd Derretida): {home} vs {away}"
+            msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger a banca."
+            enviar_push_cashout(tit_der, msg_der, fixture_id=f_id, aposta_id=aposta_id, prioridade=4)
+            return {"success": False, "motivo": f"Odd oposta {hedge_price:.2f} inferior ao piso de {min_hedge_odd:.2f}"}
 
         if hedge_price <= 1.0:
             hedge_price = 1.90

@@ -123,7 +123,7 @@ class ApostaController extends BaseController
             if (!empty($ahSug)) {
                 $fix->suggested_palpite_ah = $ahSug;
             } else {
-                $fix->suggested_palpite_ah = "{$fix->home_team} 0.0 (Empate Anula)";
+                $fix->suggested_palpite_ah = "Sem Entrada (Abstenção)";
             }
             $fix->suggested_palpite = $suggestedCards;
 

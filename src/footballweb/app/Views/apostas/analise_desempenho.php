@@ -264,12 +264,27 @@
         </div>
       </div>
 
+      <!-- Filtro de Modalidade Esportiva -->
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;">
+          <i class="bi bi-pie-chart-fill text-info"></i> Modalidade:
+        </span>
+        <select id="perfModalitySelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="Filtrar por modalidade de mercado">
+          <option value="all" selected>Todas as Modalidades</option>
+          <option value="cartoes">Total de Cartões (Under)</option>
+          <option value="ah">Handicap Asiático (AH)</option>
+          <option value="gols">Gols Asiáticos (Over/Under)</option>
+        </select>
+      </div>
+
       <div class="d-flex align-items-center gap-2">
         <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:</span>
-        <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 130px;" onchange="updatePerformanceDashboard()">
+        <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 145px;" onchange="onPerfGroupChange(this.value)">
           <option value="dia" selected>📅 Por Dia</option>
           <option value="semana">🗓️ Por Semana</option>
           <option value="mes">📆 Por Mês</option>
+          <option value="trimestre">📊 Por Trimestre</option>
+          <option value="ano">🏛️ Por Ano</option>
         </select>
       </div>
     </div>
@@ -316,9 +331,23 @@
       <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
         <i class="bi bi-activity text-success"></i> <?= lang('App.bankroll_evolution_curve') ?>
       </h5>
-      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
-        <i class="bi bi-info-circle me-1 text-info"></i> Exibição Acumulada no Tempo
-      </span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-1.5">
+          <span class="text-light-50 small fw-semibold d-flex align-items-center gap-1">
+            <i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:
+          </span>
+          <select id="perfGroupSelectChart" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 145px; border-radius: 8px;" onchange="onPerfGroupChange(this.value)">
+            <option value="dia" selected>📅 Por Dia</option>
+            <option value="semana">🗓️ Por Semana</option>
+            <option value="mes">📆 Por Mês</option>
+            <option value="trimestre">📊 Por Trimestre</option>
+            <option value="ano">🏛️ Por Ano</option>
+          </select>
+        </div>
+        <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+          <i class="bi bi-info-circle me-1 text-info"></i> Exibição Acumulada no Tempo
+        </span>
+      </div>
     </div>
 
     <div class="chart-container-box">
@@ -366,12 +395,12 @@
     </div>
   </div>
 
-  <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático) -->
+  <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático vs Gols Asiáticos) -->
   <div class="chart-card" id="modalitiesComparisonSection">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
       <div>
         <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
-          <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático' ?>
+          <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático vs Gols Asiáticos' ?>
         </h5>
         <div class="small" style="color: #cbd5e1 !important;">
           <i class="bi bi-info-circle text-info"></i> <?= lang('App.modalities_profit_subtitle') ?? 'Acompanhe a curva de evolução e lucratividade separada por modalidade no período' ?>
@@ -384,13 +413,16 @@
         <span class="badge bg-dark border border-warning text-warning px-3 py-1.5" style="font-size: 0.8rem;" id="badgeAhSummary">
           <i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
         </span>
+        <span class="badge bg-dark border border-info text-info px-3 py-1.5" style="font-size: 0.8rem;" id="badgeGoalsSummary">
+          <i class="bi bi-square-fill me-1" style="color: #38bdf8;"></i> Gols Asiáticos
+        </span>
       </div>
     </div>
 
-    <!-- Mini KPI Diagnosis Cards for Modalities -->
+    <!-- Mini KPI Diagnosis Cards for Modalities (4 Colunas) -->
     <div class="row g-3 mb-3">
       <!-- Card Cartões -->
-      <div class="col-md-4 col-sm-6">
+      <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="p-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.06); border-color: rgba(0, 230, 118, 0.3) !important;">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span class="small fw-semibold text-success d-flex align-items-center gap-1">
@@ -409,7 +441,7 @@
       </div>
 
       <!-- Card Handicap Asiático -->
-      <div class="col-md-4 col-sm-6">
+      <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="p-3 rounded-3 border h-100" id="kpiAhCardBox" style="background: rgba(255, 145, 0, 0.06); border-color: rgba(255, 145, 0, 0.3) !important;">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span class="small fw-semibold text-warning d-flex align-items-center gap-1">
@@ -427,23 +459,44 @@
         </div>
       </div>
 
-      <!-- Card Comparativo Diferencial -->
-      <div class="col-md-4 col-sm-12">
-        <div class="p-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
+      <!-- Card Gols Asiáticos (NOVO) -->
+      <div class="col-lg-3 col-md-6 col-sm-6">
+        <div class="p-3 rounded-3 border h-100" id="kpiGoalsCardBox" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span class="small fw-semibold text-info d-flex align-items-center gap-1">
-              <i class="bi bi-arrow-left-right"></i> Balanço Diferencial (Impacto)
+              <i class="bi bi-bullseye"></i> Gols Asiáticos
             </span>
-            <span class="badge bg-dark border border-info text-info" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
+            <span class="badge bg-info text-dark fw-bold" id="kpiGoalsBadge" style="font-size: 0.7rem;">Ativo 🔵</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiGoalsLucro">R$ 0,00</div>
+            <span class="small fw-semibold" id="kpiGoalsRoi">ROI: 0%</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiGoalsDetails">
+            0 bets | Win Rate: 0,0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Comparativo Diferencial / Diagnóstico -->
+      <div class="col-lg-3 col-md-6 col-sm-12">
+        <div class="p-3 rounded-3 border h-100" style="background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-light d-flex align-items-center gap-1">
+              <i class="bi bi-trophy-fill text-warning"></i> Maior Rentabilidade
+            </span>
+            <span class="badge bg-dark border border-secondary text-light-50" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
           </div>
           <div class="d-flex align-items-baseline gap-2">
             <div class="fw-bold fs-5 text-white" id="kpiDeltaLucro">R$ 0,00</div>
-            <span class="small text-info fw-semibold" id="kpiDeltaStatus">Vantagem Cartões</span>
+            <span class="small text-info fw-semibold" id="kpiDeltaStatus">Líder</span>
           </div>
           <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiDeltaDetails">
             Impacto líquido comparativo no período selecionado
           </div>
         </div>
+      </div>
+    </div>
       </div>
     </div>
 
@@ -952,6 +1005,27 @@ function getWeekKey(dateStr) {
   return `${year}-W${String(weekNumber).padStart(2, '0')}`;
 }
 
+function getQuarterKey(dateStr) {
+  if (!dateStr) return 'Sem Data';
+  const d = new Date(dateStr + 'T00:00:00');
+  const year = d.getFullYear();
+  const quarter = Math.floor(d.getMonth() / 3) + 1;
+  return `${year}-Q${quarter}`;
+}
+
+function getYearKey(dateStr) {
+  if (!dateStr) return 'Sem Data';
+  return dateStr.trim().substring(0, 4);
+}
+
+function onPerfGroupChange(val) {
+  const s1 = document.getElementById('perfGroupSelect');
+  const s2 = document.getElementById('perfGroupSelectChart');
+  if (s1 && s1.value !== val) s1.value = val;
+  if (s2 && s2.value !== val) s2.value = val;
+  updatePerformanceDashboard();
+}
+
 function getBetNormalizedValues(item) {
   const isEspelhar = (perfEspelharFilter === '1');
   const status = item.status || '';
@@ -1052,7 +1126,13 @@ function updatePerformanceDashboard() {
   const startDate = document.getElementById('perfStartDateInput')?.value || '';
   const endDate = document.getElementById('perfEndDateInput')?.value || '';
   const statusFilter = document.getElementById('perfStatusSelect')?.value || 'concluidas';
-  const groupMode = document.getElementById('perfGroupSelect')?.value || 'dia';
+  const modalityFilter = document.getElementById('perfModalitySelect')?.value || 'all';
+
+  const groupSelectEl = document.getElementById('perfGroupSelect');
+  const groupChartSelectEl = document.getElementById('perfGroupSelectChart');
+  const groupMode = groupChartSelectEl?.value || groupSelectEl?.value || 'dia';
+  if (groupSelectEl && groupSelectEl.value !== groupMode) groupSelectEl.value = groupMode;
+  if (groupChartSelectEl && groupChartSelectEl.value !== groupMode) groupChartSelectEl.value = groupMode;
 
   const filteredBets = rawBets.filter(bet => {
     const status = bet.status || 'Pendente';
@@ -1071,6 +1151,17 @@ function updatePerformanceDashboard() {
       if (status !== 'Cashout') return false;
     } else if (statusFilter === 'ANULADA') {
       if (status !== 'ANULADA' && status !== 'Anulada' && status !== 'Cancelada' && status !== 'CANCELADA') return false;
+    }
+
+    if (modalityFilter !== 'all') {
+      const bMercado = (bet.mercado || '').trim();
+      const bPalpite = (bet.palpite || '').trim();
+      const isCard = /cart|card/i.test(bMercado) || /cart|card/i.test(bPalpite);
+      const isAh = !isCard && (/handicap|empate anula|dnb/i.test(bMercado) || /ah|handicap|empate anula|dnb/i.test(bPalpite));
+      const isGols = !isCard && !isAh && (/gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bMercado) || /gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bPalpite));
+      if (modalityFilter === 'cartoes' && !isCard) return false;
+      if (modalityFilter === 'ah' && !isAh) return false;
+      if (modalityFilter === 'gols' && !isGols) return false;
     }
 
     if (perfConfirmedFilter === '1') {
@@ -1127,6 +1218,7 @@ function updatePerformanceDashboard() {
   const modalityBuckets = {
     cartoes: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
     ah: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    gols: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
     outros: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 }
   };
   const modalityTimeline = {};
@@ -1246,7 +1338,8 @@ function updatePerformanceDashboard() {
     let finalMercadoKey = rawMercado;
 
     const isCardMarket = /cart|card/i.test(rawMercado) || /cart|card/i.test(palpite);
-    const isHandicapMarket = /handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite);
+    const isHandicapMarket = !isCardMarket && (/handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite));
+    const isGoalsMarket = !isCardMarket && !isHandicapMarket && (/gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(rawMercado) || /gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(palpite));
 
     if (isCardMarket) {
       const isIndividual = /individual|time/i.test(rawMercado) || /individual|time/i.test(palpite);
@@ -1298,6 +1391,18 @@ function updatePerformanceDashboard() {
       } else {
         finalMercadoKey = 'Handicap Asiático';
       }
+    } else if (isGoalsMarket) {
+      let isUnder = /under|menos/i.test(palpite) || /under|menos/i.test(rawMercado);
+      let isOver = /over|mais/i.test(palpite) || /over|mais/i.test(rawMercado);
+      let lineMatch = palpite.match(/(\d+(?:[\.,]\d+)?)/) || rawMercado.match(/(\d+(?:[\.,]\d+)?)/);
+
+      if (lineMatch && (isUnder || isOver)) {
+        let dirStr = isUnder ? 'Menos de' : 'Mais de';
+        let lineVal = lineMatch[1].replace(',', '.');
+        finalMercadoKey = `${dirStr} ${lineVal} Gols Asiáticos`;
+      } else {
+        finalMercadoKey = 'Gols Asiáticos';
+      }
     } else {
       if (palpite && !rawMercado.toLowerCase().includes(palpite.toLowerCase())) {
         if (/mais de|menos de|over|under|[+-]\d|vence|vitória|empate/i.test(palpite)) {
@@ -1324,6 +1429,10 @@ function updatePerformanceDashboard() {
         key = getWeekKey(rawDate);
       } else if (groupMode === 'mes') {
         key = rawDate.substring(0, 7);
+      } else if (groupMode === 'trimestre') {
+        key = getQuarterKey(rawDate);
+      } else if (groupMode === 'ano') {
+        key = getYearKey(rawDate);
       }
     }
 
@@ -1393,6 +1502,8 @@ function updatePerformanceDashboard() {
       modKey = 'cartoes';
     } else if (isHandicapMarket) {
       modKey = 'ah';
+    } else if (isGoalsMarket) {
+      modKey = 'gols';
     }
 
     modalityBuckets[modKey].apostado += valor;
@@ -1421,7 +1532,7 @@ function updatePerformanceDashboard() {
     }
 
     if (!modalityTimeline[key]) {
-      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0 };
+      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, golsLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0, golsCount: 0 };
     }
     if (modKey === 'cartoes') {
       modalityTimeline[key].cartoesLucro += netProfit;
@@ -1429,6 +1540,9 @@ function updatePerformanceDashboard() {
     } else if (modKey === 'ah') {
       modalityTimeline[key].ahLucro += netProfit;
       modalityTimeline[key].ahCount += 1;
+    } else if (modKey === 'gols') {
+      modalityTimeline[key].golsLucro += netProfit;
+      modalityTimeline[key].golsCount += 1;
     } else {
       modalityTimeline[key].outrosLucro += netProfit;
     }
@@ -1492,12 +1606,14 @@ function updatePerformanceDashboard() {
   const cumulativeLucroData = [];
   const cumulativeCartoesLucro = [];
   const cumulativeAhLucro = [];
+  const cumulativeGolsLucro = [];
   const cumulativeWinRateData = [];
 
   let runningApostado = 0;
   let runningLucro = 0;
   let runningCartoesLucro = 0;
   let runningAhLucro = 0;
+  let runningGolsLucro = 0;
   let runningGanhas = 0;
   let runningDecided = 0;
 
@@ -1508,11 +1624,13 @@ function updatePerformanceDashboard() {
     runningApostado += b.apostado;
     runningLucro += b.lucro;
 
-    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
-    runningCartoesLucro += modTime.cartoesLucro;
-    runningAhLucro += modTime.ahLucro;
+    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0, golsLucro: 0 };
+    runningCartoesLucro += (modTime.cartoesLucro || 0);
+    runningAhLucro += (modTime.ahLucro || 0);
+    runningGolsLucro += (modTime.golsLucro || 0);
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
+    cumulativeGolsLucro.push(runningGolsLucro);
 
     runningGanhas += (b.ganhas || 0);
     runningDecided += (b.decided || 0);
@@ -1526,6 +1644,11 @@ function updatePerformanceDashboard() {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     labels.push(label);
@@ -1543,6 +1666,11 @@ function updatePerformanceDashboard() {
   const ahApostado = modalityBuckets.ah.apostado;
   const ahRoi = ahApostado > 0 ? (ahLucro / ahApostado) * 100 : 0;
   const ahWinRate = modalityBuckets.ah.decided > 0 ? (modalityBuckets.ah.ganhas / modalityBuckets.ah.decided) * 100 : 0;
+
+  const golsLucro = modalityBuckets.gols.lucro;
+  const golsApostado = modalityBuckets.gols.apostado;
+  const golsRoi = golsApostado > 0 ? (golsLucro / golsApostado) * 100 : 0;
+  const golsWinRate = modalityBuckets.gols.decided > 0 ? (modalityBuckets.gols.ganhas / modalityBuckets.gols.decided) * 100 : 0;
 
   const deltaLucro = cartoesLucro - ahLucro;
 
@@ -1584,8 +1712,11 @@ function updatePerformanceDashboard() {
     elAhDetails.textContent = `${modalityBuckets.ah.count} bets | Win: ${ahWinRate.toFixed(1).replace('.', ',')}%`;
   }
   if (elAhBadge) {
-    if (ahLucro < 0) {
-      elAhBadge.textContent = 'Dreno de Lucro 🔴';
+    if (modalityBuckets.ah.count === 0) {
+      elAhBadge.textContent = 'Sem Bets';
+      elAhBadge.className = 'badge bg-secondary text-white';
+    } else if (ahLucro < 0) {
+      elAhBadge.textContent = 'Dreno 🔴';
       elAhBadge.className = 'badge bg-danger text-white fw-bold';
     } else {
       elAhBadge.textContent = 'Lucrativo 🟢';
@@ -1605,15 +1736,68 @@ function updatePerformanceDashboard() {
     elBadgeAh.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> AH: ${formatBrl(ahLucro)}`;
   }
 
+  // Mini KPI Gols Asiáticos
+  const elGoalsLucro = document.getElementById('kpiGoalsLucro');
+  const elGoalsRoi = document.getElementById('kpiGoalsRoi');
+  const elGoalsDetails = document.getElementById('kpiGoalsDetails');
+  const elGoalsBadge = document.getElementById('kpiGoalsBadge');
+  const elBadgeGoals = document.getElementById('badgeGoalsSummary');
+  const elGoalsCardBox = document.getElementById('kpiGoalsCardBox');
+
+  if (elGoalsLucro) {
+    elGoalsLucro.textContent = formatBrl(golsLucro);
+    elGoalsLucro.className = 'fw-bold fs-5 ' + (golsLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elGoalsRoi) {
+    elGoalsRoi.textContent = 'ROI: ' + formatPct(golsRoi);
+    elGoalsRoi.className = 'small fw-semibold ' + (golsRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elGoalsDetails) {
+    elGoalsDetails.textContent = `${modalityBuckets.gols.count} bets | Win: ${golsWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elGoalsBadge) {
+    if (modalityBuckets.gols.count === 0) {
+      elGoalsBadge.textContent = 'Sem Bets';
+      elGoalsBadge.className = 'badge bg-secondary text-white';
+    } else if (golsLucro < 0) {
+      elGoalsBadge.textContent = 'Dreno 🔴';
+      elGoalsBadge.className = 'badge bg-danger text-white fw-bold';
+    } else {
+      elGoalsBadge.textContent = 'Lucrativo 🟢';
+      elGoalsBadge.className = 'badge bg-success text-dark fw-bold';
+    }
+  }
+  if (elGoalsCardBox) {
+    if (golsLucro < 0) {
+      elGoalsCardBox.style.background = 'rgba(255, 82, 82, 0.08)';
+      elGoalsCardBox.style.borderColor = 'rgba(255, 82, 82, 0.3)';
+    } else {
+      elGoalsCardBox.style.background = 'rgba(56, 189, 248, 0.06)';
+      elGoalsCardBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    }
+  }
+  if (elBadgeGoals) {
+    elBadgeGoals.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #38bdf8;"></i> Gols: ${formatBrl(golsLucro)}`;
+  }
+
   const elDeltaLucro = document.getElementById('kpiDeltaLucro');
   const elDeltaStatus = document.getElementById('kpiDeltaStatus');
   const elDeltaDetails = document.getElementById('kpiDeltaDetails');
+
+  const maxModLucro = Math.max(cartoesLucro, ahLucro, golsLucro);
+  let bestMod = 'Cartões';
+  if (ahLucro === maxModLucro && ahLucro > cartoesLucro) bestMod = 'AH';
+  if (golsLucro === maxModLucro && golsLucro > cartoesLucro && golsLucro > ahLucro) bestMod = 'Gols Asiáticos';
+
   if (elDeltaLucro) {
     elDeltaLucro.textContent = (deltaLucro >= 0 ? '+' : '') + formatBrl(deltaLucro);
     elDeltaLucro.className = 'fw-bold fs-5 ' + (deltaLucro >= 0 ? 'text-success' : 'text-danger');
   }
   if (elDeltaStatus) {
-    if (deltaLucro > 0) {
+    if (bestMod === 'Gols Asiáticos') {
+      elDeltaStatus.textContent = 'Liderança Gols ⚽';
+      elDeltaStatus.className = 'small text-info fw-semibold';
+    } else if (deltaLucro > 0) {
       elDeltaStatus.textContent = 'Vantagem Cartões 🛡️';
       elDeltaStatus.className = 'small text-success fw-semibold';
     } else if (deltaLucro < 0) {
@@ -1625,9 +1809,11 @@ function updatePerformanceDashboard() {
     }
   }
   if (elDeltaDetails) {
-    elDeltaDetails.textContent = deltaLucro > 0
-      ? `Cartões superou AH em ${formatBrl(Math.abs(deltaLucro))} no saldo real`
-      : (deltaLucro < 0 ? `AH superou Cartões em ${formatBrl(Math.abs(deltaLucro))} no saldo real` : 'Ambas modalidades com resultado idêntico');
+    let detailsTxt = `Cartões vs AH: ${deltaLucro >= 0 ? '+' : ''}${formatBrl(deltaLucro)}`;
+    if (modalityBuckets.gols.count > 0) {
+      detailsTxt += ` | Gols: ${formatBrl(golsLucro)}`;
+    }
+    elDeltaDetails.textContent = detailsTxt;
   }
 
   const mercadoKeys = Object.keys(mercadoBuckets).sort((a, b) => mercadoBuckets[b].lucro - mercadoBuckets[a].lucro);
@@ -1826,7 +2012,7 @@ function updatePerformanceDashboard() {
   });
 
   renderChart(labels, cumulativeApostadoData, cumulativeLucroData, cumulativeWinRateData);
-  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
+  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, cumulativeGolsLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
   renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
   renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets, outlierLeaguesCount, minGamesThreshold);
@@ -1960,7 +2146,7 @@ function renderChart(labels, apostadoData, lucroData, winRateData) {
   });
 }
 
-function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, rawKeys) {
+function renderModalidadesChart(labels, cartoesData, ahData, golsData, modalityTimeline, rawKeys) {
   const canvas = document.getElementById('modalidadesProfitChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1994,6 +2180,18 @@ function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, r
           borderWidth: 3,
           pointRadius: 4,
           pointBackgroundColor: '#ff9100',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        },
+        {
+          label: 'Gols Asiáticos (Over/Under) - Lucro Acumulado (R$)',
+          data: golsData,
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56, 189, 248, 0.12)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#38bdf8',
           pointHoverRadius: 6,
           tension: 0.3,
           fill: true
@@ -2033,8 +2231,9 @@ function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, r
               const lines = [];
               lines.push('──────────────────────');
               lines.push(`Resultado no Ponto (${tooltipItems[0].label}):`);
-              lines.push(`• Cartões: ${t.cartoesLucro >= 0 ? '+' : ''}${t.cartoesLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount} bets)`);
-              lines.push(`• Handicap Asiático: ${t.ahLucro >= 0 ? '+' : ''}${t.ahLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount} bets)`);
+              lines.push(`• Cartões: ${(t.cartoesLucro || 0) >= 0 ? '+' : ''}${(t.cartoesLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount || 0} bets)`);
+              lines.push(`• Handicap Asiático: ${(t.ahLucro || 0) >= 0 ? '+' : ''}${(t.ahLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount || 0} bets)`);
+              lines.push(`• Gols Asiáticos: ${(t.golsLucro || 0) >= 0 ? '+' : ''}${(t.golsLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.golsCount || 0} bets)`);
               return lines;
             }
           }
@@ -2369,6 +2568,11 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     const bLucro = b.lucro;
@@ -2500,6 +2704,11 @@ function exportBreakdownCsv() {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     if (isOpen) {

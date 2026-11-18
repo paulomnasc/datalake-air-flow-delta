@@ -1087,7 +1087,8 @@ def sync_fixture_and_bet_cards(
     selected_cand: dict,
     user_ids: list,
     prediction_text: str,
-    over_cards_prob: float
+    over_cards_prob: float,
+    confirmada_val: int = 1
 ):
     """
     Sincroniza atômica e simultaneamente o Card (fixtures_trends) e a Aposta (apostas) de Cartões.
@@ -1204,16 +1205,41 @@ def sync_fixture_and_bet_cards(
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
                         %s, %s, %s, 'APROVADO', %s,
-                        %s, %s, 'Pendente', 0, %s, %s, NOW(), NOW()
+                        %s, %s, 'Pendente', %s, %s, %s, NOW(), NOW()
                     )
                 """, (
                     uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc, gk_category,
-                    valor_aposta, ganhos_potenciais, gk_detalhado, fixture_date
+                    valor_aposta, ganhos_potenciais, confirmada_val, gk_detalhado, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
                 created_count += 1
-                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name})")
+                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (Confirmada: {confirmada_val})")
+
+                # Débito atômico na Conta Corrente quando aposta nasce confirmada
+                if confirmada_val == 1 and aposta_id:
+                    saldo_ant = 0.0
+                    saldo_pos = 0.0
+                    cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
+                    u_row = cursor.fetchone()
+                    if u_row:
+                        saldo_ant = float(u_row['saldo_conta_corrente'] or 0.0)
+                    saldo_pos = round(saldo_ant - valor_aposta, 8)
+                    desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {palpite_str})"
+
+                    cursor.execute("""
+                        INSERT INTO conta_corrente (
+                            usuario_id, aposta_id, tipo, moeda_codigo, descricao, valor,
+                            saldo_anterior, saldo_posterior, criado_em
+                        ) VALUES (
+                            %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
+                        )
+                    """, (
+                        uid, aposta_id, user_moeda, desc_deb,
+                        -valor_aposta, saldo_ant, saldo_pos
+                    ))
+                    cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (saldo_pos, uid))
+                    print(f"💰 [Débito Conta Corrente User #{uid}] -{valor_aposta:.2f} {user_moeda} | Aposta #{aposta_id} (Novo Saldo: {saldo_pos:.2f})")
 
                 # Debita 0.5 crédito do usuário pela aposta gerada
                 if uid != 558 and u_st != 'active':

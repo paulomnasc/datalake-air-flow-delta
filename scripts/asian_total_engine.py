@@ -585,7 +585,7 @@ def sync_fixture_and_bet_goals(
     best_cand: dict,
     reasoning: str,
     user_ids: list,
-    confirmada: int = 0
+    confirmada: int = 1
 ) -> int:
     """
     Sincroniza atomicamente a aposta no mercado de Gols Asiáticos na tabela 'apostas'.
@@ -688,9 +688,12 @@ def sync_fixture_and_bet_goals(
 
         # Se for confirmada, debitar valor na conta corrente
         if confirmada == 1 and aposta_id:
+            saldo_ant = 0.0
+            saldo_pos = 0.0
             cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
             u_row = cursor.fetchone()
-            saldo_ant = float(u_row['saldo_conta_corrente'] or 0.0) if u_row else 0.0
+            if u_row:
+                saldo_ant = float(u_row['saldo_conta_corrente'] or 0.0)
             saldo_pos = round(saldo_ant - valor_aposta, 8)
 
             cursor.execute("""
@@ -701,8 +704,8 @@ def sync_fixture_and_bet_goals(
                     %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                 )
             """, (
-                uid, aposta_id, f"Aposta #{aposta_id} - Gols Asiáticos: {palpite}",
-                valor_aposta, saldo_ant, saldo_pos, user_moeda
+                uid, aposta_id, f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {palpite})",
+                -valor_aposta, saldo_ant, saldo_pos, user_moeda
             ))
             cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (saldo_pos, uid))
 

@@ -183,7 +183,7 @@ def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tip
         pass
 
 
-def criar_apostas_gols_diario(target_date_str=None, confirmada=0):
+def criar_apostas_gols_diario(target_date_str=None, confirmada=1):
     """
     Rotina Principal: Varre os jogos em aberto da data alvo (ou hoje/amanhã),
     consulta a Betano, avalia no Gatekeeper de Poisson e insere as apostas aprovadas.
@@ -296,5 +296,5 @@ def criar_apostas_gols_diario(target_date_str=None, confirmada=0):
 
 if __name__ == '__main__':
     t_date = sys.argv[1] if len(sys.argv) > 1 else None
-    conf = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    conf = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     criar_apostas_gols_diario(target_date_str=t_date, confirmada=conf)

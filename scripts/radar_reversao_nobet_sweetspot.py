@@ -78,32 +78,42 @@ def get_eligible_user_ids(cursor) -> list:
     return [558]
 
 
-def enviar_push_ntfy_reversao(titulo: str, mensagem: str, tags: str = "arrows_counterclockwise,dart,moneybag"):
+def enviar_push_ntfy_reversao(titulo: str, mensagem: str, tags: str = "arrows_counterclockwise,dart,moneybag", fixture_id: int = None):
     """
     Dispara notificação push mobile via ntfy.sh no tópico canônico footbalweb_sentinela.
+    Publica via payload JSON (UTF-8 nativo) garantindo legibilidade perfeita de acentos e emojis.
     """
-    import urllib.request
-    import urllib.parse
+    import requests
     
     env_vars = get_live_env_vars()
     topic = os.environ.get("NTFY_TOPIC") or env_vars.get("NTFY_TOPIC", "footbalweb_sentinela")
-    url = f"https://ntfy.sh/{topic}"
+    server = (os.environ.get("NTFY_SERVER") or env_vars.get("NTFY_SERVER", "https://ntfy.sh")).rstrip("/")
+    base_url = (os.environ.get("NTFY_BASE_URL") or env_vars.get("NTFY_BASE_URL", "https://cristalbet.com.br")).rstrip("/")
+    click_url = f"{base_url}/apostas?fixture_id={fixture_id}" if fixture_id else f"{base_url}/apostas"
     
+    tags_list = [t.strip() for t in tags.split(",") if t.strip()] if isinstance(tags, str) else (tags or [])
+
+    payload = {
+        "topic": topic,
+        "title": titulo,
+        "message": mensagem,
+        "priority": "high",
+        "tags": tags_list,
+        "click": click_url
+    }
+
     try:
-        req = urllib.request.Request(
-            url,
-            data=mensagem.encode("utf-8"),
-            headers={
-                "Title": urllib.parse.quote(titulo),
-                "Priority": "high",
-                "Tags": tags
-            },
-            method="POST"
+        resp = requests.post(
+            f"{server}",
+            json=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            timeout=10
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            if resp.status == 200:
-                print(f"📲 [Push ntfy Enviado] {titulo}")
-                return True
+        if resp.status_code in (200, 201):
+            print(f"📲 [Push ntfy Enviado] {titulo}")
+            return True
+        else:
+            print(f"⚠️ [Push ntfy Falha] Status code {resp.status_code}: {resp.text}")
     except Exception as e_ntfy:
         print(f"⚠️ [Push ntfy Falha] Não foi possível entregar push: {e_ntfy}")
     return False
@@ -275,7 +285,7 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                             # Dispara Push Mobile e Sininho
                             push_title = f"🎯 REVERSÃO SWEET SPOT: {palpite_sug} @ {cand_odd:.2f}"
                             push_msg = f"{home} x {away}: A cotação entrou no Sweet Spot seguro (1.60 a 1.95) com {cand_prob:.1f}% de probabilidade. Entrada gerada!"
-                            enviar_push_ntfy_reversao(push_title, push_msg)
+                            enviar_push_ntfy_reversao(push_title, push_msg, fixture_id=fid)
 
                             for uid in user_ids:
                                 registrar_notificacao_sininho(
@@ -324,7 +334,7 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                             # Dispara Push Mobile e Sininho
                             push_title_g = f"⚽ REVERSÃO GOLS: {palpite_gols} @ {gols_odd:.2f}"
                             push_msg_g = f"{home} x {away}: Linha de gols entrou no Sweet Spot seguro (1.60 a 1.95) com {gols_prob:.1f}% de chance."
-                            enviar_push_ntfy_reversao(push_title_g, push_msg_g, tags="soccer,dart,chart_with_upwards_trend")
+                            enviar_push_ntfy_reversao(push_title_g, push_msg_g, tags="soccer,dart,chart_with_upwards_trend", fixture_id=fid)
 
                             for uid in user_ids:
                                 registrar_notificacao_sininho(

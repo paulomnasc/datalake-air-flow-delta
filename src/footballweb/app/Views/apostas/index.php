@@ -1764,15 +1764,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <div class="d-flex align-items-center gap-1.5 flex-nowrap">
                   <?php 
                     $casaNome = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
-                    $isRadarCasa = (stripos($casaNome, 'Radar') !== false || stripos($casaNome, 'Stake') !== false);
                   ?>
                   <?php if (!$isAbstencaoBloqueada): ?>
-                    <span class="badge border fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
-                          style="font-size: 0.86rem; padding: 5px 10px; border-radius: 7px; <?= $isRadarCasa ? 'background: rgba(14, 165, 233, 0.18) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important;' : 'background: rgba(255, 102, 0, 0.18) !important; color: #ff8c38 !important; border-color: rgba(255, 102, 0, 0.45) !important;' ?>" 
-                          title="Casa de apostas aprovada: <?= htmlspecialchars($casaNome) ?>">
-                      <i class="bi <?= $isRadarCasa ? 'bi-radar' : 'bi-check-circle-fill' ?>" style="font-size: 0.85rem;"></i>
-                      <span><?= $isRadarCasa ? 'Sugestão Radar' : 'Betano' ?></span>
-                    </span>
                     <div class="odd-badge" title="Odd Aprovada na <?= htmlspecialchars($casaNome) ?>: <?= number_format($aposta->odd, 2) ?>">
                       <?= number_format($aposta->odd, 2) ?>
                     </div>

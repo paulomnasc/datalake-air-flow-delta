@@ -38,16 +38,119 @@ _LAST_PUSH_ALERT: Dict[str, float] = {}
 _LAST_HT_WAIT_LOG: Dict[int, bool] = {}
 
 
+def derive_inplay_xg_from_bookmakers(
+    home_team: str,
+    away_team: str,
+    fixture_date: Optional[Any] = None,
+    goals_home: int = 0,
+    goals_away: int = 0
+) -> Optional[Dict[str, Any]]:
+    """
+    Cascata de Contingência de xG via Bookmakers:
+    Nível 2: Cloudbet (In-play Feed / Trading API via CloudbetMatcher).
+    Nível 3: Betano (In-play Feed via betano_direct_api).
+    """
+    if not home_team or not away_team:
+        return None
+
+    # Nível 2: Consulta Cloudbet in-play via CloudbetMatcher
+    try:
+        from cloudbet_matcher import CloudbetMatcher
+        client_cb = CloudbetClient()
+        matcher = CloudbetMatcher(client_cb)
+        matched = matcher.find_matching_event(home_team, away_team, fixture_date=fixture_date)
+        if matched:
+            matched_id = int(matched.get("event_id") or matched.get("id") or 0)
+            if matched_id:
+                cb_markets = matcher.get_event_markets(matched_id)
+                tg_dict = cb_markets.get("total_goals", {})
+                if tg_dict:
+                    best_line = None
+                    min_diff = 999.0
+                    for line_val, outcomes in tg_dict.items():
+                        p_over = float(outcomes.get("over", {}).get("price") or 0.0)
+                        p_under = float(outcomes.get("under", {}).get("price") or 0.0)
+                        if p_over > 1.0 and p_under > 1.0:
+                            diff = abs(p_over - p_under)
+                            if diff < min_diff:
+                                min_diff = diff
+                                best_line = float(line_val)
+                    if best_line is not None:
+                        tot_g = max(0, goals_home + goals_away)
+                        rem_g = max(0.1, best_line - tot_g)
+                        xg_h = round(goals_home + (rem_g * 0.58), 2)
+                        xg_a = round(goals_away + (rem_g * 0.42), 2)
+                        return {
+                            "xg_home": xg_h,
+                            "xg_away": xg_a,
+                            "total_xg": round(xg_h + xg_a, 2),
+                            "source": "CLOUDBET_INPLAY",
+                            "reference_line": best_line
+                        }
+    except Exception:
+        pass
+
+    # Nível 3: Consulta Betano in-play via betano_direct_api
+    try:
+        from betano_direct_api import fetch_betano_live_football_events, is_team_match
+        events = fetch_betano_live_football_events()
+        for ev in events:
+            ev_h = ev.get('home_team', '')
+            ev_a = ev.get('away_team', '')
+            if is_team_match(home_team, ev_h) and is_team_match(away_team, ev_a):
+                markets = ev.get('markets', {})
+                over_under = markets.get('over_under', {})
+                if over_under:
+                    best_line = None
+                    min_diff = 999.0
+                    for line_str, odds in over_under.items():
+                        try:
+                            m_l = re.search(r'(\d+(?:\.\d+)?)', str(line_str))
+                            if not m_l:
+                                continue
+                            l_val = float(m_l.group(1))
+                            o_val = float(odds.get('over') or 0.0)
+                            u_val = float(odds.get('under') or 0.0)
+                            if o_val > 1.0 and u_val > 1.0:
+                                diff = abs(o_val - u_val)
+                                if diff < min_diff:
+                                    min_diff = diff
+                                    best_line = l_val
+                        except Exception:
+                            continue
+                    if best_line is not None:
+                        tot_g = max(0, goals_home + goals_away)
+                        rem_g = max(0.1, best_line - tot_g)
+                        xg_h = round(goals_home + (rem_g * 0.58), 2)
+                        xg_a = round(goals_away + (rem_g * 0.42), 2)
+                        return {
+                            "xg_home": xg_h,
+                            "xg_away": xg_a,
+                            "total_xg": round(xg_h + xg_a, 2),
+                            "source": "BETANO_INPLAY",
+                            "reference_line": best_line
+                        }
+    except Exception:
+        pass
+
+    return None
+
+
 def fetch_inplay_match_statistics(
     fixture_id: int,
     home_team_id: Optional[int] = None,
     away_team_id: Optional[int] = None,
     cursor = None,
-    conn = None
-) -> Dict[str, int]:
+    conn = None,
+    home_team: Optional[str] = None,
+    away_team: Optional[str] = None,
+    goals_home: Optional[int] = None,
+    goals_away: Optional[int] = None,
+    fixture_date: Optional[Any] = None
+) -> Dict[str, Any]:
     """
-    Busca estatísticas in-play (chutes no gol, chutes totais, escanteios) diretamente
-    na API-Sports para partidas com apostas ativas em andamento, respeitando cache de 180s.
+    Busca estatísticas in-play (chutes no gol, chutes totais, escanteios, xG em 4 níveis)
+    para partidas com apostas ativas em andamento, respeitando cache de 180s.
     Atualiza fixtures_trends no MySQL.
     """
     now = time.time()
@@ -79,45 +182,112 @@ def fetch_inplay_match_statistics(
         _LAST_STATS_FETCH[fixture_id] = now
 
         sh, sa = 0, 0
+        s_tot_h, s_tot_a = 0, 0
+        s_off_h, s_off_a = 0, 0
+        s_blk_h, s_blk_a = 0, 0
         ch, ca = 0, 0
         yc_h, yc_a = 0, 0
         rc_h, rc_a = 0, 0
+        xg_native_h, xg_native_a = 0.0, 0.0
+        poss_h, poss_a = 50, 50
 
         for team_st in data:
             t_id = team_st.get("team", {}).get("id")
             is_home = (t_id == home_team_id) if home_team_id else (team_st == data[0])
             stats_list = team_st.get("statistics", [])
-            sg, s_tot, ck = 0, 0, 0
+            sg, s_tot, s_off, s_blk, ck = 0, 0, 0, 0, 0
             y_cnt, r_cnt = 0, 0
+            xg_item = 0.0
+            p_val = 50
+
             for s in stats_list:
                 stype = (s.get("type") or "").strip().lower()
                 sval = s.get("value")
                 if sval is not None:
                     try:
-                        val_int = int(sval)
                         if "corner" in stype:
-                            ck = val_int
+                            ck = int(sval)
                         elif "shots on goal" in stype or "shots on target" in stype:
-                            sg = val_int
+                            sg = int(sval)
+                        elif "shots off goal" in stype:
+                            s_off = int(sval)
+                        elif "blocked shots" in stype:
+                            s_blk = int(sval)
                         elif "total shots" in stype or stype == "shots":
-                            s_tot = val_int
+                            s_tot = int(sval)
                         elif "yellow card" in stype:
-                            y_cnt = val_int
+                            y_cnt = int(sval)
                         elif "red card" in stype:
-                            r_cnt = val_int
+                            r_cnt = int(sval)
+                        elif any(k in stype for k in ("expected goals", "xg", "expectedgoals", "expected_goals")):
+                            xg_item = float(sval)
+                        elif "possession" in stype:
+                            p_val = int(str(sval).replace("%", "").strip())
                     except (ValueError, TypeError):
                         pass
-            effective_shots = sg if sg > 0 else s_tot
+
+            s_total_calc = s_tot if s_tot > 0 else (sg + s_off + s_blk)
+
             if is_home:
-                sh = effective_shots
+                sh = sg
+                s_tot_h = s_total_calc
+                s_off_h = s_off
+                s_blk_h = s_blk
                 ch = ck
                 yc_h = y_cnt
                 rc_h = r_cnt
+                xg_native_h = xg_item
+                poss_h = p_val
             else:
-                sa = effective_shots
+                sa = sg
+                s_tot_a = s_total_calc
+                s_off_a = s_off
+                s_blk_a = s_blk
                 ca = ck
                 yc_a = y_cnt
                 rc_a = r_cnt
+                xg_native_a = xg_item
+                poss_a = p_val
+
+        # Cascata de 4 Níveis para Obtenção / Dedução de xG In-Play
+        gh_val = int(goals_home if goals_home is not None else 0)
+        ga_val = int(goals_away if goals_away is not None else 0)
+        xg_h, xg_a = 0.0, 0.0
+        xg_source = "DESCONHECIDO"
+
+        # Nível 1: Opta nativo na API-Sports
+        if xg_native_h > 0.0 or xg_native_a > 0.0:
+            xg_h = round(xg_native_h, 2)
+            xg_a = round(xg_native_a, 2)
+            xg_source = "APISPORTS_OPTA"
+        else:
+            # Níveis 2 e 3: Cloudbet e Betano In-play Feed
+            bm_xg = derive_inplay_xg_from_bookmakers(
+                home_team=home_team or "",
+                away_team=away_team or "",
+                fixture_date=fixture_date,
+                goals_home=gh_val,
+                goals_away=ga_val
+            )
+            if bm_xg and bm_xg.get("total_xg", 0.0) > 0.0:
+                xg_h = float(bm_xg.get("xg_home", 0.0))
+                xg_a = float(bm_xg.get("xg_away", 0.0))
+                xg_source = bm_xg.get("source", "BOOKMAKER_INPLAY")
+            else:
+                # Nível 4: Cálculo Matemático de Campo por Finalizações Reais
+                s_off_calc_h = s_off_h if s_off_h > 0 else max(0, s_tot_h - sh)
+                calc_h = round((sh * 0.32) + (s_off_calc_h * 0.08) + (gh_val * 0.15), 2)
+                if calc_h == 0.0 and gh_val > 0:
+                    calc_h = round(gh_val * 0.75, 2)
+
+                s_off_calc_a = s_off_a if s_off_a > 0 else max(0, s_tot_a - sa)
+                calc_a = round((sa * 0.32) + (s_off_calc_a * 0.08) + (ga_val * 0.15), 2)
+                if calc_a == 0.0 and ga_val > 0:
+                    calc_a = round(ga_val * 0.75, 2)
+
+                xg_h = max(0.0, calc_h)
+                xg_a = max(0.0, calc_a)
+                xg_source = "CALCULO_CAMPO_FINALIZACOES"
 
         # Consulta eventos em tempo real para captura precisa de cartões amarelos e vermelhos (a API-Sports atrasa a agregação em statistics)
         try:
@@ -141,7 +311,7 @@ def fetch_inplay_match_statistics(
             yc_a = max(yc_a, yc_ev_a)
             rc_h = max(rc_h, rc_ev_h)
             rc_a = max(rc_a, rc_ev_a)
-        except Exception as e_ev:
+        except Exception:
             pass
 
         if cursor and conn:
@@ -149,26 +319,37 @@ def fetch_inplay_match_statistics(
                 UPDATE fixtures_trends
                 SET shots_home = %s, shots_away = %s,
                     corners_home = %s, corners_away = %s,
+                    xg_home = IF(%s > 0, %s, xg_home),
+                    xg_away = IF(%s > 0, %s, xg_away),
                     yellow_cards_home = GREATEST(COALESCE(yellow_cards_home, 0), %s),
                     yellow_cards_away = GREATEST(COALESCE(yellow_cards_away, 0), %s),
                     red_cards_home = GREATEST(COALESCE(red_cards_home, 0), %s),
                     red_cards_away = GREATEST(COALESCE(red_cards_away, 0), %s),
                     updated_at = NOW()
                 WHERE fixture_id = %s
-            """, (sh, sa, ch, ca, yc_h, yc_a, rc_h, rc_a, fixture_id))
+            """, (s_tot_h, s_tot_a, ch, ca, xg_h, xg_h, xg_a, xg_a, yc_h, yc_a, rc_h, rc_a, fixture_id))
             conn.commit()
 
         return {
             "shots_home": sh,
             "shots_away": sa,
+            "total_shots": sh + sa,
+            "shots_total_home": s_tot_h,
+            "shots_total_away": s_tot_a,
+            "total_shots_all": s_tot_h + s_tot_a,
             "corners_home": ch,
             "corners_away": ca,
+            "total_corners": ch + ca,
             "yellow_cards_home": yc_h,
             "yellow_cards_away": yc_a,
             "red_cards_home": rc_h,
             "red_cards_away": rc_a,
-            "total_shots": sh + sa,
-            "total_corners": ch + ca
+            "xg_home": xg_h,
+            "xg_away": xg_a,
+            "total_xg": round(xg_h + xg_a, 2),
+            "xg_source": xg_source,
+            "possession_home": poss_h,
+            "possession_away": poss_a
         }
     except Exception as e:
         print(f"⚠️ [Erro ao buscar estatísticas in-play fixture #{fixture_id}]: {e}")
@@ -454,164 +635,238 @@ def evaluate_live_cashout_trigger(
             return True, motivo
 
     # =========================================================================
-    # 2. CENÁRIOS DE TOTAL DE GOLS (OVER / UNDER)
+    # 2. CENÁRIOS DE TOTAL DE GOLS (OVER / UNDER COM AFERIÇÃO DE xG E TEMPERATURA)
     # =========================================================================
     elif 'gol' in mercado or 'over' in palpite.lower() or 'under' in palpite.lower():
         is_over = 'over' in palpite.lower() or 'mais' in palpite.lower()
         m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
         line_total = float(m_tot.group(1)) if m_tot else 2.5
 
+        # Coleta de xG e métricas in-play
+        xg_h = float((stats_inplay.get('xg_home') if stats_inplay else None) or bet_row.get('xg_home') or 0.0)
+        xg_a = float((stats_inplay.get('xg_away') if stats_inplay else None) or bet_row.get('xg_away') or 0.0)
+        tot_xg = round(xg_h + xg_a, 2)
+        xg_source = (stats_inplay.get('xg_source') if stats_inplay else None) or "DB/Campo"
+
+        sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
+        sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
+        ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
+        ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
+        tot_shots = sh + sa
+        tot_corners = ch + ca
+        tot_shots_all = int((stats_inplay.get('total_shots_all') if stats_inplay else None) or tot_shots)
+        f_id = bet_row.get('fixture_id')
+        ap_id = bet_row.get('id')
+
         if is_over:
-            # A) Inferência de Ritmo e Temperatura do Jogo (Janela de Ouro: 52' a 68')
-            sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
-            sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
-            ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
-            ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
-            tot_shots = sh + sa
-            tot_corners = ch + ca
-            f_id = bet_row.get('fixture_id')
-            ap_id = bet_row.get('id')
+            # Se a linha já foi superada (ex: 3 gols em Mais de 2.5), a aposta já é GREEN absoluto!
+            if total_gols >= line_total:
+                return False, f"Aposta de Mais de {line_total} Gols já superada ({gh}x{ga}). Posição vencedora mantida sem hedge."
 
-            if 52 <= elapsed <= 68 and f_id:
-                window_bucket = "50_60" if elapsed < 60 else "60_70"
-                audit_key = f"{f_id}_{window_bucket}"
+            deficit_gols = line_total - total_gols
 
-                # Cenário Jogo Morno / Travado (Cold Game) -> Dispara Hedge Antecipado
-                if total_gols == 0 and tot_shots <= 4 and tot_corners <= 3:
-                    motivo_morno = (
-                        f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
-                        f"Ritmo insuficiente para sustentar aposta de Mais de {line_total} Gols. Antecipando Hedge de Under para capturar odds líquidas."
+            # A) Janela dos 52' aos 73' (Janela de Ouro de Avaliação de Ritmo)
+            if 52 <= elapsed <= 73 and f_id:
+                window_bucket = "50_60" if elapsed < 60 else "60_73"
+                audit_key = f"{f_id}_over_{window_bucket}"
+
+                # Subcenário A.1: Déficit de 2 ou mais gols (ex: 0x0 ou 0x1 em Mais de 2.5)
+                if deficit_gols >= 1.5:
+                    if tot_xg < 0.90 and tot_shots_all <= 6 and tot_corners <= 4:
+                        motivo_morno = (
+                            f"Temperatura do Jogo (Over com Déficit de 2+ Gols): Placar {gh}x{ga} aos {elapsed}' "
+                            f"(xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                            f"Ritmo insuficiente para produzir 2+ gols até o fim. Antecipando Hedge de Under para salvar a stake."
+                        )
+                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                            try:
+                                from lifecycle_logger import log_lifecycle_event
+                                log_lifecycle_event(
+                                    cursor=cursor,
+                                    fixture_id=f_id,
+                                    aposta_id=ap_id,
+                                    componente='LIVE_GAME_TEMPERATURE',
+                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                    estado_anterior='Pendente',
+                                    estado_novo='Pendente',
+                                    minuto_jogo=elapsed,
+                                    fase_jogo='2H',
+                                    placar_momento=f"{gh}x{ga}",
+                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'DISPARAR_HEDGE_ANTECIPADO'},
+                                    motivo=f"🌡️ {motivo_morno}"
+                                )
+                                conn.commit()
+                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                            except Exception:
+                                pass
+                        return True, motivo_morno
+
+                    elif tot_xg >= 1.40 or tot_shots_all >= 8:
+                        motivo_quente = (
+                            f"Temperatura do Jogo: Pressão Ofensiva Ativa (Placar: {gh}x{ga} aos {elapsed}' | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all}). "
+                            f"Volume ofensivo consistente na busca por gols. Posição mantida sem hedge antecipado."
+                        )
+                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                            try:
+                                from lifecycle_logger import log_lifecycle_event
+                                log_lifecycle_event(
+                                    cursor=cursor,
+                                    fixture_id=f_id,
+                                    aposta_id=ap_id,
+                                    componente='LIVE_GAME_TEMPERATURE',
+                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                    estado_anterior='Pendente',
+                                    estado_novo='Pendente',
+                                    minuto_jogo=elapsed,
+                                    fase_jogo='2H',
+                                    placar_momento=f"{gh}x{ga}",
+                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'QUENTE', 'decisao': 'MANTER_APOSTA'},
+                                    motivo=f"🌡️ {motivo_quente}"
+                                )
+                                conn.commit()
+                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                            except Exception:
+                                pass
+
+                # Subcenário A.2: Faltando apenas 1 gol (ex: 0x2 em Mais de 2.5)
+                elif deficit_gols == 0.5:
+                    if tot_xg >= 1.20 or tot_shots_all >= 6 or tot_corners >= 4:
+                        motivo_quente = (
+                            f"Temperatura do Jogo: Pressão Ofensiva a 1 gol da linha (Placar: {gh}x{ga} aos {elapsed}' | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all}). "
+                            f"Apenas 1 gol para o Green de Mais de {line_total}. Posição mantida."
+                        )
+                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                            try:
+                                from lifecycle_logger import log_lifecycle_event
+                                log_lifecycle_event(
+                                    cursor=cursor,
+                                    fixture_id=f_id,
+                                    aposta_id=ap_id,
+                                    componente='LIVE_GAME_TEMPERATURE',
+                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                    estado_anterior='Pendente',
+                                    estado_novo='Pendente',
+                                    minuto_jogo=elapsed,
+                                    fase_jogo='2H',
+                                    placar_momento=f"{gh}x{ga}",
+                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'QUENTE', 'decisao': 'MANTER_APOSTA'},
+                                    motivo=f"🌡️ {motivo_quente}"
+                                )
+                                conn.commit()
+                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                            except Exception:
+                                pass
+
+            # B) Janela de Reta Final (74' aos 85') - Fim do Apagão Cego no Over
+            if 74 <= elapsed <= 85 and total_gols < line_total:
+                # Se faltam 2 ou mais gols após os 74', a probabilidade é ínfima -> Hedge Mandatório!
+                if deficit_gols >= 1.5:
+                    motivo = (
+                        f"Hedge de Reta Final (Over com Déficit de 2+ Gols): Placar {gh}x{ga} aos {elapsed}'. "
+                        f"Faltam {deficit_gols:.1f} gols para a linha {line_total}. Tempo escasso. Hedge para Under necessário."
                     )
-                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
-                        try:
-                            from lifecycle_logger import log_lifecycle_event
-                            log_lifecycle_event(
-                                cursor=cursor,
-                                fixture_id=f_id,
-                                aposta_id=ap_id,
-                                componente='LIVE_GAME_TEMPERATURE',
-                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
-                                estado_anterior='Pendente',
-                                estado_novo='Pendente',
-                                minuto_jogo=elapsed,
-                                fase_jogo='2H',
-                                placar_momento=f"{gh}x{ga}",
-                                delta={
-                                    'minuto': elapsed,
-                                    'fase': '2H',
-                                    'placar': f"{gh}x{ga}",
-                                    'shots_home': sh,
-                                    'shots_away': sa,
-                                    'corners_home': ch,
-                                    'corners_away': ca,
-                                    'total_shots': tot_shots,
-                                    'total_corners': tot_corners,
-                                    'temperatura': 'MORNO',
-                                    'decisao': 'DISPARAR_HEDGE_ANTECIPADO'
-                                },
-                                motivo=f"🌡️ {motivo_morno}"
-                            )
-                            conn.commit()
-                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
-                        except Exception as e_lt:
-                            print(f"⚠️ [Erro Auditoria Temperatura Jogo Morno]: {e_lt}")
+                    return True, motivo
 
-                    return True, motivo_morno
-
-                # Cenário Jogo Quente / Pressão Ofensiva Alta -> Mantém aposta
-                elif tot_shots >= 6 or tot_corners >= 4 or total_gols > 0:
-                    motivo_quente = (
-                        f"Temperatura do Jogo: Jogo Quente/Pressão Ofensiva (Placar: {gh}x{ga} | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
-                        f"Volume ofensivo consistente. Posição mantida sem hedge antecipado."
+                # Se falta apenas 1 gol (ex: 0x2 em Mais de 2.5) e já estamos nos 76'+
+                elif deficit_gols == 0.5 and elapsed >= 76:
+                    motivo = (
+                        f"Hedge Defensivo de Reta Final (Over a 1 gol da linha): Placar {gh}x{ga} aos {elapsed}'. "
+                        f"Faltando 1 gol para {line_total}. Resgate de liquidez na ponta de Under antes do encerramento dos mercados."
                     )
-                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
-                        try:
-                            from lifecycle_logger import log_lifecycle_event
-                            log_lifecycle_event(
-                                cursor=cursor,
-                                fixture_id=f_id,
-                                aposta_id=ap_id,
-                                componente='LIVE_GAME_TEMPERATURE',
-                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
-                                estado_anterior='Pendente',
-                                estado_novo='Pendente',
-                                minuto_jogo=elapsed,
-                                fase_jogo='2H',
-                                placar_momento=f"{gh}x{ga}",
-                                delta={
-                                    'minuto': elapsed,
-                                    'fase': '2H',
-                                    'placar': f"{gh}x{ga}",
-                                    'shots_home': sh,
-                                    'shots_away': sa,
-                                    'corners_home': ch,
-                                    'corners_away': ca,
-                                    'total_shots': tot_shots,
-                                    'total_corners': tot_corners,
-                                    'temperatura': 'QUENTE',
-                                    'decisao': 'MANTER_APOSTA'
-                                },
-                                motivo=f"🌡️ {motivo_quente}"
-                            )
-                            conn.commit()
-                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
-                        except Exception as e_lt:
-                            print(f"⚠️ [Erro Auditoria Temperatura Jogo Quente]: {e_lt}")
+                    return True, motivo
 
-            # B) Seca Prolongada (Fallback clássico para 72'+)
-            if total_gols == 0 and elapsed >= 72:
-                motivo = f"Seca Prolongada: Placar 0x0 aos {elapsed}' em aposta {palpite}. Hedge para Under necessário."
+            # C) Fallback Reta Final Extrema (86'+)
+            if elapsed >= 86 and total_gols < line_total:
+                motivo = f"Hedge de Encerramento (Over não concretizado): Placar {gh}x{ga} aos {elapsed}' em aposta {palpite}. Hedge para Under necessário."
                 return True, motivo
         else:
-            # Coleta métricas in-play para avaliação de temperatura no Under
-            sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
-            sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
-            ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
-            ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
-            tot_shots = sh + sa
-            tot_corners = ch + ca
-            f_id = bet_row.get('fixture_id')
-            ap_id = bet_row.get('id')
-
             # Cenário 1: Risco Crítico no 1º Tempo (2+ gols marcados no 1T)
             if elapsed <= 45 and total_gols >= 2 and total_gols >= (line_total - 1):
                 motivo = f"Risco Crítico de Over no 1º Tempo: Já foram marcados {total_gols} gols ({gh}x{ga}) aos {elapsed}' em aposta {palpite}. Hedge para Over necessário."
                 return True, motivo
 
-            # Cenário 2: Janela Nobre dos 46' aos 79' - A 1 gol do limite da linha
+            # Cenário 2: Janela Nobre dos 46' aos 79' - A 1 gol ou menos do limite da linha
             if total_gols >= (line_total - 1) and (46 <= elapsed <= 79) and total_gols > 0:
-                # Se o jogo estiver Morno/Travado (poucos chutes e escanteios), a aposta Under caminha para o Green!
-                if tot_shots <= 6 and tot_corners <= 5 and total_gols < line_total:
-                    audit_key = f"{f_id}_under_morno_2h"
-                    motivo_morno = (
-                        f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} aos {elapsed}' | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
-                        f"Ritmo ofensivo baixo. Aposta de Menos de {line_total} Gols caminhando para o Green. Posição mantida sem hedge."
-                    )
-                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
-                        try:
-                            from lifecycle_logger import log_lifecycle_event
-                            log_lifecycle_event(
-                                cursor=cursor,
-                                fixture_id=f_id,
-                                aposta_id=ap_id,
-                                componente='LIVE_GAME_TEMPERATURE',
-                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
-                                estado_anterior='Pendente',
-                                estado_novo='Pendente',
-                                minuto_jogo=elapsed,
-                                fase_jogo='2H',
-                                placar_momento=f"{gh}x{ga}",
-                                delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'shots_home': sh, 'shots_away': sa, 'corners_home': ch, 'corners_away': ca, 'total_shots': tot_shots, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'MANTER_APOSTA'},
-                                motivo=f"🌡️ {motivo_morno}"
-                            )
-                            conn.commit()
-                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
-                        except Exception as e_lt:
-                            pass
-                    return False, motivo_morno
+                is_fractional_critical = ((line_total % 1.0 != 0) and total_gols == (line_total - 0.5))
 
-                motivo = f"Atenção ao Under: Placar {gh}x{ga} aos {elapsed}'. Apenas 1 gol restante para a linha de {line_total} gols ({gh}x{ga}). Hedge para Over necessário."
-                return True, motivo
+                if is_fractional_critical:
+                    # Linha Fracionária sem Reembolso (.5, ex: Menos de 2.5 com placar 2x0)
+                    # NÃO HÁ MARGEM: se sair qualquer gol a aposta é 100% perdida sem Push.
+                    # Só mantém se o jogo estiver REALMENTE frio e sem pressão (xG baixo e poucas chegadas).
+                    if tot_xg < 1.10 and tot_shots_all <= 5 and tot_corners <= 4 and total_gols < line_total:
+                        audit_key = f"{f_id}_under_morno_2h"
+                        motivo_morno = (
+                            f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} aos {elapsed}' | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                            f"Ritmo ofensivo baixo na linha seca {line_total}. Aposta de Menos Gols caminhando para o Green. Posição mantida sem hedge."
+                        )
+                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                            try:
+                                from lifecycle_logger import log_lifecycle_event
+                                log_lifecycle_event(
+                                    cursor=cursor,
+                                    fixture_id=f_id,
+                                    aposta_id=ap_id,
+                                    componente='LIVE_GAME_TEMPERATURE',
+                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                    estado_anterior='Pendente',
+                                    estado_novo='Pendente',
+                                    minuto_jogo=elapsed,
+                                    fase_jogo='2H',
+                                    placar_momento=f"{gh}x{ga}",
+                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'MANTER_APOSTA'},
+                                    motivo=f"🌡️ {motivo_morno}"
+                                )
+                                conn.commit()
+                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                            except Exception:
+                                pass
+                        return False, motivo_morno
+
+                    motivo = (
+                        f"Atenção ao Under (Linha Seca {line_total}): Placar {gh}x{ga} aos {elapsed}'. "
+                        f"Pressão ofensiva ativa (xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                        f"Risco iminente de perda irreversível a 0.5 gol da linha. Hedge para Over necessário."
+                    )
+                    return True, motivo
+
+                else:
+                    # Linha Inteira com Amortecedor de Push (.0, ex: Menos de 3.0 no 2x0)
+                    # O próximo gol garante 100% de reembolso da stake, permitindo margem mais elástica
+                    if tot_xg <= 1.80 and tot_shots_all <= 8 and tot_corners <= 6 and total_gols < line_total:
+                        audit_key = f"{f_id}_under_morno_2h"
+                        motivo_morno = (
+                            f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} aos {elapsed}' | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                            f"Ritmo ofensivo controlado na linha de proteção {line_total}. Aposta de Menos Gols caminhando para o Green/Push. Posição mantida sem hedge."
+                        )
+                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                            try:
+                                from lifecycle_logger import log_lifecycle_event
+                                log_lifecycle_event(
+                                    cursor=cursor,
+                                    fixture_id=f_id,
+                                    aposta_id=ap_id,
+                                    componente='LIVE_GAME_TEMPERATURE',
+                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                    estado_anterior='Pendente',
+                                    estado_novo='Pendente',
+                                    minuto_jogo=elapsed,
+                                    fase_jogo='2H',
+                                    placar_momento=f"{gh}x{ga}",
+                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'MANTER_APOSTA'},
+                                    motivo=f"🌡️ {motivo_morno}"
+                                )
+                                conn.commit()
+                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                            except Exception:
+                                pass
+                        return False, motivo_morno
+
+                    motivo = (
+                        f"Atenção ao Under (Linha {line_total}): Placar {gh}x{ga} aos {elapsed}'. "
+                        f"Ritmo ofensivo elevado (xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                        f"Apenas 1 gol restante para o limite da linha. Hedge para Over necessário."
+                    )
+                    return True, motivo
 
     return False, "Nenhum gatilho de risco acionado"
 
@@ -647,7 +902,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                ft.yellow_cards_home, ft.yellow_cards_away,
                ft.red_cards_home, ft.red_cards_away,
                ft.corners_home, ft.corners_away,
-               ft.shots_home, ft.shots_away, ft.fixture_date
+               ft.shots_home, ft.shots_away, ft.fixture_date,
+               ft.xg_home, ft.xg_away
         FROM apostas a
         INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
         WHERE a.status = 'Pendente'
@@ -685,18 +941,24 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"\n📊 Analisando Aposta #{aposta_id} [{casa_nome}]: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
 
-        # Se a partida estiver no 2º tempo (>= 48') OU se for aposta de Cartões/Escanteios, busca/atualiza in-play stats
+        # Se a partida estiver a partir dos 35' OU com 1+ gol OU mercado de Cartões/Escanteios, busca/atualiza in-play stats
+        total_gols_live = (int(gh or 0) + int(ga or 0))
         mercado_str = str(bet.get('mercado') or '').lower()
         palpite_str = str(palpite or '').lower()
         is_cards_or_corners = any(k in mercado_str or k in palpite_str for k in ('cart', 'card', 'escan', 'corner'))
         stats_inplay = {}
-        if (elapsed and elapsed >= 48) or is_cards_or_corners:
+        if (elapsed and elapsed >= 35) or is_cards_or_corners or total_gols_live >= 1:
             stats_inplay = fetch_inplay_match_statistics(
                 fixture_id=f_id,
                 home_team_id=bet.get('home_team_id'),
                 away_team_id=bet.get('away_team_id'),
                 cursor=cursor,
-                conn=conn
+                conn=conn,
+                home_team=home,
+                away_team=away,
+                goals_home=gh,
+                goals_away=ga,
+                fixture_date=bet.get('fixture_date')
             )
 
         should_hedge, motivo = evaluate_live_cashout_trigger(

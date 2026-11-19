@@ -450,6 +450,11 @@ def evaluate_and_select_best_goals_candidate(
         ev_pct = cand['ev_pct']
         prob = cand['prob_efetiva']
 
+        # 0. Trava Soberana de Linhas Inteiras: Descontinuação absoluta de linhas fracionadas (.25, .5 e .75)
+        # Autorizadas exclusivamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols)
+        if round(line % 1.0, 2) != 0.0 or line not in (2.0, 3.0):
+            continue
+
         # 1. Filtro Sweet Spot de Odd Conservador (Alta Assertividade 1.60 a 1.95)
         if odd < 1.60 or odd > 1.95:
             continue
@@ -484,7 +489,7 @@ def evaluate_and_select_best_goals_candidate(
         approved_list.append(cand)
 
     if not approved_list:
-        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.60 - 1.95)."
+        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha inteira autorizada (2.0 ou 3.0) com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.60 - 1.95)."
 
     # Ordenação Soberana por Maior Probabilidade Efetiva (Win-Rate First) e desempate por maior EV%
     approved_list.sort(key=lambda x: (x['prob_efetiva'], x['ev_pct']), reverse=True)
@@ -818,6 +823,20 @@ def cli_evaluate_goals_bet(
             is_over = bool(re.search(r'(?:mais|over)', palpite, re.IGNORECASE))
             m_line = re.search(r'(\d+\.\d+|\d+)', palpite)
             line_val = float(m_line.group(1)) if m_line else 2.5
+
+            # 2.1 Trava Soberana de Linhas Inteiras: Descontinuação absoluta de linhas fracionadas (.25, .5 e .75)
+            # Autorizadas exclusivamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols)
+            if round(line_val % 1.0, 2) != 0.0 or line_val not in (2.0, 3.0):
+                return {
+                    "fixtureId": fix['fixture_id'] if fix else fixture_id,
+                    "oddJusta": odd,
+                    "probPoisson": 50.0,
+                    "evPercentual": 0.0,
+                    "statusGatekeeper": "NO_BET",
+                    "gatekeeperCategory": "Linha Fracionada Descontinuada",
+                    "gatekeeperMsg": "Regra de Bloqueio Gatekeeper (NO_BET): Linhas fracionadas de Gols Asiáticos (.25, .5 e .75) foram permanentemente descontinuadas para proteção da banca contra variância binária e meias-perdas. Autorizadas estritamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols).",
+                    "destaque": 0
+                }
 
             # 3. Obter Histórico U5J e Lambdas de Poisson
             h_name = fix.get('home_team') or home_team

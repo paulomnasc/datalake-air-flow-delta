@@ -456,6 +456,24 @@ def main():
                         el_item = f_info.get('status', {}).get('elapsed')
                         gh_item = g_info.get('home')
                         ga_item = g_info.get('away')
+                        h_id = t_info.get('home', {}).get('id')
+                        a_id = t_info.get('away', {}).get('id')
+
+                        # Extrai cartões de events
+                        events = item.get('events', [])
+                        yc_h, yc_a = 0, 0
+                        rc_h, rc_a = 0, 0
+                        for ev in events:
+                            if ev.get('type') == 'Card':
+                                ev_team_id = ev.get('team', {}).get('id')
+                                det = (ev.get('detail') or '').strip().lower()
+                                is_h = (ev_team_id == h_id)
+                                if 'yellow' in det:
+                                    if is_h: yc_h += 1
+                                    else: yc_a += 1
+                                elif 'red' in det:
+                                    if is_h: rc_h += 1
+                                    else: rc_a += 1
 
                         live_events.append({
                             'home_team': t_info.get('home', {}).get('name', ''),
@@ -464,6 +482,10 @@ def main():
                             'goals_home': gh_item,
                             'goals_away': ga_item,
                             'elapsed': el_item,
+                            'yellow_cards_home': yc_h,
+                            'yellow_cards_away': yc_a,
+                            'red_cards_home': rc_h,
+                            'red_cards_away': rc_a,
                             'card_lines': [],
                             'source': 'API-Sports Contingência In-Play'
                         })
@@ -546,16 +568,36 @@ def main():
         elif old_status in ('1H', '2H', 'HT', 'LIVE') and live_status in ('FT', 'FINISHED'):
             log_match_milestone(cursor, fid, 'FIM_DE_JOGO', placar=placar_str, minuto=elapsed or 90)
 
-        # Atualiza banco de dados com dados reais
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                status = %s,
-                goals_home = %s,
-                goals_away = %s,
-                elapsed = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (live_status, gh, ga, elapsed, fid))
+        # Atualiza banco de dados com dados reais (incluindo cartões ao vivo se disponíveis)
+        yc_h_ev = matched_ev.get('yellow_cards_home')
+        yc_a_ev = matched_ev.get('yellow_cards_away')
+        rc_h_ev = matched_ev.get('red_cards_home')
+        rc_a_ev = matched_ev.get('red_cards_away')
+
+        if yc_h_ev is not None or yc_a_ev is not None:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    status = %s,
+                    goals_home = %s,
+                    goals_away = %s,
+                    elapsed = %s,
+                    yellow_cards_home = GREATEST(COALESCE(yellow_cards_home, 0), %s),
+                    yellow_cards_away = GREATEST(COALESCE(yellow_cards_away, 0), %s),
+                    red_cards_home = GREATEST(COALESCE(red_cards_home, 0), %s),
+                    red_cards_away = GREATEST(COALESCE(red_cards_away, 0), %s),
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (live_status, gh, ga, elapsed, yc_h_ev or 0, yc_a_ev or 0, rc_h_ev or 0, rc_a_ev or 0, fid))
+        else:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    status = %s,
+                    goals_home = %s,
+                    goals_away = %s,
+                    elapsed = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (live_status, gh, ga, elapsed, fid))
         jogos_atualizados += 1
         print(f"🟢 [Live Sync Betano] #{fid} {h_team} {gh}x{ga} {a_team} ({live_status} - {elapsed}')")
 

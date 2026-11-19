@@ -80,12 +80,15 @@ def fetch_inplay_match_statistics(
 
         sh, sa = 0, 0
         ch, ca = 0, 0
+        yc_h, yc_a = 0, 0
+        rc_h, rc_a = 0, 0
 
         for team_st in data:
             t_id = team_st.get("team", {}).get("id")
             is_home = (t_id == home_team_id) if home_team_id else (team_st == data[0])
             stats_list = team_st.get("statistics", [])
             sg, s_tot, ck = 0, 0, 0
+            y_cnt, r_cnt = 0, 0
             for s in stats_list:
                 stype = (s.get("type") or "").strip().lower()
                 sval = s.get("value")
@@ -98,24 +101,61 @@ def fetch_inplay_match_statistics(
                             sg = val_int
                         elif "total shots" in stype or stype == "shots":
                             s_tot = val_int
+                        elif "yellow card" in stype:
+                            y_cnt = val_int
+                        elif "red card" in stype:
+                            r_cnt = val_int
                     except (ValueError, TypeError):
                         pass
             effective_shots = sg if sg > 0 else s_tot
             if is_home:
                 sh = effective_shots
                 ch = ck
+                yc_h = y_cnt
+                rc_h = r_cnt
             else:
                 sa = effective_shots
                 ca = ck
+                yc_a = y_cnt
+                rc_a = r_cnt
+
+        # Consulta eventos em tempo real para captura precisa de cartões amarelos e vermelhos (a API-Sports atrasa a agregação em statistics)
+        try:
+            url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
+            resp_ev = requests.get(url_ev, headers=headers, timeout=8).json()
+            ev_items = resp_ev.get("response", [])
+            yc_ev_h, yc_ev_a = 0, 0
+            rc_ev_h, rc_ev_a = 0, 0
+            for ev in ev_items:
+                if ev.get("type") == "Card":
+                    t_id = ev.get("team", {}).get("id")
+                    det = (ev.get("detail") or "").strip().lower()
+                    is_h = (t_id == home_team_id) if home_team_id else False
+                    if "yellow" in det:
+                        if is_h: yc_ev_h += 1
+                        else: yc_ev_a += 1
+                    elif "red" in det:
+                        if is_h: rc_ev_h += 1
+                        else: rc_ev_a += 1
+            yc_h = max(yc_h, yc_ev_h)
+            yc_a = max(yc_a, yc_ev_a)
+            rc_h = max(rc_h, rc_ev_h)
+            rc_a = max(rc_a, rc_ev_a)
+        except Exception as e_ev:
+            pass
 
         if cursor and conn:
             cursor.execute("""
                 UPDATE fixtures_trends
                 SET shots_home = %s, shots_away = %s,
                     corners_home = %s, corners_away = %s,
+                    yellow_cards_home = GREATEST(COALESCE(yellow_cards_home, 0), %s),
+                    yellow_cards_away = GREATEST(COALESCE(yellow_cards_away, 0), %s),
+                    red_cards_home = GREATEST(COALESCE(red_cards_home, 0), %s),
+                    red_cards_away = GREATEST(COALESCE(red_cards_away, 0), %s),
                     updated_at = NOW()
                 WHERE fixture_id = %s
-            """, (sh, sa, ch, ca, fixture_id))
+            """, (sh, sa, ch, ca, yc_h, yc_a, rc_h, rc_a, fixture_id))
             conn.commit()
 
         return {
@@ -123,6 +163,10 @@ def fetch_inplay_match_statistics(
             "shots_away": sa,
             "corners_home": ch,
             "corners_away": ca,
+            "yellow_cards_home": yc_h,
+            "yellow_cards_away": yc_a,
+            "red_cards_home": rc_h,
+            "red_cards_away": rc_a,
             "total_shots": sh + sa,
             "total_corners": ch + ca
         }
@@ -641,9 +685,12 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"\n📊 Analisando Aposta #{aposta_id} [{casa_nome}]: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
 
-        # Se a partida estiver no 2º tempo (janela in-play crítica >= 48'), busca/atualiza chutes e escanteios in-play
+        # Se a partida estiver no 2º tempo (>= 48') OU se for aposta de Cartões/Escanteios, busca/atualiza in-play stats
+        mercado_str = str(bet.get('mercado') or '').lower()
+        palpite_str = str(palpite or '').lower()
+        is_cards_or_corners = any(k in mercado_str or k in palpite_str for k in ('cart', 'card', 'escan', 'corner'))
         stats_inplay = {}
-        if elapsed and elapsed >= 48:
+        if (elapsed and elapsed >= 48) or is_cards_or_corners:
             stats_inplay = fetch_inplay_match_statistics(
                 fixture_id=f_id,
                 home_team_id=bet.get('home_team_id'),

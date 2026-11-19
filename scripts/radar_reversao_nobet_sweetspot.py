@@ -278,7 +278,7 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                                 palpite_sug=palpite_sug,
                                 conf_val=conf_val,
                                 detalhe_calculo=compound_reasoning,
-                                confirmada=0
+                                confirmada_val=1
                             )
                             total_apostas_criadas += inserted_cnt
 
@@ -327,7 +327,7 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                                 best_cand=best_gols,
                                 reasoning=reas_gols,
                                 user_ids=user_ids,
-                                confirmada=0
+                                confirmada=1
                             )
                             total_apostas_criadas += inserted_g
 

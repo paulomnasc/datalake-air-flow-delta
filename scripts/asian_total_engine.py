@@ -690,7 +690,10 @@ def sync_fixture_and_bet_goals(
         ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
         ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
 
-        casa_aposta_val = best_cand.get('bookmaker') or 'Cloudbet'
+        if user_moeda == 'USDT':
+            casa_aposta_val = 'Cloudbet'
+        else:
+            casa_aposta_val = best_cand.get('bookmaker') or 'Cloudbet'
 
         cursor.execute("""
             INSERT INTO apostas (

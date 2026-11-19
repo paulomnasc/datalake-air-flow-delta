@@ -1530,7 +1530,7 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                     ev_perc=ev_perc,
                     detalhe_calculo=reasoning_gk,
                     user_ids=user_ids,
-                    confirmada_val=0,
+                    confirmada_val=1,
                     destaque_val=destaque_val,
                     best_cand=best_cand
                 )
@@ -1744,7 +1744,7 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                         ev_perc=cand_ev,
                         detalhe_calculo=detalhe_calc,
                         user_ids=user_ids,
-                        confirmada_val=0,
+                        confirmada_val=1,
                         destaque_val=0,
                         best_cand=best_cand
                     )

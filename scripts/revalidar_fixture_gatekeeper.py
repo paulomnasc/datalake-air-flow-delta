@@ -274,7 +274,7 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             ev_perc=ev_ah,
             detalhe_calculo=enriched_reason_ah,
             user_ids=user_ids,
-            confirmada_val=0,
+            confirmada_val=1,
             destaque_val=1 if best_cand_ah.get('is_tier1_massacre') else 0,
             best_cand=best_cand_ah
         )

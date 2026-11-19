@@ -3433,7 +3433,7 @@ def sync_fixture_and_bet_handicap(
     ev_perc: float,
     detalhe_calculo: str,
     user_ids: list,
-    confirmada_val: int = 0,
+    confirmada_val: int = 1,
     destaque_val: int = 0,
     best_cand: dict = None
 ):
@@ -3495,6 +3495,8 @@ def sync_fixture_and_bet_handicap(
         """, (uid,))
         meta_row = cursor.fetchone()
         user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
+        if user_moeda == 'USDT':
+            casa_nome = 'Cloudbet'
         user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
         if user_stake <= 0.0:
             user_stake = 10.00
@@ -3677,15 +3679,15 @@ def sync_fixture_and_bet_handicap(
                 desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {selected_palpite})"
                 cursor.execute("""
                     INSERT INTO conta_corrente (
-                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                        usuario_id, aposta_id, tipo, moeda_codigo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
                     ) VALUES (
-                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, NOW()
+                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                     )
-                """, (uid, aposta_id, desc_deb, -valor_aposta, s_ant, s_post))
+                """, (uid, aposta_id, user_moeda, desc_deb, -valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
                 tit = f"🎯 Aposta Criada: {home_team} vs {away_team}"
-                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} na {casa_nome} (Débito: R$ {valor_aposta:.2f})."
+                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} na {casa_nome} (Débito: {user_moeda} {valor_aposta:.2f})."
                 lnk = f"/apostas?fixture_id={fixture_id}"
                 registrar_notificacao_usuario(cursor, uid, aposta_id, fixture_id, 'APOSTA_CRIADA', tit, msg, lnk)
             else:

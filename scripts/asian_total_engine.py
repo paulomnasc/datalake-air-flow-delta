@@ -321,7 +321,43 @@ def fetch_betano_goals_lines(fixture_id: int, home_team: str, away_team: str) ->
 
     lines = []
 
-    # 1. Tentativa via Betano Direct API (Scraper Oficial de Alta Precisão)
+    # 0. Tentativa Prioritária via Cloudbet API (Operação Cripto / USDT)
+    try:
+        from cloudbet_matcher import CloudbetMatcher
+        matcher = CloudbetMatcher()
+        ev = matcher.find_matching_event(home_team, away_team)
+        if ev:
+            ev_id = ev.get('event_id')
+            if ev_id:
+                cb_markets = matcher.get_event_markets(ev_id)
+                tg = cb_markets.get('total_goals', {})
+                if tg:
+                    for l_val, outcomes in tg.items():
+                        if 'over' in outcomes:
+                            lines.append({
+                                'line': float(l_val),
+                                'type': 'Over',
+                                'odd': float(outcomes['over']['price']),
+                                'label': f"Mais de {float(l_val):g} Gols Asiáticos",
+                                'bookmaker': 'Cloudbet',
+                                'market_url': outcomes['over'].get('market_url', '')
+                            })
+                        if 'under' in outcomes:
+                            lines.append({
+                                'line': float(l_val),
+                                'type': 'Under',
+                                'odd': float(outcomes['under']['price']),
+                                'label': f"Menos de {float(l_val):g} Gols Asiáticos",
+                                'bookmaker': 'Cloudbet',
+                                'market_url': outcomes['under'].get('market_url', '')
+                            })
+                    if lines:
+                        _goals_odds_cache[fixture_id] = lines
+                        return lines
+    except Exception as e_cb:
+        pass
+
+    # 1. Tentativa de Contingência via Betano Direct API (Scraper Oficial)
     try:
         from betano_direct_api import get_event_markets_by_teams
         b_data = get_event_markets_by_teams(home_team, away_team)
@@ -654,6 +690,8 @@ def sync_fixture_and_bet_goals(
         ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
         ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
 
+        casa_aposta_val = best_cand.get('bookmaker') or 'Cloudbet'
+
         cursor.execute("""
             INSERT INTO apostas (
                 usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora,
@@ -666,7 +704,7 @@ def sync_fixture_and_bet_goals(
                 criado_em, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
-                'Gols Asiáticos', 'Betano', %s, %s, %s,
+                'Gols Asiáticos', %s, %s, %s, %s,
                 %s, %s, 'APROVADO',
                 %s, %s, 'Pendente', %s,
                 %s, %s,
@@ -678,7 +716,7 @@ def sync_fixture_and_bet_goals(
             )
         """, (
             uid, user_moeda, user_cotacao, fixture_id, home_team, away_team,
-            palpite, odd, fair_odd,
+            casa_aposta_val, palpite, odd, fair_odd,
             prob, ev,
             valor_aposta, retorno_potencial, confirmada,
             reasoning, data_jogo,

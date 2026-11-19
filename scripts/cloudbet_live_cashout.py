@@ -34,6 +34,8 @@ from asian_handicap_engine import compose_compound_ah_reasoning
 # Caches em memória para evitar chamadas de API repetidas e auditorias redundantes no in-play
 _LAST_STATS_FETCH: Dict[int, float] = {}
 _LAST_TEMP_AUDIT_LOG: Dict[str, bool] = {}
+_LAST_PUSH_ALERT: Dict[str, float] = {}
+_LAST_HT_WAIT_LOG: Dict[int, bool] = {}
 
 
 def fetch_inplay_match_statistics(
@@ -517,8 +519,54 @@ def evaluate_live_cashout_trigger(
                 motivo = f"Seca Prolongada: Placar 0x0 aos {elapsed}' em aposta {palpite}. Hedge para Under necessário."
                 return True, motivo
         else:
-            if total_gols == int(line_total) and elapsed <= 75:
-                motivo = f"Atenção ao Under: Apenas 1 gol restante para o Red ({gh}x{ga}) aos {elapsed}'. Hedge para Over necessário."
+            # Coleta métricas in-play para avaliação de temperatura no Under
+            sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
+            sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
+            ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
+            ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
+            tot_shots = sh + sa
+            tot_corners = ch + ca
+            f_id = bet_row.get('fixture_id')
+            ap_id = bet_row.get('id')
+
+            # Cenário 1: Risco Crítico no 1º Tempo (2+ gols marcados no 1T)
+            if elapsed <= 45 and total_gols >= 2 and total_gols >= (line_total - 1):
+                motivo = f"Risco Crítico de Over no 1º Tempo: Já foram marcados {total_gols} gols ({gh}x{ga}) aos {elapsed}' em aposta {palpite}. Hedge para Over necessário."
+                return True, motivo
+
+            # Cenário 2: Janela Nobre dos 46' aos 79' - A 1 gol do limite da linha
+            if total_gols >= (line_total - 1) and (46 <= elapsed <= 79) and total_gols > 0:
+                # Se o jogo estiver Morno/Travado (poucos chutes e escanteios), a aposta Under caminha para o Green!
+                if tot_shots <= 6 and tot_corners <= 5 and total_gols < line_total:
+                    audit_key = f"{f_id}_under_morno_2h"
+                    motivo_morno = (
+                        f"Temperatura do Jogo: Jogo Morno/Travado (Placar: {gh}x{ga} aos {elapsed}' | Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
+                        f"Ritmo ofensivo baixo. Aposta de Menos de {line_total} Gols caminhando para o Green. Posição mantida sem hedge."
+                    )
+                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                        try:
+                            from lifecycle_logger import log_lifecycle_event
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                aposta_id=ap_id,
+                                componente='LIVE_GAME_TEMPERATURE',
+                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                estado_anterior='Pendente',
+                                estado_novo='Pendente',
+                                minuto_jogo=elapsed,
+                                fase_jogo='2H',
+                                placar_momento=f"{gh}x{ga}",
+                                delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'shots_home': sh, 'shots_away': sa, 'corners_home': ch, 'corners_away': ca, 'total_shots': tot_shots, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'MANTER_APOSTA'},
+                                motivo=f"🌡️ {motivo_morno}"
+                            )
+                            conn.commit()
+                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                        except Exception as e_lt:
+                            pass
+                    return False, motivo_morno
+
+                motivo = f"Atenção ao Under: Placar {gh}x{ga} aos {elapsed}'. Apenas 1 gol restante para a linha de {line_total} gols ({gh}x{ga}). Hedge para Over necessário."
                 return True, motivo
 
     return False, "Nenhum gatilho de risco acionado"
@@ -617,6 +665,33 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         print(f"   🚨 [GATILHO DE HEDGE ATIVADO]: {motivo}")
 
+        # Se a partida estiver no intervalo (HT ou fim do 1T >= 45'), entra em espera estável sem spam
+        status_fix = str(bet.get('fixture_status') or '').strip().upper()
+        if status_fix in ('HT', 'INTERVALO', 'HALFTIME') or (status_fix == '1H' and elapsed >= 45):
+            print(f"   ⏸️ Partida #{f_id} em intervalo ({gh}x{ga}). Aguardando retorno do 2º tempo para reabertura de liquidez...")
+            if not _LAST_HT_WAIT_LOG.get(f_id):
+                try:
+                    from lifecycle_logger import log_lifecycle_event
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        aposta_id=aposta_id,
+                        componente='CLOUDBET_LIVE_HEDGE',
+                        tipo_evento='HEDGE_EM_ESPERA_INTERVALO',
+                        estado_anterior='Pendente',
+                        estado_novo='Pendente',
+                        minuto_jogo=45,
+                        fase_jogo='HT',
+                        placar_momento=f"{gh}x{ga}",
+                        delta={'minuto': 45, 'fase': 'HT', 'placar': f"{gh}x{ga}"},
+                        motivo=f"⏸️ Intervalo: Partida em pausa no vestiário ({gh}x{ga}). Mercados fechados pelas casas para o intervalo. Monitor aguardando retorno do 2º tempo para reavaliação de Hedge e liquidez."
+                    )
+                    conn.commit()
+                    _LAST_HT_WAIT_LOG[f_id] = True
+                except Exception as e_lf:
+                    print(f"⚠️ [Erro Lifecycle Logger Intervalo]: {e_lf}")
+            continue
+
         # Localiza o evento e cotação oposta na Cloudbet (para Cloudbet nativa ou Hedge Cruzado Betano)
         cb_meta = extract_cloudbet_metadata(bet.get('resultado_detalhado', ''))
         bet_id = str(cb_meta.get('bet_id') or f"cross_hedge_{aposta_id}")
@@ -634,30 +709,63 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         )
 
         if not event_id or not opposite_market_url:
-            print(f"   ℹ️ [{casa_nome}] Evento sem mercado oposto líquido na Cloudbet. Enviando alerta mobile...")
+            print(f"   ℹ️ [{casa_nome}] Evento sem mercado oposto líquido na Cloudbet...")
             tit = f"⚡ Alerta de Hedge ({casa_nome}): {home} vs {away}"
             msg = f"Aposta {palpite} aos {elapsed}' ({gh}x{ga}). Avalie cobertura na ponta oposta. Motivo: {motivo}"
-            enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
-            try:
-                from lifecycle_logger import log_lifecycle_event
-                fase_calc = '2H' if elapsed > 45 else '1H'
-                log_lifecycle_event(
-                    cursor=cursor,
-                    fixture_id=f_id,
-                    aposta_id=aposta_id,
-                    componente='CLOUDBET_LIVE_HEDGE',
-                    tipo_evento='HEDGE_ABORTADO_SEM_LIQUIDEZ',
-                    estado_anterior='Pendente',
-                    estado_novo='Pendente',
-                    minuto_jogo=elapsed,
-                    fase_jogo=fase_calc,
-                    placar_momento=f"{gh}x{ga}",
-                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo},
-                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie cashout manual na {casa_nome}."
-                )
-                conn.commit()
-            except Exception as e_log:
-                print(f"⚠️ [Erro Lifecycle Logger Hedge Abortado]: {e_log}")
+            
+            # 1. Trava Estrita de Notificação Persistida no Banco (>= 5 min)
+            cursor.execute("""
+                SELECT TIMESTAMPDIFF(MINUTE, criada_em, NOW()) AS diff_m
+                FROM notificacoes_usuario
+                WHERE (aposta_id = %s OR fixture_id = %s)
+                ORDER BY id DESC LIMIT 1
+            """, (aposta_id, f_id))
+            last_notif = cursor.fetchone()
+            pode_enviar_push = (not last_notif or last_notif.get('diff_m') is None or last_notif['diff_m'] >= 5)
+
+            if pode_enviar_push:
+                enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=aposta_id, prioridade=5)
+                try:
+                    cursor.execute("""
+                        INSERT INTO notificacoes_usuario (
+                            usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criada_em
+                        ) VALUES (%s, %s, %s, 'ALERTA_HEDGE_SEM_LIQUIDEZ', %s, %s, %s, 0, NOW())
+                    """, (bet.get('usuario_id') or 558, aposta_id, f_id, tit, msg, f"/apostas?fixture_id={f_id}"))
+                    conn.commit()
+                except Exception:
+                    pass
+
+            # 2. Desduplicação do Log de Auditoria: não repete mesmo evento e placar em < 10 minutos
+            cursor.execute("""
+                SELECT TIMESTAMPDIFF(MINUTE, criado_em, NOW()) AS diff_log_m, placar_momento
+                FROM pipeline_lifecycle_logs
+                WHERE aposta_id = %s AND tipo_evento = 'HEDGE_ABORTADO_SEM_LIQUIDEZ'
+                ORDER BY id DESC LIMIT 1
+            """, (aposta_id,))
+            last_log = cursor.fetchone()
+            ja_logou_recente = (last_log and last_log.get('diff_log_m') is not None and last_log['diff_log_m'] < 10 and last_log.get('placar_momento') == f"{gh}x{ga}")
+
+            if not ja_logou_recente:
+                try:
+                    from lifecycle_logger import log_lifecycle_event
+                    fase_calc = '2H' if elapsed > 45 else '1H'
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        aposta_id=aposta_id,
+                        componente='CLOUDBET_LIVE_HEDGE',
+                        tipo_evento='HEDGE_ABORTADO_SEM_LIQUIDEZ',
+                        estado_anterior='Pendente',
+                        estado_novo='Pendente',
+                        minuto_jogo=elapsed,
+                        fase_jogo=fase_calc,
+                        placar_momento=f"{gh}x{ga}",
+                        delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo},
+                        motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie encerramento manual na {'Cloudbet' if casa_nome in ('Betano', '', None) else casa_nome}."
+                    )
+                    conn.commit()
+                except Exception as e_log:
+                    print(f"⚠️ [Erro Lifecycle Logger Hedge Abortado]: {e_log}")
             continue
 
         if hedge_price <= 1.0 and not client.dry_run:

@@ -1763,7 +1763,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
               <div class="d-flex flex-column align-items-end justify-content-center flex-shrink-0 text-end">
                 <div class="d-flex align-items-center gap-1.5 flex-nowrap">
                   <?php 
-                    $casaNome = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
+                    $casaNome = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Cloudbet';
                   ?>
                   <?php if (!$isAbstencaoBloqueada): ?>
                     <div class="odd-badge" title="Odd Aprovada na <?= htmlspecialchars($casaNome) ?>: <?= number_format($aposta->odd, 2) ?>">
@@ -5996,7 +5996,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
       plainText += `Partida: ${matchTitle || ''} (Fixture #${fixtureId})\n`;
       if (aposta) {
         plainText += `Aposta ID: #${aposta.id} | Status: ${aposta.status} | Palpite: ${aposta.palpite || aposta.mercado || 'AH'}\n`;
-        plainText += `Odd: ${aposta.odd || ''} | Odd Justa: ${aposta.odd_justa || 'N/D'} | Casa: ${aposta.casa_de_aposta || 'Betano'}\n`;
+        plainText += `Odd: ${aposta.odd || ''} | Odd Justa: ${aposta.odd_justa || 'N/D'} | Casa: ${aposta.casa_de_aposta || 'Cloudbet'}\n`;
         if (aposta.status_gatekeeper) {
           plainText += `Status Gatekeeper: ${aposta.status_gatekeeper}\n`;
         }
@@ -6031,7 +6031,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <span class="fw-bold text-white small">${aposta.palpite || aposta.mercado || 'Handicap'}</span>
               </div>
               <div class="text-white-50 small">
-                Casa: <strong class="text-info">${aposta.casa_de_aposta || 'Betano'}</strong> |
+                Casa: <strong class="text-info">${aposta.casa_de_aposta || 'Cloudbet'}</strong> |
                 Odd: <strong class="text-warning">${aposta.odd || ''}</strong> 
                 ${aposta.odd_justa ? `(Justa: <strong class="text-info">${aposta.odd_justa}</strong>)` : ''}
               </div>
@@ -6464,7 +6464,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           ).join(' ');
           alternativasHtml = `
             <div class="mt-2 pt-1 border-top border-danger border-opacity-25" style="font-size: 0.74rem;">
-              <span class="text-white-50 d-block mb-1">💡 Linhas Aprovadas Disponíveis na Betano:</span>
+              <span class="text-white-50 d-block mb-1">💡 Linhas Aprovadas Disponíveis no Mercado (Cloudbet):</span>
               <div class="d-flex flex-wrap gap-1">${badges}</div>
             </div>
           `;

@@ -132,9 +132,10 @@ def enviar_push_mobile(titulo: str, mensagem: str, fixture_id: int = None, prior
         return False
 
 
-def registrar_alerta_gol_prematuro(cursor, usuario_id, aposta_id, fixture_id, titulo, mensagem, link, tipo="ALERTA_GOL_PREMATURO_UNDER"):
+def registrar_alerta_gol_prematuro(cursor, usuario_id, aposta_id, fixture_id, titulo, mensagem, link, tipo="ALERTA_GOL_PREMATURO_UNDER", elapsed=None):
     """
     Insere notificação de gol prematuro ou risco crítico no sininho e toast, prevenindo duplicatas.
+    Registra formalmente o evento no pipeline_lifecycle_logs para garantir auditabilidade.
     """
     try:
         cursor.execute("""
@@ -152,7 +153,31 @@ def registrar_alerta_gol_prematuro(cursor, usuario_id, aposta_id, fixture_id, ti
                 usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW())
         """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
+        notif_id = cursor.lastrowid
         print(f"🔔 [Alerta In-Play Under Enviado User #{usuario_id}] {titulo}")
+
+        try:
+            from lifecycle_logger import log_lifecycle_event
+            el_val = int(elapsed) if elapsed is not None else None
+            fase_calc = '1H' if (el_val is not None and el_val <= 45) else '2H'
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                aposta_id=aposta_id,
+                notificacao_id=notif_id,
+                notificacao_criada_em=datetime.now(),
+                componente='RISK_MONITOR_UNDER',
+                tipo_evento=tipo,
+                estado_anterior='Pendente',
+                estado_novo='Pendente',
+                minuto_jogo=el_val,
+                fase_jogo=fase_calc,
+                delta={'minuto': el_val, 'fase': fase_calc, 'tipo': tipo, 'titulo': titulo},
+                motivo=mensagem
+            )
+        except Exception as e_lf:
+            print(f"⚠️ [Erro Lifecycle Logger Risco Under]: {e_lf}")
+
         return True
     except Exception as e:
         print(f"⚠️ [Alerta In-Play Under] Erro ao registrar notificação: {e}")
@@ -208,10 +233,10 @@ def avaliar_risco_under(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
                 f"🎯 Sua Aposta Ativa: {palp} (@ {odd_val:.2f})\n"
                 f"💰 Investimento: {moeda_val} {stake_val:.2f}\n"
                 f"⚡ O ritmo do jogo acelerou cedo. Avalie a oportunidade de Cash Out "
-                f"defensivo na Betano para preservar a maior parte do capital antes de nova alteração de placar."
+                f"defensivo ou Hedge na Cloudbet para preservar a maior parte do capital antes de nova alteração de placar."
             )
             lnk = f"/apostas?fixture_id={fid}"
-            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_GOL_PREMATURO_UNDER'):
+            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_GOL_PREMATURO_UNDER', elapsed=elapsed_num):
                 enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["warning", "soccer", "moneybag"])
                 alertas_emitidos += 1
 
@@ -225,7 +250,7 @@ def avaliar_risco_under(cursor, target_uid, fid, h_team, a_team, gh, ga, elapsed
                 f"🔴 A linha de gols está sob risco iminente de perda definitiva. Verifique opções de encerramento imediato."
             )
             lnk = f"/apostas?fixture_id={fid}"
-            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_RISCO_CRITICO_UNDER'):
+            if registrar_alerta_gol_prematuro(cursor, target_uid, ap_id, fid, tit, msg, lnk, tipo='ALERTA_RISCO_CRITICO_UNDER', elapsed=elapsed_num):
                 enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["rotating_light", "soccer", "skull"])
                 alertas_emitidos += 1
 
@@ -301,7 +326,7 @@ def notificar_gol_ao_vivo(cursor, target_uid, fid, h_team, a_team, gh, ga, elaps
             f"🏟️ Placar: ({h_team} {tag_placar} {a_team})\n\n"
             f"🎯 Sua Aposta Ativa: {palp} ({mercado} @ {odd_val:.2f})\n"
             f"💰 Investimento: {moeda_val} {stake_val:.2f}\n"
-            f"⚡ Acompanhe o andamento no Dashboard ou avalie a partida na Betano."
+            f"⚡ Acompanhe o andamento no Dashboard ou avalie a partida na Cloudbet."
         )
         lnk = f"/apostas?fixture_id={fid}"
         try:
@@ -310,8 +335,32 @@ def notificar_gol_ao_vivo(cursor, target_uid, fid, h_team, a_team, gh, ga, elaps
                     usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
                 ) VALUES (%s, %s, %s, 'GOL_AO_VIVO', %s, %s, %s, 0, 0, NOW())
             """, (target_uid, ap_id, fid, tit, msg, lnk))
+            notif_id = cursor.lastrowid
             enviar_push_mobile(tit, msg, fixture_id=fid, prioridade=5, tags=["soccer", "goal", "bell"])
             print(f"🔔 [Gol Ao Vivo com Aposta Enviado User #{target_uid}] #{fid} {tit}")
+
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                fase_calc = '1H' if elapsed_num <= 45 else '2H'
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fid,
+                    aposta_id=ap_id,
+                    notificacao_id=notif_id,
+                    notificacao_criada_em=datetime.now(),
+                    componente='LIVE_MATCH_EVENTS',
+                    tipo_evento='GOL_AO_VIVO',
+                    estado_anterior='Pendente',
+                    estado_novo='Pendente',
+                    minuto_jogo=elapsed_num,
+                    fase_jogo=fase_calc,
+                    placar_momento=tag_placar,
+                    delta={'minuto': elapsed_num, 'fase': fase_calc, 'placar': tag_placar, 'titulo': tit},
+                    motivo=msg
+                )
+            except Exception as e_lf:
+                print(f"⚠️ [Erro Lifecycle Logger Gol Ao Vivo]: {e_lf}")
+
             notifs_enviadas += 1
         except Exception as e_notif:
             print(f"⚠️ [Gol Ao Vivo] Erro ao registrar notificação com aposta: {e_notif}")

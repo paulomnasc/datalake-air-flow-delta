@@ -434,7 +434,7 @@
                                 <span class="badge bg-warning text-dark mb-2 font-monospace">46' a 79' (MEIO DE JOGO)</span>
                                 <strong class="d-block text-white mb-1">Janela Nobre de Cash Out</strong>
                                 <p class="small text-white-50 mb-0">
-                                    A 1 gol do limite: <strong>Momento ideal de agir</strong> na Thunderpick/Betano. Resgate de capital ou garantia de lucro parcial com boas cotações.
+                                    A 1 gol do limite: <strong>Momento ideal de agir</strong> na Cloudbet. Resgate de capital ou garantia de lucro parcial com boas cotações.
                                 </p>
                             </div>
                         </div>

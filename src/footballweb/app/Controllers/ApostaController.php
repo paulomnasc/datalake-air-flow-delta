@@ -4115,30 +4115,54 @@ class ApostaController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // Fallback: se não houver lifecycle_logs, busca direto em notificacoes_usuario
-            if (empty($rawLogs)) {
-                $notifs = $db->table('notificacoes_usuario')
-                    ->where('fixture_id', $fixtureId)
-                    ->orderBy('id', 'ASC')
-                    ->get()
-                    ->getResultArray();
-                foreach ($notifs as $n) {
-                    $rawLogs[] = [
-                        'id' => null,
-                        'fixture_id' => $fixtureId,
-                        'aposta_id' => $n['aposta_id'],
-                        'notificacao_id' => $n['id'],
-                        'notificacao_criada_em' => $n['criado_em'],
-                        'componente' => 'NOTIFICACAO_SISTEMA',
-                        'tipo_evento' => $n['tipo'] ?? 'ALERTA',
-                        'delta_json' => null,
-                        'motivo_detalhado' => $n['mensagem'],
-                        'criado_em' => $n['criado_em'],
-                        'notif_titulo' => $n['titulo'],
-                        'notif_mensagem' => $n['mensagem'],
-                    ];
+            // 5.1 Enriquecimento: agrega notificações do sininho que ainda não estejam vinculadas ao lifecycle
+            $linkedNotifIds = [];
+            foreach ($rawLogs as $r) {
+                if (!empty($r['notificacao_id'])) {
+                    $linkedNotifIds[] = (int)$r['notificacao_id'];
                 }
             }
+
+            $unlinkedQuery = $db->table('notificacoes_usuario')
+                ->where('fixture_id', $fixtureId);
+            if (!empty($linkedNotifIds)) {
+                $unlinkedQuery->whereNotIn('id', $linkedNotifIds);
+            }
+            $unlinkedNotifs = $unlinkedQuery->orderBy('id', 'ASC')->get()->getResultArray();
+
+            foreach ($unlinkedNotifs as $n) {
+                $compNotif = 'NOTIFICACAO_SISTEMA';
+                $nTipo = $n['tipo'] ?? 'ALERTA';
+                if ($nTipo === 'GOL_AO_VIVO') {
+                    $compNotif = 'LIVE_MATCH_EVENTS';
+                } elseif ($nTipo === 'ALERTA_PREJOGO_5M') {
+                    $compNotif = 'SENTINELA_5MIN';
+                } elseif (stripos($nTipo, 'UNDER') !== false || stripos($nTipo, 'GOL') !== false) {
+                    $compNotif = 'RISK_MONITOR_UNDER';
+                }
+
+                $rawLogs[] = [
+                    'id' => null,
+                    'fixture_id' => $fixtureId,
+                    'aposta_id' => $n['aposta_id'],
+                    'notificacao_id' => $n['id'],
+                    'notificacao_criada_em' => $n['criado_em'],
+                    'componente' => $compNotif,
+                    'tipo_evento' => $nTipo,
+                    'delta_json' => null,
+                    'motivo_detalhado' => $n['mensagem'],
+                    'criado_em' => $n['criado_em'],
+                    'notif_titulo' => $n['titulo'],
+                    'notif_mensagem' => $n['mensagem'],
+                ];
+            }
+
+            // Ordenação cronológica definitiva
+            usort($rawLogs, function($a, $b) {
+                $tA = !empty($a['criado_em']) ? strtotime($a['criado_em']) : 0;
+                $tB = !empty($b['criado_em']) ? strtotime($b['criado_em']) : 0;
+                return $tA <=> $tB;
+            });
 
             // 6. Formatação e Normalização dos Eventos com Marcador Temporal do Jogo
             $timeline = [];
@@ -4158,6 +4182,14 @@ class ApostaController extends BaseController
                 $momentoTag = $delta['momento_formatado'] ?? null;
                 $fase = $delta['fase'] ?? null;
                 $minuto = isset($delta['minuto']) ? (int)$delta['minuto'] : (isset($delta['elapsed']) ? (int)$delta['elapsed'] : null);
+
+                // Fallback: extração do minuto diretamente do título ou mensagem do alerta (ex: "GOL aos 4'", "aos 22'")
+                if ($minuto === null) {
+                    $textoBusca = ($row['notif_titulo'] ?? '') . ' ' . ($row['motivo_detalhado'] ?? '');
+                    if (preg_match('/(?:aos|em)\s+(\d+)\'/i', $textoBusca, $mMin)) {
+                        $minuto = (int)$mMin[1];
+                    }
+                }
 
                 if (empty($momentoTag)) {
                     if ($evTipo === 'APITO_INICIAL') {
@@ -4230,6 +4262,18 @@ class ApostaController extends BaseController
                     $badgeClass = 'warning';
                     $badgeIcon = 'bi-thermometer-half';
                     $tituloAmigavel = $tituloAmigavel ?: '🌡️ Auditoria de Ritmo e Temperatura do Jogo';
+                } elseif (stripos($evTipo, 'GOL_AO_VIVO') !== false || ($evTipo === 'GOL')) {
+                    $badgeClass = 'danger';
+                    $badgeIcon = 'bi-dpad';
+                    $tituloAmigavel = $tituloAmigavel ?: '⚽ Gol Marcado Ao Vivo';
+                } elseif (stripos($evTipo, 'RISCO_CRITICO') !== false || stripos($evTipo, 'GOL_PREMATURO') !== false) {
+                    $badgeClass = 'danger';
+                    $badgeIcon = 'bi-exclamation-octagon-fill';
+                    $tituloAmigavel = $tituloAmigavel ?: '🚨 Alerta de Risco Crítico (Under)';
+                } elseif (stripos($evTipo, 'ESPERA_INTERVALO') !== false) {
+                    $badgeClass = 'cyan';
+                    $badgeIcon = 'bi-pause-circle-fill';
+                    $tituloAmigavel = $tituloAmigavel ?: '⏸️ Gestão de Risco: Em Espera no Intervalo';
                 } elseif (stripos($evTipo, 'HEDGE') !== false || stripos($evTipo, 'CASHOUT') !== false) {
                     $badgeClass = 'danger';
                     $badgeIcon = 'bi-shield-shaded';
@@ -5683,7 +5727,13 @@ class ApostaController extends BaseController
 
             if (!$isOver) {
                 // MERCADO UNDER GOLS (Risco aumenta com mais gols)
-                if ($isLineInteger && $totalGols == (int)$lineVal) {
+                if ($status === 'HT' || ($status === '1H' && $elapsed >= 45)) {
+                    $gaugePct = 50;
+                    $faixaCor = 'amarelo';
+                    $isCashoutMoment = false;
+                    $alertaTitulo = '⏸️ Intervalo: Aguardando Retorno da Partida';
+                    $alertaMsg = "Fim do 1º Tempo ({$gh}x{$ga}). Mercados em pausa no vestiário. Aguardando apito do 2º tempo para reabertura de liquidez e avaliação de Hedge.";
+                } elseif ($isLineInteger && $totalGols == (int)$lineVal) {
                     // Linha asiática inteira (ex: 3.0 gols com 3 gols no placar) -> ZONA DE PUSH (REEMBOLSO 100%)
                     $gaugePct = 50;
                     $faixaCor = 'amarelo';

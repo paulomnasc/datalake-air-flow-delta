@@ -18,7 +18,7 @@ import sys
 import pymysql
 import re
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Configura caminhos dos scripts
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -555,6 +555,22 @@ def main():
         gh = matched_ev['goals_home']
         ga = matched_ev['goals_away']
         elapsed = matched_ev['elapsed']
+
+        # Cronômetro Virtual / Relógio Heurístico de Campo (Dead Reckoning)
+        # Se a API externa atrasar na transição de períodos, o relógio real de parede promove os estados
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        fix_dt = fix.get('fixture_date')
+        if fix_dt:
+            mins_elapsed = (now_utc - fix_dt).total_seconds() / 60.0
+            # Se passaram >= 48 min desde o kickoff e a API ainda reporta 1H, promove para HT (Intervalo)
+            if 48 <= mins_elapsed < 65 and live_status == '1H':
+                live_status = 'HT'
+                elapsed = 45
+            # Se passaram >= 65 min e a API ainda está em HT, promove para 2H com minuto real estimado
+            elif 65 <= mins_elapsed <= 125 and live_status in ('1H', 'HT'):
+                live_status = '2H'
+                elapsed = min(90, max(46, int(mins_elapsed - 18)))
+
         old_status = fix.get('status')
         placar_str = f"{gh}x{ga}"
 

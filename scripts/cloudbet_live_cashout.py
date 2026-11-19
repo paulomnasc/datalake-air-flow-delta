@@ -634,6 +634,59 @@ def evaluate_live_cashout_trigger(
             motivo = f"Hedge Real de Gestão de Risco: {team_name} com jogador expulso e sem vantagem no placar ({gh}x{ga}) aos {elapsed}'."
             return True, motivo
 
+        # Auditoria Tática Periódica para Handicap Asiático (Quando o time está em desvantagem ou alerta)
+        if diff_gols < 0 and cursor and conn:
+            f_id = bet_row.get('fixture_id')
+            ap_id = bet_row.get('id')
+            fase_bucket = 'HT' if status in ('HT', 'INTERVALO') else ('2H' if elapsed >= 45 else ('1H_late' if elapsed >= 30 else '1H_early'))
+            audit_key = f"{f_id}_ah_alert_{fase_bucket}"
+            if not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                try:
+                    from lifecycle_logger import log_lifecycle_event
+                    sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
+                    sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
+                    ch = int((stats_inplay.get('corners_home') if stats_inplay else None) or bet_row.get('corners_home') or 0)
+                    ca = int((stats_inplay.get('corners_away') if stats_inplay else None) or bet_row.get('corners_away') or 0)
+                    tot_shots = sh + sa
+                    tot_corners = ch + ca
+                    fase_display = 'Intervalo' if status in ('HT', 'INTERVALO') else ('2º Tempo' if elapsed >= 45 else '1º Tempo')
+
+                    motivo_audit = (
+                        f"Auditoria Tática Handicap: {team_name} em desvantagem ({gh}x{ga} aos {elapsed}' · {fase_display} | "
+                        f"Finalizações: {sh}x{sa} | Escanteios: {ch}x{ca}). "
+                        f"Monitoramento ativo. Posição mantida sem hedge imediato (reavaliação tática programada para a janela dos 50'+)."
+                    )
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        aposta_id=ap_id,
+                        componente='LIVE_GAME_TEMPERATURE',
+                        tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                        estado_anterior='Pendente',
+                        estado_novo='Pendente',
+                        minuto_jogo=elapsed,
+                        fase_jogo='HT' if status in ('HT', 'INTERVALO') else ('2H' if elapsed >= 45 else '1H'),
+                        placar_momento=f"{gh}x{ga}",
+                        delta={
+                            'minuto': elapsed,
+                            'fase': status,
+                            'placar': f"{gh}x{ga}",
+                            'diff_gols': diff_gols,
+                            'total_shots': tot_shots,
+                            'total_corners': tot_corners,
+                            'temperatura': 'ALERTA_DESVANTAGEM',
+                            'decisao': 'MANTER_APOSTA'
+                        },
+                        motivo=f"🌡️ {motivo_audit}"
+                    )
+                    conn.commit()
+                    _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                except Exception as e_ah_log:
+                    print(f"⚠️ [AH Audit Log Erro]: {e_ah_log}", file=sys.stderr)
+
+        if diff_gols < 0:
+            return False, f"⚠️ Em Observação Tática: {team_name} em desvantagem ({gh}x{ga} aos {elapsed}') - Posição monitorada"
+
     # =========================================================================
     # 2. CENÁRIOS DE TOTAL DE GOLS (OVER / UNDER COM AFERIÇÃO DE xG E TEMPERATURA)
     # =========================================================================
@@ -969,7 +1022,10 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         )
 
         if not should_hedge:
-            print(f"   🟢 Cenário Seguro / Controlado: {motivo}")
+            if "⚠️" in motivo:
+                print(f"   {motivo}")
+            else:
+                print(f"   🟢 Cenário Seguro / Controlado: {motivo}")
             continue
 
         print(f"   🚨 [GATILHO DE HEDGE ATIVADO]: {motivo}")
@@ -1024,7 +1080,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             
             # 1. Trava Estrita de Notificação Persistida no Banco (>= 5 min)
             cursor.execute("""
-                SELECT TIMESTAMPDIFF(MINUTE, criada_em, NOW()) AS diff_m
+                SELECT TIMESTAMPDIFF(MINUTE, criado_em, NOW()) AS diff_m
                 FROM notificacoes_usuario
                 WHERE (aposta_id = %s OR fixture_id = %s)
                 ORDER BY id DESC LIMIT 1
@@ -1037,7 +1093,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 try:
                     cursor.execute("""
                         INSERT INTO notificacoes_usuario (
-                            usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criada_em
+                            usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criado_em
                         ) VALUES (%s, %s, %s, 'ALERTA_HEDGE_SEM_LIQUIDEZ', %s, %s, %s, 0, NOW())
                     """, (bet.get('usuario_id') or 558, aposta_id, f_id, tit, msg, f"/apostas?fixture_id={f_id}"))
                     conn.commit()

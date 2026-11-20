@@ -39,16 +39,21 @@ O pipeline do FootballWeb opera uma esteira quantitativa com integração ponta 
 
 ---
 
-## 2. Catálogo de DAGs do Airflow: Papéis e Frequências
+## 2. Catálogo de DAGs do Airflow: Papéis, Frequências e Consumo de Tokens (API-Sports)
 
-| DAG ID | Frequência | Script Chamado | Mercado | Papel Operacional |
-| :--- | :--- | :--- | :--- | :--- |
-| **`criar_apostas_cloudbet_dag`** | `*/30 * * * *` (30 min) | `scripts/criar_apostas_cloudbet_diario.py` | Handicap Asiático | **Robô 100% Autônomo**: Consulta o catálogo oficial da Cloudbet via proxy suíço, roda o Gatekeeper e **emite a ordem real/simulada diretamente na corretora** via API (`place_bet`) com micro-stakes de 0.10 USDT. |
-| **`criar_apostas_gols_dag`** | `0 */3 * * *` (3 horas) | `scripts/criar_apostas_gols_diario.py` | Gols Asiáticos | Avalia partidas abertas para o mercado de totais asiáticos (linhas inteiras 2.0 e 3.0). Emite ordens registradas no portfólio em USDT chanceladas pelo Gatekeeper. |
-| **`criar_apostas_handicap_dag`** | `0 */3 * * *` (3 horas) | `scripts/criar_apostas_handicap_diario.py` | Handicap Asiático | Avalia a grade diária pelo motor clássico de Handicap. Histórica esteira de portfólio pré-jogo. |
-| **`criar_apostas_cartoes_dag`** | `0 * * * *` (1 hora) | `scripts/criar_apostas_cartoes_diario.py` | Total de Cartões Under | Monitora árbitros rigorosos ou complacentes para entradas táticas em cartões nas ligas de elite e futebol sul-americano (+EV $\ge$ 5.0%). |
-| **`football_trends_live_dag`** | `*/2 * * * *` (2 min) | `scripts/cloudbet_live_cashout.py` | Ao Vivo / In-Play | Acompanha os 90 minutos de jogo com o placar ao vivo. Se houver desvio tático ou gatilho de stop-loss, dispara uma contra-ordem (**Cross-Hedge**) na Cloudbet. |
-| **`processar_apostas_encerradas_dag`** | `*/5 * * * *` (5 min) | `scripts/processar_apostas_encerradas.py` | Pós-Jogo (FT) | Lê o placar final e súmulas de partidas finalizadas (`FT`), liquida as apostas (Ganha, Perdida, Anulada/Void) e concilia os créditos e débitos na tabela `conta_corrente`. |
+| DAG ID | Frequência | Script Chamado | Mercado | Consumo Médio (Tokens/Dia) | Papel Operacional |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`criar_apostas_cloudbet_dag`** | `*/30 * * * *` (30 min) | `scripts/criar_apostas_cloudbet_diario.py` | Handicap Asiático | **0 tokens/dia** (0,0%) | **Robô 100% Autônomo**: Consulta o catálogo oficial da Cloudbet via proxy suíço, roda o Gatekeeper e **emite a ordem real/simulada diretamente na corretora** via API (`place_bet`) com micro-stakes de 0.10 USDT. Zero consumo na API-Sports. |
+| **`criar_apostas_gols_dag`** | `0 */3 * * *` (3 horas) | `scripts/criar_apostas_gols_diario.py` | Gols Asiáticos | **~50 tokens/dia** (0,7%) | Avalia partidas abertas para o mercado de totais asiáticos (linhas inteiras 2.0 e 3.0). Consumo residual restrito a contingências de U5J quando o cache MySQL expirar. |
+| **`criar_apostas_handicap_dag`** | `0 */3 * * *` (3 horas) | `scripts/criar_apostas_handicap_diario.py` | Handicap Asiático | **~50 tokens/dia** (0,7%) | Avalia a grade diária pelo motor clássico de Handicap. Histórica esteira de portfólio pré-jogo com cache-first. |
+| **`criar_apostas_cartoes_dag`** | `0 * * * *` (1 hora) | `scripts/criar_apostas_cartoes_diario.py` | Total de Cartões Under | **~120 tokens/dia** (1,6%) | Monitora árbitros cadastrados e estatísticas disciplinares consolidadas. Consulta a API-Sports apenas para enriquecimento de árbitro a menos de 48h (Regra 3, item 4). |
+| **`football_gemini_sentinel_dag`** | `*/5 * * * *` (5 min) | `scripts/gemini_sentinel.py` | Auditoria IA / Escalações | **~350 tokens/dia** (4,7%) | **Sentinela em Dois Estágios**: Fase 1 (Antecipação Matinal 24h via notícias web) e Fase 2 (Repescagem de 11 titulares oficiais T-50m na API-Sports e detecção de drift adverso de mercado). |
+| **`football_trends_live_dag`** | `*/2 * * * *` (2 min) | `scripts/cloudbet_live_cashout.py` | Ao Vivo / In-Play | **~1.800 tokens/dia** (24,0%) | Acompanha os 90 minutos de jogo com o placar ao vivo. Sincroniza partidas em andamento em lote e, em desvio tático crítico, dispara contra-ordem (**Cross-Hedge**) na Cloudbet. |
+| **`processar_apostas_encerradas_dag`** | `*/5 * * * *` (5 min) | `scripts/processar_apostas_encerradas.py` | Pós-Jogo (FT) | **~280 tokens/dia** (3,7%) | Lê o placar final e súmulas de partidas recém-finalizadas (`FT`) para consolidar estatísticas definitivas no MySQL, liquidar as apostas e conciliar a `conta_corrente`. |
+| **`football_trends_ingestion_dag`** (Ingestão Base) | `*/15 * * * *` (15 min) | `scripts/football_ingest_trends.py` | Fixtures & Odds Globais | **~2.500 tokens/dia** (33,3%) | Descoberta de partidas, atualização de metadados de ligas e odds 1X2 globais para alimentação do ecossistema. |
+| **TOTAL MÉDIO DE CONSUMO DIÁRIO** | - | - | - | **5.150 tokens/dia** | **Soma consolidada de todas as esteiras ativas** |
+| **COTA DISPONIBILIZADA PELA API-SPORTS** | - | - | - | **7.500 tokens/dia** | **Limite oficial contratado (Plano Pro)** |
+| **BALANÇO CALCULADO: USO vs. DISPONÍVEL** | - | - | - | **68,7% em Uso** | **31,3% Disponível (2.350 tokens livres para margem de contingência)** |
 
 ---
 
@@ -79,6 +84,18 @@ A aprovação de qualquer palpite ou aposta passa por uma cadeia estrita de filt
 ### 3.4. Sincronização Web (Regra de Ouro 11)
 * **Arquivo**: `src/footballweb/app/Controllers/ApostaController.php`
 * O método **`evaluateGatekeeper()`** reproduz a mesma lógica estatística do Python para garantir que apostas simuladas ou avaliadas manualmente na interface web obedeçam rigorosamente às mesmas travas do Airflow.
+
+### 3.5. A Sentinela de Inteligência Pré-Jogo (Gemini Sentinel)
+* **DAG**: `football_gemini_sentinel_dag` (executa a cada 5 minutos)
+* **Arquivo**: `scripts/gemini_sentinel.py`
+* **Mecanismo Operacional**: Atua como o cérebro qualitativo de vigilância e mitigação de risco que complementa o modelo quantitativo de Poisson, operando em **Dois Estágios**:
+  1. **Fase 1: Antecipação Matinal (Janela de 24 horas)**:
+     - Realiza varredura na web via Google Search Grounding em busca de notícias de última hora, desfalques reportados, crises de vestiário e desgaste por viagens.
+     - Confere **Sinal Verde** contextual para liberar apostas chanceladas pelo Gatekeeper ainda na abertura das odds (capturando o teto de cotação).
+  2. **Fase 2: Repescagem Pré-Jogo (Janela T-50m a T-15m) e Vigilância de Mercado (Drift)**:
+     - **Repescagem de Escalações Oficiais**: Assim que os clubes publicam as súmulas com os 11 titulares oficiais (~50 minutos antes do jogo), audita a presença dos pilares táticos (goleiro titular, artilheiro, zaga).
+     - **Vigilância de Mercado**: Detecta movimentações anômalas de odds (*drift* ou *drop* agressivo) que denunciem informações assimétricas antes do início do jogo.
+     - **Gatilho de Proteção da Banca**: Se um desfalque crítico for detectado após a emissão da aposta, a Sentinela aciona o `evaluate_pregame_tactical_cashout()` no módulo de hedge, alertando o usuário e autorizando a contra-aposta preventiva na Cloudbet para mitigar prejuízos.
 
 ---
 

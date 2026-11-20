@@ -621,9 +621,9 @@ def evaluate_live_cashout_trigger(
             motivo = f"Hedge Real Necessário: {team_name} em desvantagem ({gh}x{ga}) aos {elapsed}'. Tempo escasso para reversão no 2º tempo."
             return True, motivo
 
-        # Cenário B: Desvantagem de 2 ou mais gols no 2º tempo (50'+)
-        if diff_gols <= -2 and elapsed >= 50:
-            motivo = f"Hedge Real Necessário: Desvantagem crítica de 2+ gols ({gh}x{ga}) aos {elapsed}'."
+        # Cenário B: Desvantagem Crítica de 2 ou mais gols (Hedge Just in Time - 1º ou 2º Tempo)
+        if diff_gols <= -2:
+            motivo = f"Hedge Just in Time Necessário: Desvantagem crítica de 2+ gols ({gh}x{ga}) aos {elapsed}'. Posição sob alto risco de perda total."
             return True, motivo
 
         # Cenário C: Expulsão Crítica (Cartão Vermelho) do time apostado no 2º tempo
@@ -1102,13 +1102,13 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
             # 2. Desduplicação do Log de Auditoria: não repete mesmo evento e placar em < 10 minutos
             cursor.execute("""
-                SELECT TIMESTAMPDIFF(MINUTE, criado_em, NOW()) AS diff_log_m, placar_momento
+                SELECT TIMESTAMPDIFF(MINUTE, criado_em, NOW()) AS diff_log_m, delta_json
                 FROM pipeline_lifecycle_logs
                 WHERE aposta_id = %s AND tipo_evento = 'HEDGE_ABORTADO_SEM_LIQUIDEZ'
                 ORDER BY id DESC LIMIT 1
             """, (aposta_id,))
             last_log = cursor.fetchone()
-            ja_logou_recente = (last_log and last_log.get('diff_log_m') is not None and last_log['diff_log_m'] < 10 and last_log.get('placar_momento') == f"{gh}x{ga}")
+            ja_logou_recente = (last_log and last_log.get('diff_log_m') is not None and last_log['diff_log_m'] < 10)
 
             if not ja_logou_recente:
                 try:

@@ -444,9 +444,9 @@ def main():
                 print("🔄 [API-Sports In-Play Fallback] Saldo suficiente confirmado. Sincronizando partidas ao vivo...")
                 fids_in_play = [str(f['fixture_id']) for f in db_fixtures if f.get('fixture_id')]
                 if fids_in_play:
-                    ids_param = "-".join(fids_in_play[:20])
-                    url_inplay = f"https://v3.football.api-sports.io/fixtures?ids={ids_param}"
-                    resp_inplay = requests.get(url_inplay, headers=headers, timeout=12).json()
+                    # Endpoint oficial de tempo real sem cache CDN (live=all)
+                    url_inplay = "https://v3.football.api-sports.io/fixtures?live=all"
+                    resp_inplay = requests.get(url_inplay, headers=headers, timeout=10).json()
                     inplay_items = resp_inplay.get('response', [])
                     for item in inplay_items:
                         f_info = item.get('fixture', {})
@@ -476,6 +476,7 @@ def main():
                                     else: rc_a += 1
 
                         live_events.append({
+                            'fixture_id': f_info.get('id'),
                             'home_team': t_info.get('home', {}).get('name', ''),
                             'away_team': t_info.get('away', {}).get('name', ''),
                             'status': st_short,
@@ -487,9 +488,36 @@ def main():
                             'red_cards_home': rc_h,
                             'red_cards_away': rc_a,
                             'card_lines': [],
-                            'source': 'API-Sports Contingência In-Play'
+                            'source': 'API-Sports Live Stream (Real-Time)'
                         })
-                    print(f"✅ [API-Sports In-Play Fallback] {len(live_events)} partidas ao vivo recuperadas com placares e minutos oficiais!")
+
+                    # Fallback secundário para partidas do banco que não constem no live=all (ex: transição recente)
+                    matched_fids = {ev.get('fixture_id') for ev in live_events if ev.get('fixture_id')}
+                    missing_fids = [fid for fid in fids_in_play if int(fid) not in matched_fids]
+                    if missing_fids:
+                        ids_param = "-".join(missing_fids[:10])
+                        resp_miss = requests.get(f"https://v3.football.api-sports.io/fixtures?ids={ids_param}", headers=headers, timeout=10).json()
+                        for item in resp_miss.get('response', []):
+                            f_info = item.get('fixture', {})
+                            g_info = item.get('goals', {})
+                            t_info = item.get('teams', {})
+                            live_events.append({
+                                'fixture_id': f_info.get('id'),
+                                'home_team': t_info.get('home', {}).get('name', ''),
+                                'away_team': t_info.get('away', {}).get('name', ''),
+                                'status': f_info.get('status', {}).get('short'),
+                                'goals_home': g_info.get('home'),
+                                'goals_away': g_info.get('away'),
+                                'elapsed': f_info.get('status', {}).get('elapsed'),
+                                'yellow_cards_home': 0,
+                                'yellow_cards_away': 0,
+                                'red_cards_home': 0,
+                                'red_cards_away': 0,
+                                'card_lines': [],
+                                'source': 'API-Sports Fallback IDs'
+                            })
+
+                    print(f"✅ [API-Sports Live Real-Time Stream] {len(live_events)} partidas recuperadas com transmissão sem cache!")
 
                 # Executa também a sincronização de partidas encerradas pendentes
                 from football_ingest_trends import sync_pending_past_fixtures
@@ -509,9 +537,12 @@ def main():
         h_team = fix['home_team'].strip()
         a_team = fix['away_team'].strip()
 
-        # Busca correspondência no feed da Betano
+        # Busca correspondência no feed da Betano / API Live
         matched_ev = None
         for ev in live_events:
+            if ev.get('fixture_id') and ev.get('fixture_id') == fid:
+                matched_ev = ev
+                break
             if is_team_match(h_team, ev['home_team']) and is_team_match(a_team, ev['away_team']):
                 matched_ev = ev
                 break
@@ -550,27 +581,11 @@ def main():
                 )
             continue
 
-        # Dados ao vivo confirmados pela Betano
+        # Dados ao vivo confirmados pela Betano / API Oficial
         live_status = matched_ev['status']
         gh = matched_ev['goals_home']
         ga = matched_ev['goals_away']
         elapsed = matched_ev['elapsed']
-
-        # Cronômetro Virtual / Relógio Heurístico de Campo (Dead Reckoning)
-        # Se a API externa atrasar na transição de períodos, o relógio real de parede promove os estados
-        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-        fix_dt = fix.get('fixture_date')
-        if fix_dt:
-            mins_elapsed = (now_utc - fix_dt).total_seconds() / 60.0
-            # Se passaram >= 48 min desde o kickoff e a API ainda reporta 1H, promove para HT (Intervalo)
-            if 48 <= mins_elapsed < 65 and live_status == '1H':
-                live_status = 'HT'
-                elapsed = 45
-            # Se passaram >= 65 min e a API ainda está em HT, promove para 2H com minuto real estimado
-            elif 65 <= mins_elapsed <= 125 and live_status in ('1H', 'HT'):
-                live_status = '2H'
-                elapsed = min(90, max(46, int(mins_elapsed - 18)))
-
         old_status = fix.get('status')
         placar_str = f"{gh}x{ga}"
 

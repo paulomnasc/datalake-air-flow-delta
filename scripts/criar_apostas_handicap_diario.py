@@ -991,5 +991,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
 
 if __name__ == '__main__':
     target_date = sys.argv[1] if len(sys.argv) > 1 else None
+    if target_date in ('', 'None', 'none'):
+        target_date = None
     confirmada_arg = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     criar_apostas_handicap_diario(target_date, confirmada_arg)

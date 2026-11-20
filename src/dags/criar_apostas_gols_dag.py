@@ -33,11 +33,10 @@ def run_criar_apostas_gols_script(**kwargs):
         target_date = dag_run.conf.get('target_date')
         confirmada = dag_run.conf.get('confirmada')
 
-    cmd = ['python3', script_path]
-    if target_date:
-        cmd.append(str(target_date))
-        if confirmada is not None:
-            cmd.append(str(confirmada))
+    # Blindagem mandatória: garante que confirmada=1 seja sempre enviado explicitamente por padrão
+    conf_val = '1' if confirmada is None else str(confirmada)
+    target_val = str(target_date) if target_date else ''
+    cmd = ['python3', script_path, target_val, conf_val]
 
     print(f"🚀 [Airflow DAG] Executando script de criação de apostas de Gols Asiáticos: {' '.join(cmd)}")
     

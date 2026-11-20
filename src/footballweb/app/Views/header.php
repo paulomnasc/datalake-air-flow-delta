@@ -576,10 +576,40 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </a>
                 <?php endif; ?>
 
-                <!-- Botão para abrir a sidebar -->
+                <?php
+                    // Exibir saldo em conta corrente exclusivamente para paulomnasc@gmail.com
+                    $usuarioIdHeader = (int)($_SESSION['id_usuario_logado'] ?? (function_exists('session') ? session()->get('id_usuario_logado') : 0));
+                    $emailUsuarioHeader = strtolower(trim((string)($_SESSION['email_usuario_logado'] ?? (function_exists('session') ? session()->get('email_usuario_logado') : ''))));
+                    $nomeUsuarioHeader = (string)($_SESSION['nome_usuario_logado'] ?? (function_exists('session') ? session()->get('nome_usuario_logado') : ''));
+                    
+                    $isPauloHeader = ($emailUsuarioHeader === 'paulomnasc@gmail.com') 
+                        || ($usuarioIdHeader === 558) 
+                        || \App\Helpers\SessionHelper::isPauloNascimento($nomeUsuarioHeader);
+
+                    if ($isPauloHeader && $usuarioIdHeader > 0):
+                        $ccModelHeader = new \App\Models\ContaCorrenteModel();
+                        $saldoCcHeader = $ccModelHeader->getSaldo($usuarioIdHeader);
+                        $moedaCodCc = $moedaPadraoHeader ? $moedaPadraoHeader->codigo : 'USDT';
+                ?>
+                <!-- Saldo em Conta Corrente (Exclusivo paulomnasc@gmail.com) -->
+                <a href="<?= base_url('apostas/extrato') ?>" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1 text-nowrap me-2 shadow-sm" style="padding: 6px 12px; font-weight: 600; background: rgba(30, 41, 59, 0.85); border-color: rgba(245, 158, 11, 0.45); text-decoration: none;" title="Saldo Disponível em Conta Corrente: <?= number_format($saldoCcHeader, 2, ',', '.') ?> <?= esc($moedaCodCc) ?> - Clique para ver o Extrato">
+                    <i class="bi bi-wallet2 text-warning" style="font-size: 0.95rem;"></i>
+                    <span class="text-warning fw-bold"><?= number_format($saldoCcHeader, 2, ',', '.') ?></span>
+                    <span class="text-white-50 small" style="font-size: 0.72rem;"><?= esc($moedaCodCc) ?></span>
+                </a>
+                <?php endif; ?>
+
+                <?php
+                    $primeiroNomeUsuario = lang('App.enter');
+                    if (!empty($nomeUsuarioHeader)) {
+                        $partesNome = explode(' ', trim($nomeUsuarioHeader));
+                        $primeiroNomeUsuario = $partesNome[0] ?? $nomeUsuarioHeader;
+                    }
+                ?>
+                <!-- Botão para abrir a sidebar (Exibindo apenas o primeiro nome) -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
-                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.enter'); ?></span>
+                    <span class="ms-2"><?= esc($primeiroNomeUsuario) ?></span>
                 </button>
             </div>
         </div>
@@ -594,7 +624,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
             <ul class="list-unstyled">
                 <li>
-                    <p class="text-white"><?= lang('App.hello') ?> <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.visitor'); ?></p>
+                    <p class="text-white"><?= lang('App.hello') ?> <?= esc(!empty($nomeUsuarioHeader) ? $primeiroNomeUsuario : lang('App.visitor')) ?></p>
                 </li>
 
                 <!-- Seção 'Seu usuário no Airflow' removida -->

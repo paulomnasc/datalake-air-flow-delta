@@ -296,5 +296,7 @@ def criar_apostas_gols_diario(target_date_str=None, confirmada=1):
 
 if __name__ == '__main__':
     t_date = sys.argv[1] if len(sys.argv) > 1 else None
+    if t_date in ('', 'None', 'none'):
+        t_date = None
     conf = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     criar_apostas_gols_diario(target_date_str=t_date, confirmada=conf)

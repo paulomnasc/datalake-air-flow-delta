@@ -787,6 +787,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span>Abstenções (NO_BET)</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('docs') ?>?v=<?= time() ?>" class="nav-link px-2 px-lg-2 font-weight-bold d-flex align-items-center" style="color: #0284c7;" title="Documentação do Pipeline & DAGs Cloudbet">
+                        <i class="bi bi-question-circle-fill" style="font-size: 21px;"></i>
+                    </a>
+                </li>
             </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0 align-items-center">

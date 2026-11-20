@@ -47,6 +47,7 @@ $routes->match(['get', 'head'], '/football', 'FootballTrendsController::index');
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
+$routes->get('/docs', 'DocsController::index', ['as' => 'docs.index']);
 
 // Terminal Remoto Isolado (Stake / Geocheck) - Exclusivo Admin
 $routes->get('/terminal/stake', 'TerminalStakeController::index', ['filter' => 'adminauth', 'as' => 'terminal.stake']);

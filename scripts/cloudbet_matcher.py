@@ -15,6 +15,7 @@ Responsabilidades:
 import os
 import sys
 import re
+import time
 import unicodedata
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Tuple
@@ -89,6 +90,8 @@ class CloudbetMatcher:
     def __init__(self, client: Optional[CloudbetClient] = None):
         self.client = client or CloudbetClient()
         self.fixtures_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self.live_fixtures_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self.live_cache_ts: float = 0.0
         self.odds_cache: Dict[int, Dict[str, Any]] = {}
 
     def fetch_daily_fixtures(self, date_str: str) -> List[Dict[str, Any]]:
@@ -107,10 +110,40 @@ class CloudbetMatcher:
         for comp in competitions:
             comp_name = comp.get("name") or comp.get("key", "")
             for ev in comp.get("events", []):
-                ev["competition_name"] = comp_name
-                events_list.append(ev)
+                if ev.get("status") == "TRADING_LIVE":
+                    ev["competition_name"] = comp_name
+                    events_list.append(ev)
                 
         self.fixtures_cache[date_str] = events_list
+        return events_list
+
+    def fetch_live_fixtures(self, date_str: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Consulta e armazena em cache curto (15s) os eventos ao vivo (TRADING_LIVE) na Cloudbet
+        via endpoint /pub/v2/odds/fixtures?sport=soccer&date={date_str}&live=true.
+        """
+        if not date_str:
+            date_str = datetime.utcnow().strftime('%Y-%m-%d')
+
+        now_ts = time.time()
+        if date_str in self.live_fixtures_cache and (now_ts - self.live_cache_ts) < 15.0:
+            return self.live_fixtures_cache[date_str]
+
+        endpoint = f"/pub/v2/odds/fixtures?sport=soccer&date={date_str}&live=true"
+        res = self.client._request("GET", endpoint)
+
+        events_list: List[Dict[str, Any]] = []
+        competitions = res.get("competitions", []) if isinstance(res, dict) else []
+
+        for comp in competitions:
+            comp_name = comp.get("name") or comp.get("key", "")
+            for ev in comp.get("events", []):
+                if ev.get("status") == "TRADING_LIVE":
+                    ev["competition_name"] = comp_name
+                    events_list.append(ev)
+
+        self.live_fixtures_cache[date_str] = events_list
+        self.live_cache_ts = now_ts
         return events_list
 
     def find_matching_event(
@@ -118,10 +151,12 @@ class CloudbetMatcher:
         home_team: str,
         away_team: str,
         fixture_date: Optional[datetime] = None,
-        threshold: float = 0.65
+        threshold: float = 0.65,
+        is_live: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Localiza o evento correspondente na Cloudbet para uma partida do MySQL.
+        Se is_live for True, pesquisa com prioridade máxima no catálogo de eventos ao vivo (live=true).
         Pesquisa na data exata e datas adjacentes (+/- 1 dia) para acomodar fusos horários UTC.
         """
         if fixture_date is None:
@@ -140,7 +175,52 @@ class CloudbetMatcher:
         
         best_match = None
         best_score = 0.0
+
+        # 1. Se a partida estiver ao vivo ou em janela in-play, busca prioritariamente no feed live=true
+        if is_live:
+            for d_str in target_dates:
+                live_events = self.fetch_live_fixtures(d_str)
+                for ev in live_events:
+                    ev_status = ev.get("status", "")
+                    ev_name = ev.get("name", "")
+                    ev_home = ev.get("home", {}).get("name") if ev.get("home") else ""
+                    ev_away = ev.get("away", {}).get("name") if ev.get("away") else ""
+
+                    if not ev_home and ' v ' in ev_name:
+                        parts = ev_name.split(' v ', 1)
+                        ev_home, ev_away = parts[0], parts[1]
+                    elif not ev_home and ' vs ' in ev_name:
+                        parts = ev_name.split(' vs ', 1)
+                        ev_home, ev_away = parts[0], parts[1]
+
+                    score_home = calculate_similarity(home_team, ev_home)
+                    score_away = calculate_similarity(away_team, ev_away)
+                    avg_score = (score_home + score_away) / 2.0
+
+                    if score_home >= 0.60 and score_away >= 0.60:
+                        avg_score = max(avg_score, (score_home + score_away) * 0.55)
+
+                    # Bônus para eventos que estejam com status TRADING_LIVE
+                    if ev_status == "TRADING_LIVE":
+                        avg_score = min(1.0, avg_score + 0.05)
+
+                    if avg_score > best_score and avg_score >= threshold:
+                        best_score = avg_score
+                        best_match = {
+                            "event_id": ev.get("id"),
+                            "event_name": ev_name,
+                            "home_team_cloudbet": ev_home,
+                            "away_team_cloudbet": ev_away,
+                            "cutoff_time": ev.get("cutoffTime"),
+                            "status": ev_status,
+                            "is_live": True,
+                            "match_score": round(avg_score, 3)
+                        }
+
+            if best_match and best_score >= threshold:
+                return best_match
         
+        # 2. Busca no catálogo diário pré-jogo
         for d_str in target_dates:
             events = self.fetch_daily_fixtures(d_str)
             for ev in events:
@@ -173,16 +253,18 @@ class CloudbetMatcher:
                         "away_team_cloudbet": ev_away,
                         "cutoff_time": ev.get("cutoffTime"),
                         "status": ev.get("status"),
+                        "is_live": False,
                         "match_score": round(avg_score, 3)
                     }
                     
         return best_match
 
-    def get_event_markets(self, event_id: int) -> Dict[str, Any]:
+    def get_event_markets(self, event_id: int, use_cache: bool = True) -> Dict[str, Any]:
         """
         Retorna as linhas ativas e líquidas de Handicap Asiático, Total de Gols e 1X2 para um event_id.
+        Se use_cache=False, força requisição direta à API para obter odds em tempo real in-play.
         """
-        if event_id in self.odds_cache:
+        if use_cache and event_id in self.odds_cache:
             return self.odds_cache[event_id]
             
         odds_raw = self.client.get_event_odds(event_id)
@@ -252,7 +334,8 @@ class CloudbetMatcher:
                     "max_stake": float(sel.get("maxStake") or 0.0)
                 }
                 
-        self.odds_cache[event_id] = parsed
+        if use_cache:
+            self.odds_cache[event_id] = parsed
         return parsed
 
 

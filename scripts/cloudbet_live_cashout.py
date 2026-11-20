@@ -480,11 +480,13 @@ def find_cloudbet_opposite_market_and_quote(
     palpite: str,
     market_url: Optional[str] = None,
     event_id: Optional[str] = None,
-    fixture_date: Optional[Any] = None
+    fixture_date: Optional[Any] = None,
+    is_live: bool = True
 ) -> Tuple[Optional[str], Optional[str], float, float, Optional[str]]:
     """
     Localiza o evento e a seleção da ponta oposta com cotação e liquidez na Cloudbet.
     Suporta tanto apostas nativas da Cloudbet quanto Hedge Cruzado para apostas Betano/outras casas.
+    Se is_live=True, prioriza o catálogo in-play (live=true) e bypassa cache de odds para obter dados em tempo real.
     Retorna: (event_id, opposite_market_url, price, min_stake, opposite_palpite)
     """
     opp_market_url = None
@@ -496,7 +498,7 @@ def find_cloudbet_opposite_market_and_quote(
     if market_url:
         opp_market_url = derive_opposite_market_url(market_url)
 
-    # 2. Se temos event_id e opp_market_url, tenta a cotação direta
+    # 2. Se temos event_id e opp_market_url, tenta a cotação direta no book ao vivo
     if event_id and opp_market_url:
         quote = get_live_opposite_quote(client, str(event_id), opp_market_url)
         if quote:
@@ -504,71 +506,91 @@ def find_cloudbet_opposite_market_and_quote(
             opp_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opp_market_url})"
             return str(event_id), opp_market_url, float(quote['price']), float(quote['min_stake']), opp_palpite
 
-    # 3. Hedge Cruzado via CloudbetMatcher (procura o evento e o mercado oposto)
+    # 3. Hedge Dinâmico / Cruzado via CloudbetMatcher (procura o evento ao vivo e seleciona a melhor linha ativa)
     try:
         from cloudbet_matcher import CloudbetMatcher
         matcher = CloudbetMatcher(client)
-        matched = matcher.find_matching_event(home, away, fixture_date=fixture_date)
-        if matched:
-            matched_event_id = str(matched.get("event_id") or matched.get("id") or "")
-            if matched_event_id:
-                cb_markets = matcher.get_event_markets(int(matched_event_id))
 
-                # Caso Handicap Asiático
-                if "ah" in palpite.lower() or "handicap" in palpite.lower() or "0.0" in palpite:
-                    is_home_bet = (home.lower() in palpite.lower())
-                    opp_outcome = "away" if is_home_bet else "home"
-                    opp_team = away if is_home_bet else home
+        target_event_id = str(event_id).strip() if event_id else ""
+        if not target_event_id:
+            matched = matcher.find_matching_event(home, away, fixture_date=fixture_date, is_live=is_live)
+            if matched:
+                target_event_id = str(matched.get("event_id") or matched.get("id") or "").strip()
 
-                    m_hcap = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite)
-                    hcap_val = float(m_hcap.group(1)) if m_hcap else 0.0
-                    opp_hcap = -hcap_val
+        if target_event_id:
+            # use_cache=False para obter o book de ofertas ao vivo em tempo real
+            cb_markets = matcher.get_event_markets(int(target_event_id), use_cache=False)
 
-                    ah_dict = cb_markets.get("asian_handicap", {})
-                    sel_cand = None
-                    if opp_hcap in ah_dict and opp_outcome in ah_dict[opp_hcap]:
-                        sel_cand = ah_dict[opp_hcap][opp_outcome]
-                    elif 0.0 in ah_dict and opp_outcome in ah_dict[0.0]:
-                        sel_cand = ah_dict[0.0][opp_outcome]
-                        opp_hcap = 0.0
-                    elif ah_dict:
-                        for h_k, h_v in ah_dict.items():
-                            if opp_outcome in h_v:
-                                sel_cand = h_v[opp_outcome]
+            # Caso Handicap Asiático
+            if "ah" in palpite.lower() or "handicap" in palpite.lower() or "0.0" in palpite:
+                is_home_bet = (home.lower() in palpite.lower())
+                opp_outcome = "away" if is_home_bet else "home"
+                opp_team = away if is_home_bet else home
+
+                m_hcap = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite)
+                hcap_val = float(m_hcap.group(1)) if m_hcap else 0.0
+                opp_hcap = -hcap_val
+
+                ah_dict = cb_markets.get("asian_handicap", {})
+                sel_cand = None
+                # Prioridade 1: Linha espelho exata (-opp_hcap)
+                if opp_hcap in ah_dict and opp_outcome in ah_dict[opp_hcap]:
+                    sel_cand = ah_dict[opp_hcap][opp_outcome]
+                # Prioridade 2: Linha neutra 0.0 DNB
+                elif 0.0 in ah_dict and opp_outcome in ah_dict[0.0]:
+                    sel_cand = ah_dict[0.0][opp_outcome]
+                    opp_hcap = 0.0
+                # Prioridade 3: Linha ativa mais equilibrada (odds mais próximas de 1.90 / maior liquidez)
+                elif ah_dict:
+                    best_diff = 999.0
+                    for h_k, h_v in ah_dict.items():
+                        if opp_outcome in h_v:
+                            cand = h_v[opp_outcome]
+                            cand_price = cand.get("price", 0.0)
+                            diff = abs(cand_price - 1.90)
+                            if diff < best_diff and cand_price > 1.05:
+                                best_diff = diff
+                                sel_cand = cand
                                 opp_hcap = h_k
-                                break
 
-                    if sel_cand:
-                        opp_market_url = sel_cand["market_url"]
-                        price = float(sel_cand["price"])
-                        min_stake = float(sel_cand["min_stake"])
-                        opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
-                        return matched_event_id, opp_market_url, price, min_stake, opp_palpite
+                if sel_cand:
+                    opp_market_url = sel_cand["market_url"]
+                    price = float(sel_cand["price"])
+                    min_stake = float(sel_cand["min_stake"])
+                    opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
+                    return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
-                # Caso Total de Gols (Over / Under)
-                elif "gol" in palpite.lower() or "over" in palpite.lower() or "under" in palpite.lower():
-                    m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
-                    tot_val = float(m_tot.group(1)) if m_tot else 2.5
-                    is_over = ("mais" in palpite.lower() or "over" in palpite.lower())
-                    opp_tot_outcome = "under" if is_over else "over"
+            # Caso Total de Gols (Over / Under)
+            elif "gol" in palpite.lower() or "over" in palpite.lower() or "under" in palpite.lower():
+                m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
+                tot_val = float(m_tot.group(1)) if m_tot else 2.5
+                is_over = ("mais" in palpite.lower() or "over" in palpite.lower())
+                opp_tot_outcome = "under" if is_over else "over"
 
-                    tg_dict = cb_markets.get("total_goals", {})
-                    sel_cand = None
-                    if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
-                        sel_cand = tg_dict[tot_val][opp_tot_outcome]
-                    elif tg_dict:
-                        for t_k, t_v in tg_dict.items():
-                            if opp_tot_outcome in t_v:
-                                sel_cand = t_v[opp_tot_outcome]
+                tg_dict = cb_markets.get("total_goals", {})
+                sel_cand = None
+                # Prioridade 1: Linha exata do total original
+                if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
+                    sel_cand = tg_dict[tot_val][opp_tot_outcome]
+                # Prioridade 2: Linha ativa mais equilibrada (odds próximas de 1.90)
+                elif tg_dict:
+                    best_diff = 999.0
+                    for t_k, t_v in tg_dict.items():
+                        if opp_tot_outcome in t_v:
+                            cand = t_v[opp_tot_outcome]
+                            cand_price = cand.get("price", 0.0)
+                            diff = abs(cand_price - 1.90)
+                            if diff < best_diff and cand_price > 1.05:
+                                best_diff = diff
+                                sel_cand = cand
                                 tot_val = t_k
-                                break
 
-                    if sel_cand:
-                        opp_market_url = sel_cand["market_url"]
-                        price = float(sel_cand["price"])
-                        min_stake = float(sel_cand["min_stake"])
-                        opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
-                        return matched_event_id, opp_market_url, price, min_stake, opp_palpite
+                if sel_cand:
+                    opp_market_url = sel_cand["market_url"]
+                    price = float(sel_cand["price"])
+                    min_stake = float(sel_cand["min_stake"])
+                    opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
+                    return target_event_id, opp_market_url, price, min_stake, opp_palpite
     except Exception as e_m:
         print(f"⚠️ [Cross-Hedge Matcher Error] Falha ao resolver mercado oposto na Cloudbet: {e_m}")
 
@@ -1070,7 +1092,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             palpite=palpite,
             market_url=meta_market_url,
             event_id=meta_event_id,
-            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo')
+            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
+            is_live=True
         )
 
         if not event_id or not opposite_market_url:
@@ -1348,9 +1371,9 @@ def executar_hedge_prejogo_cloudbet(
             palpite=palpite,
             market_url=meta_market_url,
             event_id=meta_event_id,
-            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo')
+            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
+            is_live=False
         )
-
         hedge_info = {}
         if not event_id or not opposite_market_url:
             print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Evento/Mercado oposto não localizado na Cloudbet para partida #{f_id} ({home} vs {away}).")

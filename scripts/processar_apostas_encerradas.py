@@ -452,7 +452,18 @@ def evaluate_bet(aposta, stats):
         match_thresh = re.search(r'(\d+(?:[\.,]\d+)?)', palpite)
         threshold = float(match_thresh.group(1).replace(',', '.')) if match_thresh else 2.5
         
-        is_asian = ('asiatico' in mercado_norm or 'asiatico' in palpite_norm or 'asian' in mercado_norm or 'asian' in palpite_norm or round(threshold % 0.5, 2) != 0.0)
+        # Normalização rigorosa sem acentos/diacríticos para reconhecimento universal de variações (asiático, asiatico, asian)
+        import unicodedata
+        palp_clean = ''.join(c for c in unicodedata.normalize('NFD', palpite_norm) if unicodedata.category(c) != 'Mn')
+        merc_clean = ''.join(c for c in unicodedata.normalize('NFD', mercado_norm) if unicodedata.category(c) != 'Mn')
+
+        is_asian = (
+            'asiatic' in merc_clean or 'asiatic' in palp_clean or
+            'asian' in merc_clean or 'asian' in palp_clean or
+            'gols asiaticos' in merc_clean or
+            round(threshold % 0.5, 2) != 0.0 or
+            round(threshold % 1.0, 2) == 0.0  # Linhas inteiras (.0) no mercado de gols são sempre asiáticas com amortecedor de Push
+        )
         
         if is_asian:
             from asian_total_engine import settle_asian_total_bet
@@ -467,6 +478,12 @@ def evaluate_bet(aposta, stats):
 
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
+
+        # Salvaguarda estrutural para linhas inteiras: empate de total de gols com a linha é sempre ANULADA (Push)
+        if round(threshold % 1.0, 2) == 0.0 and total_goals == int(threshold):
+            status_str = 'ANULADA'
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Total {total_goals} Gols == Linha Inteira {threshold}) -> Aposta ANULADA (Reembolso)"
+            return status_str, detalhe, valor_aposta
         
         if is_under:
             won = (total_goals < threshold)

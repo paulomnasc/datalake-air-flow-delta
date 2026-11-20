@@ -717,11 +717,11 @@ def evaluate_live_cashout_trigger(
         m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
         line_total = float(m_tot.group(1)) if m_tot else 2.5
 
-        # Coleta de xG e métricas in-play
-        xg_h = float((stats_inplay.get('xg_home') if stats_inplay else None) or bet_row.get('xg_home') or 0.0)
-        xg_a = float((stats_inplay.get('xg_away') if stats_inplay else None) or bet_row.get('xg_away') or 0.0)
+        # Coleta de xG e métricas estritamente in-play (proibido fallback pré-jogo do banco - Regras 6 e 9)
+        xg_h = float(stats_inplay.get('xg_home') or 0.0) if (stats_inplay and stats_inplay.get('xg_home') is not None) else 0.0
+        xg_a = float(stats_inplay.get('xg_away') or 0.0) if (stats_inplay and stats_inplay.get('xg_away') is not None) else 0.0
         tot_xg = round(xg_h + xg_a, 2)
-        xg_source = (stats_inplay.get('xg_source') if stats_inplay else None) or "DB/Campo"
+        xg_source = (stats_inplay.get('xg_source') if stats_inplay else None) or "Ao Vivo (Campo)"
 
         sh = int((stats_inplay.get('shots_home') if stats_inplay else None) or bet_row.get('shots_home') or 0)
         sa = int((stats_inplay.get('shots_away') if stats_inplay else None) or bet_row.get('shots_away') or 0)
@@ -1123,37 +1123,47 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 except Exception:
                     pass
 
-            # 2. Desduplicação do Log de Auditoria: não repete mesmo evento e placar em < 10 minutos
+            # 2. Retentativa Contínua a Cada Minuto: registra a tentativa ativa a cada novo minuto de jogo
             cursor.execute("""
-                SELECT TIMESTAMPDIFF(MINUTE, criado_em, NOW()) AS diff_log_m, delta_json
+                SELECT delta_json
                 FROM pipeline_lifecycle_logs
-                WHERE aposta_id = %s AND tipo_evento = 'HEDGE_ABORTADO_SEM_LIQUIDEZ'
+                WHERE aposta_id = %s AND tipo_evento IN ('HEDGE_ABORTADO_SEM_LIQUIDEZ', 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ')
                 ORDER BY id DESC LIMIT 1
             """, (aposta_id,))
             last_log = cursor.fetchone()
-            ja_logou_recente = (last_log and last_log.get('diff_log_m') is not None and last_log['diff_log_m'] < 10)
+            last_min = None
+            if last_log and last_log.get('delta_json'):
+                try:
+                    import json
+                    last_min = json.loads(last_log['delta_json']).get('minuto')
+                except Exception:
+                    pass
 
-            if not ja_logou_recente:
+            # Só não repete se for exatamente o mesmo minuto já registrado
+            ja_logou_neste_minuto = (last_min is not None and int(last_min) == int(elapsed))
+
+            if not ja_logou_neste_minuto:
                 try:
                     from lifecycle_logger import log_lifecycle_event
                     fase_calc = '2H' if elapsed > 45 else '1H'
+                    tipo_ev = 'HEDGE_ABORTADO_SEM_LIQUIDEZ' if not last_log else 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ'
                     log_lifecycle_event(
                         cursor=cursor,
                         fixture_id=f_id,
                         aposta_id=aposta_id,
                         componente='CLOUDBET_LIVE_HEDGE',
-                        tipo_evento='HEDGE_ABORTADO_SEM_LIQUIDEZ',
+                        tipo_evento=tipo_ev,
                         estado_anterior='Pendente',
                         estado_novo='Pendente',
                         minuto_jogo=elapsed,
                         fase_jogo=fase_calc,
                         placar_momento=f"{gh}x{ga}",
-                        delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo},
-                        motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie encerramento manual na {'Cloudbet' if casa_nome in ('Betano', '', None) else casa_nome}."
+                        delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo, 'retentando': True},
+                        motivo=f"Retentativa de Hedge Ao Vivo: Consultando liquidez na Cloudbet aos {elapsed}' ({gh}x{ga})... Mercado suspenso pela bookmaker. Retentando no próximo minuto."
                     )
                     conn.commit()
                 except Exception as e_log:
-                    print(f"⚠️ [Erro Lifecycle Logger Hedge Abortado]: {e_log}")
+                    print(f"⚠️ [Erro Lifecycle Logger Hedge Retentativa]: {e_log}")
             continue
 
         if hedge_price <= 1.0 and not client.dry_run:

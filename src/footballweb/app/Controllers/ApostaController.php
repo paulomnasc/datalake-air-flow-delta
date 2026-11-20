@@ -4106,12 +4106,12 @@ class ApostaController extends BaseController
                 ->get()
                 ->getFirstRow('array');
 
-            // 5. Linha do Tempo Primária: pipeline_lifecycle_logs
+            // 5. Linha do Tempo Primária: pipeline_lifecycle_logs (mais recentes primeiro)
             $rawLogs = $db->table('pipeline_lifecycle_logs l')
                 ->select('l.*, n.titulo as notif_titulo, n.mensagem as notif_mensagem')
                 ->join('notificacoes_usuario n', 'l.notificacao_id = n.id', 'left')
                 ->where('l.fixture_id', $fixtureId)
-                ->orderBy('l.id', 'ASC')
+                ->orderBy('l.id', 'DESC')
                 ->get()
                 ->getResultArray();
 
@@ -4128,7 +4128,7 @@ class ApostaController extends BaseController
             if (!empty($linkedNotifIds)) {
                 $unlinkedQuery->whereNotIn('id', $linkedNotifIds);
             }
-            $unlinkedNotifs = $unlinkedQuery->orderBy('id', 'ASC')->get()->getResultArray();
+            $unlinkedNotifs = $unlinkedQuery->orderBy('id', 'DESC')->get()->getResultArray();
 
             foreach ($unlinkedNotifs as $n) {
                 $compNotif = 'NOTIFICACAO_SISTEMA';
@@ -4157,11 +4157,16 @@ class ApostaController extends BaseController
                 ];
             }
 
-            // Ordenação cronológica definitiva
+            // Ordenação cronológica definitiva: mais recente primeiro (ordem decrescente)
             usort($rawLogs, function($a, $b) {
                 $tA = !empty($a['criado_em']) ? strtotime($a['criado_em']) : 0;
                 $tB = !empty($b['criado_em']) ? strtotime($b['criado_em']) : 0;
-                return $tA <=> $tB;
+                if ($tA === $tB) {
+                    $idA = (int)($a['id'] ?? 0);
+                    $idB = (int)($b['id'] ?? 0);
+                    return $idB <=> $idA;
+                }
+                return $tB <=> $tA;
             });
 
             // 6. Formatação e Normalização dos Eventos com Marcador Temporal do Jogo

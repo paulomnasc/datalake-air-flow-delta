@@ -54,12 +54,32 @@ enum BetTier: int
         };
     }
 
-    public static function fromDestaque(?int $destaque): self
+    public static function fromDestaque(?int $destaque, ?string $gatekeeperCategory = null, ?string $resultadoDetalhado = null): self
     {
-        if ($destaque === null) {
-            return self::REGULAR;
+        if ($destaque !== null && $destaque > 0) {
+            $found = self::tryFrom($destaque);
+            if ($found !== null) {
+                return $found;
+            }
         }
-        return self::tryFrom($destaque) ?? self::REGULAR;
+
+        $cat = $gatekeeperCategory ?? '';
+        if (stripos($cat, 'PREMIUM') !== false && stripos($cat, 'QUASE') === false) {
+            return self::PREMIUM;
+        }
+        if (stripos($cat, 'Quase Premium') !== false || stripos($cat, 'QUASE') !== false) {
+            return self::QUASE_PREMIUM;
+        }
+
+        $det = $resultadoDetalhado ?? '';
+        if (stripos($det, 'CATEGORIA: Premium') !== false || (stripos($det, 'PREMIUM') !== false && stripos($det, 'Quase Premium') === false && stripos($det, 'QUASE') === false)) {
+            return self::PREMIUM;
+        }
+        if (stripos($det, 'Quase Premium') !== false) {
+            return self::QUASE_PREMIUM;
+        }
+
+        return self::REGULAR;
     }
 }
 

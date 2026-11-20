@@ -401,6 +401,69 @@ class LeagueHelper
         }
         return false;
     }
+
+    /**
+     * Verifica se a competição é um campeonato de clubes / liga (retorna true)
+     * ou torneio de seleções nacionais (retorna false).
+     */
+    public static function isClubLeague(?int $leagueId, ?string $leagueName = null): bool
+    {
+        $nationalTeamLeagueIds = [1, 4, 5, 8, 9, 10, 29, 30, 31, 32, 34, 37, 926];
+        $lId = (int)($leagueId ?? 0);
+        if ($lId > 0 && in_array($lId, $nationalTeamLeagueIds, true)) {
+            return false;
+        }
+
+        $lNameLower = strtolower($leagueName ?? '');
+        $nationalKeywords = [
+            'nations league', 'world cup', 'copa do mundo', 'copa america', 'copa américa',
+            'euro championship', 'eurocopa', 'eliminatórias', 'eliminatorias',
+            'qualification', 'qualifiers'
+        ];
+        foreach ($nationalKeywords as $kw) {
+            if (strpos($lNameLower, $kw) !== false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Renderiza o brasão oficial da liga (<img>) quando for campeonato de liga/clubes,
+     * ou a bandeira do país/continente quando for torneio de seleções (ex: Nations League).
+     */
+    public static function renderLeagueBadgeOrFlag(?int $leagueId, ?string $leagueName, ?string $countryFlag = null, array $opts = []): string
+    {
+        $lId = (int)($leagueId ?? 0);
+        $flag = !empty($countryFlag) ? $countryFlag : '🌍';
+        $size = (int)($opts['size'] ?? 26);
+        $extraClass = htmlspecialchars($opts['class'] ?? 'bet-league-crest', ENT_QUOTES, 'UTF-8');
+        $marginRight = isset($opts['margin_right']) ? (int)$opts['margin_right'] : 6;
+
+        $isClub = self::isClubLeague($lId, $leagueName);
+
+        if ($isClub && $lId > 0) {
+            $logoUrl = base_url('league-logo/' . $lId);
+            $alt = htmlspecialchars($leagueName ?? 'Liga', ENT_QUOTES, 'UTF-8');
+            return '<img src="' . $logoUrl . '" alt="' . $alt . '" class="' . $extraClass . '" style="width: ' . $size . 'px; height: ' . $size . 'px; object-fit: contain; vertical-align: middle; display: inline-block; margin-right: ' . $marginRight . 'px; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" loading="lazy" onerror="this.style.display=\'none\'; if(this.nextElementSibling) this.nextElementSibling.style.display=\'inline\';">' .
+                   '<span class="league-flag-fallback" style="display: none; margin-right: ' . $marginRight . 'px; font-size: ' . ($size * 0.9) . 'px; line-height: 1; vertical-align: middle;">' . $flag . '</span>';
+        }
+
+        return '<span class="league-flag" style="margin-right: ' . $marginRight . 'px; font-size: ' . ($size * 0.9) . 'px; line-height: 1; vertical-align: middle;">' . $flag . '</span>';
+    }
+}
+
+if (!function_exists('isClubLeague')) {
+    function isClubLeague($leagueId, $leagueName = null) {
+        return \App\Helpers\LeagueHelper::isClubLeague((int)$leagueId, (string)$leagueName);
+    }
+}
+
+if (!function_exists('renderLeagueBadgeOrFlag')) {
+    function renderLeagueBadgeOrFlag($leagueId, $leagueName, $countryFlag = null, $opts = []) {
+        return \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag((int)$leagueId, (string)$leagueName, $countryFlag !== null ? (string)$countryFlag : null, (array)$opts);
+    }
 }
 
 if (!function_exists('resolveLeagueCountryAndFlag')) {

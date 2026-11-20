@@ -1018,6 +1018,8 @@ if (!function_exists('resolveLeagueCountryAndFlag')) {
 // Organiza as partidas e ligas por país/região
 $groupedLeagues = [];
 $popularLeagues = [];
+$leagueNameToId = [];
+$popularLeagueIds = [];
 
 foreach ($fixtures as $fix) {
     $leagueId = (int)($fix->league_id ?? 0);
@@ -1026,6 +1028,10 @@ foreach ($fixtures as $fix) {
     $displayName = formatLeagueDisplayName($leagueId, $rawLeagueName);
     $fix->display_league_name = $displayName;
     
+    if ($leagueId > 0 && !isset($leagueNameToId[$displayName])) {
+        $leagueNameToId[$displayName] = $leagueId;
+    }
+
     $leagueInfo = resolveLeagueCountryAndFlag($leagueId, $displayName, $leagueMap);
     $country = $leagueInfo['country'];
     $flag = $leagueInfo['flag'];
@@ -1045,6 +1051,7 @@ foreach ($fixtures as $fix) {
     // Populares
     if ($isPopular && !in_array($displayName, $popularLeagues)) {
         $popularLeagues[] = $displayName;
+        $popularLeagueIds[$displayName] = $leagueId;
     }
 }
 ksort($groupedLeagues, SORT_NATURAL | SORT_FLAG_CASE); // Ordena países alfabeticamente
@@ -1365,10 +1372,10 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Sidebar Columns */
     .bet-sidebar {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
         padding: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         margin-bottom: 20px;
         max-height: 85vh;
         overflow-y: auto;
@@ -1477,11 +1484,11 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Main Area Controls */
     .bet-controls-row {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
         padding: 15px 20px;
         margin-bottom: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     /* Date buttons */
@@ -1669,9 +1676,9 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-card {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         padding: 20px;
         transition: all 0.3s;
         display: flex;
@@ -1724,18 +1731,19 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-league-badge {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        color: #aeb9c4;
-        font-size: 0.72rem;
+        background: #272a31;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e2e8f0;
+        font-size: 0.74rem;
         font-weight: 700;
-        padding: 3px 8px;
+        padding: 4px 10px;
         border-radius: 6px;
         text-transform: uppercase;
         max-width: 70%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
     }
 
     /* Ícone indicativo de aposta em baralho */
@@ -1924,10 +1932,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-team-logo {
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         object-fit: contain;
         flex-shrink: 0;
+        filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));
+    }
+
+    .bet-league-crest {
+        object-fit: contain;
+        filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));
     }
 
     .bet-team-row:last-child .bet-team-dot {
@@ -2155,7 +2169,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-modal-content {
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
         width: 90vw;
@@ -2275,7 +2289,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     .bet-empty {
         text-align: center;
         padding: 50px 20px;
-        background: #172230;
+        background: #202227;
         border: 1px dashed rgba(255,255,255,0.08);
         border-radius: 12px;
         grid-column: 1 / -1;
@@ -2381,7 +2395,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         max-width: 90vw;
         height: 100vh;
         height: 100dvh;
-        background: #172230;
+        background: #202227;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: -10px 0 30px rgba(0,0,0,0.5);
         z-index: 100000;
@@ -2494,7 +2508,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     .bet-chat-input {
         flex: 1;
         min-width: 0;
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
         padding: 10px 12px;
@@ -2654,7 +2668,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Badges de créditos na header */
     .grok-credits-badge {
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(244, 124, 32, 0.3);
         border-radius: 20px;
         padding: 6px 15px;
@@ -2785,10 +2799,14 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                 ⚽ <?= lang('App.all_leagues') ?>
                             </a>
                         </li>
-                        <?php foreach ($popularLeagues as $popLeague): ?>
+                        <?php foreach ($popularLeagues as $popLeague): 
+                            $popLId = $popularLeagueIds[$popLeague] ?? ($leagueNameToId[$popLeague] ?? 0);
+                            $popInfo = resolveLeagueCountryAndFlag($popLId, $popLeague, $leagueMap ?? []);
+                        ?>
                             <li class="bet-sidebar-item">
-                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($popLeague) ?>')" data-league-name="<?= htmlspecialchars($popLeague) ?>">
-                                    ⭐ <?= htmlspecialchars($popLeague) ?>
+                                <a class="bet-league-link d-inline-flex align-items-center" onclick="filterByLeague('<?= htmlspecialchars($popLeague) ?>')" data-league-name="<?= htmlspecialchars($popLeague) ?>">
+                                    <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($popLId, $popLeague, $popInfo['flag'] ?? '⭐', ['size' => 24, 'margin_right' => 8]) ?>
+                                    <span><?= htmlspecialchars($popLeague) ?></span>
                                 </a>
                             </li>
                         <?php endforeach; ?>
@@ -2814,10 +2832,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                 </div>
                                 <div class="bet-country-content" id="content-country-<?= $countryIdx ?>">
                                     <ul class="bet-sidebar-list" style="margin-bottom: 0;">
-                                        <?php foreach ($cData['leagues'] as $lName): ?>
+                                        <?php foreach ($cData['leagues'] as $lName): 
+                                            $lId = $leagueNameToId[$lName] ?? 0;
+                                        ?>
                                             <li class="bet-sidebar-item">
-                                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($lName) ?>')" data-league-name="<?= htmlspecialchars($lName) ?>">
-                                                    🔹 <?= htmlspecialchars($lName) ?>
+                                                <a class="bet-league-link d-inline-flex align-items-center" onclick="filterByLeague('<?= htmlspecialchars($lName) ?>')" data-league-name="<?= htmlspecialchars($lName) ?>">
+                                                    <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($lId, $lName, $cData['flag'] ?? '🔹', ['size' => 22, 'margin_right' => 7]) ?>
+                                                    <span><?= htmlspecialchars($lName) ?></span>
                                                 </a>
                                             </li>
                                         <?php endforeach; ?>
@@ -3286,8 +3307,9 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 70%;">
-                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $displayLeague) ?>">
-                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?>
+                                            <span class="bet-league-badge d-inline-flex align-items-center" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $displayLeague) ?>">
+                                                <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($fix->league_id ?? 0, $displayLeague, $cFlag, ['size' => 24, 'margin_right' => 6]) ?>
+                                                <span><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?></span>
                                             </span>
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id) ?>" 
@@ -4680,7 +4702,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         </div>
 
         <!-- Seção de Conteúdo Estático SEO e FAQ de Cauda Longa -->
-        <section class="bet-seo-faq mt-5 p-4 rounded" style="background: #172230; border: 1px solid rgba(255, 255, 255, 0.05);">
+        <section class="bet-seo-faq mt-5 p-4 rounded" style="background: #202227; border: 1px solid rgba(255, 255, 255, 0.05);">
             <h2 style="font-size: 1.25rem; font-weight: 700; color: #f47c20; margin-bottom: 18px;">
                 📌 Perguntas Frequentes & Guia de Estatísticas de Futebol
             </h2>

@@ -110,7 +110,8 @@ class CloudbetMatcher:
         for comp in competitions:
             comp_name = comp.get("name") or comp.get("key", "")
             for ev in comp.get("events", []):
-                if ev.get("status") == "TRADING_LIVE":
+                ev_st = ev.get("status", "")
+                if ev_st in ("PRE_TRADING", "TRADING", "TRADING_LIVE") or ev_st not in ("RESULTED", "CLOSED"):
                     ev["competition_name"] = comp_name
                     events_list.append(ev)
                 

@@ -25,6 +25,10 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db_config import get_db_connection, get_live_env_vars
 from asian_handicap_engine import calculate_bivariate_poisson_matrix
+try:
+    from bet_tier import BetTier
+except Exception:
+    from scripts.bet_tier import BetTier
 
 # Cache em memória para linhas de gols da Betano durante a execução
 _goals_odds_cache = {}
@@ -474,22 +478,43 @@ def evaluate_and_select_best_goals_candidate(
         if c_type == 'Under' and has_superfavorite:
             continue
 
-        # 4. Filtro de Valor Esperado e Probabilidade Rigorosa (Piso de 60.0% para Alta Assertividade)
-        if ev_pct < 3.0 or prob < 60.0:
+        # 4. Filtro de Valor Esperado (+EV) e Probabilidade Efetiva Rigorosa
+        # Elevação de maturidade: piso de +EV passa de +3.0% para +8.0%, e probabilidade efetiva mínima de 62.0%
+        if ev_pct < 8.0 or prob < 62.0:
             continue
 
-        # 5. Filtro de Consistência Tática e de Mercado
-        # Se for OVER e a linha for alta (ex: >= 2.5), o total projetado xG não pode ser excessivamente baixo
-        if c_type == 'Over' and line >= 2.5 and total_xg < 2.00:
+        # 5. Filtro de Consistência Tática e Perfil de Gols do Confronto (Anti-Push Ilusório)
+        # Menos de 3.0 Gols: exige perfil de jogo moderado/truncado (total xG projetado <= 2.30)
+        # Evita apostar em Under em jogos de alta intensidade apenas pelo benefício do push
+        if c_type == 'Under' and line == 3.0 and total_xg > 2.30:
             continue
-        # Se for UNDER e a linha for baixa (ex: <= 2.25), o total projetado xG não pode ser excessivamente alto
-        if c_type == 'Under' and line <= 2.25 and total_xg > 2.70:
+        if c_type == 'Under' and line == 2.0 and total_xg > 1.85:
+            continue
+
+        # Mais de 2.0 Gols: exige vocação real para gols (total xG projetado >= 2.35)
+        if c_type == 'Over' and line == 2.0 and total_xg < 2.35:
+            continue
+        # Mais de 3.0 Gols: exige confronto francamente ofensivo (total xG projetado >= 2.80)
+        if c_type == 'Over' and line == 3.0 and total_xg < 2.80:
+            continue
+
+        # 6. Governança Canônica de BetTier (Regra 21: Classificação Qualitativa Estrita)
+        if ev_pct >= 15.0 and prob >= 68.0:
+            cand['tier'] = BetTier.PREMIUM
+            cand['destaque'] = BetTier.PREMIUM.value
+            cand['gatekeeper_category'] = BetTier.PREMIUM.gatekeeper_category
+        elif ev_pct >= 8.0 and prob >= 62.0:
+            cand['tier'] = BetTier.QUASE_PREMIUM
+            cand['destaque'] = BetTier.QUASE_PREMIUM.value
+            cand['gatekeeper_category'] = BetTier.QUASE_PREMIUM.gatekeeper_category
+        else:
+            # Descartar entradas regulares com perfil fraco
             continue
 
         approved_list.append(cand)
 
     if not approved_list:
-        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha inteira autorizada (2.0 ou 3.0) com valor esperado (+EV >= 3.0%) e probabilidade >= 60.0% no Sweet Spot Conservador (1.60 - 1.95)."
+        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha inteira autorizada (2.0 ou 3.0) com perfil tático condizente, valor esperado (+EV >= 8.0%) e probabilidade >= 62.0% no Sweet Spot Conservador (1.60 - 1.95)."
 
     # Ordenação Soberana por Maior Probabilidade Efetiva (Win-Rate First) e desempate por maior EV%
     approved_list.sort(key=lambda x: (x['prob_efetiva'], x['ev_pct']), reverse=True)
@@ -497,9 +522,10 @@ def evaluate_and_select_best_goals_candidate(
 
     tipo_str = "Mais de" if best_cand['type'] == 'Over' else "Menos de"
     sug = f"{tipo_str} {best_cand['line']:g} Gols Asiáticos"
+    tier_label = best_cand['tier'].label
 
     reason_msg = (
-        f"Aposta identificada no mercado de Gols Asiáticos: {sug} com cotação {best_cand['odd']:.2f} na Betano. "
+        f"{tier_label}: Aposta identificada no mercado de Gols Asiáticos: {sug} com cotação {best_cand['odd']:.2f} na Betano/Cloudbet. "
         f"O modelo estatístico de Poisson projeta uma expectativa de {total_xg:.2f} gols no confronto "
         f"({home_team} xG {xg_h:.2f} vs {xg_a:.2f} {away_team}), gerando probabilidade efetiva de {best_cand['prob_efetiva']:.1f}% "
         f"e margem matemática de valor esperado de +{best_cand['ev_pct']:.1f}% (+EV)."
@@ -570,18 +596,19 @@ def calculate_unified_goals_recommendation(
         except Exception as e_u5j:
             print(f"⚠️ [U5J Goals] Falha ao extrair U5J: {e_u5j}", file=sys.stderr)
 
-    # Cálculo dos Lambdas de Poisson
-    if h_sc and a_con:
-        raw_xg_h = (sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0
-        xg_h = round(raw_xg_h * 1.08, 2)
-    else:
-        xg_h = 1.30
+    # Cálculo dos Lambdas de Poisson (Regra 9: Proibição Absoluta de Fallbacks Fictícios)
+    if not (h_sc and a_con) or not (a_sc and h_con):
+        reason_msg = (
+            f"Gatekeeper Gols (NO_BET): Ausência ou inconsistência de dados estatísticos de U5J "
+            f"para {home_team} e/ou {away_team}. Interrupção mandatória de cálculo (Regra de Ouro 9)."
+        )
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_msg, None, []
 
-    if a_sc and h_con:
-        raw_xg_a = (sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0
-        xg_a = round(raw_xg_a * 0.92, 2)
-    else:
-        xg_a = 1.05
+    raw_xg_h = (sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0
+    xg_h = round(raw_xg_h * 1.08, 2)
+
+    raw_xg_a = (sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0
+    xg_a = round(raw_xg_a * 0.92, 2)
 
     # 2. Gerar Matriz de Poisson
     poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
@@ -700,11 +727,14 @@ def sync_fixture_and_bet_goals(
         else:
             casa_aposta_val = best_cand.get('bookmaker') or 'Cloudbet'
 
+        gk_cat = best_cand.get('gatekeeper_category') or 'Aposta Quase Premium (+EV Selecionado)'
+        destaque_val = int(best_cand.get('destaque') or 1)
+
         cursor.execute("""
             INSERT INTO apostas (
                 usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id, time_casa, time_fora,
                 mercado, casa_de_aposta, palpite, odd, odd_justa,
-                probabilidade_poisson, ev_percentual, status_gatekeeper,
+                probabilidade_poisson, ev_percentual, status_gatekeeper, gatekeeper_category, destaque,
                 valor_aposta, ganhos_potenciais, status, confirmada,
                 resultado_detalhado, data_hora_jogo,
                 auditoria_ia_status, auditoria_ia_resumo, auditoria_ia_parecer,
@@ -713,7 +743,7 @@ def sync_fixture_and_bet_goals(
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
                 'Gols Asiáticos', %s, %s, %s, %s,
-                %s, %s, 'APROVADO',
+                %s, %s, 'APROVADO', %s, %s,
                 %s, %s, 'Pendente', %s,
                 %s, %s,
                 'CONFIRMADO',
@@ -725,7 +755,7 @@ def sync_fixture_and_bet_goals(
         """, (
             uid, user_moeda, user_cotacao, fixture_id, home_team, away_team,
             casa_aposta_val, palpite, odd, fair_odd,
-            prob, ev,
+            prob, ev, gk_cat, destaque_val,
             valor_aposta, retorno_potencial, confirmada,
             reasoning, data_jogo,
             ia_resumo, ia_parecer
@@ -884,8 +914,21 @@ def cli_evaluate_goals_bet(
                         a_sc.append(min(5, int(p[0])))
                         a_con.append(min(5, int(p[1])))
 
-            xg_h = round(((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0) * 1.08, 2) if (h_sc and a_con) else 1.30
-            xg_a = round(((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0) * 0.92, 2) if (a_sc and h_con) else 1.05
+            # Eliminação de fallbacks artificiais (Regra 9)
+            if not (h_sc and a_con) or not (a_sc and h_con):
+                return {
+                    "fixtureId": fix['fixture_id'],
+                    "oddJusta": None,
+                    "probPoisson": None,
+                    "evPercentual": None,
+                    "statusGatekeeper": "NO_BET",
+                    "gatekeeperCategory": "Dados U5J Insuficientes",
+                    "gatekeeperMsg": f"Gatekeeper Gols (NO_BET): Ausência de dados estatísticos de U5J para {h_name} e/ou {a_name} (Regra 9).",
+                    "destaque": 0
+                }
+
+            xg_h = round(((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0) * 1.08, 2)
+            xg_a = round(((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0) * 0.92, 2)
 
             # 4. Avaliar na Matriz Bivariada de Poisson
             matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
@@ -917,10 +960,35 @@ def cli_evaluate_goals_bet(
                 status_gk = "NO_BET"
                 cat_gk = "Odd Fora do Sweet Spot"
                 msg_gk = f"Gatekeeper Gols (NO_BET): Odd {odd:.2f} fora da faixa autorizada (1.60 a 1.95)."
-            elif ev_pct < 3.0 or prob_eff < 60.0:
+            elif ev_pct < 8.0 or prob_eff < 62.0:
                 status_gk = "NO_BET"
                 cat_gk = "Sem Valor Esperado (+EV) ou Probabilidade Baixa"
-                msg_gk = f"Gatekeeper Gols (NO_BET): Probabilidade ({prob_eff:.1f}%) abaixo de 60.0% ou Valor Esperado (+EV {ev_pct:.1f}%) abaixo de +3.0%."
+                msg_gk = f"Gatekeeper Gols (NO_BET): Probabilidade ({prob_eff:.1f}%) abaixo de 62.0% ou Valor Esperado (+EV {ev_pct:.1f}%) abaixo de +8.0%."
+            elif not is_over and line_val == 3.0 and total_xg > 2.30:
+                status_gk = "NO_BET"
+                cat_gk = "Risco Ofensivo Elevado para Under"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Expectativa de gols ({total_xg:.2f}) excede o limite seguro de 2.30 para Menos de 3.0 Gols."
+            elif not is_over and line_val == 2.0 and total_xg > 1.85:
+                status_gk = "NO_BET"
+                cat_gk = "Risco Ofensivo Elevado para Under"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Expectativa de gols ({total_xg:.2f}) excede o limite de 1.85 para Menos de 2.0 Gols."
+            elif is_over and line_val == 2.0 and total_xg < 2.35:
+                status_gk = "NO_BET"
+                cat_gk = "Expectativa de Gols Baixa para Over"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Expectativa de gols ({total_xg:.2f}) insuficiente para Mais de 2.0 Gols (mínimo 2.35)."
+            elif is_over and line_val == 3.0 and total_xg < 2.80:
+                status_gk = "NO_BET"
+                cat_gk = "Expectativa de Gols Insuficiente para Over 3.0"
+                msg_gk = f"Gatekeeper Gols (NO_BET): Expectativa de gols ({total_xg:.2f}) insuficiente para Mais de 3.0 Gols (mínimo 2.80)."
+
+            destaque_val = 0
+            if status_gk == 'APROVADO':
+                if ev_pct >= 15.0 and prob_eff >= 68.0:
+                    destaque_val = BetTier.PREMIUM.value
+                    cat_gk = BetTier.PREMIUM.gatekeeper_category
+                else:
+                    destaque_val = BetTier.QUASE_PREMIUM.value
+                    cat_gk = BetTier.QUASE_PREMIUM.gatekeeper_category
 
             return {
                 "fixtureId": fix['fixture_id'],
@@ -930,7 +998,7 @@ def cli_evaluate_goals_bet(
                 "statusGatekeeper": status_gk,
                 "gatekeeperCategory": cat_gk,
                 "gatekeeperMsg": msg_gk,
-                "destaque": 1 if (status_gk == 'APROVADO' and ev_pct >= 15.0) else 0
+                "destaque": destaque_val
             }
     finally:
         conn.close()

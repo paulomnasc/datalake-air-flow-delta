@@ -51,8 +51,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
 <style>
   :root {
     --bet-bg: #0d1117;
-    --bet-card-bg: #161b22;
-    --bet-card-border: #21262d;
+    --bet-card-bg: #202227;
+    --bet-card-border: #2d313a;
     --bet-primary: #00e676;
     --bet-primary-glow: rgba(0, 230, 118, 0.25);
     --bet-accent: #00b0ff;
@@ -60,6 +60,11 @@ if (!function_exists('fmtTopValorWithBrl')) {
     --bet-danger: #ff5252;
     --bet-text-main: #f0f6fc;
     --bet-text-muted: #94a3b8;
+  }
+
+  .bet-league-crest {
+    object-fit: contain;
+    filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));
   }
 
   @keyframes pulseHighlight {
@@ -1496,7 +1501,11 @@ if (!function_exists('fmtTopValorWithBrl')) {
               ? (float)$aposta->ganhos_potenciais
               : ((float)($aposta->valor_aposta ?? 0) * (float)($aposta->odd ?? 1.0));
 
-          $betTier = \App\Enums\BetTier::fromDestaque(isset($aposta->destaque) ? (int)$aposta->destaque : null);
+          $betTier = \App\Enums\BetTier::fromDestaque(
+              isset($aposta->destaque) ? (int)$aposta->destaque : null,
+              $aposta->gatekeeper_category ?? null,
+              $aposta->resultado_detalhado ?? null
+          );
           $isApostaPremium = $betTier->isPremium();
           $isQuasePremium = $betTier->isQuasePremium();
 
@@ -1528,7 +1537,7 @@ if (!function_exists('fmtTopValorWithBrl')) {
           }
           $isLockedByRiskCeiling = $isExceedingCeiling && !$isConfirmada && strtolower($aposta->status ?? '') !== 'cancelada';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= (!empty($aposta->destaque) || $isApostaPremium || $isQuasePremium) ? 'bet-card-destaque' : '' ?> <?= ($isVolatilidade && !$isAbstencaoBloqueada) ? 'bet-card-volatilidade' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-id="<?= $aposta->id ?>" data-fixture-id="<?= $aposta->fixture_id ?? '' ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-locked-lineup="<?= $isLockedByLineup ? '1' : '0' ?>" data-locked-risk="<?= $isLockedByRiskCeiling ? '1' : '0' ?>" data-gatekeeper="<?= htmlspecialchars($aposta->status_gatekeeper ?? '') ?>" data-destaque="<?= !empty($aposta->destaque) ? (int)$aposta->destaque : '0' ?>" data-is-premium="<?= $isApostaPremium ? '1' : '0' ?>" data-is-quase-premium="<?= $isQuasePremium ? '1' : '0' ?>" data-sentinela-status="<?= htmlspecialchars($aposta->auditoria_ia_status ?? '') ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)$displayGanho ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-volatilidade="<?= $isVolatilidadeBloqueada ? '1' : '0' ?>" data-moeda="<?= esc($apMoeda) ?>" data-cotacao="<?= esc($apCotacao) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <?php if ($isApostaPremium || $isQuasePremium || !empty($aposta->destaque)): ?>
@@ -1616,10 +1625,8 @@ if (!function_exists('fmtTopValorWithBrl')) {
             </div>
 
             <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
-              <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                <?php if (!empty($leagueFlag)): ?>
-                  <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
-                <?php endif; ?>
+              <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; background: #272a31; border: 1px solid rgba(255, 255, 255, 0.12); padding: 3px 8px; border-radius: 6px; width: fit-content; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($aposta->league_id ?? 0, $aposta->league_name ?? '', $leagueFlag, ['size' => 24, 'margin_right' => 6]) ?>
                 <?php if (!empty($leagueCountry)): ?>
                   <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
                 <?php endif; ?>
@@ -1627,7 +1634,6 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   <span style="color: #475569;">•</span>
                 <?php endif; ?>
                 <?php if (!empty($aposta->league_name)): ?>
-                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
                   <span><?= htmlspecialchars($aposta->league_name) ?></span>
                 <?php endif; ?>
               </div>

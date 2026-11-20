@@ -84,6 +84,10 @@ def fetch_betano_url(url: str, timeout_ms: int = 12000) -> str:
     sol = fetch_via_flaresolverr(url, timeout_ms=timeout_ms)
     resp_text = sol.get('response', '')
     if resp_text and len(resp_text) > 100:
+        if '<pre>' in resp_text:
+            m = re.search(r'<pre[^>]*>(.*?)</pre>', resp_text, re.DOTALL)
+            if m:
+                return m.group(1).strip()
         return resp_text
 
     # 2. Fallback direto via requests com headers de navegador

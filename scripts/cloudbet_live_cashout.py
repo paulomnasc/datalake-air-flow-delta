@@ -30,6 +30,7 @@ if CURRENT_DIR not in sys.path:
 from db_config import get_db_connection, get_live_env_vars
 from cloudbet_client import CloudbetClient
 from asian_handicap_engine import compose_compound_ah_reasoning
+from leagues_config import is_graylist_league
 
 # Caches em memória para evitar chamadas de API repetidas e auditorias redundantes no in-play
 _LAST_STATS_FETCH: Dict[int, float] = {}
@@ -973,6 +974,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                a.casa_de_aposta,
                ft.status as fixture_status, ft.home_team as time_casa, ft.away_team as time_fora,
                ft.home_team_id, ft.away_team_id, ft.ah_reasoning,
+               ft.league_id, ft.league_name,
                ft.goals_home, ft.goals_away, ft.elapsed,
                ft.yellow_cards_home, ft.yellow_cards_away,
                ft.red_cards_home, ft.red_cards_away,
@@ -1097,8 +1099,12 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         )
 
         if not event_id or not opposite_market_url:
-            print(f"   ℹ️ [{casa_nome}] Evento sem mercado oposto líquido na Cloudbet...")
-            tit = f"⚡ Alerta de Hedge ({casa_nome}): {home} vs {away}"
+            is_gray = is_graylist_league(bet.get('league_id'))
+            gray_tag = " [⚠️ Liga em Observação - Graylist]" if is_gray else ""
+            gray_prefix = "[Graylist] " if is_gray else ""
+
+            print(f"   ℹ️ [{casa_nome}]{gray_tag} Evento sem mercado oposto líquido na Cloudbet...")
+            tit = f"⚡ Alerta de Hedge ({casa_nome}){gray_tag}: {home} vs {away}"
             msg = f"Aposta {palpite} aos {elapsed}' ({gh}x{ga}). Avalie cobertura na ponta oposta. Motivo: {motivo}"
             
             # 1. Trava Estrita de Notificação Persistida no Banco (>= 5 min)
@@ -1147,6 +1153,11 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                     from lifecycle_logger import log_lifecycle_event
                     fase_calc = '2H' if elapsed > 45 else '1H'
                     tipo_ev = 'HEDGE_ABORTADO_SEM_LIQUIDEZ' if not last_log else 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ'
+                    motivo_log = (
+                        f"{gray_prefix}Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie encerramento manual na Cloudbet."
+                        if not last_log else
+                        f"{gray_prefix}Retentativa de Hedge Ao Vivo: Consultando liquidez na Cloudbet aos {elapsed}' ({gh}x{ga})... Mercado suspenso pela bookmaker. Retentando no próximo minuto."
+                    )
                     log_lifecycle_event(
                         cursor=cursor,
                         fixture_id=f_id,
@@ -1158,8 +1169,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                         minuto_jogo=elapsed,
                         fase_jogo=fase_calc,
                         placar_momento=f"{gh}x{ga}",
-                        delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo, 'retentando': True},
-                        motivo=f"Retentativa de Hedge Ao Vivo: Consultando liquidez na Cloudbet aos {elapsed}' ({gh}x{ga})... Mercado suspenso pela bookmaker. Retentando no próximo minuto."
+                        delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'motivo_trigger': motivo, 'retentando': True, 'is_graylist': is_gray},
+                        motivo=motivo_log
                     )
                     conn.commit()
                 except Exception as e_log:

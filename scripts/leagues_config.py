@@ -75,6 +75,37 @@ ALLOWED_LEAGUES = {
 # Conjunto de IDs para busca instantânea O(1)
 ALLOWED_LEAGUE_IDS = set(ALLOWED_LEAGUES.keys())
 
+# ==============================================================================
+# GRAYLIST / WATCHLIST DE LIGAS EM OBSERVAÇÃO (RISCO DE LIQUIDEZ IN-PLAY)
+# ==============================================================================
+# Ligas que permanecem permitidas no catálogo global para o modelo pré-jogo (+EV),
+# porém sob observação estrita de liquidez e hedge ao vivo na Cloudbet.
+# Se acumularem prejuízo por falta de cobertura in-play ou recusa contínua da bookmaker,
+# serão desativadas permanentemente de ALLOWED_LEAGUES.
+GRAYLIST_LEAGUES = {
+    144: {
+        "name": "Pro League (Belgica)",
+        "motivo": "Liquidez in-play instável ou ausente na Cloudbet durante o 2º tempo (ex: Fixture #1558682)",
+        "adicionada_em": "2026-11-20",
+        "status": "EM_OBSERVACAO"
+    }
+}
+
+GRAYLIST_LEAGUE_IDS = set(GRAYLIST_LEAGUES.keys())
+
+
+def is_graylist_league(league_id) -> bool:
+    """
+    Retorna True se a liga pertencer à lista cinza (em observação de liquidez).
+    """
+    if league_id is None:
+        return False
+    try:
+        return int(league_id) in GRAYLIST_LEAGUE_IDS
+    except (ValueError, TypeError):
+        return False
+
+
 # Palavras-chave para validação fallback por nome textual
 ALLOWED_LEAGUE_NAMES = [
     'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b',

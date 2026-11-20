@@ -5639,6 +5639,16 @@ class ApostaController extends BaseController
         $status = strtoupper(trim($row->fixture_status ?? 'NS'));
         $isLive = in_array($status, ['1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED']);
 
+        // Compensação dinâmica contínua para eliminar lag entre ciclos de sincronização (com timezone America/Sao_Paulo)
+        if ($isLive && in_array($status, ['1H', '2H', 'LIVE']) && !empty($row->updated_at)) {
+            $secondsSinceUpdate = time() - strtotime($row->updated_at . ' America/Sao_Paulo');
+            if ($secondsSinceUpdate >= 50 && $secondsSinceUpdate < 300) {
+                $additionalMinutes = (int)floor($secondsSinceUpdate / 60);
+                $cap = ($status === '1H') ? 45 : 90;
+                $elapsed = min($cap, $elapsed + $additionalMinutes);
+            }
+        }
+
         $mercado = $row->mercado ?? 'Gols Asiáticos';
         $palpite = $row->palpite ?? '';
         $odd = (float)($row->odd ?? 1.0);

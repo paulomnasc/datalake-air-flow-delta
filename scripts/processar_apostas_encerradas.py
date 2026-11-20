@@ -227,7 +227,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 def get_fixture_stats(fixture, cursor=None):
     """
     Extrai as estatísticas reais finais da partida (FT).
-    Retorna None se os dados de gols, status ou a trava score_processed_at estiverem incompletos/nulos no banco.
+    Para mercados de gols e handicap, liquida imediatamente no apito final.
+    Para cartões, busca a súmula oficial e mantém em 'Pendente' caso a súmula ainda não esteja disponível.
     """
     status = (fixture.get('status') or '').strip().upper()
     finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
@@ -235,14 +236,11 @@ def get_fixture_stats(fixture, cursor=None):
         return None
 
     score_processed_at = fixture.get('score_processed_at')
-    if not score_processed_at:
-        return None
-
-    # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
-    if isinstance(score_processed_at, datetime):
-        if (datetime.now() - score_processed_at).total_seconds() < 1200:
-            print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
-            return None
+    if not score_processed_at and cursor and fixture.get('fixture_id'):
+        try:
+            cursor.execute("UPDATE fixtures_trends SET score_processed_at = NOW() WHERE fixture_id = %s", (fixture['fixture_id'],))
+        except Exception:
+            pass
 
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')
@@ -719,6 +717,101 @@ def process_pending_bets():
     process_palpites_gerados(cursor)
 
     conn.close()
+
+
+def processar_apostas_fixture(fixture_id: int):
+    """
+    Processa e liquida imediatamente todas as apostas pendentes vinculadas a uma partida específica que deu FT.
+    Executado instantaneamente pelo sincronizador in-play sem aguardar a DAG das 23:00.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        fixture = cursor.fetchone()
+        if not fixture:
+            conn.close()
+            return 0
+
+        status_fix = (fixture.get('status') or '').strip().upper()
+        if status_fix not in ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'):
+            conn.close()
+            return 0
+
+        cursor.execute("""
+            SELECT * FROM apostas 
+            WHERE fixture_id = %s AND status = 'Pendente'
+        """, (fixture_id,))
+        pendentes = cursor.fetchall()
+        if not pendentes:
+            conn.close()
+            return 0
+
+        stats = get_fixture_stats(fixture, cursor)
+        if not stats:
+            conn.close()
+            return 0
+
+        liquidadas = 0
+        for aposta in pendentes:
+            aposta_id = aposta['id']
+            novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)
+            if novo_status == 'Pendente':
+                continue
+
+            cursor.execute("""
+                UPDATE apostas
+                SET status = %s,
+                    resultado_detalhado = %s,
+                    ganhos_potenciais = %s,
+                    processado_em = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (novo_status, detalhe, valor_computado, aposta_id))
+
+            if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
+                is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+                if is_confirmada:
+                    creditar_retorno_aposta(
+                        cursor,
+                        aposta.get('usuario_id'),
+                        aposta_id,
+                        valor_computado,
+                        novo_status,
+                        f"Retorno Aposta #{aposta_id} ({fixture.get('home_team')} x {fixture.get('away_team')} - {novo_status})"
+                    )
+
+            try:
+                gh_val = stats.get('goals_home')
+                ga_val = stats.get('goals_away')
+                placar_final = f"{gh_val}x{ga_val}" if gh_val is not None and ga_val is not None else None
+                log_match_milestone(cursor, fixture_id, 'FIM_DE_JOGO', placar=placar_final)
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fixture_id,
+                    componente="LIQUIDACAO_ENGINE",
+                    tipo_evento=f"APOSTA_LIQUIDADA_{novo_status.upper().replace(' ', '_')}",
+                    estado_anterior="Pendente",
+                    estado_novo=novo_status,
+                    aposta_id=aposta_id,
+                    fase_jogo="FT",
+                    minuto_jogo=90,
+                    placar_momento=placar_final,
+                    motivo=f"Aposta #{aposta_id} ({aposta.get('mercado')} - {aposta.get('palpite')}) liquidada imediatamente no FT como {novo_status.upper()}. {detalhe}"
+                )
+            except Exception as e_lf:
+                pass
+
+            conn.commit()
+            liquidadas += 1
+            print(f"⚡ [Liquidação Imediata FT] Aposta #{aposta_id} -> {novo_status} ({detalhe})")
+
+        conn.close()
+        return liquidadas
+    except Exception as e:
+        print(f"⚠️ Erro ao liquidar apostas da fixture #{fixture_id}: {e}")
+        conn.close()
+        return 0
 
 def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow_home, yellow_away, red_home, red_away, corners_home, corners_away, mercado, linha, odd):
     """

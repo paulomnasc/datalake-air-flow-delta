@@ -48,7 +48,7 @@ class MetaDiariaModel extends Model
                 AND EXISTS (
                     SELECT 1 FROM conta_corrente cc 
                     WHERE cc.aposta_id = {$aliasAposta}.id 
-                      AND cc.tipo = 'DEBITO_APOSTA'
+                      AND cc.tipo IN ('DEBITO_APOSTA', 'CREDITO_RETORNO_APOSTA')
                 )
             )
         )";

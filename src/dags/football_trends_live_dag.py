@@ -53,7 +53,7 @@ default_args = {
 dag = DAG(
     'football_trends_live_dag',
     default_args=default_args,
-    schedule_interval='*/2 * * * *',  # Executa a cada 2 minutos (Blindagem de cota e acompanhamento em tempo real)
+    schedule_interval='* * * * *',  # Executa a cada 1 minuto (Acompanhamento contínuo em tempo real sem lag)
     catchup=False,
     description="DAG do Airflow dedicada a monitorar partidas de futebol em andamento (1H, HT, 2H) via API gratuita da Cloudbet e Betano com consumo zero de API-Sports, atualizando cronômetro e placar no dashboard e alertando novas oportunidades in-play.",
     tags=['football', 'trends', 'live', 'in-play', 'cloudbet', 'betano', 'sininho']

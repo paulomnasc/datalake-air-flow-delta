@@ -659,6 +659,12 @@ def main():
                                     updated_at = NOW()
                                 WHERE fixture_id = %s
                             """, (elapsed_est, fid))
+                            conn.commit()
+                            try:
+                                from processar_apostas_encerradas import processar_apostas_fixture
+                                processar_apostas_fixture(fid)
+                            except Exception as e_ft:
+                                print(f"⚠️ [Erro Liquidação FT Relógio #{fid}]: {e_ft}")
                         else:
                             cursor.execute("""
                                 UPDATE fixtures_trends SET
@@ -712,6 +718,12 @@ def main():
                     updated_at = NOW()
                 WHERE fixture_id = %s
             """, (gh, ga, elapsed or 90, fid))
+            conn.commit()
+            try:
+                from processar_apostas_encerradas import processar_apostas_fixture
+                processar_apostas_fixture(fid)
+            except Exception as e_ft:
+                print(f"⚠️ [Erro Liquidação FT Live Feed #{fid}]: {e_ft}")
         else:
             cursor.execute("""
                 UPDATE fixtures_trends SET
@@ -734,6 +746,25 @@ def main():
 
     conn.commit()
     conn.close()
+
+    # Reconciliação Geral Imediata: Se houver apostas pendentes de partidas com status FT, liquida imediatamente
+    try:
+        conn_chk = get_db_connection()
+        c_chk = conn_chk.cursor()
+        c_chk.execute("""
+            SELECT 1 FROM apostas a
+            JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+            WHERE a.status = 'Pendente' AND ft.status IN ('FT', 'AET', 'PEN', 'FINISHED')
+            LIMIT 1
+        """)
+        has_finished_pending = c_chk.fetchone()
+        conn_chk.close()
+        if has_finished_pending:
+            print("🏁 [Liquidação Imediata] Partidas finalizadas com apostas pendentes detectadas. Executando process_pending_bets()...")
+            from processar_apostas_encerradas import process_pending_bets
+            process_pending_bets()
+    except Exception as e_chk:
+        print(f"⚠️ [Aviso Liquidação Finalizadas]: {e_chk}")
 
     # Avaliação e Execução de Cash Out In-Play
     try:

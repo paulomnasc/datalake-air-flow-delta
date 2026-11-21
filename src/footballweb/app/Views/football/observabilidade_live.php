@@ -229,7 +229,7 @@
                             <!-- CABEÇALHO DO JOGO: LIGA E STATUS TEMPO REAL -->
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-25">
                                 <span class="text-white small d-flex align-items-center gap-1 font-monospace" style="font-size: 0.72rem;">
-                                    <i class="bi bi-trophy text-info"></i>
+                                    <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($c['league_id'] ?? 0, $c['league_name'] ?? '', null, ['size' => 24, 'margin_right' => 6]) ?>
                                     <?= htmlspecialchars($c['league_name']) ?>
                                 </span>
                                 <span class="badge <?= $c['status_badge'] ?> rounded-pill font-monospace" style="font-size: 0.70rem; padding: 4px 8px;">
@@ -240,18 +240,24 @@
                             <!-- PLACAR PRINCIPAL -->
                             <div class="text-center py-1 mb-2">
                                 <div class="row align-items-center g-0">
-                                    <div class="col-5 text-end">
-                                        <strong class="d-block text-white text-truncate" title="<?= htmlspecialchars($c['time_casa']) ?>" style="font-size: 0.95rem;">
+                                    <div class="col-5 d-flex align-items-center justify-content-end gap-1.5 overflow-hidden">
+                                        <strong class="text-white text-truncate" title="<?= htmlspecialchars($c['time_casa']) ?>" style="font-size: 0.95rem;">
                                             <?= htmlspecialchars($c['time_casa']) ?>
                                         </strong>
+                                        <?php if (!empty($c['home_team_id'])): ?>
+                                            <img src="<?= base_url('team-logo/' . $c['home_team_id']) ?>" alt="<?= htmlspecialchars($c['time_casa']) ?>" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" onerror="this.onerror=null; this.style.display='none';">
+                                        <?php endif; ?>
                                     </div>
                                     <div class="col-2 text-center">
-                                        <span class="badge bg-dark border border-secondary px-2 py-1 fs-6 font-monospace fw-bold text-info">
+                                        <span class="fs-6 font-monospace fw-bold text-info">
                                             <?= htmlspecialchars($c['placar']) ?>
                                         </span>
                                     </div>
-                                    <div class="col-5 text-start">
-                                        <strong class="d-block text-white text-truncate" title="<?= htmlspecialchars($c['time_fora']) ?>" style="font-size: 0.95rem;">
+                                    <div class="col-5 d-flex align-items-center justify-content-start gap-1.5 overflow-hidden">
+                                        <?php if (!empty($c['away_team_id'])): ?>
+                                            <img src="<?= base_url('team-logo/' . $c['away_team_id']) ?>" alt="<?= htmlspecialchars($c['time_fora']) ?>" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" onerror="this.onerror=null; this.style.display='none';">
+                                        <?php endif; ?>
+                                        <strong class="text-white text-truncate" title="<?= htmlspecialchars($c['time_fora']) ?>" style="font-size: 0.95rem;">
                                             <?= htmlspecialchars($c['time_fora']) ?>
                                         </strong>
                                     </div>
@@ -346,14 +352,24 @@
                                     <?= htmlspecialchars($c['detalhe_tatico']) ?>
                                 </span>
                                 
-                                <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1 btn-ver-auditoria" 
-                                        data-fixture-id="<?= $c['fixture_id'] ?>" 
-                                        data-aposta-id="<?= (int)($c['aposta_id'] ?? 0) ?>"
-                                        data-match-title="<?= htmlspecialchars(($c['time_casa'] ?? '') . ' x ' . ($c['time_fora'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                        style="font-size: 0.72rem;">
-                                    <i class="bi bi-clipboard-pulse"></i>
-                                    <span>Auditoria</span>
-                                </button>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a href="<?= base_url('apostas') ?>?fixture_id=<?= $c['fixture_id'] ?>#aposta-card-<?= (int)($c['aposta_id'] ?? 0) ?>" 
+                                       target="_blank" 
+                                       class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1"
+                                       title="Abrir simulação de aposta em nova aba"
+                                       style="font-size: 0.72rem;">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                        <span>Aposta</span>
+                                    </a>
+                                    <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1 btn-ver-auditoria" 
+                                            data-fixture-id="<?= $c['fixture_id'] ?>" 
+                                            data-aposta-id="<?= (int)($c['aposta_id'] ?? 0) ?>"
+                                            data-match-title="<?= htmlspecialchars(($c['time_casa'] ?? '') . ' x ' . ($c['time_fora'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            style="font-size: 0.72rem;">
+                                        <i class="bi bi-clipboard-pulse"></i>
+                                        <span>Auditoria</span>
+                                    </button>
+                                </div>
                             </div>
 
                         </div>
@@ -742,6 +758,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const alertBorderClass = isCashout ? 'border-danger' : (c.faixa_cor === 'vermelho' ? 'border-danger' : (c.faixa_cor === 'amarelo' ? 'border-warning' : 'border-success'));
             const alertTextClass = isCashout ? 'text-danger' : (c.faixa_cor === 'amarelo' ? 'text-warning' : (c.faixa_cor === 'vermelho' ? 'text-danger' : 'text-success'));
 
+            const leagueBadge = c.league_id 
+                ? `<img src="<?= base_url('league-logo') ?>/${c.league_id}" alt="${escapeHtml(c.league_name)}" style="width: 24px; height: 24px; object-fit: contain; vertical-align: middle; display: inline-block; margin-right: 6px; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" onerror="this.style.display='none';">` 
+                : '<i class="bi bi-trophy text-info"></i>';
+
+            const homeLogo = c.home_team_id 
+                ? `<img src="<?= base_url('team-logo') ?>/${c.home_team_id}" alt="${escapeHtml(c.time_casa)}" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" onerror="this.onerror=null; this.style.display='none';">` 
+                : '';
+
+            const awayLogo = c.away_team_id 
+                ? `<img src="<?= base_url('team-logo') ?>/${c.away_team_id}" alt="${escapeHtml(c.time_fora)}" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));" onerror="this.onerror=null; this.style.display='none';">` 
+                : '';
+
             html += `
                 <div class="col-12 col-md-6 col-xl-4 card-item" data-category="${filterCat}" data-card-id="${c.aposta_id}">
                     <div class="card h-100 bg-dark text-white rounded-3 shadow-sm position-relative overflow-hidden ${borderClass}" 
@@ -767,7 +795,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-25">
                                 <span class="text-white small d-flex align-items-center gap-1 font-monospace" style="font-size: 0.72rem;">
-                                    <i class="bi bi-trophy text-info"></i>
+                                    ${leagueBadge}
                                     ${escapeHtml(c.league_name)}
                                 </span>
                                 <span class="badge ${c.status_badge} rounded-pill font-monospace" style="font-size: 0.70rem; padding: 4px 8px;">
@@ -777,18 +805,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             <div class="text-center py-1 mb-2">
                                 <div class="row align-items-center g-0">
-                                    <div class="col-5 text-end">
-                                        <strong class="d-block text-white text-truncate" style="font-size: 0.95rem;">
+                                    <div class="col-5 d-flex align-items-center justify-content-end gap-1.5 overflow-hidden">
+                                        <strong class="text-white text-truncate" title="${escapeHtml(c.time_casa)}" style="font-size: 0.95rem;">
                                             ${escapeHtml(c.time_casa)}
                                         </strong>
+                                        ${homeLogo}
                                     </div>
                                     <div class="col-2 text-center">
-                                        <span class="badge bg-dark border border-secondary px-2 py-1 fs-6 font-monospace fw-bold text-info">
+                                        <span class="fs-6 font-monospace fw-bold text-info">
                                             ${escapeHtml(c.placar)}
                                         </span>
                                     </div>
-                                    <div class="col-5 text-start">
-                                        <strong class="d-block text-white text-truncate" style="font-size: 0.95rem;">
+                                    <div class="col-5 d-flex align-items-center justify-content-start gap-1.5 overflow-hidden">
+                                        ${awayLogo}
+                                        <strong class="text-white text-truncate" title="${escapeHtml(c.time_fora)}" style="font-size: 0.95rem;">
                                             ${escapeHtml(c.time_fora)}
                                         </strong>
                                     </div>
@@ -848,14 +878,24 @@ document.addEventListener('DOMContentLoaded', function () {
                                     ${escapeHtml(c.detalhe_tatico)}
                                 </span>
                                 
-                                <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1 btn-ver-auditoria" 
-                                        data-fixture-id="${c.fixture_id}" 
-                                        data-aposta-id="${c.aposta_id || 0}"
-                                        data-match-title="${escapeHtml(c.time_casa || '')} x ${escapeHtml(c.time_fora || '')}"
-                                        style="font-size: 0.72rem;">
-                                    <i class="bi bi-clipboard-pulse"></i>
-                                    <span>Auditoria</span>
-                                </button>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a href="<?= base_url('apostas') ?>?fixture_id=${c.fixture_id}#aposta-card-${c.aposta_id || 0}" 
+                                       target="_blank" 
+                                       class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1"
+                                       title="Abrir simulação de aposta em nova aba"
+                                       style="font-size: 0.72rem;">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                        <span>Aposta</span>
+                                    </a>
+                                    <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none d-flex align-items-center gap-1 btn-ver-auditoria" 
+                                            data-fixture-id="${c.fixture_id}" 
+                                            data-aposta-id="${c.aposta_id || 0}"
+                                            data-match-title="${escapeHtml(c.time_casa || '')} x ${escapeHtml(c.time_fora || '')}"
+                                            style="font-size: 0.72rem;">
+                                        <i class="bi bi-clipboard-pulse"></i>
+                                        <span>Auditoria</span>
+                                    </button>
+                                </div>
                             </div>
 
                         </div>

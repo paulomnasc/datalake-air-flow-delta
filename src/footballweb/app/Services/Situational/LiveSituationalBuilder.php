@@ -143,6 +143,9 @@ class LiveSituationalBuilder
         return [
             'aposta_id'          => (int)$row->id,
             'fixture_id'         => (int)($row->fixture_id ?? 0),
+            'home_team_id'       => (int)($row->home_team_id ?? 0),
+            'away_team_id'       => (int)($row->away_team_id ?? 0),
+            'league_id'          => (int)($row->league_id ?? 0),
             'data_hora_jogo_fmt' => $dataHoraJogoFmt,
             'time_casa'          => (string)($row->time_casa ?? 'Mandante'),
             'time_fora'          => (string)($row->time_fora ?? 'Visitante'),

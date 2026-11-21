@@ -5602,7 +5602,7 @@ class ApostaController extends BaseController
         }
 
         $builder = $db->table('apostas a')
-            ->select('a.*, ft.home_team, ft.away_team, ft.league_name, ft.status as fixture_status,
+            ->select('a.*, ft.home_team, ft.away_team, ft.home_team_id, ft.away_team_id, ft.league_id, ft.league_name, ft.status as fixture_status,
                       ft.goals_home, ft.goals_away, ft.elapsed, ft.yellow_cards_home, ft.yellow_cards_away,
                       ft.red_cards_home, ft.red_cards_away, ft.corners_home, ft.corners_away,
                       ft.shots_home, ft.shots_away, ft.xg_home, ft.xg_away, ft.fixture_date')

@@ -254,32 +254,54 @@ def parse_grok_verdict(analise_text: str) -> str:
     if not analise_text:
         return "MANTER_APOSTA"
 
-    text_lower = analise_text.lower()
+    # 1. Procura tag canônica explícita se houver
+    m_tag = re.search(r'VEREDITO_FINAL:\s*\[?(🔴|🟡|🟢)?\s*(CASHOUT_IMEDIATO|MANTER_APOSTA|ATENCAO)', analise_text, re.IGNORECASE)
+    if m_tag:
+        v = m_tag.group(2).upper()
+        if 'CASHOUT' in v:
+            return 'CASHOUT_IMEDIATO'
+        if 'ATENCAO' in v:
+            return 'ATENCAO'
+        return 'MANTER_APOSTA'
 
-    # Isola o bloco do tópico 4 se presente
+    # 2. Isola a linha de recomendação final explícita (ex: Recomendação final: Mantenha a aposta)
+    m_rec = re.search(r'recomend[aã]o\s*final:?\s*([^\n\.\!]+)', analise_text, re.IGNORECASE)
+    if m_rec:
+        rec_str = m_rec.group(1).lower()
+        if any(k in rec_str for k in ['cash', 'hedge', 'encerra', '🔴']):
+            return 'CASHOUT_IMEDIATO'
+        if any(k in rec_str for k in ['manter', 'mantenha', '🟢']):
+            return 'MANTER_APOSTA'
+        if any(k in rec_str for k in ['atenç', 'atenc', '🟡', 'volatilidade']):
+            return 'ATENCAO'
+
+    # 3. Se não achou tag nem linha de recomendação final, analisa a seção 4 isolada
     secao_4 = ""
-    if "4️⃣" in analise_text or "veredito" in text_lower:
+    if "4️⃣" in analise_text or "veredito" in analise_text.lower():
         partes = re.split(r"4️⃣|veredito\s*e\s*gest[ãa]o\s*de\s*banca", analise_text, flags=re.IGNORECASE)
         if len(partes) > 1:
-            secao_4 = partes[1].lower()
+            secao_4 = partes[1]
 
-    target_text = secao_4 if secao_4 else text_lower
+    target_text = secao_4 if secao_4 else analise_text
 
-    # Checa indicação explícita de CASHOUT
-    if "🔴" in target_text or "alerta de cashout" in target_text or "cashout imediato" in target_text:
-        return "CASHOUT_IMEDIATO"
-    elif "🟡" in target_text or "atenção" in target_text or "atencao" in target_text or "volatilidade" in target_text:
-        return "ATENCAO"
-    elif "🟢" in target_text or "manter aposta" in target_text or "manter" in target_text:
-        return "MANTER_APOSTA"
+    # Analisa linha por linha para descartar tabelas de opções ou frases com "não recomendado"
+    linhas = target_text.split('\n')
+    for l in linhas:
+        l_low = l.lower()
+        # Ignora linhas da tabela de opções conceituais ou negativas
+        if any(k in l_low for k in ['não recomendado', 'nao recomendado', 'a menos que', 'caso o mercado']):
+            continue
+        if '| 🔴' in l or '| 🟡' in l or '| 🟢' in l:
+            continue
+        if '🔴' in l or 'alerta de cashout imediato' in l_low or 'cashout imediato' in l_low:
+            return 'CASHOUT_IMEDIATO'
 
-    # Fallback seguro: se não encontrar no bloco 4, checa no texto completo
-    if "alerta de cashout imediato" in text_lower or "🔴 alerta de cashout" in text_lower:
-        return "CASHOUT_IMEDIATO"
-    elif "🟡 atenção" in text_lower:
-        return "ATENCAO"
+    if '🟢' in target_text or 'manter aposta' in target_text.lower() or 'mantenha a aposta' in target_text.lower():
+        return 'MANTER_APOSTA'
+    if '🟡' in target_text or 'atenção' in target_text.lower() or 'atencao' in target_text.lower():
+        return 'ATENCAO'
 
-    return "MANTER_APOSTA"
+    return 'MANTER_APOSTA'
 
 
 def auditar_escalacao_com_grok(
@@ -350,33 +372,56 @@ def auditar_escalacao_com_grok(
                 "is_cashout_recommended": False
             }
 
+        odd_justa = aposta_dict.get("odd_justa")
+        ev_pct = aposta_dict.get("ev_percentual")
+        prob_poisson = aposta_dict.get("probabilidade_poisson")
+        gk_cat = aposta_dict.get("aposta_gatekeeper_category") or aposta_dict.get("gatekeeper_category") or "N/D"
+        odd_h = aposta_dict.get("odd_home")
+        odd_d = aposta_dict.get("odd_draw")
+        odd_a = aposta_dict.get("odd_away")
+
+        ev_str = f"+{float(ev_pct):.1f}%" if ev_pct is not None else "N/D"
+        odd_justa_str = f"{float(odd_justa):.2f}" if odd_justa is not None else "N/D"
+        prob_str = f"{float(prob_poisson):.1f}%" if prob_poisson is not None else "N/D"
+        odds_1x2_str = f"Casa @ {float(odd_h):.2f} | Empate @ {float(odd_d):.2f} | Fora @ {float(odd_a):.2f}" if (odd_h and odd_d and odd_a) else "N/D"
+
         dados_aposta_str = (
+            f"• Partida: {home_team} x {away_team}\n"
             f"• Mercado: {mercado}\n"
-            f"• Palpite/Linha: {palpite}\n"
-            f"• Cotação (Odd): {odd}\n"
-            f"• Casa de Aposta: {casa}\n"
-            f"• Partida: {home_team} x {away_team}"
+            f"• Palpite / Linha Selecionada: {palpite}\n"
+            f"• Cotação Contratada (Odd da Casa): {odd}\n"
+            f"• Cotação Justa do Modelo (Fair Odd): {odd_justa_str}\n"
+            f"• Probabilidade Projetada (Poisson / Gatekeeper): {prob_str}\n"
+            f"• Valor Esperado Inicial (+EV): {ev_str}\n"
+            f"• Categoria do Gatekeeper: {gk_cat}\n"
+            f"• Odds 1X2 Oficiais de Mercado: {odds_1x2_str}\n"
+            f"• Casa de Aposta: {casa}"
         )
 
         system_prompt = (
             "Você é o Grok AI, Analista Tático Oficial e Auditor de Gestão de Risco do FootballWeb.\n"
-            "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado e Odds).\n\n"
+            "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado, Cotações e Valor Esperado +EV).\n\n"
             "Estruture sua resposta estritamente nos seguintes tópicos de forma direta e concisa:\n"
             "1️⃣ Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
             "2️⃣ Goleiro e Espinha Dorsal: se os goleiros titulares e a espinha dorsal (zaga, criação, ataque) estão mantidos.\n"
-            "3️⃣ Análise Crítica da Linha da Aposta (Handicap / Mercado): cruze o poderio dos 11 titulares confirmados com a linha exata da aposta do usuário. Explique com clareza se a escalação confirmada favorece ou destrói a probabilidade da linha (ex: DNB 0.0 AH, linhas negativas -AH ou positivas +AH).\n"
+            "3️⃣ Revisão Crítica da Aposta e do Valor Esperado (+EV):\n"
+            "   - Cruze o poderio dos 11 titulares confirmados e eventuais desfalques com a linha da aposta, a odd contratada e o +EV original.\n"
+            "   - Explique se a escalação confirmada PRESERVA ou AMPLIA a margem de +EV da entrada, ou se, pelo contrário, as ausências derrubaram a probabilidade a ponto de inverter a relação matemática para Valor Esperado Negativo (-EV).\n"
+            "   - Se a probabilidade real de campo despencou por desfalques graves na equipe apoiada, a tese da aposta ruiu e o +EV foi destruído.\n"
             "4️⃣ Veredito e Gestão de Banca (Ação Recomendada):\n"
-            "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida)\n"
-            "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado)\n"
-            "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desequilíbrio grave contra a linha / Risco iminente de perda integral da stake).\n\n"
+            "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida; +EV preservado ou expandido)\n"
+            "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado; margem de +EV estreita)\n"
+            "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desfalques críticos no time da aposta / +EV destruído e transformado em -EV / Risco iminente de perda integral que exige hedge pré-jogo imediato).\n\n"
+            "Ao final do tópico 4, você DEVE OBRIGATORIAMENTE incluir a linha de veredito canônico:\n"
+            "VEREDITO_FINAL: [🟢 MANTER_APOSTA] ou [🟡 ATENCAO] ou [🔴 CASHOUT_IMEDIATO]\n\n"
             "Responda em formato limpo, direto, com formatação rica em markdown, linguagem tática de futebol e foco absoluto na proteção do capital da banca."
         )
 
         user_prompt = (
             f"Título do Alerta: {titulo}\n\n"
-            f"🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO:\n{dados_aposta_str}\n\n"
+            f"🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO E VALOR ESPERADO (+EV):\n{dados_aposta_str}\n\n"
             f"📋 DETALHES DA SÚMULA E ESCALAÇÃO OFICIAL:\n{sumula_texto}\n\n"
-            "Por favor, emita seu diagnóstico tático completo, correlacionando a escalação oficial com a linha da aposta do usuário e fornecendo a recomendação clara de ação (inclusive sobre CASHOUT)."
+            "Por favor, emita seu diagnóstico tático completo, revisando a aposta e a sustentação do Valor Esperado (+EV) diante da escalação confirmada, fornecendo a recomendação clara de ação (inclusive sobre CASHOUT/HEDGE)."
         )
 
         # 3. Dispara a requisição HTTP para a API do Groq

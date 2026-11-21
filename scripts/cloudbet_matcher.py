@@ -348,6 +348,41 @@ class CloudbetMatcher:
                     "min_stake": float(sel.get("minStake") or 0.1),
                     "max_stake": float(sel.get("maxStake") or 0.0)
                 }
+
+        # 5. Which Team Wins the Rest of the Match (In-Play Live 1X2 / DNB Equivalent)
+        parsed["which_team_wins"] = {}
+        rest_market = markets_raw.get("soccer.which_team_wins_the_rest_of_the_match", {})
+        for sub_k, sub_v in rest_market.get("submarkets", {}).items():
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    outcome = sel.get("outcome") # 'home', 'draw', 'away'
+                    if outcome not in parsed["which_team_wins"]:
+                        parsed["which_team_wins"][outcome] = {
+                            "price": float(sel.get("price")),
+                            "market_url": sel.get("marketUrl"),
+                            "min_stake": float(sel.get("minStake") or 0.1),
+                            "max_stake": float(sel.get("maxStake") or 0.0)
+                        }
+
+        # 6. Total Bookings / Cartões (Under / Over)
+        parsed["total_bookings"] = {}
+        tb_market = markets_raw.get("soccer.total_bookings", {})
+        for sub_k, sub_v in tb_market.get("submarkets", {}).items():
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    params = sel.get("params", "")
+                    m_b = re.search(r'total=(\d+(?:\.\d+)?)', params)
+                    if m_b:
+                        t_val = float(m_b.group(1))
+                        outcome = sel.get("outcome") # 'over' ou 'under'
+                        if t_val not in parsed["total_bookings"]:
+                            parsed["total_bookings"][t_val] = {}
+                        parsed["total_bookings"][t_val][outcome] = {
+                            "price": float(sel.get("price")),
+                            "market_url": sel.get("marketUrl"),
+                            "min_stake": float(sel.get("minStake") or 0.1),
+                            "max_stake": float(sel.get("maxStake") or 0.0)
+                        }
                 
         if use_cache:
             self.odds_cache[event_id] = parsed

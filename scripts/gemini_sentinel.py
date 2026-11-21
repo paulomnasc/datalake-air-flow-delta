@@ -717,11 +717,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
     }
 
 
-def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA", force=False):
+def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA", force=False, analise_ia=None):
     """
     Registra alerta no Sininho da interface web (tabela notificacoes_usuario).
     Prevenção de duplicidade: se force=False, não insere se já foi notificado nos últimos 45 minutos.
+    Regra 8: inicialização prévia de variáveis numéricas locais.
     """
+    notif_id = 0
     try:
         if not force:
             cursor.execute("""
@@ -738,12 +740,12 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, 
         link = f"/apostas?fixture_id={fixture_id}"
         cursor.execute("""
             INSERT INTO notificacoes_usuario (
-                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, analise_ia, link, lida, pinada, criado_em
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
+                %s, %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
             )
-        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, link))
-        notif_id = cursor.lastrowid
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, analise_ia, link))
+        notif_id = int(cursor.lastrowid or 0)
         print(f"🔔 [Sininho Alerta Notificado User #{usuario_id}] ID #{notif_id} -> {titulo}")
 
         # Logging transversal automático com vínculo de ID e Data/Hora
@@ -1112,46 +1114,44 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
                 "titulo_alerta": f"📋 Escalação Confirmada [{titulo_tag}]: {h_t} vs {a_t}",
                 "parecer_explicativo": parecer_sumula
             }
-            if alerta_estrutural:
-                return {
-                    "status": "ALERTA_RISCO",
-                    "grau_risco": "ALTO",
-                    "badge_risco": "🔴 Risco Alto",
-                    "tem_alerta": True,
-                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
-                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
-                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
-                }
-            return {
-                "status": None,
-                "grau_risco": "DESCONHECIDO",
-                "badge_risco": "⚪ Indefinido",
-                "tem_alerta": False,
-                "resumo_escalacao": "Auditoria de IA indisponível no momento",
-                "titulo_alerta": "",
-                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
-            }
-            if alerta_estrutural:
-                return {
-                    "status": "ALERTA_RISCO",
-                    "grau_risco": "ALTO",
-                    "badge_risco": "🔴 Risco Alto",
-                    "tem_alerta": True,
-                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
-                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
-                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
-                }
-            return {
-                "status": None,
-                "grau_risco": "DESCONHECIDO",
-                "badge_risco": "⚪ Indefinido",
-                "tem_alerta": False,
-                "resumo_escalacao": "Auditoria de IA indisponível no momento",
-                "titulo_alerta": "",
-                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
-            }
 
         raw_text = raw_text.strip()
+        if not raw_text:
+            # Sem súmula da API e sem inferência de texto externa: avalia soberania do Gatekeeper e dados de mercado
+            if alerta_critico_dados or risco_base_dados == "ALTO":
+                motivos_mkt = "; ".join(aud_dados.get("motivos_risco", [])) if aud_dados.get("motivos_risco") else resumo_aud_dados
+                return {
+                    "status": "ALERTA_RISCO",
+                    "grau_risco": "ALTO",
+                    "badge_risco": "🔴 Risco Alto (Gatekeeper)",
+                    "tem_alerta": True,
+                    "tem_alerta_elenco": False,
+                    "tem_alerta_dados": True,
+                    "escalacao_confirmada": False,
+                    "fonte_escalacao": "NAO_DIVULGADA",
+                    "resumo_escalacao": f"Alerta de Risco no Gatekeeper: {motivos_mkt[:100]}",
+                    "titulo_alerta": f"🔴 Alerta [Risco Alto - Gatekeeper]: {h_t} vs {a_t}",
+                    "parecer_explicativo": (
+                        f"{h_t} x {a_t} [🔴 Risco Alto - Gatekeeper]: ⚠️ Alerta de Gestão de Risco!\n\n"
+                        f"--- AUDITORIA DE MERCADO E GATEKEEPER ---\n"
+                        f"• Diagnóstico: {resumo_aud_dados}\n"
+                        f"• Veredito: 🔴 Desvio Crítico de Mercado / Abstenção decretada pelo Gatekeeper no pré-jogo."
+                    )
+                }
+            return {
+                "status": "EM_OBSERVACAO" if confronto_eq else "CONFIRMADO",
+                "grau_risco": "MEDIO" if confronto_eq else "BAIXO",
+                "badge_risco": "🟡 Aguardando Súmula" if confronto_eq else "🟢 Cotações Estáveis",
+                "tem_alerta": False,
+                "tem_alerta_elenco": False,
+                "tem_alerta_dados": False,
+                "escalacao_confirmada": False,
+                "fonte_escalacao": "NAO_DIVULGADA",
+                "resumo_escalacao": "Aguardando publicação de escalações oficiais",
+                "titulo_alerta": f"📋 Pré-Jogo: {h_t} vs {a_t}",
+                "parecer_explicativo": f"{h_t} x {a_t}: Cotações e mercado estáveis. Súmula oficial ainda não disponibilizada pela federação."
+            }
+
         json_match = re.search(r'(\{.*\})', raw_text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(1))
@@ -1802,9 +1802,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         # 1. Seleciona apostas elegíveis conforme a Fase da esteira
         if specific_aposta_id:
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
                        a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1819,9 +1820,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             cursor.execute(query, (specific_aposta_id,))
         elif specific_fixture_id:
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
                        a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1838,9 +1840,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         elif phase == 1:
             # FASE 1: Antecipação Matinal (Janela de 24h) - Seleciona partidas do dia sem parecer prévio
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
                        a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1862,9 +1865,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         else:
             # FASE 2: Repescagem Pré-Jogo (T-50m a T-15m) e Vigilância de Drift de Mercado
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
                        a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -2034,10 +2038,25 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # Consulta o Gemini com Google Search Grounding (com fallback para Groq + Súmula API-Sports)
             resultado = consultar_gemini_com_grounding(dossie, api_key)
 
-            st = resultado["status"]
+            st = resultado.get("status")
             if st is None:
-                print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
-                continue
+                if tem_alerta_mercado or bloquear_sinal_verde:
+                    st = "ALERTA_RISCO"
+                    resultado["status"] = "ALERTA_RISCO"
+                    resultado["grau_risco"] = "ALTO"
+                    resultado["badge_risco"] = "🔴 Risco Alto (Gatekeeper)"
+                    resultado["tem_alerta"] = True
+                    resultado["resumo_escalacao"] = "🚨 Alerta de Risco: Gatekeeper decretou Abstenção / Mercado Adverso"
+                    resultado["titulo_alerta"] = f"🔴 Alerta [Risco Alto - Gatekeeper]: {home_team} vs {away_team}"
+                    resultado["parecer_explicativo"] = (
+                        f"{home_team} x {away_team} [🔴 Risco Alto - Gatekeeper]: ⚠️ Alerta de Gestão de Risco!\n\n"
+                        f"--- AUDITORIA DE MERCADO E GATEKEEPER ---\n"
+                        f"• Diagnóstico: {motivo_gk}\n"
+                        f"• Veredito: 🔴 Desvio Crítico de Mercado / Abstenção decretada pelo Gatekeeper no pré-jogo."
+                    )
+                else:
+                    print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
+                    continue
             resumo = resultado["resumo_escalacao"]
             parecer = resultado["parecer_explicativo"]
             grau_risco = resultado.get("grau_risco", "ALTO" if st == "ALERTA_RISCO" else "BAIXO")
@@ -2183,14 +2202,79 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             tags=["yellow_circle", "hourglass", "soccer"]
                         )
                 elif tem_escalacao:
-                    # GESTÃO DETERMINÍSTICA DE ESCALAÇÃO OFICIAL VIA ENUM LineupNotificationStatus
+                    # GESTÃO SOBERANA DE ESCALAÇÃO OFICIAL VIA IA E ENUM LineupNotificationStatus
                     if deve_notificar_escalacao:
                         total_alertas += 1
-                        tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA" if (tem_alerta or st == 'ALERTA_RISCO') else "ESCALACAO_CONFIRMADA_FORCA_MAXIMA"
-                        print(f"📋 [ESCALAÇÃO OFICIAL NOTIFICADA VIA ENUM]: {titulo_alerta} (Tipo: {tipo_notif})")
+                        prioridade_push = 4
+                        sumula_txt = (
+                            (sumula_oficial.get('texto_sumula') if isinstance(sumula_oficial, dict) else None)
+                            or parecer
+                            or f"Escalação oficial de {home_team} x {away_team}"
+                        )
+
+                        # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
+                        # Executa ANTES da notificação para que o parecer do Sininho contenha a análise tática real da IA
+                        res_grok = {}
+                        try:
+                            from grok_tactical_auditor import auditar_escalacao_com_grok
+                            res_grok = auditar_escalacao_com_grok(
+                                aposta_dict=item,
+                                sumula_texto=sumula_txt,
+                                titulo=titulo_alerta,
+                                cursor=cursor,
+                                conn=conn
+                            )
+                        except Exception as e_grok:
+                            print(f"⚠️ [Grok Tactical Auditor Erro]: {e_grok}")
+                            res_grok = {"veredito": "MANTER_APOSTA", "is_cashout_recommended": False, "analise_ia": None}
+
+                        is_cashout = bool(res_grok.get("is_cashout_recommended", False))
+                        veredito_grok = res_grok.get("veredito", "MANTER_APOSTA")
+                        analise_ia_txt = res_grok.get("analise_ia")
+
+                        if is_cashout:
+                            tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA_HEDGE"
+                            tag_color = "red_circle"
+                            prioridade_push = 5
+                            titulo_alerta = f"🚨 Alerta de Hedge Pré-Jogo [Desfalques Críticos]: {home_team} vs {away_team}"
+                            if analise_ia_txt:
+                                parecer = (
+                                    f"🚨 [Sinistro Tático Detectado pela IA] {home_team} x {away_team}:\n\n"
+                                    f"--- AUDITORIA TÁTICA DA IA (GROK / GEMINI) ---\n"
+                                    f"{analise_ia_txt}\n\n"
+                                    f"--- SÚMULA OFICIAL ---\n{sumula_txt}"
+                                )
+                            print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático crítico confirmado pelo Grok IA na Aposta #{aposta_id}!")
+                            try:
+                                from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                                executar_hedge_prejogo_cloudbet(
+                                    bet=item,
+                                    motivo_tatica=analise_ia_txt or "Sinistro tático detectado na súmula pelo Grok IA.",
+                                    cursor=cursor,
+                                    conn=conn
+                                )
+                            except Exception as e_hdg:
+                                print(f"⚠️ [Hedge Pré-Jogo Erro]: {e_hdg}")
+                        else:
+                            tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA" if (tem_alerta or st == 'ALERTA_RISCO' or veredito_grok == 'ATENCAO') else "ESCALACAO_CONFIRMADA_FORCA_MAXIMA"
+                            tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else ("yellow_circle" if veredito_grok == "ATENCAO" else "green_circle")
+                            prioridade_push = 5 if recalib.get('alerta_risco') else 4
+                            if analise_ia_txt:
+                                badge_ia = "🟢 Força Máxima" if veredito_grok == "MANTER_APOSTA" else "🟡 Atenção Tática"
+                                titulo_alerta = f"📋 Escalação Confirmada [{badge_ia}]: {home_team} vs {away_team}"
+                                parecer = (
+                                    f"{home_team} x {away_team} [{badge_ia}]: 📋 Escalação Oficial Auditada pela IA!\n\n"
+                                    f"--- PARECER TÁTICO DA IA (GROK / GEMINI) ---\n"
+                                    f"{analise_ia_txt}\n\n"
+                                    f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
+                                    f"{sumula_txt}"
+                                )
+                            print(f"🟢 [Grok IA Arbitrator: {veredito_grok}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
+
+                        print(f"📋 [ESCALAÇÃO OFICIAL NOTIFICADA VIA IA]: {titulo_alerta} (Tipo: {tipo_notif})")
                         alerta_enviado = False
                         for uid in user_ids:
-                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_notif, force=True):
+                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_notif, force=True, analise_ia=analise_ia_txt):
                                 alerta_enviado = True
                         conn.commit()
 
@@ -2203,55 +2287,72 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         conn.commit()
                         novo_notif_escalacao = LineupNotificationStatus.NOTIFICADO.value
 
-                        tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else "green_circle"
                         if alerta_enviado:
                             enviar_push_mobile(
                                 titulo=titulo_alerta,
                                 mensagem=parecer,
                                 fixture_id=fixture_id,
-                                prioridade=5 if recalib.get('alerta_risco') else 4,
+                                prioridade=prioridade_push,
                                 tags=[tag_color, "clipboard", "soccer"]
                             )
-
-                        # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
-                        # Elimina 100% dos falsos positivos: aciona Hedge Pré-Jogo na Cloudbet apenas se o Grok IA recomendar CASHOUT_IMEDIATO.
-                        try:
-                            from grok_tactical_auditor import auditar_escalacao_com_grok
-                            sumula_txt = (
-                                (sumula_oficial.get('texto_sumula') if isinstance(sumula_oficial, dict) else None)
-                                or parecer
-                                or f"Escalação oficial de {home_team} x {away_team}"
-                            )
-                            res_grok = auditar_escalacao_com_grok(
-                                aposta_dict=item,
-                                sumula_texto=sumula_txt,
-                                titulo=titulo_alerta,
-                                cursor=cursor,
-                                conn=conn
-                            )
-                            if res_grok.get("is_cashout_recommended"):
-                                print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático crítico confirmado pelo Grok IA na Aposta #{aposta_id}!")
-                                from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
-                                executar_hedge_prejogo_cloudbet(
-                                    bet=item,
-                                    motivo_tatica=res_grok.get("analise_ia", "Sinistro tático detectado na súmula pelo Grok IA."),
-                                    cursor=cursor,
-                                    conn=conn
-                                )
-                            else:
-                                print(f"🟢 [Grok IA Arbitrator: {res_grok.get('veredito')}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
-                        except Exception as e_grok:
-                            print(f"⚠️ [Grok Tactical Auditor Erro]: {e_grok}")
                     else:
                         print(f"ℹ️ [Sentinela IA] Escalação de #{aposta_id} ({home_team} vs {away_team}) já notificada anteriormente (notificacao_escalacao_enviada=1). Silêncio operacional.")
                 elif tem_alerta or st == 'ALERTA_RISCO':
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
-                    print(f"📝 [Parecer IA]: {parecer}")
-                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+
+                    # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
+                    # Avalia o risco de mercado / Gatekeeper com a profundidade analítica da IA
+                    res_grok = {}
+                    motivo_auditoria = (
+                        f"Diagnóstico de Campo e Mercado: {resumo}\n"
+                        f"Motivo Gatekeeper: {motivo_gk}\n"
+                        f"Cotações 1X2 Oficiais: Mandante @ {item.get('odd_home')} | Empate @ {item.get('odd_draw')} | Visitante @ {item.get('odd_away')}\n"
+                        f"U5J Desempenho Recente: {u5j_summary}"
+                    )
+                    try:
+                        from grok_tactical_auditor import auditar_escalacao_com_grok
+                        res_grok = auditar_escalacao_com_grok(
+                            aposta_dict=item,
+                            sumula_texto=motivo_auditoria,
+                            titulo=titulo_alerta,
+                            cursor=cursor,
+                            conn=conn
+                        )
+                    except Exception as e_grok:
+                        print(f"⚠️ [Grok Alerta Risco Erro]: {e_grok}")
+                        res_grok = {"veredito": "CASHOUT_IMEDIATO", "is_cashout_recommended": True, "analise_ia": None}
+
+                    is_cashout = bool(res_grok.get("is_cashout_recommended", False))
+                    veredito_grok = res_grok.get("veredito", "CASHOUT_IMEDIATO")
+                    analise_ia_txt = res_grok.get("analise_ia")
+                    if analise_ia_txt:
+                        parecer = analise_ia_txt
+
+                    # 🛡️ DISPARO AUTÔNOMO MANDATÓRIO DA APOSTA HEDGE (PROTEÇÃO DA BANCA)
+                    if is_cashout or st == 'ALERTA_RISCO':
+                        print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático / Mercado adverso confirmado na Aposta #{aposta_id}! Acionando Hedge Pré-Jogo Autônomo na Cloudbet...")
+                        tipo_alerta = "ALERTA_RISCO_HEDGE_DISPARADO"
+                        titulo_alerta = f"🛡️ Hedge Autônomo Disparado [Risco Alto]: {home_team} vs {away_team}"
+                        try:
+                            from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                            res_hdg = executar_hedge_prejogo_cloudbet(
+                                bet=item,
+                                motivo_tatica=analise_ia_txt or motivo_gk or "Sinistro tático / Risco alto detectado no pré-jogo.",
+                                cursor=cursor,
+                                conn=conn
+                            )
+                            if res_hdg.get("success"):
+                                parecer = f"🛡️ [Hedge Pré-Jogo Executado com Sucesso! Contra-aposta emitida na Cloudbet]\n\n" + parecer
+                        except Exception as e_hdg:
+                            print(f"⚠️ [Hedge Pré-Jogo Erro]: {e_hdg}")
+                    else:
+                        tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+
+                    print(f"📝 [Parecer IA]: {parecer[:250]}...")
                     alerta_enviado = False
                     for uid in user_ids:
-                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta):
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta, analise_ia=analise_ia_txt):
                             alerta_enviado = True
                     conn.commit()
 
@@ -2262,8 +2363,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
-                            prioridade=5 if recalib.get('alerta_risco') else 4,
-                            tags=[tag_color, "warning", "soccer"]
+                            prioridade=5,
+                            tags=[tag_color, "shield", "soccer"]
                         )
                 else:
                     total_confirmados += 1

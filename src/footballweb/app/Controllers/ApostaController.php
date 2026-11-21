@@ -5261,8 +5261,13 @@ class ApostaController extends BaseController
                 $apostaId = !empty($notif['aposta_id']) ? (int)$notif['aposta_id'] : 0;
                 $fixtureId = !empty($notif['fixture_id']) ? (int)$notif['fixture_id'] : 0;
                 $apostaRow = null;
+                $fixRow = null;
+
                 if ($apostaId > 0) {
                     $apostaRow = $db->table('apostas')->where('id', $apostaId)->get()->getRowArray();
+                    if ($apostaRow && !empty($apostaRow['fixture_id'])) {
+                        $fixtureId = (int)$apostaRow['fixture_id'];
+                    }
                 } elseif ($fixtureId > 0 && !empty($access['user_id'])) {
                     $apostaRow = $db->table('apostas')
                         ->where('fixture_id', $fixtureId)
@@ -5272,11 +5277,31 @@ class ApostaController extends BaseController
                         ->getRowArray();
                 }
 
+                if ($fixtureId > 0) {
+                    $fixRow = $db->table('fixtures_trends')->where('fixture_id', $fixtureId)->get()->getRowArray();
+                }
+
                 if ($apostaRow) {
-                    $dadosApostaStr = "• Mercado: " . ($apostaRow['mercado'] ?? 'N/D') . "\n"
-                                    . "• Palpite/Linha: " . ($apostaRow['palpite'] ?? 'N/D') . "\n"
-                                    . "• Cotação (Odd): " . ($apostaRow['odd'] ?? 'N/D') . "\n"
-                                    . "• Partida: " . ($apostaRow['time_casa'] ?? '') . " x " . ($apostaRow['time_fora'] ?? '');
+                    $evVal = isset($apostaRow['ev_percentual']) && $apostaRow['ev_percentual'] !== null ? '+' . number_format((float)$apostaRow['ev_percentual'], 1) . '%' : 'N/D';
+                    $oddJustaVal = isset($apostaRow['odd_justa']) && $apostaRow['odd_justa'] !== null ? number_format((float)$apostaRow['odd_justa'], 2) : 'N/D';
+                    $probVal = isset($apostaRow['probabilidade_poisson']) && $apostaRow['probabilidade_poisson'] !== null ? number_format((float)$apostaRow['probabilidade_poisson'], 1) . '%' : 'N/D';
+                    $gkCat = $apostaRow['gatekeeper_category'] ?? ($fixRow['gatekeeper_category'] ?? 'N/D');
+
+                    $odds1x2Str = 'N/D';
+                    if (!empty($fixRow['odd_home']) && !empty($fixRow['odd_draw']) && !empty($fixRow['odd_away'])) {
+                        $odds1x2Str = "Casa @ " . number_format((float)$fixRow['odd_home'], 2) . " | Empate @ " . number_format((float)$fixRow['odd_draw'], 2) . " | Fora @ " . number_format((float)$fixRow['odd_away'], 2);
+                    }
+
+                    $dadosApostaStr = "• Partida: " . ($apostaRow['time_casa'] ?? '') . " x " . ($apostaRow['time_fora'] ?? '') . "\n"
+                                    . "• Mercado: " . ($apostaRow['mercado'] ?? 'N/D') . "\n"
+                                    . "• Palpite / Linha Selecionada: " . ($apostaRow['palpite'] ?? 'N/D') . "\n"
+                                    . "• Cotação Contratada (Odd da Casa): " . ($apostaRow['odd'] ?? 'N/D') . "\n"
+                                    . "• Cotação Justa do Modelo (Fair Odd): " . $oddJustaVal . "\n"
+                                    . "• Probabilidade Projetada (Poisson / Gatekeeper): " . $probVal . "\n"
+                                    . "• Valor Esperado Inicial (+EV): " . $evVal . "\n"
+                                    . "• Categoria do Gatekeeper: " . $gkCat . "\n"
+                                    . "• Odds 1X2 Oficiais de Mercado: " . $odds1x2Str . "\n"
+                                    . "• Casa de Aposta: " . ($apostaRow['casa_de_aposta'] ?? 'Cloudbet');
                 }
             }
         }
@@ -5311,23 +5336,28 @@ class ApostaController extends BaseController
         }
 
         $systemPrompt = "Você é o Grok AI, Analista Tático Oficial e Auditor de Gestão de Risco do FootballWeb.\n"
-            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado e Odds).\n\n"
-            . "Estruture sua resposta estritamente nos seguintes tópicos:\n"
+            . "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado, Cotações e Valor Esperado +EV).\n\n"
+            . "Estruture sua resposta estritamente nos seguintes tópicos de forma direta e concisa:\n"
             . "1️⃣ Formação Tática e Titulares: se as equipes estão com força máxima ou se há rodízio/time misto.\n"
             . "2️⃣ Goleiro e Espinha Dorsal: se os goleiros titulares e a espinha dorsal (zaga, criação, ataque) estão mantidos.\n"
-            . "3️⃣ Análise Crítica da Linha da Aposta (Handicap / Mercado): cruze o poderio dos 11 titulares confirmados com a linha exata da aposta do usuário. Explique com clareza se a escalação confirmada favorece ou destrói a probabilidade da linha (ex: DNB 0.0 AH, linhas negativas -AH ou positivas +AH).\n"
+            . "3️⃣ Revisão Crítica da Aposta e do Valor Esperado (+EV):\n"
+            . "   - Cruze o poderio dos 11 titulares confirmados e eventuais desfalques com a linha da aposta, a odd contratada e o +EV original.\n"
+            . "   - Explique se a escalação confirmada PRESERVA ou AMPLIA a margem de +EV da entrada, ou se, pelo contrário, as ausências derrubaram a probabilidade a ponto de inverter a relação matemática para Valor Esperado Negativo (-EV).\n"
+            . "   - Se a probabilidade real de campo despencou por desfalques graves na equipe apoiada, a tese da aposta ruiu e o +EV foi destruído.\n"
             . "4️⃣ Veredito e Gestão de Banca (Ação Recomendada):\n"
-            . "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida)\n"
-            . "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado)\n"
-            . "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desequilíbrio grave contra a linha / Risco iminente de perda integral da stake).\n\n"
+            . "   - 🟢 MANTER APOSTA (Cenário favorável à linha escolhida; +EV preservado ou expandido)\n"
+            . "   - 🟡 ATENÇÃO / VOLATILIDADE (Cenário equilibrado / jogo truncado; margem de +EV estreita)\n"
+            . "   - 🔴 ALERTA DE CASHOUT IMEDIATO (Desfalques críticos no time da aposta / +EV destruído e transformado em -EV / Risco iminente de perda integral que exige hedge pré-jogo imediato).\n\n"
+            . "Ao final do tópico 4, você DEVE OBRIGATORIAMENTE incluir a linha de veredito canônico:\n"
+            . "VEREDITO_FINAL: [🟢 MANTER_APOSTA] ou [🟡 ATENCAO] ou [🔴 CASHOUT_IMEDIATO]\n\n"
             . "Responda em formato limpo, direto, com formatação rica em markdown, linguagem tática de futebol e foco absoluto na proteção do capital da banca.";
 
         $userPrompt = "Título do Alerta: {$titulo}\n\n";
         if (!empty($dadosApostaStr)) {
-            $userPrompt .= "🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO:\n{$dadosApostaStr}\n\n";
+            $userPrompt .= "🎯 DADOS DA APOSTA DO USUÁRIO EM RISCO E VALOR ESPERADO (+EV):\n{$dadosApostaStr}\n\n";
         }
         $userPrompt .= "📋 DETALHES DA SÚMULA E ESCALAÇÃO OFICIAL:\n{$mensagem}\n\n"
-            . "Por favor, emita seu diagnóstico tático completo, correlacionando a escalação oficial com a linha da aposta do usuário e fornecendo a recomendação clara de ação (inclusive sobre CASHOUT).";
+            . "Por favor, emita seu diagnóstico tático completo, revisando a aposta e a sustentação do Valor Esperado (+EV) diante da escalação confirmada, fornecendo a recomendação clara de ação (inclusive sobre CASHOUT/HEDGE).";
 
         try {
             $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
@@ -5635,475 +5665,13 @@ class ApostaController extends BaseController
 
     /**
      * Motor Heurístico do Velocímetro de Risco & Alerta de Cash Out em Tempo Real
+     * Delegado para LiveSituationalBuilder (Design Patterns Builder + Abstract Factory)
      */
     private function calcularIndicadorRiscoLive($row): array
     {
-        $gh = isset($row->goals_home) && $row->goals_home !== null ? (int)$row->goals_home : 0;
-        $ga = isset($row->goals_away) && $row->goals_away !== null ? (int)$row->goals_away : 0;
-        $elapsed = isset($row->elapsed) && $row->elapsed !== null ? (int)$row->elapsed : 0;
-        $status = strtoupper(trim($row->fixture_status ?? 'NS'));
-        $isLive = in_array($status, ['1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED']);
-
-        // Compensação dinâmica contínua para eliminar lag entre ciclos de sincronização (com timezone America/Sao_Paulo)
-        if ($isLive && in_array($status, ['1H', '2H', 'LIVE']) && !empty($row->updated_at)) {
-            $secondsSinceUpdate = time() - strtotime($row->updated_at . ' America/Sao_Paulo');
-            if ($secondsSinceUpdate >= 50 && $secondsSinceUpdate < 300) {
-                $additionalMinutes = (int)floor($secondsSinceUpdate / 60);
-                $cap = ($status === '1H') ? 45 : 90;
-                $elapsed = min($cap, $elapsed + $additionalMinutes);
-            }
-        }
-
-        $mercado = $row->mercado ?? 'Gols Asiáticos';
-        $palpite = $row->palpite ?? '';
-        $odd = (float)($row->odd ?? 1.0);
-        $stake = (float)($row->valor_aposta ?? 0.0);
-        $moeda = $row->moeda_codigo ?? 'USDT';
-        $retorno = round($stake * $odd, 2);
-
-        $ycH = (int)($row->yellow_cards_home ?? 0);
-        $ycA = (int)($row->yellow_cards_away ?? 0);
-        $rcH = (int)($row->red_cards_home ?? 0);
-        $rcA = (int)($row->red_cards_away ?? 0);
-        $totalCards = $ycH + $ycA + (($rcH + $rcA) * 2);
-
-        $cornersH = (int)($row->corners_home ?? 0);
-        $cornersA = (int)($row->corners_away ?? 0);
-
-        // Status visual do jogo
-        $statusLabel = 'Pré-Jogo';
-        $statusBadge = 'bg-secondary';
-        if ($isLive) {
-            if ($status === 'HT') {
-                $statusLabel = 'Intervalo (HT)';
-                $statusBadge = 'bg-warning text-dark';
-            } elseif ($status === '1H') {
-                $statusLabel = "1º Tempo • {$elapsed}'";
-                $statusBadge = 'bg-success';
-            } elseif ($status === '2H') {
-                $statusLabel = "2º Tempo • {$elapsed}'";
-                $statusBadge = 'bg-danger pulse-live';
-            } else {
-                $statusLabel = "Ao Vivo • {$elapsed}'";
-                $statusBadge = 'bg-danger pulse-live';
-            }
-        } elseif (in_array($status, ['FT', 'AET', 'PEN'])) {
-            $statusLabel = 'Encerrado (FT)';
-            $statusBadge = 'bg-dark';
-        }
-
-        // Formatação de Data e Hora da Partida (Convertido de UTC para America/Sao_Paulo)
-        $rawDate = !empty($row->fixture_date) ? $row->fixture_date : ($row->data_hora_jogo ?? null);
-        $dataHoraJogoFmt = 'Data a Definir';
-        if (!empty($rawDate)) {
-            try {
-                $dt = new \DateTime($rawDate, new \DateTimeZone('UTC'));
-                $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
-                $dataHoraJogoFmt = $dt->format('d/m/Y • H:i');
-            } catch (\Exception $e) {
-                $dataHoraJogoFmt = date('d/m/Y • H:i', strtotime($rawDate));
-            }
-        }
-
-        // Variáveis do Velocímetro e Regras de Negócio (Inicialização Obrigatória - Regra 8)
-        $gaugePct = 15;
-        $faixaCor = 'verde';
-        $isCashoutMoment = false;
-        $alertaTitulo = '🟢 Situação Estável';
-        $alertaMsg = 'A partida segue dentro dos parâmetros previstos.';
-        $detalheTatico = 'Monitorando andamento do confronto.';
-        $totalGols = 0;
-        $sobraGols = 0.0;
-        $isLineInteger = false;
-        $diffGols = 0;
-        $sobraCards = 0.0;
-
-        $isOver = (stripos($palpite, 'mais') !== false || stripos($palpite, 'over') !== false);
-        $isGols = (stripos($mercado, 'gol') !== false || stripos($palpite, 'gol') !== false);
-        $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
-        $isHandicap = (stripos($mercado, 'handicap') !== false || stripos($palpite, 'ah') !== false);
-        $isDnbLine = false;
-
-        preg_match('/(\d+(?:\.\d+)?)/', $palpite, $mLine);
-        $lineVal = !empty($mLine[1]) ? (float)$mLine[1] : 2.5;
-
-        if (!$isLive) {
-            $gaugePct = 10;
-            $faixaCor = 'verde';
-            $isCashoutMoment = false;
-            $alertaTitulo = '⏳ Aguardando Início';
-            $alertaMsg = 'Partida ainda não iniciada. Velocímetro em standby de pré-jogo.';
-            $detalheTatico = 'Aposta confirmada aguardando o apito inicial.';
-        } elseif ($isGols) {
-            $totalGols = $gh + $ga;
-            $sobraGols = round($lineVal - $totalGols, 2);
-            $isLineInteger = (fmod($lineVal, 1.0) == 0.0);
-            $detalheTatico = "Placar: {$gh}x{$ga} ({$totalGols} gols) aos {$elapsed}' • Linha: {$lineVal} Gols";
-
-            if (!$isOver) {
-                // MERCADO UNDER GOLS (Risco aumenta com mais gols)
-                if ($status === 'HT' || ($status === '1H' && $elapsed >= 45)) {
-                    $gaugePct = 50;
-                    $faixaCor = 'amarelo';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '⏸️ Intervalo: Aguardando Retorno da Partida';
-                    $alertaMsg = "Fim do 1º Tempo ({$gh}x{$ga}). Mercados em pausa no vestiário. Aguardando apito do 2º tempo para reabertura de liquidez e avaliação de Hedge.";
-                } elseif ($isLineInteger && $totalGols == (int)$lineVal) {
-                    // Linha asiática inteira (ex: 3.0 gols com 3 gols no placar) -> ZONA DE PUSH (REEMBOLSO 100%)
-                    $gaugePct = 50;
-                    $faixaCor = 'amarelo';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟡 Zona de Reembolso (Push Protegido)';
-                    $alertaMsg = "Placar com exatamente {$totalGols} gols aos {$elapsed}'. Linha inteira empatada: aposta 100% reembolsada se o placar mantiver.";
-                } elseif ($totalGols >= ceil($lineVal)) {
-                    // Linha estourada (ex: 3 gols em linha 2.5, ou 4 gols em linha 3.0)
-                    $gaugePct = 100;
-                    $faixaCor = 'vermelho';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🔴 Linha Estourada';
-                    $alertaMsg = "Total de {$totalGols} gols marcados aos {$elapsed}' (limite {$lineVal}). Aposta perdida.";
-                } elseif ($sobraGols <= 1.0) {
-                    // A exatamente 1 gol da linha limite (ex: 2 gols em linha 2.5 ou 2 gols em linha 3.0)
-                    if ($elapsed >= 80) {
-                        // Reta final / acréscimos: tempo escasso para saírem mais gols
-                        $gaugePct = 35;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        if ($isLineInteger) {
-                            $alertaTitulo = '🟢 Reta Final Segura (Colchão de Push)';
-                            $alertaMsg = "Placar de {$totalGols} gols aos {$elapsed}'. Segure até o fim: mesmo se sair 1 gol, a aposta é 100% reembolsada!";
-                        } else {
-                            $alertaTitulo = '🟢 Lucro Iminente (Reta Final)';
-                            $alertaMsg = "Placar de {$totalGols} gols aos {$elapsed}'. Reta final da partida: segure a entrada para embolsar o lucro total!";
-                        }
-                    } elseif ($elapsed <= 45) {
-                        // 2 gols já no 1º tempo! Risco muito alto com 45m pela frente
-                        $gaugePct = 65;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Risco no 1T)';
-                        $alertaMsg = "Já foram marcados {$totalGols} gols no 1º tempo! Segundo tempo aberto. Avalie encerrar para proteger capital!";
-                    } else {
-                        // Entre 46' e 79' com 1 gol de margem
-                        $gaugePct = 60;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Margem Reduzida)';
-                        $alertaMsg = "Partida com {$totalGols} gols aos {$elapsed}'. Linha sob pressão com tempo de sobra. Avalie cashout preventivo!";
-                    }
-                } elseif ($totalGols == 1 && $sobraGols <= 1.5 && $elapsed <= 20) {
-                    // 1 gol precoce apenas se a linha for curta (ex: linha 2.0 ou 2.25)
-                    $gaugePct = 55;
-                    $faixaCor = 'amarelo';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟡 Atenção: Gol Cedo';
-                    $alertaMsg = "Gol prematuro aos {$elapsed}'. Ritmo inicial ofensivo. Acompanhe a dinâmica do confronto.";
-                } elseif ($totalGols == 0) {
-                    // 0 gols: risco diminui conforme os minutos passam
-                    $gaugePct = max(8, round(35 - ($elapsed / 90) * 25));
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Sob Controle';
-                    $alertaMsg = "Placar 0x0 aos {$elapsed}'. Margem de {$lineVal} gols intacta.";
-                } else {
-                    // 1 gol em linha 3.0+ ou folga confortável
-                    $gaugePct = max(20, min(55, round(50 - ($elapsed / 90) * 20)));
-                    $faixaCor = ($gaugePct >= 40) ? 'amarelo' : 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = ($gaugePct >= 40) ? '🟡 Atenção ao Ritmo' : '🟢 Favorável';
-                    $alertaMsg = "{$totalGols} gol(s) marcado(s) aos {$elapsed}'. Restam {$sobraGols} gols de proteção até o apito final.";
-                }
-            } else {
-                // MERCADO OVER GOLS (Risco diminui com mais gols marcados)
-                if ($isLineInteger && $totalGols == (int)$lineVal) {
-                    // Linha asiática inteira empatada (ex: 2 gols em Over 2.0) -> PUSH GARANTIDO (100% REEMBOLSO)
-                    $gaugePct = 15;
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Reembolso Garantido (Push Protegido)';
-                    $alertaMsg = "Total de {$totalGols} gols aos {$elapsed}'. Linha inteira empatada: stake 100% protegida com reembolso se não saírem mais gols!";
-                } elseif (($isLineInteger && $totalGols > (int)$lineVal) || (!$isLineInteger && $totalGols >= ceil($lineVal))) {
-                    // Meta batida com vitória (Green Total: ex: 3 gols em Over 2.0 ou 3 gols em Over 2.5)
-                    $gaugePct = 5;
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Meta Batida (Green Total)';
-                    $alertaMsg = "Já saíram {$totalGols} gols aos {$elapsed}'! Aposta liquidada com vitória!";
-                } elseif ($totalGols == ($isLineInteger ? ((int)$lineVal - 1) : floor($lineVal))) {
-                    // Falta exatamente 1 gol para atingir o Push (linha inteira) ou Green (linha fracionada)
-                    // Exemplo: 1 gol marcado em linha Over 2.0 ou Over 2.5
-                    if ($elapsed <= 45) {
-                        // 1º Tempo (0' a 45'): Início eletrizante/ofensivo! Amplo tempo pela frente
-                        $gaugePct = 20;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟢 Ritmo Ofensivo (Gol Precoce)';
-                        $alertaMsg = "Já saiu {$totalGols} gol aos {$elapsed}'! Ritmo acelerado com amplo tempo restante para buscar a meta.";
-                    } elseif ($elapsed <= 75) {
-                        // Meio do 2º tempo (46' a 75'): A 1 gol do objetivo com tempo de sobra
-                        $gaugePct = 35;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = $isLineInteger ? '🟢 A 1 Gol do Reembolso/Green' : '🟢 A 1 Gol do Green Total';
-                        $alertaMsg = "Partida com {$totalGols} gols aos {$elapsed}'. Falta apenas 1 gol para o green!";
-                    } else {
-                        // Reta final (76'+): tempo escasso, falta 1 gol
-                        $gaugePct = 60;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT';
-                        $alertaMsg = "Reta final de jogo ({$elapsed}'). Falta 1 gol para a meta. Avalie cashout para travar retorno parcial!";
-                    }
-                } elseif ($totalGols == 0) {
-                    // Zero gols marcados
-                    if ($elapsed <= 30) {
-                        // Início do jogo (0' a 30'): Partida ainda no começo, amplo tempo
-                        $gaugePct = 30;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟢 Jogo em Andamento';
-                        $alertaMsg = "Placar 0x0 aos {$elapsed}'. Partida no início com 60+ minutos para produção ofensiva.";
-                    } elseif ($elapsed <= 60) {
-                        // 31' a 60': Ritmo inicial morno
-                        $gaugePct = 50;
-                        $faixaCor = 'amarelo';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟡 Ritmo Moderado (Aguardando Gols)';
-                        $alertaMsg = "Placar 0x0 aos {$elapsed}'. Confronto estudado, aguardando movimentação no placar.";
-                    } else {
-                        // 61'+ sem gols: Seca prolongada, tempo ficando escasso
-                        $gaugePct = 65;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Seca Prolongada)';
-                        $alertaMsg = "Placar 0x0 aos {$elapsed}'. Faltam {$lineVal} gols e o tempo está curto. Avalie encerrar para resgatar capital.";
-                    }
-                } elseif ($elapsed >= 65 && ($lineVal - $totalGols) >= 2) {
-                    // Faltam 2 ou mais gols após os 65'
-                    $gaugePct = 68;
-                    $faixaCor = 'cashout';
-                    $isCashoutMoment = true;
-                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Tempo Escasso)';
-                    $alertaMsg = "Faltam gols e já estamos aos {$elapsed}'. Avalie resgatar o valor antes da perda total.";
-                } else {
-                    // Caso residual seguro
-                    $gaugePct = max(20, min(50, round(50 - ($elapsed / 90) * 20)));
-                    $faixaCor = ($gaugePct >= 40) ? 'amarelo' : 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = ($gaugePct >= 40) ? '🟡 Linha em Disputa' : '🟢 Favorável';
-                    $alertaMsg = "{$totalGols} gols aos {$elapsed}'. Linha Over {$lineVal} em disputa.";
-                }
-            }
-        } elseif ($isCartoes) {
-            $detalheTatico = "Cartões: {$totalCards} (Amarelos: {$ycH}+{$ycA}) aos {$elapsed}' • Linha: {$lineVal}";
-
-            if ($isOver) {
-                // OVER CARTÕES (ex: Mais de 3.5)
-                if ($totalCards >= ceil($lineVal)) {
-                    $gaugePct = 5;
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Meta de Cartões Batida';
-                    $alertaMsg = "{$totalCards} cartões aplicados aos {$elapsed}'! Linha Over {$lineVal} batida!";
-                } elseif ($totalCards == floor($lineVal)) {
-                    if ($elapsed <= 75) {
-                        $gaugePct = 25;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟢 A 1 Cartão do Green';
-                        $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Falta apenas 1 cartão para bater a meta!";
-                    } else {
-                        $gaugePct = 60;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT';
-                        $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Reta final do jogo. Avalie encerrar com lucro!";
-                    }
-                } elseif ($elapsed >= 55 && $totalCards <= 1) {
-                    $gaugePct = 60;
-                    $faixaCor = 'cashout';
-                    $isCashoutMoment = true;
-                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Ritmo Lento)';
-                    $alertaMsg = "Apenas {$totalCards} cartão aos {$elapsed}'. Pouco atrito disciplinar. Avalie cashout no meio do amarelo!";
-                } else {
-                    $gaugePct = 48;
-                    $faixaCor = 'amarelo';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟡 Em Disputa';
-                    $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Confronto aberto.";
-                }
-            } else {
-                // UNDER CARTÕES (ex: Menos de 5.5, Menos de 6.5)
-                $sobraCards = round($lineVal - $totalCards, 1);
-                if ($totalCards >= ceil($lineVal)) {
-                    $gaugePct = 100;
-                    $faixaCor = 'vermelho';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🔴 Limite de Cartões Estourado';
-                    $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Limite de {$lineVal} cartões ultrapassado.";
-                } elseif ($sobraCards <= 0.5) {
-                    // A exatamente 1 cartão da perda
-                    if ($elapsed >= 82) {
-                        $gaugePct = 35;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟢 Segure até o Fim (Reta Final)';
-                        $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Jogo na reta final: deixe o relógio correr para assegurar o Green!";
-                    } else {
-                        $gaugePct = 60;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT';
-                        $alertaMsg = "{$totalCards} cartões aplicados aos {$elapsed}'. A 1 cartão do red! Avalie cashout preventivo!";
-                    }
-                } elseif ($elapsed <= 45 && $totalCards >= ($lineVal * 0.60)) {
-                    // Mais de 60% dos cartões já no 1T
-                    $gaugePct = 62;
-                    $faixaCor = 'cashout';
-                    $isCashoutMoment = true;
-                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (1T Violento)';
-                    $alertaMsg = "{$totalCards} cartões já no 1º tempo aos {$elapsed}' (mais de 60% do limite de {$lineVal}). Clima tenso. Avalie cashout!";
-                } else {
-                    $gaugePct = max(10, round(35 - ($elapsed / 90) * 25));
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Sob Controle';
-                    $alertaMsg = "{$totalCards} cartões aos {$elapsed}'. Restam {$sobraCards} cartões de folga.";
-                }
-            }
-        } elseif ($isHandicap) {
-            // HANDICAP ASIÁTICO
-            $isHomeFav = (stripos($palpite, $row->time_casa ?? 'Home') !== false);
-            $diffGols = $isHomeFav ? ($gh - $ga) : ($ga - $gh);
-            $detalheTatico = "Placar: {$gh}x{$ga} ({$elapsed}') • Saldo: " . ($diffGols > 0 ? "+{$diffGols}" : "{$diffGols}");
-
-            // Identificação de linha 0.0 AH (Empate Anula Aposta / DNB)
-            $isDnbLine = (stripos($palpite, '0.0') !== false || stripos($palpite, 'dnb') !== false || stripos($palpite, 'empate anula') !== false);
-
-            if ($diffGols >= 2) {
-                $gaugePct = 10;
-                $faixaCor = 'verde';
-                $isCashoutMoment = false;
-                $alertaTitulo = '🟢 Vantagem Confortável';
-                $alertaMsg = "Equipe liderando com 2 ou mais gols de folga ({$elapsed}').";
-            } elseif ($diffGols == 1) {
-                if ($elapsed >= 80) {
-                    $gaugePct = 35;
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Lucro Iminente (Reta Final)';
-                    $alertaMsg = "Vencendo por 1 gol aos {$elapsed}'. Segure até o fim para consolidar o Green total!";
-                } else {
-                    $gaugePct = 25;
-                    $faixaCor = 'verde';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🟢 Em Vantagem';
-                    $alertaMsg = "Liderando por 1 gol aos {$elapsed}'. Cenário positivo.";
-                }
-            } elseif ($diffGols == 0) {
-                // Jogo empatado
-                if ($isDnbLine) {
-                    // Na linha 0.0 AH, empate é 100% PUSH (reembolso integral, sem perda financeira)
-                    if ($elapsed >= 80) {
-                        $gaugePct = 35;
-                        $faixaCor = 'verde';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟢 Reembolso Protegido (Push)';
-                        $alertaMsg = "Empate aos {$elapsed}'. Na linha 0.0 AH, sua aposta está 100% protegida com reembolso total se o placar mantiver!";
-                    } else {
-                        $gaugePct = 45;
-                        $faixaCor = 'amarelo';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟡 Empate (Zona de Devolução)';
-                        $alertaMsg = "Partida empatada aos {$elapsed}'. Linha 0.0 AH em zona de devolução/reembolso integral.";
-                    }
-                } else {
-                    // Linhas negativas (-0.25, -0.5): empate gera meio-red ou red
-                    if ($elapsed >= 70) {
-                        $gaugePct = 60;
-                        $faixaCor = 'cashout';
-                        $isCashoutMoment = true;
-                        $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Empate Reta Final)';
-                        $alertaMsg = "Empate aos {$elapsed}'. Para linhas de cobertura negativa, avalie fechar e proteger a banca!";
-                    } else {
-                        $gaugePct = 48;
-                        $faixaCor = 'amarelo';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟡 Jogo Empatado';
-                        $alertaMsg = "Partida empatada aos {$elapsed}'. Equilíbrio total em campo.";
-                    }
-                }
-            } else {
-                // Perdendo (diffGols < 0)
-                if ($diffGols == -1) {
-                    if ($elapsed <= 45) {
-                        // Desvantagem mínima de 1 gol no 1º tempo: jogo aberto, amplo tempo de reação
-                        $gaugePct = 55;
-                        $faixaCor = 'amarelo';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟡 Desvantagem Precoce (Tempo de Reação)';
-                        $alertaMsg = "Desvantagem mínima ({$gh}x{$ga}) aos {$elapsed}'. Primeiro tempo em andamento: ampla margem e tempo no relógio para buscar empate ou virada.";
-                    } elseif ($elapsed <= 75) {
-                        // Meio do 2º tempo (46' a 75')
-                        $gaugePct = 70;
-                        $faixaCor = 'amarelo';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🟡 Buscando Reação';
-                        $alertaMsg = "Desvantagem de 1 gol ({$gh}x{$ga}) aos {$elapsed}'. Equipe pressionando pelo resultado.";
-                    } else {
-                        // Reta final (76'+): tempo escasso, aí sim vira risco crítico
-                        $gaugePct = 88;
-                        $faixaCor = 'vermelho';
-                        $isCashoutMoment = false;
-                        $alertaTitulo = '🔴 Reta Final em Desvantagem';
-                        $alertaMsg = "Desvantagem de 1 gol aos {$elapsed}'. Pouco tempo restante no relógio para reversão.";
-                    }
-                } else {
-                    // Desvantagem de 2 ou mais gols (ex: -2, -3)
-                    $gaugePct = 90;
-                    $faixaCor = 'vermelho';
-                    $isCashoutMoment = false;
-                    $alertaTitulo = '🔴 Em Desvantagem Crítica';
-                    $alertaMsg = "Equipe em desvantagem de 2 ou mais gols no placar ({$gh}x{$ga}) aos {$elapsed}'.";
-                }
-            }
-        }
-
-        // Normalização estrita do Gauge (0 a 100)
-        $gaugePct = max(0, min(100, (int)$gaugePct));
-
-        return [
-            'aposta_id'          => (int)$row->id,
-            'fixture_id'         => (int)$row->fixture_id,
-            'data_hora_jogo_fmt' => $dataHoraJogoFmt,
-            'time_casa'          => $row->time_casa ?? 'Mandante',
-            'time_fora'          => $row->time_fora ?? 'Visitante',
-            'league_name'        => $row->league_name ?? 'Competição',
-            'mercado'            => $mercado,
-            'palpite'            => $palpite,
-            'odd'                => $odd,
-            'valor_aposta'       => $stake,
-            'moeda'              => $moeda,
-            'retorno_potencial'  => $retorno,
-            'placar'             => "{$gh} x {$ga}",
-            'goals_home'         => $gh,
-            'goals_away'         => $ga,
-            'elapsed'            => $elapsed,
-            'fixture_status'     => $status,
-            'status_label'       => $statusLabel,
-            'status_badge'       => $statusBadge,
-            'is_live'            => $isLive,
-            'gauge_pct'          => $gaugePct,
-            'faixa_cor'          => $faixaCor,
-            'is_cashout_moment'  => $isCashoutMoment,
-            'alerta_titulo'      => $alertaTitulo,
-            'alerta_mensagem'    => $alertaMsg,
-            'detalhe_tatico'     => $detalheTatico,
-            'total_cards'        => $totalCards,
-            'corners_total'      => $cornersH + $cornersA,
-            'xg_home'            => (float)($row->xg_home ?? 0.0),
-            'xg_away'            => (float)($row->xg_away ?? 0.0),
-        ];
+        return \App\Services\Situational\LiveSituationalBuilder::create()
+            ->withBetRow($row)
+            ->build();
     }
 }
 

@@ -89,84 +89,205 @@ def fetch_cloudbet_live_football_events() -> list:
         return []
 
 
-def fetch_espn_live_football_events() -> list:
+# Mapeamento de ligas API-Sports -> Slugs ESPN Soccer para Scoreboard Fallback In-Play
+ESPN_LEAGUE_SLUG_MAP = {
+    218: 'aut.1',  # Austrian Bundesliga
+    39: 'eng.1',   # Premier League
+    140: 'esp.1',  # La Liga
+    78: 'ger.1',   # Bundesliga
+    135: 'ita.1',  # Serie A
+    61: 'fra.1',   # Ligue 1
+    88: 'ned.1',   # Eredivisie
+    94: 'por.1',   # Primeira Liga
+    71: 'bra.1',   # Brasileirao Serie A
+    128: 'arg.1',  # Liga Argentina
+    203: 'tur.1',  # Super Lig
+    179: 'sco.1',  # Premiership
+    262: 'mex.1',  # Liga MX
+    253: 'usa.1',  # MLS
+    144: 'bel.1',  # Jupiler Pro League
+    239: 'col.1',  # Primera A Colombia
+    11: 'conmebol.sudamericana',
+    13: 'conmebol.libertadores',
+    2: 'uefa.champions',
+    3: 'uefa.europa',
+    113: 'swe.1',  # Allsvenskan
+    103: 'nor.1',  # Eliteserien
+    345: 'cze.1',  # Czech Liga
+    197: 'gre.1',  # Super League Greece
+    207: 'sui.1',  # Swiss Super League
+}
+
+
+def fetch_espn_event_cards(espn_event_id: str, espn_home_team_id: str = None) -> dict:
     """
-    Captura todos os jogos de futebol ao vivo transmitidos pela API pública da ESPN.
-    Retorna lista normalizada com status ('1H', 'HT', '2H', 'FT'), placar real e minuto decorrido.
+    Captura cartões amarelos e vermelhos em tempo real de uma partida na ESPN (keyEvents).
     Consumo de cota da API-Sports: ZERO. Latência ultra-baixa sem bloqueios Cloudflare.
     """
-    live_events = []
+    yc_h = 0
+    yc_a = 0
+    rc_h = 0
+    rc_a = 0
+    if not espn_event_id:
+        return {"yellow_cards_home": 0, "yellow_cards_away": 0, "red_cards_home": 0, "red_cards_away": 0}
+
     try:
-        today_str = datetime.now(timezone.utc).strftime('%Y%m%d')
-        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/scorepanel?dates={today_str}"
+        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/all/summary?event={espn_event_id}"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json'
         }
-        res = requests.get(url, headers=headers, timeout=8)
+        res = requests.get(url, headers=headers, timeout=6)
         if res.status_code != 200:
-            return []
+            return {"yellow_cards_home": 0, "yellow_cards_away": 0, "red_cards_home": 0, "red_cards_away": 0}
 
         data = res.json()
-        for s in data.get('scores', []):
-            for ev in s.get('events', []):
-                st = ev.get('status', {})
-                st_type = st.get('type', {})
-                st_name = st_type.get('name', '')
-                completed = st_type.get('completed', False)
-                desc = st_type.get('description', '')
+        target_home_id = str(espn_home_team_id) if espn_home_team_id else None
+        if not target_home_id:
+            header = data.get('header', {})
+            comp = header.get('competitions', [{}])[0]
+            for c in comp.get('competitors', []):
+                if c.get('homeAway') == 'home':
+                    target_home_id = str(c.get('id') or c.get('team', {}).get('id') or '')
+                    break
 
-                status_mapped = 'LIVE'
-                if completed or st_name == 'STATUS_FINAL':
-                    status_mapped = 'FT'
-                elif st_name == 'STATUS_HALFTIME' or desc == 'Halftime':
-                    status_mapped = 'HT'
-                elif st_name == 'STATUS_FIRST_HALF':
-                    status_mapped = '1H'
-                elif st_name == 'STATUS_SECOND_HALF':
-                    status_mapped = '2H'
-                elif st_name == 'STATUS_SCHEDULED':
-                    status_mapped = 'NS'
+        for k_ev in data.get('keyEvents', []):
+            ev_type = (k_ev.get('type', {}).get('type') or '').lower()
+            t_id = str(k_ev.get('team', {}).get('id') or '')
+            is_h = (t_id == target_home_id) if target_home_id else True
 
-                elapsed = None
-                clock = st.get('clock')
-                if clock is not None:
-                    elapsed = int(clock // 60)
+            if 'yellow-card' in ev_type:
+                if is_h:
+                    yc_h += 1
+                else:
+                    yc_a += 1
+            elif 'red-card' in ev_type:
+                if is_h:
+                    rc_h += 1
+                else:
+                    rc_a += 1
 
-                h_team, a_team = '', ''
-                gh, ga = None, None
-                for comp in ev.get('competitions', []):
-                    for t in comp.get('competitors', []):
-                        name = t.get('team', {}).get('displayName', '') or t.get('team', {}).get('name', '')
-                        score = t.get('score')
-                        try:
-                            score_int = int(score) if score is not None else None
-                        except (ValueError, TypeError):
-                            score_int = None
-
-                        if t.get('homeAway') == 'home':
-                            h_team = name
-                            gh = score_int
-                        else:
-                            a_team = name
-                            ga = score_int
-
-                if h_team and a_team:
-                    live_events.append({
-                        'home_team': h_team,
-                        'away_team': a_team,
-                        'status': status_mapped,
-                        'goals_home': gh,
-                        'goals_away': ga,
-                        'elapsed': elapsed,
-                        'source': 'ESPN Global Soccer Feed (0 Cota API-Sports)',
-                        'card_lines': [],
-                        'ah_lines': []
-                    })
-        return live_events
+        return {
+            "yellow_cards_home": yc_h,
+            "yellow_cards_away": yc_a,
+            "red_cards_home": rc_h,
+            "red_cards_away": rc_a
+        }
     except Exception as e:
-        print(f"⚠️ [ESPN Live Feed]: Falha ao capturar feed in-play ({e})")
-        return []
+        print(f"⚠️ [ESPN Cards Fallback Erro #{espn_event_id}]: {e}")
+        return {"yellow_cards_home": 0, "yellow_cards_away": 0, "red_cards_home": 0, "red_cards_away": 0}
+
+
+def fetch_espn_live_football_events(active_league_ids: list = None) -> list:
+    """
+    Captura todos os jogos de futebol ao vivo transmitidos pela API pública da ESPN.
+    Retorna lista normalizada com status ('1H', 'HT', '2H', 'FT'), placar real, minuto e metadados.
+    Consumo de cota da API-Sports: ZERO. Latência ultra-baixa sem bloqueios Cloudflare.
+    """
+    live_events = []
+    seen_event_ids = set()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+
+    def _parse_espn_events(raw_events: list, source_label: str):
+        for ev in raw_events:
+            ev_id = str(ev.get('id') or '')
+            if ev_id and ev_id in seen_event_ids:
+                continue
+            if ev_id:
+                seen_event_ids.add(ev_id)
+
+            st = ev.get('status', {})
+            st_type = st.get('type', {})
+            st_name = st_type.get('name', '')
+            completed = st_type.get('completed', False)
+            desc = st_type.get('description', '')
+
+            status_mapped = 'LIVE'
+            if completed or st_name == 'STATUS_FINAL':
+                status_mapped = 'FT'
+            elif st_name == 'STATUS_HALFTIME' or desc == 'Halftime':
+                status_mapped = 'HT'
+            elif st_name == 'STATUS_FIRST_HALF':
+                status_mapped = '1H'
+            elif st_name == 'STATUS_SECOND_HALF':
+                status_mapped = '2H'
+            elif st_name == 'STATUS_SCHEDULED':
+                status_mapped = 'NS'
+
+            elapsed = None
+            clock = st.get('clock')
+            if clock is not None:
+                elapsed = int(clock // 60)
+
+            h_team, a_team = '', ''
+            h_id, a_id = None, None
+            gh, ga = None, None
+            for comp in ev.get('competitions', []):
+                for t in comp.get('competitors', []):
+                    name = t.get('team', {}).get('displayName', '') or t.get('team', {}).get('name', '')
+                    t_id_val = str(t.get('id') or t.get('team', {}).get('id') or '')
+                    score = t.get('score')
+                    try:
+                        score_int = int(score) if score is not None else None
+                    except (ValueError, TypeError):
+                        score_int = None
+
+                    if t.get('homeAway') == 'home':
+                        h_team = name
+                        h_id = t_id_val
+                        gh = score_int
+                    else:
+                        a_team = name
+                        a_id = t_id_val
+                        ga = score_int
+
+            if h_team and a_team:
+                live_events.append({
+                    'home_team': h_team,
+                    'away_team': a_team,
+                    'status': status_mapped,
+                    'goals_home': gh,
+                    'goals_away': ga,
+                    'elapsed': elapsed,
+                    'espn_event_id': ev_id,
+                    'espn_home_team_id': h_id,
+                    'espn_away_team_id': a_id,
+                    'source': source_label,
+                    'card_lines': [],
+                    'ah_lines': []
+                })
+
+    try:
+        today_str = datetime.now(timezone.utc).strftime('%Y%m%d')
+        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/scorepanel?dates={today_str}"
+        res = requests.get(url, headers=headers, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            for s in data.get('scores', []):
+                _parse_espn_events(s.get('events', []), 'ESPN Global Soccer Feed (0 Cota API-Sports)')
+    except Exception as e:
+        print(f"⚠️ [ESPN Live Feed]: Falha ao capturar feed global in-play ({e})")
+
+    # Consulta scoreboards específicos para ligas das partidas ativas não contempladas no scorepanel padrão
+    if active_league_ids:
+        queried_slugs = set()
+        for lid in active_league_ids:
+            slug = ESPN_LEAGUE_SLUG_MAP.get(lid)
+            if slug and slug not in queried_slugs:
+                queried_slugs.add(slug)
+                try:
+                    s_url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard"
+                    s_res = requests.get(s_url, headers=headers, timeout=6)
+                    if s_res.status_code == 200:
+                        s_data = s_res.json()
+                        _parse_espn_events(s_data.get('events', []), f'ESPN Scoreboard {slug} (0 Cota API-Sports)')
+                except Exception as e_slug:
+                    print(f"⚠️ [ESPN Scoreboard {slug}]: Falha ao consultar ({e_slug})")
+
+    return live_events
 
 
 def get_target_user_ids(cursor):
@@ -554,8 +675,9 @@ def main():
     print(f"📋 Partidas no banco na janela in-play: {len(db_fixtures)}")
 
     # 2. Captura feeds ao vivo oficiais de CUSTO ZERO (Tier 1: ESPN | Tier 2: Cloudbet | Tier 3: Betano)
-    print("📡 Consultando feed ao vivo de placares da ESPN (Custo Zero de API-Sports)...")
-    espn_events = fetch_espn_live_football_events()
+    print("📡 Consultando feed ao vivo de placares e cartões da ESPN (Custo Zero de API-Sports)...")
+    active_league_ids = list({f.get('league_id') for f in db_fixtures if f.get('league_id')})
+    espn_events = fetch_espn_live_football_events(active_league_ids=active_league_ids)
     print(f"✅ Jogos ao vivo recebidos da ESPN: {len(espn_events)}")
 
     print("📡 Consultando feed ao vivo in-play da Cloudbet (Custo Zero de API-Sports)...")
@@ -707,17 +829,34 @@ def main():
         elif old_status in ('1H', '2H', 'HT', 'LIVE') and live_status in ('FT', 'FINISHED'):
             log_match_milestone(cursor, fid, 'FIM_DE_JOGO', placar=placar_str, minuto=elapsed or 90)
 
+        # Captura cartões (API-Sports ou Fallback ESPN)
+        yc_h = matched_ev.get('yellow_cards_home')
+        yc_a = matched_ev.get('yellow_cards_away')
+        rc_h = matched_ev.get('red_cards_home')
+        rc_a = matched_ev.get('red_cards_away')
+
+        if (yc_h is None or yc_a is None) and matched_ev.get('espn_event_id'):
+            cards_espn = fetch_espn_event_cards(matched_ev.get('espn_event_id'), matched_ev.get('espn_home_team_id'))
+            yc_h = cards_espn.get('yellow_cards_home', 0)
+            yc_a = cards_espn.get('yellow_cards_away', 0)
+            rc_h = cards_espn.get('red_cards_home', 0)
+            rc_a = cards_espn.get('red_cards_away', 0)
+
         if live_status in ('FT', 'FINISHED'):
             cursor.execute("""
                 UPDATE fixtures_trends SET
                     status = 'FT',
                     goals_home = %s,
                     goals_away = %s,
+                    yellow_cards_home = IF(%s IS NOT NULL, GREATEST(COALESCE(yellow_cards_home, 0), %s), yellow_cards_home),
+                    yellow_cards_away = IF(%s IS NOT NULL, GREATEST(COALESCE(yellow_cards_away, 0), %s), yellow_cards_away),
+                    red_cards_home = IF(%s IS NOT NULL, GREATEST(COALESCE(red_cards_home, 0), %s), red_cards_home),
+                    red_cards_away = IF(%s IS NOT NULL, GREATEST(COALESCE(red_cards_away, 0), %s), red_cards_away),
                     elapsed = %s,
                     score_processed_at = COALESCE(score_processed_at, NOW()),
                     updated_at = NOW()
                 WHERE fixture_id = %s
-            """, (gh, ga, elapsed or 90, fid))
+            """, (gh, ga, yc_h, yc_h, yc_a, yc_a, rc_h, rc_h, rc_a, rc_a, elapsed or 90, fid))
             conn.commit()
             try:
                 from processar_apostas_encerradas import processar_apostas_fixture
@@ -730,10 +869,14 @@ def main():
                     status = %s,
                     goals_home = %s,
                     goals_away = %s,
+                    yellow_cards_home = IF(%s IS NOT NULL, GREATEST(COALESCE(yellow_cards_home, 0), %s), yellow_cards_home),
+                    yellow_cards_away = IF(%s IS NOT NULL, GREATEST(COALESCE(yellow_cards_away, 0), %s), yellow_cards_away),
+                    red_cards_home = IF(%s IS NOT NULL, GREATEST(COALESCE(red_cards_home, 0), %s), red_cards_home),
+                    red_cards_away = IF(%s IS NOT NULL, GREATEST(COALESCE(red_cards_away, 0), %s), red_cards_away),
                     elapsed = %s,
                     updated_at = NOW()
                 WHERE fixture_id = %s
-            """, (live_status, gh, ga, elapsed, fid))
+            """, (live_status, gh, ga, yc_h, yc_h, yc_a, yc_a, rc_h, rc_h, rc_a, rc_a, elapsed, fid))
         jogos_atualizados += 1
         print(f"🟢 [Live Sync Feed] #{fid} {h_team} {gh}x{ga} {a_team} ({live_status} - {elapsed}') [{matched_ev.get('source')}]")
 

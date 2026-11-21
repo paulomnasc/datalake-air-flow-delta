@@ -513,14 +513,83 @@ def format_bookmaker_name(raw_name: str) -> str:
     return n.capitalize() if n.isupper() else n
 
 
-def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
+def fetch_all_cloudbet_ah_lines(home_team: str, away_team: str, fixture_date=None) -> list:
     """
-    Busca TODAS as linhas ativas de Handicap Asiático (Bet ID 4) e Draw No Bet (Bet ID 2/16)
-    oferecidas no mercado esportivo para a fixture, implementando o protocolo Multi-Bookmaker
-    (Best Odds Execution):
-    - Audita todas as casas retornadas pela API oficial (Betano, Pinnacle, Bet365, Betfair, 1xBet, Bwin).
-    - Para cada linha/seleção, elege soberanamente a MAIOR cotação real de mercado.
-    - Em caso de empate de odds, prioriza Betano como bookmaker canônica.
+    Prioridade 1: Busca linhas ativas de Handicap Asiático (FT) na Cloudbet (Bookmaker Cripto / USDT).
+    Consome CloudbetMatcher com filtro estrito de SELECTION_ENABLED e cotação real (> 1.0).
+    """
+    if not home_team or not away_team:
+        return []
+    try:
+        try:
+            from cloudbet_matcher import CloudbetMatcher
+        except ImportError:
+            from scripts.cloudbet_matcher import CloudbetMatcher
+
+        matcher = CloudbetMatcher()
+        matched = matcher.find_matching_event(home_team, away_team, fixture_date=fixture_date)
+        if not matched or not matched.get('id'):
+            return []
+
+        raw_odds = matcher.client.get_event_odds(matched['id'])
+        if not isinstance(raw_odds, dict):
+            return []
+
+        markets_raw = raw_odds.get('markets', {})
+        ah_market = markets_raw.get('soccer.asian_handicap', {})
+        selections = ah_market.get('submarkets', {}).get('period=ft', {}) if isinstance(ah_market, dict) else {}
+        sel_list = selections.get('selections', []) if isinstance(selections, dict) else []
+
+        cloudbet_lines = []
+        for sel in sel_list:
+            if sel.get('status') != 'SELECTION_ENABLED':
+                continue
+            try:
+                price = float(sel.get('price') or 0.0)
+            except (ValueError, TypeError):
+                price = 0.0
+            if price <= 1.0:
+                continue
+
+            params = str(sel.get('params') or '')
+            m = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', params)
+            if not m:
+                continue
+            line_val = float(m.group(1))
+            outcome = str(sel.get('outcome') or '').lower()
+            is_away = (outcome == 'away')
+            target_team = away_team if is_away else home_team
+            sign_str = f"+{line_val:g}" if line_val > 0 else (f"{line_val:g}" if line_val < 0 else "0.0")
+            palpite_fmt = f"{target_team} {sign_str} AH"
+
+            cloudbet_lines.append({
+                'team': 'Away' if is_away else 'Home',
+                'target_team': target_team,
+                'is_away': is_away,
+                'line': line_val,
+                'palpite_str': palpite_fmt,
+                'odd': price,
+                'raw_value': params,
+                'source': 'Cloudbet',
+                'bookmaker': 'Cloudbet',
+                'market_url': sel.get('marketUrl'),
+                'cloudbet_event_id': matched['id']
+            })
+
+        if cloudbet_lines:
+            print(f"🎯 [Cloudbet Multi-Bookmaker] {len(cloudbet_lines)} linhas ativas de AH obtidas para {home_team} x {away_team}")
+        return cloudbet_lines
+    except Exception as e_cb:
+        print(f"⚠️ [Cloudbet AH Fetch] Exceção ao consultar Cloudbet para {home_team} x {away_team}: {e_cb}")
+        return []
+
+
+def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str, fixture_date=None):
+    """
+    Protocolo Multi-Bookmaker em Cascata (Best Odds & Execution Real):
+    1. Prioridade 1: Cloudbet (Bookmaker Canônica em Cripto / USDT);
+    2. Prioridade 2: Betano Direto (Tempo Real / Zero Lag);
+    3. Prioridade 3: API-Sports (Contingência Multi-Bookmaker).
     """
     global _betano_ah_api_disabled
     if not fixture_id or _betano_ah_api_disabled:
@@ -529,8 +598,14 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
     if fixture_id in _betano_ah_odds_cache:
         return _betano_ah_odds_cache[fixture_id]
 
+    # Prioridade 1: Consulta Direta na Cloudbet
+    cloudbet_lines = fetch_all_cloudbet_ah_lines(home_team, away_team, fixture_date)
+    if cloudbet_lines:
+        _betano_ah_odds_cache[fixture_id] = cloudbet_lines
+        return cloudbet_lines
+
     betano_direct_lines = []
-    # Prioridade 1: Consulta Direta na API Pública da Betano (Zero Lag / Tempo Real)
+    # Prioridade 2: Consulta Direta na API Pública da Betano (Zero Lag / Tempo Real)
     if home_team and away_team:
         try:
             try:
@@ -1929,10 +2004,10 @@ def calculate_unified_handicap_recommendation(
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
             print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}", file=sys.stderr)
 
-    # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
+    # 3. Obtenção de linhas ativas na Cloudbet / Betano / API-Sports:
     if betano_lines is None:
         if allow_api_fetch and fixture_id:
-            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team, fixture_date=fixture_dict.get('fixture_date'))
         else:
             betano_lines = []
 
@@ -2428,7 +2503,8 @@ def calculate_unified_handicap_recommendation(
         if betano_lines:
             audit_items, _ = audit_ah_lines_reasons(betano_lines, 'NO_BET', sug, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
             if audit_items:
-                audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+                bm_label = (betano_lines[0].get('source') if betano_lines and isinstance(betano_lines, list) else 'Betano')
+                audit_bullet = f"• 📋 Linhas de Handicap Asiático Auditadas ({bm_label}):\n" + "\n".join(f"  {it}" for it in audit_items)
                 compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
         return 'NO_BET', sug, conf, compound_r, None, []
 
@@ -2480,7 +2556,8 @@ def calculate_unified_handicap_recommendation(
     if betano_lines:
         audit_items, _ = audit_ah_lines_reasons(betano_lines, 'APROVADO', selected_palpite, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
         if audit_items:
-            audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+            bm_label = (betano_lines[0].get('source') if betano_lines and isinstance(betano_lines, list) else 'Betano')
+            audit_bullet = f"• 📋 Linhas de Handicap Asiático Auditadas ({bm_label}):\n" + "\n".join(f"  {it}" for it in audit_items)
             compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
 
     # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)

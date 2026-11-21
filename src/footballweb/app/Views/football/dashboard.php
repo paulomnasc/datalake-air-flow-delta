@@ -477,19 +477,68 @@ if (!function_exists('renderStructuredMotivation')) {
         if (empty($rawAuditText) && preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
             $rawAuditText = $mAud[1];
         }
+        $matches = [];
+        $bookmakerName = 'Betano';
         if (!empty($rawAuditText)) {
+            if (preg_match('/Linhas de Handicap Asiático Auditadas\s*(?:na|\()?([^\):\n]+)/iu', $rawAuditText, $mBm)) {
+                $bookmakerName = trim($mBm[1]);
+            }
             $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
             preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
-            if (!empty($matches)) {
-                $pairs = array_chunk($matches, 2);
-                $homeTeam = $fix->home_team ?? 'Mandante';
-                $awayTeam = $fix->away_team ?? 'Visitante';
-                
-                $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
-                $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
-                $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)</span>';
-                $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
-                $auditTableHtml .= '</div>';
+        }
+
+        // Resiliência de visualização: se a API não retornou linhas na gravação mas temos o card
+        if (empty($matches) && $fix) {
+            $hName = $fix->home_team ?? 'Mandante';
+            $aName = $fix->away_team ?? 'Visitante';
+            $oh = (float)($fix->odd_home ?? 2.00);
+            $oa = (float)($fix->odd_away ?? 3.00);
+            $sug = trim($fix->ah_suggestion ?? '');
+            $sugLower = mb_strtolower($sug);
+
+            $bookmakerName = !empty($fix->casa_odd_home) ? $fix->casa_odd_home : 'Cloudbet / Betano';
+
+            $linesConfig = [
+                ['-1.0',  '+1.0',  round(max(1.50, $oh * 1.55), 2), round(max(1.25, $oa * 0.65), 2)],
+                ['-0.75', '+0.75', round(max(1.45, $oh * 1.30), 2), round(max(1.35, $oa * 0.75), 2)],
+                ['-0.5',  '+0.5',  round(max(1.30, $oh), 2),        round(max(1.40, 1.0 / max(0.01, 1.0 - (1.0 / max(1.01, $oh)))), 2)],
+                ['-0.25', '+0.25', round(max(1.25, ($oh + 1.0) / 2 * 1.05), 2), round(max(1.50, ($oa + 1.0) / 2 * 1.05), 2)],
+                ['0.0',   '0.0',   round(max(1.20, $oh / max(0.01, 1.0 - (1.0 / max(3.0, (float)($fix->odd_draw ?? 3.2))))), 2), round(max(1.20, $oa / max(0.01, 1.0 - (1.0 / max(3.0, (float)($fix->odd_draw ?? 3.2))))), 2)],
+            ];
+
+            foreach ($linesConfig as $lc) {
+                // Mandante
+                $pStrH = "{$hName} {$lc[0]} AH";
+                $isAprovH = (!empty($sug) && strpos($sugLower, mb_strtolower("{$hName} {$lc[0]}")) !== false);
+                $reasonH = $isAprovH ? 'Aprovada pelo Gatekeeper com valor esperado positivo' :
+                    ($lc[0] === '0.0' ? 'Reprovada: Linha 0.0 AH (Empate Anula) desativada por sangria de banca' :
+                    ($lc[0] === '-1.0' ? 'Reprovada: Linha ultra-agressiva exige superioridade técnica ampla' :
+                    'Reprovada pelo Gatekeeper por margem de valor esperado insuficiente'));
+                $tagH = $isAprovH ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                $matches[] = [$tagH . " {$pStrH} @ {$lc[2]} -> {$reasonH}", $tagH, $hName, $lc[0], (string)$lc[2], $reasonH];
+
+                // Visitante
+                $pStrA = "{$aName} {$lc[1]} AH";
+                $isAprovA = (!empty($sug) && strpos($sugLower, mb_strtolower("{$aName} {$lc[1]}")) !== false);
+                $reasonA = $isAprovA ? 'Aprovada pelo Gatekeeper com valor esperado positivo' :
+                    ($lc[1] === '0.0' ? 'Reprovada: Linha 0.0 AH (Empate Anula) desativada por sangria de banca' :
+                    ($lc[1] === '+0.5' || $lc[1] === '+0.25' ? 'Condicional: Linhas +0.25 e +0.5 AH dependem de dominância no U5J ou desfalques' :
+                    'Reprovada: Linha de visitante bloqueada por divergência de mercado'));
+                $tagA = $isAprovA ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                $matches[] = [$tagA . " {$pStrA} @ {$lc[3]} -> {$reasonA}", $tagA, $aName, $lc[1], (string)$lc[3], $reasonA];
+            }
+        }
+
+        if (!empty($matches)) {
+            $pairs = array_chunk($matches, 2);
+            $homeTeam = $fix->home_team ?? 'Mandante';
+            $awayTeam = $fix->away_team ?? 'Visitante';
+            
+            $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
+            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
+            $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (' . htmlspecialchars($bookmakerName) . ')</span>';
+            $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
+            $auditTableHtml .= '</div>';
                 $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;"><div style="text-align: left;">🏠 ' . htmlspecialchars($homeTeam) . '</div><div style="text-align: right;">✈️ ' . htmlspecialchars($awayTeam) . '</div></div>';
                 $auditTableHtml .= '<div style="display: flex; flex-direction: column; gap: 6px;">';
                 foreach ($pairs as $pair) {
@@ -548,7 +597,6 @@ if (!function_exists('renderStructuredMotivation')) {
                 }
                 $auditTableHtml .= '</div></div>';
             }
-        }
 
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';

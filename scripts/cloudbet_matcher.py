@@ -276,7 +276,8 @@ class CloudbetMatcher:
             "status": odds_raw.get("status"),
             "asian_handicap": {},
             "total_goals": {},
-            "match_odds": {}
+            "match_odds": {},
+            "draw_no_bet": {}
         }
         
         # 1. Handicap Asiático (FT)
@@ -329,6 +330,19 @@ class CloudbetMatcher:
             if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
                 outcome = sel.get("outcome") # 'home', 'draw', 'away'
                 parsed["match_odds"][outcome] = {
+                    "price": float(sel.get("price")),
+                    "market_url": sel.get("marketUrl"),
+                    "min_stake": float(sel.get("minStake") or 0.1),
+                    "max_stake": float(sel.get("maxStake") or 0.0)
+                }
+
+        # 4. Draw No Bet (Empate Anula FT)
+        dnb_market = markets_raw.get("soccer.draw_no_bet", {})
+        dnb_sub = dnb_market.get("submarkets", {}).get("period=ft", {})
+        for sel in dnb_sub.get("selections", []):
+            if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                outcome = sel.get("outcome") # 'home', 'away'
+                parsed["draw_no_bet"][outcome] = {
                     "price": float(sel.get("price")),
                     "market_url": sel.get("marketUrl"),
                     "min_stake": float(sel.get("minStake") or 0.1),

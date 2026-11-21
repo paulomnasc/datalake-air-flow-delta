@@ -533,23 +533,40 @@ def find_cloudbet_opposite_market_and_quote(
                 opp_hcap = -hcap_val
 
                 ah_dict = cb_markets.get("asian_handicap", {})
+                dnb_dict = cb_markets.get("draw_no_bet", {})
                 sel_cand = None
-                # Prioridade 1: Linha espelho exata (-opp_hcap)
-                if opp_hcap in ah_dict and opp_outcome in ah_dict[opp_hcap]:
-                    sel_cand = ah_dict[opp_hcap][opp_outcome]
-                # Prioridade 2: Linha neutra 0.0 DNB
-                elif 0.0 in ah_dict and opp_outcome in ah_dict[0.0]:
-                    sel_cand = ah_dict[0.0][opp_outcome]
+
+                # Prioridade 0: Se aposta for 0.0 DNB, verifica mercado dedicado soccer.draw_no_bet
+                if (abs(hcap_val) < 0.01 or "0.0" in palpite) and dnb_dict and opp_outcome in dnb_dict:
+                    sel_cand = dnb_dict[opp_outcome]
                     opp_hcap = 0.0
-                # Prioridade 3: Linha ativa mais equilibrada (odds mais próximas de 1.90 / maior liquidez)
-                elif ah_dict:
+
+                # Prioridade 1: Linha espelho exata (-opp_hcap ou linha correspondente indexada)
+                if not sel_cand and ah_dict:
+                    for test_h in [opp_hcap, hcap_val]:
+                        if test_h in ah_dict and opp_outcome in ah_dict[test_h]:
+                            sel_cand = ah_dict[test_h][opp_outcome]
+                            opp_hcap = test_h
+                            break
+
+                # Prioridade 2: Linha neutra 0.0 DNB no Draw No Bet ou Asian Handicap
+                if not sel_cand:
+                    if dnb_dict and opp_outcome in dnb_dict:
+                        sel_cand = dnb_dict[opp_outcome]
+                        opp_hcap = 0.0
+                    elif 0.0 in ah_dict and opp_outcome in ah_dict[0.0]:
+                        sel_cand = ah_dict[0.0][opp_outcome]
+                        opp_hcap = 0.0
+
+                # Prioridade 3: Linha ativa in-play mais equilibrada (odds >= 1.15)
+                if not sel_cand and ah_dict:
                     best_diff = 999.0
                     for h_k, h_v in ah_dict.items():
                         if opp_outcome in h_v:
                             cand = h_v[opp_outcome]
                             cand_price = cand.get("price", 0.0)
-                            diff = abs(cand_price - 1.90)
-                            if diff < best_diff and cand_price > 1.05:
+                            diff = abs(cand_price - 1.85)
+                            if diff < best_diff and cand_price >= 1.15:
                                 best_diff = diff
                                 sel_cand = cand
                                 opp_hcap = h_k
@@ -573,15 +590,15 @@ def find_cloudbet_opposite_market_and_quote(
                 # Prioridade 1: Linha exata do total original
                 if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
                     sel_cand = tg_dict[tot_val][opp_tot_outcome]
-                # Prioridade 2: Linha ativa mais equilibrada (odds próximas de 1.90)
+                # Prioridade 2: Linha ativa in-play mais equilibrada e líquida (odds >= 1.15)
                 elif tg_dict:
                     best_diff = 999.0
                     for t_k, t_v in tg_dict.items():
                         if opp_tot_outcome in t_v:
                             cand = t_v[opp_tot_outcome]
                             cand_price = cand.get("price", 0.0)
-                            diff = abs(cand_price - 1.90)
-                            if diff < best_diff and cand_price > 1.05:
+                            diff = abs(cand_price - 1.80)
+                            if diff < best_diff and cand_price >= 1.15:
                                 best_diff = diff
                                 sel_cand = cand
                                 tot_val = t_k
@@ -984,6 +1001,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         FROM apostas a
         INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
         WHERE a.status = 'Pendente'
+          AND (a.tipo IS NULL OR a.tipo != 'Hedge Real')
+          AND (a.resultado_detalhado IS NULL OR (a.resultado_detalhado NOT LIKE '%HEDGE_COBERTO_POR%' AND a.resultado_detalhado NOT LIKE '%HEDGE_EXECUTADO%'))
           AND a.casa_de_aposta IN ('Cloudbet', 'Betano', 'Stake', 'Pinnacle', '1xBet')
           AND ft.status IN ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED')
         ORDER BY ft.elapsed DESC
@@ -1017,6 +1036,13 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         cur = bet.get('moeda_codigo') or client.currency
 
         print(f"\n📊 Analisando Aposta #{aposta_id} [{casa_nome}]: {home} {gh}x{ga} {away} ({elapsed}') | Palpite: {palpite}")
+
+        # Se a aposta já possui cobertura ativa ou é ordem de hedge, pula imediatamente
+        res_det = str(bet.get('resultado_detalhado') or '')
+        tipo_aposta = str(bet.get('tipo') or '')
+        if "HEDGE_COBERTO_POR" in res_det or "HEDGE_EXECUTADO" in res_det or tipo_aposta == 'Hedge Real':
+            print(f"   🛡️ Aposta #{aposta_id} já possui hedge/cobertura ativa executada. Posição travada.")
+            continue
 
         # Se a partida estiver a partir dos 35' OU com 1+ gol OU mercado de Cartões/Escanteios, busca/atualiza in-play stats
         total_gols_live = (int(gh or 0) + int(ga or 0))
@@ -1152,12 +1178,20 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 try:
                     from lifecycle_logger import log_lifecycle_event
                     fase_calc = '2H' if elapsed > 45 else '1H'
-                    tipo_ev = 'HEDGE_ABORTADO_SEM_LIQUIDEZ' if not last_log else 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ'
-                    motivo_log = (
-                        f"{gray_prefix}Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Mercado oposto não localizado ou sem liquidez na Cloudbet. Avalie encerramento manual na Cloudbet."
-                        if not last_log else
-                        f"{gray_prefix}Retentativa de Hedge Ao Vivo: Consultando liquidez na Cloudbet aos {elapsed}' ({gh}x{ga})... Mercado suspenso pela bookmaker. Retentando no próximo minuto."
-                    )
+                    if event_id and not opposite_market_url:
+                        tipo_ev = 'HEDGE_AGUARDANDO_REABERTURA' if not last_log else 'HEDGE_RETENTATIVA_MERCADO_SUSPENSO'
+                        motivo_log = (
+                            f"{gray_prefix}Evento localizado na Cloudbet (ID {event_id}), mas seleções temporariamente suspensas aos {elapsed}' ({gh}x{ga}). Aguardando normalização do lance."
+                            if not last_log else
+                            f"{gray_prefix}Retentativa de Hedge Ao Vivo: Evento na Cloudbet (ID {event_id}) com mercado temporariamente suspenso aos {elapsed}' ({gh}x{ga}). Retentando no próximo minuto."
+                        )
+                    else:
+                        tipo_ev = 'HEDGE_ABORTADO_SEM_LIQUIDEZ' if not last_log else 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ'
+                        motivo_log = (
+                            f"{gray_prefix}Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Evento não localizado no catálogo in-play da Cloudbet. Avalie encerramento manual."
+                            if not last_log else
+                            f"{gray_prefix}Retentativa de Hedge Ao Vivo: Consultando liquidez na Cloudbet aos {elapsed}' ({gh}x{ga})... Evento sem cobertura in-play."
+                        )
                     log_lifecycle_event(
                         cursor=cursor,
                         fixture_id=f_id,

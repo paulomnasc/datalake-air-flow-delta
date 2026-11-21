@@ -879,7 +879,7 @@ def evaluate_and_select_best_ah_candidate(
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
     - Score de Valor = EV% * (Prob / 100.0)
     """
-    standard_allowed_lines = set()  # Linha 0.0 AH / DNB desativada permanentemente por ineficiência matemática e sangria de banca
+    standard_allowed_lines = {0.0}  # Linha 0.0 AH / DNB liberada com proteção de devolução no empate
     moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
@@ -1062,14 +1062,6 @@ def evaluate_and_select_best_ah_candidate(
 
         # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -1.0 AH
         if c_line < -1.0:
-            continue
-
-        # =========================================================================
-        # REGRA MANDATÓRIA: BLOQUEIO TOTAL DA LINHA 0.0 AH (DNB - EMPATE ANULA APOSTA)
-        # Comprovado empiricamente em 295 apostas que a linha 0.0 AH drena a banca
-        # e dilui os lucros maciços das linhas -0.5 AH (75% win rate) e -0.25 AH (+144.45 USDT).
-        # =========================================================================
-        if c_line == 0.0:
             continue
 
         # =========================================================================
@@ -3449,7 +3441,7 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         elif c_line < -1.0:
             motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é estritamente proibida pelo teto universal de segurança da banca"
         elif c_line == 0.0:
-            motivo = "Reprovada: Linha 0.0 AH (Empate Anula) permanentemente desativada por ineficiência matemática e sangria de banca"
+            motivo = "Avaliação da Linha 0.0 AH (Empate Anula): Requer superioridade em U5J, tabela e +EV canônico"
         elif c_line in (0.25, 0.5):
             motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de dominância >= 30% no U5J do mandante ou desfalques importantes na súmula"
         elif c_line > 0.0:

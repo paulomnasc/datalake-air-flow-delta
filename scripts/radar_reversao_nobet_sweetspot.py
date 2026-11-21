@@ -208,10 +208,19 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                 any(term in ah_atual.lower() for term in ['abstenção', 'abstencao', 'sem entrada', 'no_bet', 'bloquead'])
             )
 
-            # Verifica se já existe aposta ativa em Gols Asiáticos para esta partida
+            # Opção 1 (Respeitar Cancelamentos): Se já existe qualquer registro de aposta em Handicap (inclusive Cancelada), não reavalia
             cursor.execute("""
                 SELECT id FROM apostas 
-                WHERE fixture_id = %s AND mercado = 'Gols Asiáticos' AND status NOT IN ('Cancelada')
+                WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                LIMIT 1
+            """, (fid,))
+            if cursor.fetchone():
+                is_ah_nobet = False
+
+            # Opção 1 (Respeitar Cancelamentos): Se já existe qualquer aposta em Gols Asiáticos (inclusive Cancelada), não reavalia
+            cursor.execute("""
+                SELECT id FROM apostas 
+                WHERE fixture_id = %s AND mercado = 'Gols Asiáticos'
                 LIMIT 1
             """, (fid,))
             existing_gols_bet = cursor.fetchone()
@@ -282,22 +291,23 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                             )
                             total_apostas_criadas += inserted_cnt
 
-                            # Dispara Push Mobile e Sininho
-                            push_title = f"🎯 REVERSÃO SWEET SPOT: {palpite_sug} @ {cand_odd:.2f}"
-                            push_msg = f"{home} x {away}: A cotação entrou no Sweet Spot seguro (1.60 a 1.95) com {cand_prob:.1f}% de probabilidade. Entrada gerada!"
-                            enviar_push_ntfy_reversao(push_title, push_msg, fixture_id=fid)
+                            # Dispara Push Mobile e Sininho estritamente se a aposta foi criada com sucesso
+                            if inserted_cnt > 0:
+                                push_title = f"🎯 REVERSÃO SWEET SPOT: {palpite_sug} @ {cand_odd:.2f}"
+                                push_msg = f"{home} x {away}: A cotação entrou no Sweet Spot seguro (1.60 a 1.95) com {cand_prob:.1f}% de probabilidade. Entrada gerada!"
+                                enviar_push_ntfy_reversao(push_title, push_msg, fixture_id=fid)
 
-                            for uid in user_ids:
-                                registrar_notificacao_sininho(
-                                    cursor=cursor,
-                                    usuario_id=uid,
-                                    fixture_id=fid,
-                                    aposta_id=None,
-                                    titulo=push_title,
-                                    mensagem=push_msg,
-                                    link=f"/apostas?fixture_id={fid}"
-                                )
-                            conn.commit()
+                                for uid in user_ids:
+                                    registrar_notificacao_sininho(
+                                        cursor=cursor,
+                                        usuario_id=uid,
+                                        fixture_id=fid,
+                                        aposta_id=None,
+                                        titulo=push_title,
+                                        mensagem=push_msg,
+                                        link=f"/apostas?fixture_id={fid}"
+                                    )
+                                conn.commit()
 
             # =========================================================================
             # 2. REAVALIAÇÃO DE GOLS ASIÁTICOS NO SWEET SPOT (1.60 A 1.95)
@@ -331,22 +341,23 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
                             )
                             total_apostas_criadas += inserted_g
 
-                            # Dispara Push Mobile e Sininho
-                            push_title_g = f"⚽ REVERSÃO GOLS: {palpite_gols} @ {gols_odd:.2f}"
-                            push_msg_g = f"{home} x {away}: Linha de gols entrou no Sweet Spot seguro (1.60 a 1.95) com {gols_prob:.1f}% de chance."
-                            enviar_push_ntfy_reversao(push_title_g, push_msg_g, tags="soccer,dart,chart_with_upwards_trend", fixture_id=fid)
+                            # Dispara Push Mobile e Sininho estritamente se a aposta foi criada com sucesso
+                            if inserted_g > 0:
+                                push_title_g = f"⚽ REVERSÃO GOLS: {palpite_gols} @ {gols_odd:.2f}"
+                                push_msg_g = f"{home} x {away}: Linha de gols entrou no Sweet Spot seguro (1.60 a 1.95) com {gols_prob:.1f}% de chance."
+                                enviar_push_ntfy_reversao(push_title_g, push_msg_g, tags="soccer,dart,chart_with_upwards_trend", fixture_id=fid)
 
-                            for uid in user_ids:
-                                registrar_notificacao_sininho(
-                                    cursor=cursor,
-                                    usuario_id=uid,
-                                    fixture_id=fid,
-                                    aposta_id=None,
-                                    titulo=push_title_g,
-                                    mensagem=push_msg_g,
-                                    link=f"/apostas?fixture_id={fid}"
-                                )
-                            conn.commit()
+                                for uid in user_ids:
+                                    registrar_notificacao_sininho(
+                                        cursor=cursor,
+                                        usuario_id=uid,
+                                        fixture_id=fid,
+                                        aposta_id=None,
+                                        titulo=push_title_g,
+                                        mensagem=push_msg_g,
+                                        link=f"/apostas?fixture_id={fid}"
+                                    )
+                                conn.commit()
 
         print(f"\n🏁 [Radar Reversão Concluído] Verificados: {total_verificados} | Reversões AH: {total_reversoes_ah} | Reversões Gols: {total_reversoes_gols} | Apostas Geradas: {total_apostas_criadas}")
 

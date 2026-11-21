@@ -393,6 +393,11 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
   border: 1px solid #c084fc;
   color: #d8b4fe;
 }
+.slot-hedge {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid #818cf8;
+  color: #a5b4fc;
+}
 .slot-pending {
   background: rgba(245, 158, 11, 0.2);
   border: 1px solid var(--meta-gold);
@@ -926,7 +931,19 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                   $st = $ap->status;
                   $timesJogo = (!empty($ap->time_casa) && !empty($ap->time_fora)) ? "{$ap->time_casa} x {$ap->time_fora}" : "Jogo #{$ap->id}";
                   $dataHoraTxt = !empty($slotTime) ? "{$slotDate} às {$slotTime}" : $slotDate;
-                  if (in_array($st, ['Ganha', 'Meio Ganha'])) {
+
+                  if (!empty($ap->hedge_neutralized)) {
+                      $slotClass = 'slot-hedge';
+                      $slotIcon = '🛡️';
+                      $isRealHedge = (!empty($ap->is_hedge) || stripos((string)($ap->tipo ?? ''), 'Hedge') !== false);
+                      $tipoHedgeTxt = $isRealHedge ? "Hedge Real ({$st})" : "Hedge Neutralizado (1-1=0)";
+                      $partnerTxt = !empty($ap->hedge_partner_id) ? " | Par: #{$ap->hedge_partner_id}" : "";
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} - {$tipoHedgeTxt}{$partnerTxt}";
+                  } elseif (stripos((string)($ap->tipo ?? ''), 'Hedge') !== false || !empty($ap->is_hedge)) {
+                      $slotClass = 'slot-hedge';
+                      $slotIcon = '🛡️';
+                      $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} - Hedge Real ({$st})";
+                  } elseif (in_array($st, ['Ganha', 'Meio Ganha'])) {
                       $slotClass = 'slot-green';
                       $slotIcon = '✓';
                       $slotTitle = "#{$ap->id} [{$dataHoraTxt}]: {$timesJogo} ({$st})";
@@ -988,7 +1005,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               <div style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 2px;">~ R$ <?= number_format(((float)($ciclo['lucro_liquido'] ?? 0)) * $cotacaoMoedaMeta, 2, ',', '.') ?></div>
             <?php endif; ?>
             <?php if ($isFechadoCiclo && ($ciclo['lucro_liquido'] ?? 0) > 0): ?>
-              <span style="display: inline-block; margin-top: 4px; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; font-size: 0.68rem; color: #34d399; font-weight: 700;">💰 Saque Disponível</span>
+              <span style="display: inline-block; margin-top: 4px; padding: 2px 8px; background: rgba(160, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; font-size: 0.68rem; color: #34d399; font-weight: 700;">💰 Saque Disponível</span>
             <?php endif; ?>
           </div>
         </div>
@@ -1010,6 +1027,9 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
           <strong style="color: #10b981;"><?= $fmtScore($ciclo['greens'] ?? 0) ?>V</strong> - 
           <strong style="color: #ffffff;"><?= $ciclo['pushes'] ?? 0 ?>E</strong> - 
           <strong style="color: #ef4444;"><?= $fmtScore($ciclo['reds'] ?? 0) ?>D</strong>
+          <?php if (($ciclo['hedges'] ?? 0) > 0): ?>
+            - <strong style="color: #a5b4fc;"><?= $ciclo['hedges'] ?> Hedge (🛡️)</strong>
+          <?php endif; ?>
           <?php if (($ciclo['cashouts'] ?? 0) > 0): ?>
             - <strong style="color: #c084fc;"><?= $ciclo['cashouts'] ?> Cashout</strong>
           <?php endif; ?>
@@ -1311,6 +1331,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               <th>Greens</th>
               <th>Reembolsos</th>
               <th>Reds</th>
+              <th>Hedges (🛡️)</th>
               <th>Cashouts</th>
               <th>Lucro Líquido (<?= esc($codMoedaMeta) ?>)</th>
               <th>ROI</th>
@@ -1326,6 +1347,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                 $totCGreens    = 0.0;
                 $totCPushes    = 0;
                 $totCReds      = 0.0;
+                $totCHedges    = 0;
                 $totCCashouts  = 0;
                 $totCInvestido = 0.0;
                 $totCLucro     = 0.0;
@@ -1340,6 +1362,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                   $totCGreens    += (float)($hc['greens'] ?? 0.0);
                   $totCPushes    += (int)($hc['pushes'] ?? 0);
                   $totCReds      += (float)($hc['reds'] ?? 0.0);
+                  $totCHedges    += (int)($hc['hedges'] ?? 0);
                   $totCCashouts  += (int)($hc['cashouts'] ?? 0);
                   $totCInvestido += (float)($hc['investido'] ?? 0.0);
                   $totCLucro     += $cLucro;
@@ -1360,6 +1383,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                   <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($hc['greens'] ?? 0) ?></td>
                   <td style="color: #ffffff; font-weight: 600;"><?= $fmtScore($hc['pushes'] ?? 0) ?></td>
                   <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($hc['reds'] ?? 0) ?></td>
+                  <td style="color: #a5b4fc; font-weight: 600;"><?= $hc['hedges'] ?? 0 ?></td>
                   <td style="color: #c084fc; font-weight: 600;"><?= $hc['cashouts'] ?></td>
                   <td style="font-weight: 700;" class="<?= $cLucro > 0 ? 'val-green' : ($cLucro < 0 ? 'val-red' : '') ?>">
                     <?= $fmtValorMeta($cLucro, true) ?>
@@ -1399,7 +1423,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
               <?php endforeach; ?>
             <?php else: ?>
               <tr>
-                <td colspan="11" style="text-align: center; color: #ffffff; padding: 2rem;">
+                <td colspan="12" style="text-align: center; color: #ffffff; padding: 2rem;">
                   Nenhum ciclo fechado registrado para o período selecionado.
                 </td>
               </tr>
@@ -1417,6 +1441,7 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
                 <td style="color: #10b981; font-weight: 700;"><?= $fmtScore($totCGreens) ?> greens</td>
                 <td style="color: #ffffff; font-weight: 700;"><?= $fmtScore($totCPushes) ?></td>
                 <td style="color: #ef4444; font-weight: 700;"><?= $fmtScore($totCReds) ?> reds</td>
+                <td style="color: #a5b4fc; font-weight: 600;"><?= $totCHedges ?> hedges</td>
                 <td style="color: #c084fc; font-weight: 600;"><?= $totCCashouts ?></td>
                 <td style="font-weight: 700;" class="<?= $totCLucro > 0 ? 'val-green' : ($totCLucro < 0 ? 'val-red' : '') ?>">
                   <?= $fmtValorMeta($totCLucro, true) ?>

@@ -190,6 +190,179 @@ class MetaDiariaModel extends Model
     }
 
     /**
+     * Calcula métricas estruturais de um conjunto de apostas (ciclo ou dia),
+     * aplicando a Regra Canônica de Hedge (1 - 1 = 0):
+     * Pares de apostas na mesma fixture que contenham ao menos uma ponta de Hedge Real
+     * têm seus resultados opostos (Green e Red) neutralizados no placar de risco (0V, 0D, +1 Hedge),
+     * eliminando falsos reds e falsos stop losses, enquanto mantêm a contabilidade financeira 100% real.
+     */
+    public function processarApostasMetasComHedge(
+        array $apostas, 
+        string $metaMoeda = 'BRL', 
+        float $metaCotacaoBrl = 1.0, 
+        int $decRound = 2
+    ): array {
+        // Inicialização prévia de variáveis numéricas locais (Regra de Ouro 8)
+        $cadastradas  = count($apostas);
+        $liquidadas   = 0;
+        $pendentes    = 0;
+        $greens       = 0.0;
+        $pushes       = 0;
+        $reds         = 0.0;
+        $hedges       = 0;
+        $cashouts     = 0;
+        $apostado     = 0.0;
+        $liquidado    = 0.0;
+        $retornos     = 0.0;
+        $somaOdds     = 0.0;
+
+        $fixtureGroups = [];
+        foreach ($apostas as $idx => $ap) {
+            $fid = (int)($ap->fixture_id ?? 0);
+            if ($fid > 0) {
+                $fixtureGroups[$fid][] = $idx;
+            }
+        }
+
+        $neutralizedIndexes = [];
+        $hedgeIndexes = [];
+
+        foreach ($fixtureGroups as $fid => $indexes) {
+            if (count($indexes) > 1) {
+                $hasHedge = false;
+                foreach ($indexes as $idx) {
+                    $ap = $apostas[$idx];
+                    $isHedge = (stripos((string)($ap->tipo ?? ''), 'Hedge') !== false 
+                             || stripos((string)($ap->gatekeeper_category ?? ''), 'Hedge') !== false 
+                             || stripos((string)($ap->resultado_detalhado ?? ''), 'HEDGE') !== false);
+                    if ($isHedge) {
+                        $hasHedge = true;
+                        break;
+                    }
+                }
+
+                if ($hasHedge) {
+                    $greensInGroup = [];
+                    $redsInGroup = [];
+                    foreach ($indexes as $idx) {
+                        $ap = $apostas[$idx];
+                        $st = (string)($ap->status ?? '');
+                        if (in_array($st, ['Ganha', 'Meio Ganha'])) {
+                            $greensInGroup[] = $idx;
+                        } elseif (in_array($st, ['Perdida', 'Meio Perdida'])) {
+                            $redsInGroup[] = $idx;
+                        }
+                        if (stripos((string)($ap->tipo ?? ''), 'Hedge') !== false 
+                         || stripos((string)($ap->gatekeeper_category ?? ''), 'Hedge') !== false 
+                         || stripos((string)($ap->resultado_detalhado ?? ''), 'HEDGE') !== false) {
+                            $hedgeIndexes[$idx] = true;
+                        }
+                    }
+
+                    // Se houver ao menos 1 green e 1 red no confronto, neutraliza mutuamente (1 - 1 = 0)
+                    $pairsToNeutralize = min(count($greensInGroup), count($redsInGroup));
+                    for ($p = 0; $p < $pairsToNeutralize; $p++) {
+                        $gIdx = $greensInGroup[$p];
+                        $rIdx = $redsInGroup[$p];
+                        $neutralizedIndexes[$gIdx] = $apostas[$rIdx]->id ?? null;
+                        $neutralizedIndexes[$rIdx] = $apostas[$gIdx]->id ?? null;
+                        $hedges++;
+                    }
+                }
+            }
+        }
+
+        foreach ($apostas as $idx => $ap) {
+            $st     = (string)($ap->status ?? '');
+            $rawVal = (float)($ap->valor_aposta ?? 0.0);
+            $odd    = (float)($ap->odd ?? 0.0);
+
+            $apMoeda   = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
+            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
+            $val       = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+
+            $apostado += $val;
+            $somaOdds += $odd;
+
+            // Anotações para a camada de visualização
+            if (isset($hedgeIndexes[$idx])) {
+                $ap->is_hedge = true;
+            }
+            if (isset($neutralizedIndexes[$idx])) {
+                $ap->hedge_neutralized = true;
+                $ap->hedge_partner_id  = $neutralizedIndexes[$idx];
+            }
+
+            $stNorm = strtolower(trim($st));
+            if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
+                $pendentes++;
+            } else {
+                $liquidadas++;
+                $liquidado += $val;
+
+                $isNeutralized = isset($neutralizedIndexes[$idx]);
+
+                if ($st === 'Ganha') {
+                    if (!$isNeutralized) {
+                        $greens += 1.0;
+                    }
+                    $retornos += ($val * $odd);
+                } elseif ($st === 'Meio Ganha') {
+                    if (!$isNeutralized) {
+                        $greens += 0.5;
+                    }
+                    $retornos += ($val + (($val * $odd - $val) / 2));
+                } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
+                    $pushes++;
+                    $retornos += $val;
+                } elseif ($st === 'Perdida') {
+                    if (!$isNeutralized) {
+                        $reds += 1.0;
+                    }
+                } elseif ($st === 'Meio Perdida') {
+                    if (!$isNeutralized) {
+                        $reds += 0.5;
+                    }
+                    $retornos += ($val * 0.5);
+                } elseif ($st === 'Cashout') {
+                    $cashouts++;
+                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
+                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
+                    $retornos += $cashVal;
+                }
+            }
+        }
+
+        $greens       = round($greens, 1);
+        $reds         = round($reds, 1);
+        $oddMedia     = $cadastradas > 0 ? round($somaOdds / $cadastradas, 2) : 0.0;
+        $apostado     = round($apostado, $decRound);
+        $liquidado    = round($liquidado, $decRound);
+        $retornos     = round($retornos, $decRound);
+        $lucroLiquido = round($retornos - $liquidado, $decRound);
+        $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
+
+        return [
+            'total_cadastradas' => $cadastradas,
+            'total_liquidadas'  => $liquidadas,
+            'pendentes'         => $pendentes,
+            'greens'            => $greens,
+            'pushes'            => $pushes,
+            'reds'              => $reds,
+            'hedges'            => $hedges,
+            'cashouts'          => $cashouts,
+            'apostado'          => $apostado,
+            'liquidado'         => $liquidado,
+            'retornos'          => $retornos,
+            'lucro_liquido'     => $lucroLiquido,
+            'soma_odds'         => $somaOdds,
+            'odd_media'         => $oddMedia,
+            'roi_pct'           => $roiPct,
+            'apostas_anotadas'  => $apostas
+        ];
+    }
+
+    /**
      * Recalcula a consolidação estatística das apostas do dia e atualiza a tabela de cache no MySQL.
      */
     public function recalcularCacheDiario(int $usuarioId, string $dataReferencia): array
@@ -215,65 +388,22 @@ class MetaDiariaModel extends Model
             ORDER BY COALESCE(a.data_hora_jogo, a.criado_em) ASC, a.id ASC
         ", [$usuarioId, $dataReferencia])->getResultObject();
 
-        $cadastradas = count($apostasDia);
-        $liquidadas  = 0;
-        $pendentes   = 0;
-        $greens      = 0.0;
-        $pushes      = 0;
-        $reds        = 0.0;
-        $somaOdds    = 0.0;
-        $apostado    = 0.0;
-        $liquidado   = 0.0;
-        $retornos    = 0.0;
+        $metricas = $this->processarApostasMetasComHedge($apostasDia, $metaMoeda, $metaCotacaoBrl, $decRound);
 
-        foreach ($apostasDia as $ap) {
-            $st     = $ap->status;
-            $rawVal = (float)$ap->valor_aposta;
-            $odd    = (float)$ap->odd;
-
-            $apMoeda   = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
-            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
-            $val       = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-
-            $apostado += $val;
-            $somaOdds += $odd;
-
-            $stNorm = strtolower(trim((string)$st));
-            if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
-                $pendentes++;
-            } else {
-                $liquidadas++;
-                $liquidado += $val;
-                if ($st === 'Ganha') {
-                    $greens += 1.0;
-                    $retornos += ($val * $odd);
-                } elseif ($st === 'Meio Ganha') {
-                    $greens += 0.5;
-                    $retornos += ($val + (($val * $odd - $val) / 2));
-                } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
-                    $pushes++;
-                    $retornos += $val;
-                } elseif ($st === 'Perdida') {
-                    $reds += 1.0;
-                } elseif ($st === 'Meio Perdida') {
-                    $reds += 0.5;
-                    $retornos += ($val * 0.5);
-                } elseif ($st === 'Cashout') {
-                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
-                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-                    $retornos += $cashVal;
-                }
-            }
-        }
-
-        $greens       = round($greens, 1);
-        $reds         = round($reds, 1);
-        $oddMedia     = $cadastradas > 0 ? round($somaOdds / $cadastradas, 2) : 0.0;
-        $apostado     = round($apostado, $decRound);
-        $liquidado    = round($liquidado, $decRound);
-        $retornos     = round($retornos, $decRound);
-        $lucroLiquido = round($retornos - $liquidado, $decRound);
-        $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
+        $cadastradas  = $metricas['total_cadastradas'];
+        $liquidadas   = $metricas['total_liquidadas'];
+        $pendentes    = $metricas['pendentes'];
+        $greens       = $metricas['greens'];
+        $pushes       = $metricas['pushes'];
+        $reds         = $metricas['reds'];
+        $hedges       = $metricas['hedges'];
+        $cashouts     = $metricas['cashouts'];
+        $apostado     = $metricas['apostado'];
+        $liquidado    = $metricas['liquidado'];
+        $retornos     = $metricas['retornos'];
+        $lucroLiquido = $metricas['lucro_liquido'];
+        $oddMedia     = $metricas['odd_media'];
+        $roiPct       = $metricas['roi_pct'];
 
         $alvoApostas = (int)($meta->total_apostas_alvo ?? 10);
         $lucroAlvo   = (float)($meta->lucro_alvo ?? 7.50);
@@ -480,52 +610,23 @@ class MetaDiariaModel extends Model
             $blocoTeste = array_slice($todasApostas, $offsetBloco, $tamanho);
             $totalBloco = count($blocoTeste);
 
-            $pendentesBloco = 0;
+            $mBloco = $this->processarApostasMetasComHedge($blocoTeste, $metaMoeda, $metaCotacaoBrl, $decRound);
+            $pendentesBloco = $mBloco['pendentes'];
+            $redsBloco      = $mBloco['reds'];
+            $liquidadoBloco = $mBloco['liquidado'];
+            $retornosBloco  = $mBloco['retornos'];
+            $lucroBloco     = $mBloco['lucro_liquido'];
+
             $temJogosHoje = false;
-            $redsBloco = 0.0;
-            $retornosBloco = 0.0;
-            $liquidadoBloco = 0.0;
-
             foreach ($blocoTeste as $bt) {
-                $stBt = (string)($bt->status ?? '');
-                $stBtNorm = strtolower(trim($stBt));
-                $rawValBt = (float)($bt->valor_aposta ?? 0);
-                $oddBt = (float)($bt->odd ?? 0);
-
-                $apMoeda = !empty($bt->moeda_codigo) ? strtoupper(trim((string)$bt->moeda_codigo)) : 'BRL';
-                $apCotacao = (float)($bt->cotacao_brl_snapshot ?? 1.0);
-                $valBt = $this->normalizarValorParaMoedaMeta($rawValBt, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-
-                if (in_array($stBtNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
-                    $pendentesBloco++;
-                } else {
-                    $liquidadoBloco += $valBt;
-                    if ($stBt === 'Ganha') {
-                        $retornosBloco += ($valBt * $oddBt);
-                    } elseif ($stBt === 'Meio Ganha') {
-                        $retornosBloco += ($valBt + (($valBt * $oddBt - $valBt) / 2));
-                    } elseif (in_array($stBt, ['ANULADA', 'Anulada'])) {
-                        $retornosBloco += $valBt;
-                    } elseif ($stBt === 'Perdida') {
-                        $redsBloco += 1.0;
-                    } elseif ($stBt === 'Meio Perdida') {
-                        $redsBloco += 0.5;
-                        $retornosBloco += ($valBt * 0.5);
-                    } elseif ($stBt === 'Cashout') {
-                        $rawCash = ($bt->cash_out !== null) ? (float)$bt->cash_out : $rawValBt;
-                        $cashBt = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-                        $retornosBloco += $cashBt;
-                    }
-                }
-
                 $dtAposta = !empty($bt->data_hora_jogo) ? $bt->data_hora_jogo : ($bt->criado_em ?? null);
                 $dtStr = $dtAposta ? date('Y-m-d', strtotime($dtAposta . ' -3 hours')) : $hojeBrasil;
                 if ($dtStr === $hojeBrasil) {
                     $temJogosHoje = true;
+                    break;
                 }
             }
 
-            $lucroBloco = round($retornosBloco - $liquidadoBloco, $decRound);
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
@@ -577,62 +678,24 @@ class MetaDiariaModel extends Model
         $offset = ($cicloAlvo - 1) * $tamanho;
         $apostasCiclo = array_slice($todasApostas, $offset, $tamanho);
 
-        $totalCiclo    = count($apostasCiclo);
-        $liquidadas    = 0;
-        $greens        = 0.0;
-        $pushes        = 0;
-        $reds          = 0.0;
-        $cashouts      = 0;
-        $pendentes     = 0;
-        $apostado      = 0.0;
-        $liquidado     = 0.0;
-        $retornos      = 0.0;
-        $somaOdds      = 0.0;
+        $mCiclo = $this->processarApostasMetasComHedge($apostasCiclo, $metaMoeda, $metaCotacaoBrl, $decRound);
 
-        foreach ($apostasCiclo as $ap) {
-            $st = $ap->status;
-            $rawVal = (float)$ap->valor_aposta;
-            $odd = (float)$ap->odd;
+        $totalCiclo    = $mCiclo['total_cadastradas'];
+        $liquidadas    = $mCiclo['total_liquidadas'];
+        $pendentes     = $mCiclo['pendentes'];
+        $greens        = $mCiclo['greens'];
+        $pushes        = $mCiclo['pushes'];
+        $reds          = $mCiclo['reds'];
+        $hedges        = $mCiclo['hedges'];
+        $cashouts      = $mCiclo['cashouts'];
+        $apostado      = $mCiclo['apostado'];
+        $liquidado     = $mCiclo['liquidado'];
+        $retornos      = $mCiclo['retornos'];
+        $lucroLiquido  = $mCiclo['lucro_liquido'];
+        $oddMedia      = $mCiclo['odd_media'];
+        $roiPct        = $mCiclo['roi_pct'];
+        $apostasCiclo  = $mCiclo['apostas_anotadas'];
 
-            $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
-            $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
-            $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-
-            $apostado += $val;
-            $somaOdds += $odd;
-
-            $stNorm = strtolower(trim((string)$st));
-            if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
-                $pendentes++;
-            } else {
-                $liquidadas++;
-                $liquidado += $val;
-                if ($st === 'Ganha') {
-                    $greens += 1.0;
-                    $retornos += ($val * $odd);
-                } elseif ($st === 'Meio Ganha') {
-                    $greens += 0.5;
-                    $retornos += ($val + (($val * $odd - $val) / 2));
-                } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
-                    $pushes++;
-                    $retornos += $val;
-                } elseif ($st === 'Perdida') {
-                    $reds += 1.0;
-                } elseif ($st === 'Meio Perdida') {
-                    $reds += 0.5;
-                    $retornos += ($val * 0.5);
-                } elseif ($st === 'Cashout') {
-                    $cashouts++;
-                    $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
-                    $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-                    $retornos += $cashVal;
-                }
-            }
-        }
-
-        $lucroLiquido = round($retornos - $liquidado, $decRound);
-        $roiPct       = $liquidado > 0 ? round(($lucroLiquido / $liquidado) * 100, 2) : 0.0;
-        $oddMedia     = $totalCiclo > 0 ? round($somaOdds / $totalCiclo, 2) : 0.0;
         $progressoPct = min(100.0, round(($totalCiclo / $tamanho) * 100, 1));
         $lucroAlvo = (float)($meta->lucro_alvo ?? 7.50);
         $stopLoss  = (float)($meta->stop_loss_diario ?? -30.00);
@@ -677,6 +740,7 @@ class MetaDiariaModel extends Model
             'greens'              => $greens,
             'pushes'              => $pushes,
             'reds'                => $reds,
+            'hedges'              => $hedges,
             'cashouts'            => $cashouts,
             'odd_media'           => $oddMedia,
             'total_apostado'      => round($apostado, $decRound),
@@ -739,10 +803,7 @@ class MetaDiariaModel extends Model
             $bloco = array_slice($todasApostas, $offset, $tamanho);
             if (empty($bloco)) continue;
 
-            $totalB = 0;
-            $greens = 0.0; $pushes = 0; $reds = 0.0; $cashouts = 0; $pendentes = 0;
-            $apostado = 0.0; $liquidado = 0.0; $retornos = 0.0;
-
+            $apostasFiltradas = [];
             $dtInicio = null;
             $dtFim = null;
 
@@ -759,59 +820,30 @@ class MetaDiariaModel extends Model
                     continue;
                 }
 
-                $totalB++;
                 if ($dtInicio === null) $dtInicio = $dtBrt;
                 $dtFim = $dtBrt;
-
-                $st = $ap->status;
-                $rawVal = (float)$ap->valor_aposta;
-                $odd = (float)$ap->odd;
-
-                $apMoeda = !empty($ap->moeda_codigo) ? strtoupper(trim((string)$ap->moeda_codigo)) : 'BRL';
-                $apCotacao = (float)($ap->cotacao_brl_snapshot ?? 1.0);
-                $val = $this->normalizarValorParaMoedaMeta($rawVal, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-
-                $apostado += $val;
-
-                $stNorm = strtolower(trim((string)$st));
-                if (in_array($stNorm, ['pendente', 'em andamento', 'aberta', 'ns'])) {
-                    $pendentes++;
-                } else {
-                    $liquidado += $val;
-                    if ($st === 'Ganha') {
-                        $greens += 1.0;
-                        $retornos += ($val * $odd);
-                    } elseif ($st === 'Meio Ganha') {
-                        $greens += 0.5;
-                        $retornos += ($val + (($val * $odd - $val) / 2));
-                    } elseif (in_array($st, ['ANULADA', 'Anulada'])) {
-                        $pushes++;
-                    } elseif ($st === 'Perdida') {
-                        $reds += 1.0;
-                    } elseif ($st === 'Meio Perdida') {
-                        $reds += 0.5;
-                        $retornos += ($val * 0.5);
-                    } elseif ($st === 'Cashout') {
-                        $cashouts++;
-                        $rawCash = ($ap->cash_out !== null) ? (float)$ap->cash_out : $rawVal;
-                        $cashVal = $this->normalizarValorParaMoedaMeta($rawCash, $apMoeda, $apCotacao, $metaMoeda, $metaCotacaoBrl);
-                        $retornos += $cashVal;
-                    }
-                    if (in_array($st, ['ANULADA', 'Anulada'])) {
-                        $retornos += $val;
-                    }
-                }
+                $apostasFiltradas[] = $ap;
             }
 
-            if ($totalB === 0) {
+            if (empty($apostasFiltradas)) {
                 continue;
             }
 
-            $apostado  = round($apostado, $decRound);
-            $liquidado = round($liquidado, $decRound);
-            $retornos  = round($retornos, $decRound);
-            $lucroLiq  = round($retornos - $liquidado, $decRound);
-            $roi = $liquidado > 0 ? round(($lucroLiq / $liquidado) * 100, 2) : 0.0;
+            $mB = $this->processarApostasMetasComHedge($apostasFiltradas, $metaMoeda, $metaCotacaoBrl, $decRound);
+
+            $totalB    = $mB['total_cadastradas'];
+            $pendentes = $mB['pendentes'];
+            $greens    = $mB['greens'];
+            $pushes    = $mB['pushes'];
+            $reds      = $mB['reds'];
+            $hedges    = $mB['hedges'];
+            $cashouts  = $mB['cashouts'];
+            $apostado  = $mB['apostado'];
+            $liquidado = $mB['liquidado'];
+            $retornos  = $mB['retornos'];
+            $lucroLiq  = $mB['lucro_liquido'];
+            $roi       = $mB['roi_pct'];
+
             $stopLossConfig  = (float)($meta->stop_loss_diario ?? -30.00);
             $lucroAlvoConfig = (float)($meta->lucro_alvo ?? 7.50);
             $maxRedsConfig   = (int)($meta->max_reds ?? 3);
@@ -848,6 +880,7 @@ class MetaDiariaModel extends Model
                 'greens'              => $greens,
                 'pushes'              => $pushes,
                 'reds'                => $reds,
+                'hedges'              => $hedges,
                 'cashouts'            => $cashouts,
                 'pendentes'           => $pendentes,
                 'apostado'            => $apostado,

@@ -31,14 +31,9 @@ _betano_cards_api_disabled = _cards_api_disabled
 # Ligas excluídas pelo Gatekeeper de Cartões por apresentarem taxa histórica de Reds > 10.0% ou falta de rigor competitivo
 CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS = {
     10,   # Friendlies (Amistosos de Seleções) - Proibido operar cartões por falta de intensidade competitiva
-    265,  # Primera División (Chile) - 100.0% Reds
-    197,  # Super League 1 (Grécia) - 66.7% Reds
-    239,  # Primera A (Colômbia) - 100.0% Reds
-    39,   # Premier League (Inglaterra) - 33.3% Reds
-    3,    # UEFA Europa League - 33.3% Reds
-    135,  # Serie A (Itália) - 25.0% Reds
-    140,  # La Liga (Espanha) - 16.7% Reds
-    128,  # Liga Profesional (Argentina) - 16.7% Reds
+    265,  # Primera División (Chile)
+    197,  # Super League 1 (Grécia)
+    239,  # Primera A (Colômbia)
 }
 
 

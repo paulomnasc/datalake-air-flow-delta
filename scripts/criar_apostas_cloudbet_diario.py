@@ -19,6 +19,7 @@ Funcionalidades:
 import os
 import sys
 import json
+import math
 import argparse
 import pymysql
 from datetime import datetime, timedelta, timezone
@@ -244,12 +245,12 @@ def run_cloudbet_bet_creator(
         """, (target_date_str,))
         fixtures = cursor.fetchall()
     else:
-        # Padrão: JANELA ÁUREA PRÉ-JOGO + IN-PLAY 0-10m (T-75 a +10 min com Súmula e 0x0)
+        # Padrão: JANELA PRÉ-JOGO (T-75) + JANELA ÁUREA IN-PLAY 0-35m (com Súmula e 0x0)
         cursor.execute("""
             SELECT ft.* 
             FROM fixtures_trends ft
             JOIN match_lineups_cache mlc ON mlc.fixture_id = ft.fixture_id AND mlc.status = 'CONFIRMADA'
-            WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+            WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
               AND ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 75 MINUTE)
               AND (
                   ft.status = 'NS'
@@ -261,7 +262,7 @@ def run_cloudbet_bet_creator(
         fixtures = cursor.fetchall()
 
     total_jogos_analisados = len(fixtures)
-    print(f"📋 Encontradas {total_jogos_analisados} partidas na Janela Áurea Pré-Jogo e In-Play 0-10m (com súmula confirmada e sem veto de risco).\n")
+    print(f"📋 Encontradas {total_jogos_analisados} partidas na Janela Pré-Jogo (T-75) e In-Play 0-35m (com súmula confirmada e sem veto de risco).\n")
 
     now_utc_reference = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -308,19 +309,65 @@ def run_cloudbet_bet_creator(
 
         print(f"\n🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} ('{match['event_name']}')")
 
+        # Dupla Verificação In-Play: Sincronização Dinâmica de Cotações 1X2 / DNB da Cloudbet (Regra 8 e 12)
+        eval_fix = dict(fix)
+        mo_live = markets.get('match_odds', {})
+        dnb_live = markets.get('draw_no_bet', {})
+        wtw_live = markets.get('which_team_wins', {})
+        dnb_h = 0.0
+        dnb_a = 0.0
+        old_h = 0.0
+        old_a = 0.0
+
+        if mo_live.get('home') and mo_live.get('away'):
+            eval_fix['odd_home'] = float(mo_live['home']['price'])
+            eval_fix['odd_away'] = float(mo_live['away']['price'])
+            if mo_live.get('draw'):
+                eval_fix['odd_draw'] = float(mo_live['draw']['price'])
+            print(f"   🔄 [Odds 1X2 Cloudbet Ao Vivo] {home} @ {eval_fix['odd_home']:.2f} | Empate @ {eval_fix.get('odd_draw', 0.0):.2f} | {away} @ {eval_fix['odd_away']:.2f}")
+        elif wtw_live.get('home') and wtw_live.get('away'):
+            eval_fix['odd_home'] = float(wtw_live['home']['price'])
+            eval_fix['odd_away'] = float(wtw_live['away']['price'])
+            if wtw_live.get('draw'):
+                eval_fix['odd_draw'] = float(wtw_live['draw']['price'])
+            print(f"   🔄 [Odds 1X2 In-Play Cloudbet] {home} @ {eval_fix['odd_home']:.2f} | {away} @ {eval_fix['odd_away']:.2f} (Rest of Match)")
+        elif dnb_live.get('home') and dnb_live.get('away'):
+            dnb_h = float(dnb_live['home']['price'])
+            dnb_a = float(dnb_live['away']['price'])
+            old_h = float(eval_fix.get('odd_home') or 0.0)
+            old_a = float(eval_fix.get('odd_away') or 0.0)
+            if (dnb_h < dnb_a and old_h > old_a) or (dnb_a < dnb_h and old_a > old_h):
+                print(f"   ⚡ [Inversão de Favoritismo no DNB Cloudbet] {home} DNB @ {dnb_h:.2f} vs {away} DNB @ {dnb_a:.2f}. Calibrando consenso 1X2 ao vivo.")
+                eval_fix['odd_home'] = dnb_h
+                eval_fix['odd_away'] = dnb_a
+
+        # Inicialização Prévia de Variáveis de Tempo de Jogo (Regra de Ouro 8)
+        elapsed_min = 0
+        cur_status = fix.get('status') or 'NS'
+        if cur_status == '1H':
+            if fix.get('elapsed') is not None and int(fix.get('elapsed')) > 0:
+                elapsed_min = int(fix.get('elapsed'))
+            elif fix.get('fixture_date'):
+                diff_secs = (now_utc_reference - fix['fixture_date']).total_seconds()
+                elapsed_min = max(1, int(diff_secs // 60))
+
         # =====================================================================
-        # MÓDULO 1: HANDICAP ASIÁTICO (AH)
+        # MÓDULO 1: HANDICAP ASIÁTICO (AH) - Restrito: Pré-Jogo aos 10 minutos
         # =====================================================================
-        if ah_markets:
+        if elapsed_min > 10:
+            print(f"   🛡️ [Handicap Standby] Partida aos {elapsed_min}' do 1T. Entradas em Handicap restritas até os 10 minutos.")
+        elif ah_markets:
             cloudbet_lines = []
             for hcap, outcomes in ah_markets.items():
                 if 'home' in outcomes:
+                    line_h = 0.0 if abs(hcap) < 0.001 else float(hcap)
+                    palp_h = f"{home} +0.0 AH" if abs(line_h) < 0.001 else f"{home} {line_h:+} AH"
                     cloudbet_lines.append({
                         'team': 'Home',
                         'target_team': home,
                         'is_away': False,
-                        'line': hcap,
-                        'palpite_str': f"{home} {hcap:+} AH",
+                        'line': line_h,
+                        'palpite_str': palp_h,
                         'odd': outcomes['home']['price'],
                         'market_url': outcomes['home']['market_url'],
                         'min_stake': outcomes['home']['min_stake'],
@@ -329,12 +376,14 @@ def run_cloudbet_bet_creator(
                         'source': 'Cloudbet'
                     })
                 if 'away' in outcomes:
+                    line_a = 0.0 if abs(hcap) < 0.001 else float(-hcap)
+                    palp_a = f"{away} +0.0 AH" if abs(line_a) < 0.001 else f"{away} {line_a:+} AH"
                     cloudbet_lines.append({
                         'team': 'Away',
                         'target_team': away,
                         'is_away': True,
-                        'line': -hcap,
-                        'palpite_str': f"{away} {-hcap:+} AH",
+                        'line': line_a,
+                        'palpite_str': palp_a,
                         'odd': outcomes['away']['price'],
                         'market_url': outcomes['away']['market_url'],
                         'min_stake': outcomes['away']['min_stake'],
@@ -347,7 +396,7 @@ def run_cloudbet_bet_creator(
             print(f"   📊 [Cloudbet AH] {len(cloudbet_lines)} linha(s) cotada(s): {sample_lines}{'...' if len(cloudbet_lines) > 4 else ''}")
 
             status_gk, selected_palpite, conf_val, detalhe_calculo, best_cand, approved_cands = calculate_unified_handicap_recommendation(
-                fix, betano_lines=cloudbet_lines, allow_api_fetch=False, cursor=cursor
+                eval_fix, betano_lines=cloudbet_lines, allow_api_fetch=False, cursor=cursor
             )
 
             if status_gk == 'NO_BET' or not best_cand:
@@ -393,7 +442,7 @@ def run_cloudbet_bet_creator(
                             conn=conn,
                             cursor=cursor,
                             uid=uid,
-                            fix=fix,
+                            fix=eval_fix,
                             event_id=event_id,
                             mercado='Handicap Asiático',
                             selected_palpite=selected_palpite,
@@ -410,11 +459,108 @@ def run_cloudbet_bet_creator(
                             apostas_criadas += 1
                         elif is_dup:
                             apostas_duplicadas += 1
+        else:
+            print(f"   ⏳ [Cloudbet AH] Nenhuma linha ativa de Handicap Asiático aberta no momento (livro fechado pela corretora).")
 
         # =====================================================================
-        # MÓDULO 2: GOLS ASIÁTICOS (TOTAL GOALS)
+        # MÓDULO 2: GOLS ASIÁTICOS (TOTAL GOALS) - Pré-Jogo (0-10m) & In-Play (15-35m)
         # =====================================================================
-        if tg_markets:
+        if 10 < elapsed_min < 15:
+            print(f"   ⏳ [Gols In-Play Standby] Partida aos {elapsed_min}' do 1T (0x0). Aguardando consolidação da Janela Áurea In-Play (15' a 35').")
+        elif 15 <= elapsed_min <= 35 and tg_markets:
+            # Submódulo Sniper In-Play de Gols Asiáticos (0x0 aos 15'-35' do 1T)
+            minutos_restantes = max(10, 90 - elapsed_min)
+            tempo_restante_fator = minutos_restantes / 90.0
+            
+            # Métricas Reais de Campo e Pressão Ofensiva (Regra 8 e 9)
+            shots_tot = (fix.get('shots_home') or 0) + (fix.get('shots_away') or 0)
+            corners_tot = (fix.get('corners_home') or 0) + (fix.get('corners_away') or 0)
+            xg_tot = float((fix.get('xg_home') or 0.0) + (fix.get('xg_away') or 0.0))
+            
+            # Expectativa Base de Gols
+            lambda_base = xg_tot if xg_tot >= 1.20 else 2.40
+            lambda_restante = lambda_base * tempo_restante_fator
+            if (shots_tot + corners_tot) >= 4:
+                lambda_restante *= 1.10  # Ritmo ofensivo ativo verificado em campo
+                
+            # Avaliação de Linhas de Over no Sweet Spot (1.60 a 2.15)
+            inplay_cands = []
+            for t_val, outcomes in tg_markets.items():
+                if 'over' in outcomes:
+                    price = float(outcomes['over']['price'])
+                    if 1.60 <= price <= 2.15 and t_val in (1.0, 1.25, 1.5, 1.75, 2.0):
+                        # Probabilidade de Poisson para minutos restantes
+                        p0 = math.exp(-lambda_restante)
+                        p1 = lambda_restante * p0
+                        p2 = ((lambda_restante ** 2) / 2.0) * p0
+                        
+                        if t_val == 1.5:
+                            prob_efetiva = max(0.01, 1.0 - p0 - p1)
+                        elif t_val == 1.0:
+                            prob_efetiva = max(0.01, (1.0 - p0 - p1) + (0.5 * p1))
+                        elif t_val == 1.75 or t_val == 2.0:
+                            p_ge3 = max(0.0, 1.0 - p0 - p1 - p2)
+                            prob_efetiva = max(0.01, p_ge3 + (0.5 * p2))
+                        else:
+                            prob_efetiva = max(0.01, 1.0 - p0 - p1)
+                            
+                        odd_justa = 1.0 / prob_efetiva
+                        ev_perc = ((price / odd_justa) - 1.0) * 100.0
+                        
+                        if prob_efetiva >= 0.52 and ev_perc >= 5.0:
+                            inplay_cands.append({
+                                'line': t_val,
+                                'odd': price,
+                                'odd_justa': odd_justa,
+                                'prob': prob_efetiva * 100.0,
+                                'ev_perc': ev_perc,
+                                'market_url': outcomes['over']['market_url'],
+                                'label': f"Mais de {t_val:g} Gols (In-Play)"
+                            })
+                            
+            if inplay_cands:
+                # Seleciona linha de maior probabilidade / win-rate
+                inplay_cands.sort(key=lambda x: (x['prob'], x['ev_perc']), reverse=True)
+                best_inplay = inplay_cands[0]
+                
+                print(f"   🎯 [Sniper Gols In-Play Aprovado] {best_inplay['label']} @ {best_inplay['odd']:.2f} (Odd Justa: {best_inplay['odd_justa']:.2f} | Prob: {best_inplay['prob']:.1f}% | EV: +{best_inplay['ev_perc']:.1f}%) aos {elapsed_min}' 1T")
+                
+                inplay_reasoning = (
+                    f"Sniper In-Play Gols: Partida aos {elapsed_min}' do 1º tempo com placar em 0x0. "
+                    f"Com o decaimento temporal, a linha de {best_inplay['label']} atingiu a cotação {best_inplay['odd']:.2f} na Cloudbet. "
+                    f"A projeção para os {minutos_restantes} minutos restantes com produção ofensiva de {shots_tot} chutes e {corners_tot} escanteios "
+                    f"aponta probabilidade de {best_inplay['prob']:.1f}% e valor esperado positivo de +{best_inplay['ev_perc']:.1f}%."
+                )
+                detailed_reasoning = f"|| EXPLICACAO: {inplay_reasoning} || MOTIVACAO: {inplay_reasoning} || MEMÓRIA DE CÁLCULO || STATUS GK: APROVADO\nSUGGESTION: {best_inplay['label']}\nCATEGORIA: Gols Asiáticos (In-Play)\nREASON: {inplay_reasoning}"
+                
+                for uid in user_ids:
+                    ok_g, is_dup_g = place_and_commit_cloudbet_bet(
+                        client=client,
+                        conn=conn,
+                        cursor=cursor,
+                        uid=uid,
+                        fix=eval_fix,
+                        event_id=event_id,
+                        mercado='Gols Asiáticos (In-Play)',
+                        selected_palpite=best_inplay['label'],
+                        odd_val=best_inplay['odd'],
+                        odd_justa=best_inplay['odd_justa'],
+                        prob_poisson=best_inplay['prob'],
+                        ev_perc=best_inplay['ev_perc'],
+                        market_url=best_inplay['market_url'],
+                        cand_destaque=1,
+                        gk_category='Gols Asiáticos (In-Play)',
+                        reasoning_base=detailed_reasoning
+                    )
+                    if ok_g:
+                        apostas_criadas += 1
+                    elif is_dup_g:
+                        apostas_duplicadas += 1
+            else:
+                print(f"   ℹ️ [Sniper Gols In-Play] Jogo aos {elapsed_min}' do 1T (0x0). Nenhuma linha de Over com +EV >= 5% e Sweet Spot (1.60-2.15) no momento.")
+        elif elapsed_min > 35:
+            print(f"   🛡️ [Janela In-Play Encerrada] Partida aos {elapsed_min}' do 1T. Entradas em Gols no 0x0 restritas até os 35 minutos.")
+        elif tg_markets:
             cloudbet_goals_lines = []
             for t_val, outcomes in tg_markets.items():
                 if 'over' in outcomes:
@@ -446,7 +592,7 @@ def run_cloudbet_bet_creator(
             print(f"   📊 [Cloudbet Gols] {len(cloudbet_goals_lines)} linha(s) cotada(s): {sample_g_lines}{'...' if len(cloudbet_goals_lines) > 4 else ''}")
 
             status_g, palpite_g, conf_g, reason_g, best_cand_g, approved_g = calculate_unified_goals_recommendation(
-                fix, betano_lines=cloudbet_goals_lines, cursor=cursor
+                eval_fix, betano_lines=cloudbet_goals_lines, cursor=cursor
             )
 
             if status_g == 'APPROVED' and best_cand_g:
@@ -467,7 +613,7 @@ def run_cloudbet_bet_creator(
                         conn=conn,
                         cursor=cursor,
                         uid=uid,
-                        fix=fix,
+                        fix=eval_fix,
                         event_id=event_id,
                         mercado='Gols Asiáticos',
                         selected_palpite=palpite_g,
@@ -486,19 +632,23 @@ def run_cloudbet_bet_creator(
                         apostas_duplicadas += 1
             else:
                 print(f"   ❌ [Gatekeeper Gols - Reprovado] {home} vs {away}: NO_BET | Motivo: {reason_g}")
+        else:
+            print(f"   ⏳ [Cloudbet Gols] Nenhuma linha de Over/Under Gols aberta no momento (seleções desativadas pela corretora).")
 
         # =====================================================================
-        # MÓDULO 3: TOTAL DE CARTÕES (UNDER CARTÕES)
+        # MÓDULO 3: TOTAL DE CARTÕES (UNDER CARTÕES) - Restrito: Pré-Jogo aos 10 minutos
         # =====================================================================
-        if cards_markets:
+        if elapsed_min > 10:
+            print(f"   🛡️ [Cartões Standby] Partida aos {elapsed_min}' do 1T. Entradas em Cartões Under restritas até os 10 minutos.")
+        elif cards_markets:
             sample_c_lines = ", ".join([f"Under {lv:g} @ {d['under']['price']:.2f}" for lv, d in cards_markets.items() if 'under' in d][:4])
             print(f"   📊 [Cloudbet Cartões] {len(cards_markets)} linha(s) cotada(s): {sample_c_lines}{'...' if len(cards_markets) > 4 else ''}")
 
-            league_id = fix.get('league_id')
+            league_id = eval_fix.get('league_id')
             if league_id and int(league_id) in CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS:
                 print(f"   🛡️ [Gatekeeper Cartões NO_BET] Liga excluída por taxa de Reds > 10% (ID #{league_id}).")
             else:
-                calc_cards = compute_fixture_expected_cards(cursor, fix)
+                calc_cards = compute_fixture_expected_cards(cursor, eval_fix)
                 if not calc_cards or calc_cards[0] is None:
                     print(f"   ℹ️ [Gatekeeper Cartões] Dados estatísticos de cartões insuficientes no banco para {home} vs {away}.")
                 else:
@@ -540,7 +690,7 @@ def run_cloudbet_bet_creator(
                                     conn=conn,
                                     cursor=cursor,
                                     uid=uid,
-                                    fix=fix,
+                                    fix=eval_fix,
                                     event_id=event_id,
                                     mercado='Total de Cartões',
                                     selected_palpite=palpite_c,
@@ -562,6 +712,8 @@ def run_cloudbet_bet_creator(
 
                     if not card_bet_placed:
                         print(f"   ❌ [Gatekeeper Cartões - Reprovado] {home} vs {away}: NO_BET | Cotações ou margens insuficientes para Under Cartões.")
+        else:
+            print(f"   ⏳ [Cloudbet Cartões] Nenhuma linha de Cartões aberta no momento (seleções desativadas pela corretora).")
 
     cursor.close()
     conn.close()

@@ -688,7 +688,7 @@ class ApostaController extends BaseController
                 }
 
                 // Trava de Liga por Sinistralidade Histórica (Taxa de Reds > 10% no modelo Under Cartões)
-                $excludedCardsLeagueIds = [265, 197, 239, 39, 3, 135, 140, 128];
+                $excludedCardsLeagueIds = [10, 265, 197, 239];
                 if ($ftRow && isset($ftRow['league_id']) && in_array((int)$ftRow['league_id'], $excludedCardsLeagueIds, true)) {
                     $leagueName = $ftRow['league_name'] ?? ('ID #' . $ftRow['league_id']);
                     $statusGatekeeper = 'NO_BET';

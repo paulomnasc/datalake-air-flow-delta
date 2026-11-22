@@ -113,6 +113,30 @@ def calculate_similarity(s1: str, s2: str) -> float:
     return SequenceMatcher(None, norm1, norm2).ratio()
 
 
+# Lista Negra Global de Competições e Eventos Virtuais / Simulados (SRL, eSoccer, Cyber)
+BANNED_VIRTUAL_KEYWORDS = [
+    'srl',
+    'simulated reality',
+    'simulated',
+    'virtual',
+    'esoccer',
+    'e-soccer',
+    'cyber',
+    'electronic league',
+    'short football'
+]
+
+def is_banned_virtual_event(comp_name: str = "", comp_key: str = "", event_name: str = "", home_name: str = "", away_name: str = "") -> bool:
+    """
+    Retorna True se o evento ou competição for de futebol virtual / simulação (ex.: Serie A SRL).
+    """
+    combined = f"{comp_name} {comp_key} {event_name} {home_name} {away_name}".lower()
+    for kw in BANNED_VIRTUAL_KEYWORDS:
+        if kw in combined:
+            return True
+    return False
+
+
 class CloudbetMatcher:
     """
     Mecanismo de reconciliação de eventos e precificação em tempo real da Cloudbet.
@@ -140,7 +164,15 @@ class CloudbetMatcher:
         
         for comp in competitions:
             comp_name = comp.get("name") or comp.get("key", "")
+            comp_key = comp.get("key", "")
+            if is_banned_virtual_event(comp_name=comp_name, comp_key=comp_key):
+                continue
             for ev in comp.get("events", []):
+                ev_name = ev.get("name", "")
+                h_name = ev.get("home", {}).get("name", "") if ev.get("home") else ""
+                a_name = ev.get("away", {}).get("name", "") if ev.get("away") else ""
+                if is_banned_virtual_event(comp_name=comp_name, comp_key=comp_key, event_name=ev_name, home_name=h_name, away_name=a_name):
+                    continue
                 ev_st = ev.get("status", "")
                 if ev_st in ("PRE_TRADING", "TRADING", "TRADING_LIVE") or ev_st not in ("RESULTED", "CLOSED"):
                     ev["competition_name"] = comp_name
@@ -169,7 +201,15 @@ class CloudbetMatcher:
 
         for comp in competitions:
             comp_name = comp.get("name") or comp.get("key", "")
+            comp_key = comp.get("key", "")
+            if is_banned_virtual_event(comp_name=comp_name, comp_key=comp_key):
+                continue
             for ev in comp.get("events", []):
+                ev_name = ev.get("name", "")
+                h_name = ev.get("home", {}).get("name", "") if ev.get("home") else ""
+                a_name = ev.get("away", {}).get("name", "") if ev.get("away") else ""
+                if is_banned_virtual_event(comp_name=comp_name, comp_key=comp_key, event_name=ev_name, home_name=h_name, away_name=a_name):
+                    continue
                 if ev.get("status") == "TRADING_LIVE":
                     ev["competition_name"] = comp_name
                     events_list.append(ev)
@@ -218,6 +258,9 @@ class CloudbetMatcher:
                     ev_home = ev.get("home", {}).get("name") if ev.get("home") else ""
                     ev_away = ev.get("away", {}).get("name") if ev.get("away") else ""
 
+                    if is_banned_virtual_event(event_name=ev_name, home_name=ev_home, away_name=ev_away):
+                        continue
+
                     if not ev_home and ' v ' in ev_name:
                         parts = ev_name.split(' v ', 1)
                         ev_home, ev_away = parts[0], parts[1]
@@ -259,6 +302,9 @@ class CloudbetMatcher:
                 ev_name = ev.get("name", "")
                 ev_home = ev.get("home", {}).get("name") if ev.get("home") else ""
                 ev_away = ev.get("away", {}).get("name") if ev.get("away") else ""
+                
+                if is_banned_virtual_event(event_name=ev_name, home_name=ev_home, away_name=ev_away):
+                    continue
                 
                 # Se não houver campos home/away estruturados, divide pelo separador ' v ' ou ' vs '
                 if not ev_home and ' v ' in ev_name:

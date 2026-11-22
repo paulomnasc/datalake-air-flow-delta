@@ -245,16 +245,23 @@ def run_cloudbet_bet_creator(
         """, (target_date_str,))
         fixtures = cursor.fetchall()
     else:
-        # Padrão: JANELA PRÉ-JOGO (T-75) + JANELA ÁUREA IN-PLAY 0-35m (com Súmula e 0x0)
+        # Padrão: JANELA PRÉ-JOGO (T-75) + IN-PLAY 0-35m (com Súmula e 0x0)
         cursor.execute("""
             SELECT ft.* 
             FROM fixtures_trends ft
-            JOIN match_lineups_cache mlc ON mlc.fixture_id = ft.fixture_id AND mlc.status = 'CONFIRMADA'
+            LEFT JOIN match_lineups_cache mlc ON mlc.fixture_id = ft.fixture_id
             WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
               AND ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 75 MINUTE)
               AND (
                   ft.status = 'NS'
-                  OR (ft.status = '1H' AND COALESCE(ft.goals_home, 0) = 0 AND COALESCE(ft.goals_away, 0) = 0)
+                  OR (ft.status IN ('1H', 'LIVE', 'IN_PLAY') AND COALESCE(ft.goals_home, 0) = 0 AND COALESCE(ft.goals_away, 0) = 0)
+              )
+              AND (
+                  -- Em andamento: titulares já em campo
+                  ft.status IN ('1H', 'LIVE', 'IN_PLAY')
+                  -- Pré-jogo: súmula confirmada ou reta final (T-45m)
+                  OR mlc.status = 'CONFIRMADA'
+                  OR ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
               )
               AND (ft.auditoria_ia_status IS NULL OR ft.auditoria_ia_status != 'ALERTA_RISCO')
             ORDER BY ft.fixture_date ASC
@@ -344,7 +351,7 @@ def run_cloudbet_bet_creator(
         # Inicialização Prévia de Variáveis de Tempo de Jogo (Regra de Ouro 8)
         elapsed_min = 0
         cur_status = fix.get('status') or 'NS'
-        if cur_status == '1H':
+        if cur_status in ('1H', 'LIVE', 'IN_PLAY'):
             if fix.get('elapsed') is not None and int(fix.get('elapsed')) > 0:
                 elapsed_min = int(fix.get('elapsed'))
             elif fix.get('fixture_date'):

@@ -28,11 +28,35 @@ if CURRENT_DIR not in sys.path:
 from db_config import get_db_connection
 from cloudbet_client import CloudbetClient
 
+CANONICAL_ALIASES: Dict[str, str] = {
+    'athletic club': 'athletic bilbao',
+    'athletic club w': 'athletic bilbao',
+    'athletic bilbao w': 'athletic bilbao',
+    'barcelona w': 'barcelona',
+    'real madrid w': 'real madrid',
+    'arsenal w': 'arsenal',
+    'chelsea w': 'chelsea',
+    'manchester city w': 'manchester city',
+    'manchester united w': 'manchester united',
+    'lyon w': 'olympique lyonnais',
+    'vfl wolfsburg w': 'wolfsburg',
+    'wolfsburg w': 'wolfsburg',
+    'rb leipzig w': 'rb leipzig',
+    'bayern munich w': 'bayern munich',
+    'inter': 'internazionale',
+    'inter milan': 'internazionale',
+    'sporting cp': 'sporting lisbon',
+    'sporting lisboa': 'sporting lisbon',
+    'paris sg': 'psg',
+    'paris saint germain': 'psg',
+}
+
 
 def normalize_team_name(name: str) -> str:
     """
     Higieniza e normaliza o nome de um time de futebol removendo acentos,
     pontuações, sufixos comuns de clubes e espaços redundantes.
+    Aplica dicionário de aliases canônicos para convergência de mercado.
     """
     if not name:
         return ""
@@ -46,8 +70,15 @@ def normalize_team_name(name: str) -> str:
     
     # 3. Remove caracteres especiais
     cleaned = re.sub(r'[^a-z0-9\s]', ' ', cleaned)
+    cleaned = " ".join(cleaned.split())
+
+    # 4. Aplica equivalências canônicas de mercado
+    for alias_k, alias_v in CANONICAL_ALIASES.items():
+        if cleaned == alias_k or cleaned.startswith(alias_k + ' ') or cleaned.endswith(' ' + alias_k):
+            cleaned = cleaned.replace(alias_k, alias_v)
+            break
     
-    # 4. Remove sufixos e ruídos corporativos comuns de clubes
+    # 5. Remove sufixos e ruídos corporativos comuns de clubes
     noise_words = {
         'fc', 'cf', 'ec', 'sc', 'ac', 'fk', 'sk', 'afc', 'cd', 'ca', 'club', 
         'clube', 'futebol', 'football', 'de', 'do', 'da', 'united', 'city', 
@@ -277,10 +308,11 @@ class CloudbetMatcher:
             "asian_handicap": {},
             "total_goals": {},
             "match_odds": {},
-            "draw_no_bet": {}
+            "draw_no_bet": {},
+            "cards": {}
         }
         
-        # 1. Handicap Asiático (FT)
+        # 1. Handicap Asiático (FT) Puro
         ah_market = markets_raw.get("soccer.asian_handicap", {})
         ah_sub = ah_market.get("submarkets", {}).get("period=ft", {})
         for sel in ah_sub.get("selections", []):
@@ -301,6 +333,73 @@ class CloudbetMatcher:
                         "min_stake": float(sel.get("minStake") or 0.1),
                         "max_stake": float(sel.get("maxStake") or 0.0)
                     }
+
+        # 1.1 Contingência de Linhas Equivalentes de AH se soccer.asian_handicap estiver desativado/vazio
+        if not parsed["asian_handicap"]:
+            # A) Linha 0.0 AH via soccer.draw_no_bet (DNB = 0.0 AH)
+            dnb_market = markets_raw.get("soccer.draw_no_bet", {})
+            for sub_k, sub_v in dnb_market.get("submarkets", {}).items():
+                for sel in sub_v.get("selections", []):
+                    if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                        outcome = sel.get("outcome") # 'home' ou 'away'
+                        if 0.0 not in parsed["asian_handicap"]:
+                            parsed["asian_handicap"][0.0] = {}
+                        parsed["asian_handicap"][0.0][outcome] = {
+                            "price": float(sel.get("price")),
+                            "market_url": sel.get("marketUrl"),
+                            "min_stake": float(sel.get("minStake") or 0.1),
+                            "max_stake": float(sel.get("maxStake") or 0.0)
+                        }
+
+            # B) Linha +0.5 AH via soccer.double_chance (Dupla Chance 1X = +0.5 Home / X2 = +0.5 Away)
+            dc_market = markets_raw.get("soccer.double_chance", {})
+            for sub_k, sub_v in dc_market.get("submarkets", {}).items():
+                for sel in sub_v.get("selections", []):
+                    if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                        outcome_dc = sel.get("outcome")
+                        if outcome_dc == 'home_draw':
+                            if 0.5 not in parsed["asian_handicap"]:
+                                parsed["asian_handicap"][0.5] = {}
+                            parsed["asian_handicap"][0.5]['home'] = {
+                                "price": float(sel.get("price")),
+                                "market_url": sel.get("marketUrl"),
+                                "min_stake": float(sel.get("minStake") or 0.1),
+                                "max_stake": float(sel.get("maxStake") or 0.0)
+                            }
+                        elif outcome_dc == 'draw_away':
+                            if -0.5 not in parsed["asian_handicap"]:
+                                parsed["asian_handicap"][-0.5] = {}
+                            parsed["asian_handicap"][-0.5]['away'] = {
+                                "price": float(sel.get("price")),
+                                "market_url": sel.get("marketUrl"),
+                                "min_stake": float(sel.get("minStake") or 0.1),
+                                "max_stake": float(sel.get("maxStake") or 0.0)
+                            }
+
+            # C) Linha -0.5 AH via soccer.match_odds (1X2 Home Win = -0.5 Home / Away Win = -0.5 Away)
+            mo_market = markets_raw.get("soccer.match_odds", {})
+            for sub_k, sub_v in mo_market.get("submarkets", {}).items():
+                for sel in sub_v.get("selections", []):
+                    if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                        outcome_mo = sel.get("outcome")
+                        if outcome_mo == 'home':
+                            if -0.5 not in parsed["asian_handicap"]:
+                                parsed["asian_handicap"][-0.5] = {}
+                            parsed["asian_handicap"][-0.5]['home'] = {
+                                "price": float(sel.get("price")),
+                                "market_url": sel.get("marketUrl"),
+                                "min_stake": float(sel.get("minStake") or 0.1),
+                                "max_stake": float(sel.get("maxStake") or 0.0)
+                            }
+                        elif outcome_mo == 'away':
+                            if 0.5 not in parsed["asian_handicap"]:
+                                parsed["asian_handicap"][0.5] = {}
+                            parsed["asian_handicap"][0.5]['away'] = {
+                                "price": float(sel.get("price")),
+                                "market_url": sel.get("marketUrl"),
+                                "min_stake": float(sel.get("minStake") or 0.1),
+                                "max_stake": float(sel.get("maxStake") or 0.0)
+                            }
                     
         # 2. Total de Gols (Over / Under FT)
         tg_market = markets_raw.get("soccer.total_goals", {})
@@ -364,25 +463,34 @@ class CloudbetMatcher:
                             "max_stake": float(sel.get("maxStake") or 0.0)
                         }
 
-        # 6. Total Bookings / Cartões (Under / Over)
+        # 6. Total Bookings e Total Booking Points / Cartões (Under / Over)
         parsed["total_bookings"] = {}
-        tb_market = markets_raw.get("soccer.total_bookings", {})
-        for sub_k, sub_v in tb_market.get("submarkets", {}).items():
-            for sel in sub_v.get("selections", []):
-                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
-                    params = sel.get("params", "")
-                    m_b = re.search(r'total=(\d+(?:\.\d+)?)', params)
-                    if m_b:
-                        t_val = float(m_b.group(1))
-                        outcome = sel.get("outcome") # 'over' ou 'under'
-                        if t_val not in parsed["total_bookings"]:
-                            parsed["total_bookings"][t_val] = {}
-                        parsed["total_bookings"][t_val][outcome] = {
-                            "price": float(sel.get("price")),
-                            "market_url": sel.get("marketUrl"),
-                            "min_stake": float(sel.get("minStake") or 0.1),
-                            "max_stake": float(sel.get("maxStake") or 0.0)
-                        }
+        for m_card_key in ("soccer.total_booking_points", "soccer.total_bookings"):
+            c_market = markets_raw.get(m_card_key, {})
+            for sub_k, sub_v in c_market.get("submarkets", {}).items():
+                for sel in sub_v.get("selections", []):
+                    if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                        params = sel.get("params", "")
+                        m_b = re.search(r'total=(\d+(?:\.\d+)?)', params)
+                        if m_b:
+                            raw_val = float(m_b.group(1))
+                            # Normalização: Booking Points (55.5 pts -> 5.5 cartões, 65.5 pts -> 6.5 cartões)
+                            line_cards = (raw_val / 10.0) if raw_val > 15.0 else raw_val
+                            outcome = sel.get("outcome") # 'over' ou 'under'
+                            
+                            if line_cards not in parsed["cards"]:
+                                parsed["cards"][line_cards] = {}
+                            parsed["cards"][line_cards][outcome] = {
+                                "price": float(sel.get("price")),
+                                "market_url": sel.get("marketUrl"),
+                                "min_stake": float(sel.get("minStake") or 0.1),
+                                "max_stake": float(sel.get("maxStake") or 0.0),
+                                "source_market": m_card_key
+                            }
+                            # Preserva compatibilidade com total_bookings
+                            if line_cards not in parsed["total_bookings"]:
+                                parsed["total_bookings"][line_cards] = {}
+                            parsed["total_bookings"][line_cards][outcome] = parsed["cards"][line_cards][outcome]
                 
         if use_cache:
             self.odds_cache[event_id] = parsed

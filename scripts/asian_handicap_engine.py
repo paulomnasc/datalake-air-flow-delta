@@ -3564,11 +3564,20 @@ def sync_fixture_and_bet_handicap(
         """, (uid,))
         meta_row = cursor.fetchone()
         user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
-        if user_moeda == 'USDT':
-            casa_nome = 'Cloudbet'
         user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
         if user_stake <= 0.0:
             user_stake = 10.00
+
+        # Idempotência e Proteção Estrita de Bancas Cripto (USDT - Princípio ACID):
+        # O motor Betano de Handicap Asiático avalia cotações da API-Sports/Betano.
+        # Usuários em USDT operam exclusivamente via Trading API da Cloudbet.
+        # É terminantemente proibido registrar palpites/apostas da Betano na tabela apostas para bancas USDT.
+        if user_moeda == 'USDT':
+            print(f"ℹ️ [Ignorando User USDT #{uid}] Motor Betano não emite registros na tabela apostas para bancas USDT. Gestão delegada ao robô Cloudbet.")
+            continue
+
+        confirmada_user = confirmada_val
+        casa_nome = 'Betano'
 
         # Determinação estrita de Tier via Enum BetTier (Regra 21: Proibição de busca textual por substrings)
         cand_tier = (best_cand or {}).get('tier')
@@ -3583,10 +3592,11 @@ def sync_fixture_and_bet_handicap(
         else:
             tier = BetTier.REGULAR
 
-        valor_aposta = round(user_stake * tier.stake_multiplier, 2)
+        if user_moeda != 'USDT':
+            valor_aposta = round(user_stake * tier.stake_multiplier, 2)
+            ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
         destaque_val = tier.value
         app_cat = tier.gatekeeper_category
-        ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
         cursor.execute("""
             SELECT a.id, a.palpite, a.confirmada, a.status, a.status_gatekeeper, a.resultado_detalhado,
@@ -3711,7 +3721,7 @@ def sync_fixture_and_bet_handicap(
                 """, (
                     uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, casa_nome, selected_palpite, odd_val,
                     odd_justa, prob_poisson, ev_perc,
-                    valor_aposta, ganhos_potenciais, app_cat, confirmada_val, destaque_val, fixture_date,
+                    valor_aposta, ganhos_potenciais, app_cat, confirmada_user, destaque_val, fixture_date,
                     compound_reasoning, ia_status, ia_resumo, ia_parecer
                 ))
             else:
@@ -3728,19 +3738,19 @@ def sync_fixture_and_bet_handicap(
                 """, (
                     uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, casa_nome, selected_palpite, odd_val,
                     odd_justa, prob_poisson, ev_perc,
-                    valor_aposta, ganhos_potenciais, app_cat, confirmada_val, destaque_val, fixture_date,
+                    valor_aposta, ganhos_potenciais, app_cat, confirmada_user, destaque_val, fixture_date,
                     compound_reasoning
                 ))
             aposta_id = cursor.lastrowid
             created_count += 1
-            print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f} ({casa_nome}) | Categoria: '{app_cat}'")
+            print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f} ({casa_nome}) | Categoria: '{app_cat}' (Confirmada: {confirmada_user})")
 
             # Debita 0.5 crédito do usuário pela aposta gerada
             if uid != 558 and u_st != 'active':
                 cursor.execute("UPDATE usuario SET grok_credits = GREATEST(0.0, grok_credits - 0.5) WHERE id = %s", (uid,))
                 print(f"🪙 [Crédito Debitado User #{uid}] -0.5 crédito | Aposta #{aposta_id} (Novo saldo: {max(0.0, u_cred - 0.5):.2f})")
 
-            if confirmada_val == 1:
+            if confirmada_user == 1 and aposta_id:
                 cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
                 u_row = cursor.fetchone()
                 s_ant = float(u_row['saldo_conta_corrente'] or 0.0) if u_row else 0.0

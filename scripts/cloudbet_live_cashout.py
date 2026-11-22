@@ -20,6 +20,7 @@ import json
 import time
 import argparse
 import requests
+import pymysql
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -1335,6 +1336,32 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         hedge_stake = max(min_stake, stake)
         opposite_palpite = opp_palpite or (f"{home if away.lower() in palpite.lower() else away} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})")
 
+        # Idempotência Prévia Estrita: verifica se já existe hedge emitido para esta aposta
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE resultado_detalhado LIKE CONCAT('%HEDGE_ORIGEM: #', %s)
+              AND status NOT IN ('Cancelada', 'Não Confirmada')
+            LIMIT 1
+        """, (aposta_id,))
+        hedge_existente = cursor.fetchone()
+        if hedge_existente:
+            print(f"   ℹ️ [Hedge Já Existe para Aposta #{aposta_id}] Hedge #{hedge_existente['id']} já emitido anteriormente. Duplicação de hedge bloqueada.")
+            continue
+
+        # Verifica se a linha oposta já existe no MySQL para este usuário e jogo (respeito à CONSTRAINT UNIQUE)
+        uid_bet = bet.get('usuario_id')
+        cursor.execute("""
+            SELECT id, palpite, odd FROM apostas 
+            WHERE fixture_id = %s AND usuario_id = %s AND casa_de_aposta = 'Cloudbet'
+              AND palpite = %s AND confirmada = 1
+              AND status NOT IN ('Cancelada', 'Não Confirmada')
+            LIMIT 1
+        """, (f_id, uid_bet, opposite_palpite))
+        linha_oposta_existe = cursor.fetchone()
+        if linha_oposta_existe:
+            print(f"   ℹ️ [Linha Oposta Já Apostada na Cloudbet #{f_id}] {opposite_palpite} (ID #{linha_oposta_existe['id']}). Duplicação de hedge bloqueada.")
+            continue
+
         print(f"   🚀 [Disparando Hedge Real via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
@@ -1345,35 +1372,37 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             dry_run=client.dry_run
         )
 
-        if not client.dry_run and not res_co.get("success") and not res_co.get("referenceId"):
-            print(f"   ❌ Falha ao processar ordem de cobertura na API Cloudbet: {res_co}")
+        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId")
+        # Validação Estrita de Two-Phase Commit (API-First):
+        if not bet_id_hedge or "error" in res_co or res_co.get("status") in ("REJECTED", "FAILED") or not res_co.get("success", True):
+            conn.rollback()
+            print(f"   ❌ [Cloudbet API Rejeitou Ordem de Hedge] Bilhete não emitido pela Cloudbet: {res_co}. Rollback executado. Saldo preservado.")
             total_erros += 1
             continue
 
-        # Inserção da Nova Aposta Real de Cobertura no Banco de Dados
-        cursor.execute("""
-            INSERT INTO apostas (
-                usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
-                casa_de_aposta, palpite, odd, odd_justa, status_gatekeeper, gatekeeper_category,
-                data_hora_jogo, valor_aposta, ganhos_potenciais, tipo, status,
-                resultado_detalhado, criado_em, updated_at, confirmada
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s,
-                'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real In-Play',
-                NOW(), %s, %s, 'Hedge Real', 'Pendente',
-                %s, NOW(), NOW(), 1
-            )
-        """, (
-            bet.get('usuario_id'), cur, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-            opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
-            f"Bilhete de Hedge Real emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id}"
-        ))
-        new_hedge_aposta_id = cursor.lastrowid
-
-        # Registra débito da nova aposta de Hedge na conta corrente
+        # Transação Atômica: Inserção do Hedge, Débito e Atualização da Aposta Original com Captura de IntegrityError
         try:
-            uid = bet.get('usuario_id')
-            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
+            cursor.execute("""
+                INSERT INTO apostas (
+                    usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
+                    casa_de_aposta, palpite, odd, odd_justa, status_gatekeeper, gatekeeper_category,
+                    data_hora_jogo, valor_aposta, ganhos_potenciais, tipo, status,
+                    resultado_detalhado, criado_em, updated_at, confirmada
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s,
+                    'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real In-Play',
+                    NOW(), %s, %s, 'Hedge Real', 'Pendente',
+                    %s, NOW(), NOW(), 1
+                )
+            """, (
+                uid_bet, cur, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
+                opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
+                f"Bilhete de Hedge Real emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge}"
+            ))
+            new_hedge_aposta_id = cursor.lastrowid
+
+            # Registra débito da nova aposta de Hedge na conta corrente
+            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid_bet,))
             row_u = cursor.fetchone()
             s_ant = float(row_u['saldo_conta_corrente']) if row_u and row_u.get('saldo_conta_corrente') else 0.0
             s_post = round(s_ant - hedge_stake, 8)
@@ -1383,21 +1412,28 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 ) VALUES (
                     %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                 )
-            """, (uid, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, cur))
-            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
-            conn.commit()
-            print(f"   💰 [Débito Hedge Salvo] -{hedge_stake:.2f} {cur} debitado para registro da aposta de cobertura #{new_hedge_aposta_id}.")
-        except Exception as e_deb:
-            print(f"   ⚠️ [Erro Débito Hedge]: {e_deb}")
+            """, (uid_bet, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, cur))
+            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid_bet))
 
-        # Atualiza a aposta original registrando a cobertura cruzada
-        cursor.execute("""
-            UPDATE apostas
-            SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
-                updated_at = NOW()
-            WHERE id = %s
-        """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
-        conn.commit()
+            # Atualiza a aposta original registrando a cobertura cruzada
+            cursor.execute("""
+                UPDATE apostas
+                SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
+
+            conn.commit()
+            print(f"   💰 [Hedge Gravado com Sucesso] Aposta #{new_hedge_aposta_id} salva e -{hedge_stake:.2f} {cur} debitado. Novo saldo: {s_post:.4f} {cur}")
+        except pymysql.err.IntegrityError as e_int:
+            conn.rollback()
+            print(f"   🛑 [CONSTRAINT UNIQUE MySQL Barrou Duplicidade no Hedge In-Play] {opposite_palpite}: {e_int}. Rollback executado.")
+            continue
+        except Exception as e_tx:
+            conn.rollback()
+            print(f"   ❌ [Falha Transacional no Hedge In-Play] {e_tx}. Rollback executado.")
+            total_erros += 1
+            continue
 
         total_cashouts_executados += 1
         tit = f"⚡ Hedge Real Executado (Cloudbet): {home} vs {away}"
@@ -1612,6 +1648,31 @@ def executar_hedge_prejogo_cloudbet(
         hedge_stake = max(min_stake, round(stake, 2))
         opposite_palpite = opp_palpite or (f"{home if away.lower() in palpite.lower() else away} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})")
 
+        # Idempotência Prévia Estrita: verifica se já existe hedge emitido para esta aposta
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE resultado_detalhado LIKE CONCAT('%HEDGE_ORIGEM: #', %s)
+              AND status NOT IN ('Cancelada', 'Não Confirmada')
+            LIMIT 1
+        """, (aposta_id,))
+        hedge_existente = cursor.fetchone()
+        if hedge_existente:
+            print(f"   ℹ️ [Hedge Pré-Jogo Já Existe para Aposta #{aposta_id}] Hedge #{hedge_existente['id']} já emitido anteriormente. Duplicação de hedge bloqueada.")
+            return {"success": True, "is_duplicate": True, "hedge_aposta_id": hedge_existente['id']}
+
+        # Verifica se a linha oposta já existe no MySQL para este usuário e jogo (respeito à CONSTRAINT UNIQUE)
+        cursor.execute("""
+            SELECT id, palpite, odd FROM apostas 
+            WHERE fixture_id = %s AND usuario_id = %s AND casa_de_aposta = 'Cloudbet'
+              AND palpite = %s AND confirmada = 1
+              AND status NOT IN ('Cancelada', 'Não Confirmada')
+            LIMIT 1
+        """, (f_id, usuario_id, opposite_palpite))
+        linha_oposta_existe = cursor.fetchone()
+        if linha_oposta_existe:
+            print(f"   ℹ️ [Linha Oposta Já Apostada na Cloudbet #{f_id}] {opposite_palpite} (ID #{linha_oposta_existe['id']}). Duplicação de hedge bloqueada.")
+            return {"success": True, "is_duplicate": True, "hedge_aposta_id": linha_oposta_existe['id']}
+
         print(f"   🚀 [Disparando Ordem Real Pré-Jogo via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
@@ -1622,42 +1683,45 @@ def executar_hedge_prejogo_cloudbet(
             dry_run=client.dry_run
         )
 
-        if not client.dry_run and not res_co.get("success") and not res_co.get("referenceId"):
-            print(f"   ❌ Falha ao processar ordem de hedge pré-jogo na API Cloudbet: {res_co}")
-            return {"success": False, "motivo": "Falha na API Cloudbet"}
+        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId")
+        # Validação Estrita de Two-Phase Commit (API-First):
+        if not bet_id_hedge or "error" in res_co or res_co.get("status") in ("REJECTED", "FAILED") or not res_co.get("success", True):
+            if conn:
+                conn.rollback()
+            print(f"   ❌ [Cloudbet API Rejeitou Ordem de Hedge Pré-Jogo] Bilhete não emitido pela Cloudbet: {res_co}. Rollback executado. Saldo preservado.")
+            return {"success": False, "motivo": f"Falha na API Cloudbet: {res_co}"}
 
         hedge_info = {
             "mode": "dry_run_pregame_hedge" if client.dry_run else "real_pregame_hedge",
-            "hedge_ref": res_co.get("referenceId") or res_co.get("betId"),
+            "hedge_ref": bet_id_hedge,
             "market_url": opposite_market_url,
             "price": hedge_price,
             "stake": hedge_stake
         }
 
-        # Inserção da Nova Aposta Real de Cobertura Pré-Jogo no Banco de Dados
-        cursor.execute("""
-            INSERT INTO apostas (
-                usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
-                casa_de_aposta, palpite, odd, odd_justa, status_gatekeeper, gatekeeper_category,
-                data_hora_jogo, valor_aposta, ganhos_potenciais, tipo, status,
-                resultado_detalhado, criado_em, updated_at, confirmada
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s,
-                'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real Pré-Jogo',
-                NOW(), %s, %s, 'Hedge Real', 'Pendente',
-                %s, NOW(), NOW(), 1
-            )
-        """, (
-            usuario_id, client.currency, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-            opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
-            f"Bilhete de Hedge Real Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id}"
-        ))
-        new_hedge_aposta_id = cursor.lastrowid
-
-        # Registra débito da nova aposta de Hedge na conta corrente
+        # Transação Atômica: Inserção do Hedge, Débito e Atualização da Aposta Original com Captura de IntegrityError
         try:
-            uid = usuario_id
-            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
+            cursor.execute("""
+                INSERT INTO apostas (
+                    usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
+                    casa_de_aposta, palpite, odd, odd_justa, status_gatekeeper, gatekeeper_category,
+                    data_hora_jogo, valor_aposta, ganhos_potenciais, tipo, status,
+                    resultado_detalhado, criado_em, updated_at, confirmada
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s,
+                    'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real Pré-Jogo',
+                    NOW(), %s, %s, 'Hedge Real', 'Pendente',
+                    %s, NOW(), NOW(), 1
+                )
+            """, (
+                usuario_id, client.currency, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
+                opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
+                f"Bilhete de Hedge Real Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge}"
+            ))
+            new_hedge_aposta_id = cursor.lastrowid
+
+            # Registra débito da nova aposta de Hedge na conta corrente
+            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
             row_u = cursor.fetchone()
             s_ant = float(row_u['saldo_conta_corrente']) if row_u and row_u.get('saldo_conta_corrente') else 0.0
             s_post = round(s_ant - hedge_stake, 8)
@@ -1667,24 +1731,30 @@ def executar_hedge_prejogo_cloudbet(
                 ) VALUES (
                     %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                 )
-            """, (uid, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real Pré-Jogo: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, client.currency))
-            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
+            """, (usuario_id, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real Pré-Jogo: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, client.currency))
+            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, usuario_id))
+
+            # Atualiza a aposta original registrando a cobertura cruzada
+            cursor.execute("""
+                UPDATE apostas
+                SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
+
             if conn:
                 conn.commit()
             print(f"   💰 [Débito Hedge Salvo] -{hedge_stake:.2f} {client.currency} debitado para registro da aposta de cobertura #{new_hedge_aposta_id}.")
-        except Exception as e_deb:
-            print(f"   ⚠️ [Erro Débito Hedge]: {e_deb}")
-
-        # Atualiza a aposta original registrando a cobertura cruzada
-        cursor.execute("""
-            UPDATE apostas
-            SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
-                updated_at = NOW()
-            WHERE id = %s
-        """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
-
-        if conn:
-            conn.commit()
+        except pymysql.err.IntegrityError as e_int:
+            if conn:
+                conn.rollback()
+            print(f"   🛑 [CONSTRAINT UNIQUE MySQL Barrou Duplicidade no Hedge Pré-Jogo] {opposite_palpite}: {e_int}. Rollback executado.")
+            return {"success": False, "motivo": f"CONSTRAINT UNIQUE barrou duplicidade: {e_int}"}
+        except Exception as e_tx:
+            if conn:
+                conn.rollback()
+            print(f"   ❌ [Falha Transacional no Hedge Pré-Jogo]: {e_tx}. Rollback executado.")
+            return {"success": False, "motivo": str(e_tx)}
 
         tit_push = f"🛡️ Hedge Real Pré-Jogo Executado: {home} vs {away}"
         msg_push = (

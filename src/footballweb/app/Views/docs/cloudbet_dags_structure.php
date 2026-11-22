@@ -117,17 +117,21 @@
                         </tr>
                         <tr>
                             <td class="py-3 px-3">
-                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 font-monospace">criar_apostas_gols_dag</span>
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 font-monospace text-decoration-line-through">criar_apostas_gols_dag</span>
+                                <br><span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1"><i class="bi bi-pause-circle me-1"></i>PARALISADA</span>
                             </td>
-                            <td class="text-center"><span class="badge bg-dark text-info border border-secondary">A cada 3h</span></td>
+                            <td class="text-center">
+                                <span class="badge bg-dark text-muted border border-secondary text-decoration-line-through">A cada 3h</span>
+                                <br><span class="badge bg-secondary text-light mt-1">Pausada</span>
+                            </td>
                             <td class="font-monospace small text-light" style="line-height: 1.35;">
                                 <span class="text-secondary small">scripts/</span><br>
                                 <strong class="text-info">criar_apostas_gols_diario.py</strong>
                             </td>
-                            <td class="text-center"><span class="badge bg-success text-dark fw-bold">Gols Asiáticos</span></td>
-                            <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle d-inline-block">~50 tokens/dia<br><small style="font-size: 0.72rem; opacity: 0.85;">(0,7%)</small></span></td>
+                            <td class="text-center"><span class="badge bg-secondary text-light">Gols Asiáticos</span></td>
+                            <td class="text-center"><span class="badge bg-secondary-subtle text-secondary border border-secondary d-inline-block">0 tokens/dia<br><small style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</small></span></td>
                             <td class="px-3 small text-secondary">
-                                Avalia partidas abertas para o mercado de totais asiáticos (com amortecimento em linhas inteiras 2.0 e 3.0), chancelando apostas no portfólio em USDT.
+                                <strong class="text-warning">⏸️ DAG Paralisada:</strong> Avaliação legada de gols pré-jogo. A emissão autônoma de palpites e ordens de Gols Asiáticos foi unificada diretamente na <code class="text-info">criar_apostas_cloudbet_dag</code> (robô multimercado em USDT), prevenindo duplicidade de apostas e economizando cotas.
                             </td>
                         </tr>
                         <tr>
@@ -147,17 +151,21 @@
                         </tr>
                         <tr>
                             <td class="py-3 px-3">
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 font-monospace">criar_apostas_cartoes_dag</span>
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 font-monospace text-decoration-line-through">criar_apostas_cartoes_dag</span>
+                                <br><span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1"><i class="bi bi-pause-circle me-1"></i>PARALISADA</span>
                             </td>
-                            <td class="text-center"><span class="badge bg-dark text-info border border-secondary">A cada 1h</span></td>
+                            <td class="text-center">
+                                <span class="badge bg-dark text-muted border border-secondary text-decoration-line-through">A cada 1h</span>
+                                <br><span class="badge bg-secondary text-light mt-1">Pausada</span>
+                            </td>
                             <td class="font-monospace small text-light" style="line-height: 1.35;">
                                 <span class="text-secondary small">scripts/</span><br>
                                 <strong class="text-info">criar_apostas_cartoes_diario.py</strong>
                             </td>
-                            <td class="text-center"><span class="badge bg-warning text-dark fw-bold">Cartões Under</span></td>
-                            <td class="text-center"><span class="badge bg-warning-subtle text-warning border border-warning-subtle d-inline-block">~120 tokens/dia<br><small style="font-size: 0.72rem; opacity: 0.85;">(1,6%)</small></span></td>
+                            <td class="text-center"><span class="badge bg-secondary text-light">Cartões Under</span></td>
+                            <td class="text-center"><span class="badge bg-secondary-subtle text-secondary border border-secondary d-inline-block">0 tokens/dia<br><small style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</small></span></td>
                             <td class="px-3 small text-secondary">
-                                Monitora árbitros cadastrados e estatísticas disciplinares consolidadas para entradas táticas em Under 6.5 e Over 3.5 nas ligas de elite (+EV &ge; 5.0%).
+                                <strong class="text-warning">⏸️ DAG Paralisada:</strong> Esteira pré-jogo de cartões pausada para priorizar a liquidez e volume nas ordens autônomas da Cloudbet em USDT, economizando ~120 tokens/dia da API-Sports.
                             </td>
                         </tr>
                         <tr>
@@ -226,7 +234,7 @@
                             <td colspan="4" class="text-end py-3 px-4 text-uppercase small text-secondary">
                                 <i class="bi bi-calculator text-info me-1"></i> Total Médio de Consumo Diário do Pipeline:
                             </td>
-                            <td class="py-3 px-4"><span class="badge bg-info text-dark fw-bold fs-6">5.150 tokens/dia</span></td>
+                            <td class="py-3 px-4"><span class="badge bg-info text-dark fw-bold fs-6">4.980 tokens/dia</span></td>
                             <td class="px-4 small text-secondary">Soma consolidada de todas as esteiras ativas</td>
                         </tr>
                         <tr class="fw-bold text-light">
@@ -241,11 +249,11 @@
                                 <i class="bi bi-pie-chart text-primary me-1"></i> Balanço Calculado (Uso vs. Disponível):
                             </td>
                             <td class="py-3 px-4">
-                                <span class="badge bg-primary text-light fw-bold fs-6">68,7% em Uso</span>
+                                <span class="badge bg-primary text-light fw-bold fs-6">66,4% em Uso</span>
                             </td>
                             <td class="px-4">
-                                <span class="badge bg-success text-dark fw-bold fs-6">31,3% Disponível</span>
-                                <span class="text-secondary small ms-2">(2.350 tokens livres como margem de contingência diária)</span>
+                                <span class="badge bg-success text-dark fw-bold fs-6">33,6% Disponível</span>
+                                <span class="text-secondary small ms-2">(2.520 tokens livres como margem de contingência diária)</span>
                             </td>
                         </tr>
                     </tfoot>
@@ -255,12 +263,12 @@
             <!-- CARD VISUAL DE COTA & PERCENTUAIS -->
             <div class="m-3 p-3 rounded" style="background-color: #0f172a; border: 1px solid #334155;">
                 <div class="d-flex justify-content-between align-items-center mb-2 small">
-                    <span class="text-light fw-semibold"><i class="bi bi-speedometer2 text-primary me-1"></i> Utilização da Cota API-Sports: <strong>5.150 / 7.500 requisições</strong></span>
-                    <span class="text-success fw-bold"><i class="bi bi-shield-lock me-1"></i> Margem de Segurança: 31,3% Livre</span>
+                    <span class="text-light fw-semibold"><i class="bi bi-speedometer2 text-primary me-1"></i> Utilização da Cota API-Sports: <strong>4.980 / 7.500 requisições</strong></span>
+                    <span class="text-success fw-bold"><i class="bi bi-shield-lock me-1"></i> Margem de Segurança: 33,6% Livre</span>
                 </div>
                 <div class="progress" style="height: 10px; background-color: #334155;">
-                    <div class="progress-bar bg-primary" role="progressbar" style="width: 68.7%;" title="68,7% em Uso"></div>
-                    <div class="progress-bar bg-success" role="progressbar" style="width: 31.3%;" title="31,3% Disponível"></div>
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 66.4%;" title="66,4% em Uso"></div>
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 33.6%;" title="33,6% Disponível"></div>
                 </div>
             </div>
             </div>

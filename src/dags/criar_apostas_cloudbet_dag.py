@@ -67,7 +67,7 @@ default_args = {
 dag = DAG(
     'criar_apostas_cloudbet_dag',
     default_args=default_args,
-    schedule_interval='*/30 * * * *',  # Executa a cada 30 minutos capturando abertura de linhas no pré-jogo
+    schedule_interval='*/5 * * * *',   # Executa a cada 5 minutos capturando abertura de linhas no pré-jogo e in-play
     catchup=False,
     description="DAG do Airflow 100% Robotizada: avalia partidas em aberto, consulta odds reais da Cloudbet via proxy suíço e cria apostas chanceladas pelo Gatekeeper com stake mínima de 0.10 USDT.",
     tags=['football', 'cloudbet', 'trading', 'robot', '100_percent_automated', 'usdt']

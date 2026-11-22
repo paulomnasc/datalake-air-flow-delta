@@ -1136,6 +1136,15 @@ def sync_fixture_and_bet_cards(
             user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
             if user_stake <= 0.0:
                 user_stake = 10.00
+
+            # Idempotência e Proteção Estrita de Bancas Cripto (USDT - Princípio ACID):
+            # O mercado de cartões opera em casas fiat (Betano) e não possui execução via API Cloudbet.
+            # É expressamente proibido registrar palpites/apostas da Betano na tabela apostas para bancas USDT.
+            if user_moeda == 'USDT':
+                print(f"ℹ️ [Ignorando User USDT #{uid}] Mercado de cartões Betano não opera em bancas USDT.")
+                continue
+
+            confirmada_user = confirmada_val
             valor_aposta = user_stake
             ganhos_potenciais = round(valor_aposta * odd_val, casas_dec_padrao)
 
@@ -1210,14 +1219,14 @@ def sync_fixture_and_bet_cards(
                 """, (
                     uid, user_moeda, cotacao_brl_padrao, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc, gk_category,
-                    valor_aposta, ganhos_potenciais, confirmada_val, gk_detalhado, fixture_date
+                    valor_aposta, ganhos_potenciais, confirmada_user, gk_detalhado, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
                 created_count += 1
-                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (Confirmada: {confirmada_val})")
+                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (Confirmada: {confirmada_user})")
 
                 # Débito atômico na Conta Corrente quando aposta nasce confirmada
-                if confirmada_val == 1 and aposta_id:
+                if confirmada_user == 1 and aposta_id:
                     saldo_ant = 0.0
                     saldo_pos = 0.0
                     cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))

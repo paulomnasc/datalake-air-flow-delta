@@ -685,16 +685,17 @@ def sync_fixture_and_bet_goals(
 
     inserted_count = 0
     for uid in user_ids:
-        # Verificar se já existe aposta ativa para esta partida e mercado
+        # Verificar se já existe aposta ativa para esta partida e mercado (Idempotência Universal)
         cursor.execute("""
             SELECT id, status FROM apostas 
             WHERE usuario_id = %s AND fixture_id = %s AND mercado = 'Gols Asiáticos'
+              AND confirmada = 1 AND status NOT IN ('Cancelada', 'Não Confirmada')
             LIMIT 1
         """, (uid, fixture_id))
         row = cursor.fetchone()
 
         if row:
-            # Já existe aposta registrada
+            # Já existe aposta confirmada registrada
             continue
 
         # Consulta stake ativa parametrizada do usuário em metas_diarias_config
@@ -722,10 +723,60 @@ def sync_fixture_and_bet_goals(
         ia_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
         ia_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
 
+        cloudbet_bet_id = None
         if user_moeda == 'USDT':
-            casa_aposta_val = 'Cloudbet'
+            # Padrão Universal API-First: Consulta e emite ordem real na Cloudbet (soccer.total_goals)
+            try:
+                import json
+                from cloudbet_client import CloudbetClient
+                from cloudbet_matcher import CloudbetMatcher
+                cb_client = CloudbetClient()
+                cb_matcher = CloudbetMatcher(client=cb_client)
+                cb_match = cb_matcher.find_matching_event(home_team, away_team, data_jogo)
+                if not cb_match:
+                    print(f"⚠️ [Cloudbet Gols Sem Match] #{fixture_id} {home_team} vs {away_team} não encontrado na Cloudbet. Abstenção mandatória.")
+                    continue
+                cb_mkts = cb_matcher.get_event_markets(cb_match['event_id'])
+                tg_mkts = cb_mkts.get('total_goals', {})
+                outcome_key = 'over' if tipo == 'Over' else 'under'
+
+                cb_line_info = tg_mkts.get(line, {}).get(outcome_key)
+                if not cb_line_info or float(cb_line_info.get('price') or 0.0) < 1.30:
+                    print(f"⚠️ [Cloudbet Gols Sem Linha Ativa] Linha {line} {outcome_key} não ativa na Cloudbet para {home_team} vs {away_team}. Abstenção mandatória.")
+                    continue
+
+                cb_odd = float(cb_line_info['price'])
+                cb_market_url = cb_line_info['market_url']
+
+                print(f"🚀 [Cloudbet Gols API] Enviando ordem real: #{fixture_id} {home_team} vs {away_team} | {palpite} @ {cb_odd:.2f} (Stake: {valor_aposta:.2f} USDT)")
+                order_res = cb_client.place_bet(
+                    event_id=str(cb_match['event_id']),
+                    market_url=cb_market_url,
+                    price=cb_odd,
+                    stake=valor_aposta,
+                    currency=cb_client.currency
+                )
+
+                cloudbet_bet_id = order_res.get("betId")
+                # Validação Estrita API-First: Rollback se a API recusar ou não retornar betId
+                if not cloudbet_bet_id or "error" in order_res or order_res.get("status") in ("REJECTED", "FAILED") or not order_res.get("success", True):
+                    cursor.connection.rollback()
+                    print(f"❌ [Cloudbet Gols Rejeitado] Ordem recusada pela API: {order_res}. Rollback executado. Nenhuma aposta persistida.")
+                    continue
+
+                casa_aposta_val = 'Cloudbet'
+                odd = cb_odd
+                confirmada_val = 1
+                retorno_potencial = round(valor_aposta * odd, user_decimais)
+                cb_meta = json.dumps({'bet_id': cloudbet_bet_id, 'event_id': cb_match['event_id'], 'market_url': cb_market_url, 'is_simulated': order_res.get("is_simulated", cb_client.dry_run), 'currency': cb_client.currency})
+                reasoning = f"|| CLOUDBET: {cb_meta} || " + str(reasoning)
+            except Exception as e_cb:
+                cursor.connection.rollback()
+                print(f"❌ [Cloudbet Gols Exceção] Falha ao processar ordem na Cloudbet: {e_cb}. Rollback executado.")
+                continue
         else:
-            casa_aposta_val = best_cand.get('bookmaker') or 'Cloudbet'
+            casa_aposta_val = best_cand.get('bookmaker') or 'Betano'
+            confirmada_val = confirmada
 
         gk_cat = best_cand.get('gatekeeper_category') or 'Aposta Quase Premium (+EV Selecionado)'
         destaque_val = int(best_cand.get('destaque') or 1)
@@ -756,14 +807,14 @@ def sync_fixture_and_bet_goals(
             uid, user_moeda, user_cotacao, fixture_id, home_team, away_team,
             casa_aposta_val, palpite, odd, fair_odd,
             prob, ev, gk_cat, destaque_val,
-            valor_aposta, retorno_potencial, confirmada,
+            valor_aposta, retorno_potencial, confirmada_val,
             reasoning, data_jogo,
             ia_resumo, ia_parecer
         ))
         aposta_id = cursor.lastrowid
 
         # Se for confirmada, debitar valor na conta corrente
-        if confirmada == 1 and aposta_id:
+        if confirmada_val == 1 and aposta_id:
             saldo_ant = 0.0
             saldo_pos = 0.0
             cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))

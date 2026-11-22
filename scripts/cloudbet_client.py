@@ -46,6 +46,24 @@ class CloudbetClient:
         env_dry = os.environ.get("CLOUDBET_DRY_RUN") or env_vars.get("CLOUDBET_DRY_RUN", "true")
         self.dry_run = dry_run if dry_run is not None else (str(env_dry).strip().lower() in ("true", "1", "yes", "on"))
 
+        # Trava de Segurança Autônoma por Horário (100% independente da sessão de chat)
+        real_start_str = os.environ.get("CLOUDBET_REAL_START_AT") or env_vars.get("CLOUDBET_REAL_START_AT", "")
+        if real_start_str:
+            try:
+                import zoneinfo
+                from datetime import datetime
+                tz = zoneinfo.ZoneInfo("America/Sao_Paulo")
+                target_dt = datetime.fromisoformat(real_start_str.strip().replace(" ", "T"))
+                if target_dt.tzinfo is None:
+                    target_dt = target_dt.replace(tzinfo=tz)
+                now_dt = datetime.now(tz)
+                if now_dt >= target_dt:
+                    self.dry_run = False
+                else:
+                    self.dry_run = True
+            except Exception:
+                pass
+
         self.session = requests.Session()
         self.session.headers.update({
             "X-API-Key": self.api_key,

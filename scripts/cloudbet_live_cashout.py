@@ -1067,6 +1067,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         FROM apostas a
         INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
         WHERE a.status = 'Pendente'
+          AND a.confirmada = 1
           AND (a.tipo IS NULL OR a.tipo != 'Hedge Real')
           AND (a.resultado_detalhado IS NULL OR (a.resultado_detalhado NOT LIKE '%HEDGE_COBERTO_POR%' AND a.resultado_detalhado NOT LIKE '%HEDGE_EXECUTADO%'))
           AND a.casa_de_aposta IN ('Cloudbet', 'Betano', 'Stake', 'Pinnacle', '1xBet')
@@ -1479,6 +1480,16 @@ def executar_hedge_prejogo_cloudbet(
         owns_conn = True
 
     try:
+        # =========================================================================
+        # TRAVA DE INTEGRIDADE: Proibido emitir hedge para posições não confirmadas
+        # =========================================================================
+        if bet.get('confirmada') is not None and int(bet.get('confirmada') or 0) == 0:
+            print(f"🛑 [Hedge Abortado] Aposta #{aposta_id} não confirmada (confirmada = 0). Proibido emitir hedge para posições não confirmadas.")
+            return {
+                "success": False,
+                "motivo": f"Aposta #{aposta_id} não confirmada (confirmada = 0)."
+            }
+
         # =========================================================================
         # TRAVA DE CORTE SOBERANO (T-0): Se a bola já rolou, o pré-jogo expirou!
         # =========================================================================

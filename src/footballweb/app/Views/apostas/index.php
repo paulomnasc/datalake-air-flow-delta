@@ -1999,6 +1999,18 @@ if (!function_exists('fmtTopValorWithBrl')) {
               </div>
             <?php endif; ?>
 
+            <?php 
+              $cloudbetBetId = null;
+              if (!empty($aposta->resultado_detalhado) && strpos($aposta->resultado_detalhado, '|| CLOUDBET:') !== false) {
+                  if (preg_match('/\|\|\s*CLOUDBET:\s*(\{.*?\})\s*\|\|/s', $aposta->resultado_detalhado, $mCb)) {
+                      $cbData = json_decode($mCb[1], true);
+                      if (!empty($cbData['bet_id'])) {
+                          $cloudbetBetId = $cbData['bet_id'];
+                      }
+                  }
+              }
+            ?>
+
             <div class="bet-card-meta-row d-flex justify-content-between align-items-center flex-wrap gap-2 w-100">
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
@@ -2008,6 +2020,13 @@ if (!function_exists('fmtTopValorWithBrl')) {
                 <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
                   <?= lang('App.type') ?>: <?= htmlspecialchars($aposta->tipo) ?>
                 </span>
+                <?php if (!empty($cloudbetBetId)): ?>
+                  <span class="badge border font-monospace px-2 py-1 d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.45); font-size: 0.76rem;"
+                        title="Ordem financeira confirmada e liquidável na corretora Cloudbet">
+                    <i class="bi bi-shield-check"></i> Cloudbet ID: #<?= htmlspecialchars($cloudbetBetId) ?>
+                  </span>
+                <?php endif; ?>
                 <?php if (!empty($displayCreatedTime)): ?>
                   <span style="font-size: 0.78rem; color: var(--bet-accent); font-weight: 500;" title="<?= lang('App.created_at') ?>">
                     <i class="bi bi-clock-history me-1"></i> <?= lang('App.created_at') ?>: <?= $displayCreatedTime ?>

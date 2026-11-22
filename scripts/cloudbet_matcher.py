@@ -114,16 +114,17 @@ def calculate_similarity(s1: str, s2: str) -> float:
 
 
 # Lista Negra Global de Competições e Eventos Virtuais / Simulados (SRL, eSoccer, Cyber)
-BANNED_VIRTUAL_KEYWORDS = [
-    'srl',
-    'simulated reality',
-    'simulated',
-    'virtual',
-    'esoccer',
-    'e-soccer',
-    'cyber',
-    'electronic league',
-    'short football'
+# Utiliza regex com fronteiras de palavras (\b) para evitar colisões de substring (ex.: 'league-soccer' contendo 'e-soccer')
+BANNED_VIRTUAL_PATTERNS = [
+    re.compile(r'\bsrl\b', re.IGNORECASE),
+    re.compile(r'\bsimulated reality\b', re.IGNORECASE),
+    re.compile(r'\bsimulated\b', re.IGNORECASE),
+    re.compile(r'\bvirtual\b', re.IGNORECASE),
+    re.compile(r'\besoccer\b', re.IGNORECASE),
+    re.compile(r'(?:^|[\s_])e-soccer(?:$|[\s_])', re.IGNORECASE),
+    re.compile(r'\bcyber\b', re.IGNORECASE),
+    re.compile(r'\belectronic league\b', re.IGNORECASE),
+    re.compile(r'\bshort football\b', re.IGNORECASE)
 ]
 
 def is_banned_virtual_event(comp_name: str = "", comp_key: str = "", event_name: str = "", home_name: str = "", away_name: str = "") -> bool:
@@ -131,8 +132,8 @@ def is_banned_virtual_event(comp_name: str = "", comp_key: str = "", event_name:
     Retorna True se o evento ou competição for de futebol virtual / simulação (ex.: Serie A SRL).
     """
     combined = f"{comp_name} {comp_key} {event_name} {home_name} {away_name}".lower()
-    for kw in BANNED_VIRTUAL_KEYWORDS:
-        if kw in combined:
+    for pattern in BANNED_VIRTUAL_PATTERNS:
+        if pattern.search(combined):
             return True
     return False
 

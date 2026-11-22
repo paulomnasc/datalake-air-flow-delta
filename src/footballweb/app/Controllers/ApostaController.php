@@ -885,12 +885,22 @@ class ApostaController extends BaseController
             return null;
         }
 
+        // Detectar se a partida está ao vivo para liberar linhas fracionadas de In-Play
+        $isInplay = false;
+        if ($fixtureId) {
+            $fixRow = $this->db->table('fixtures_trends')->select('status')->where('fixture_id', $fixtureId)->get()->getRowArray();
+            if ($fixRow && in_array(strtoupper(trim($fixRow['status'] ?? '')), ['1H', '2H', 'HT', 'LIVE', 'IN_PLAY'])) {
+                $isInplay = true;
+            }
+        }
+
         $cmd = "python3 " . escapeshellarg($scriptPath) . " --eval_bet"
              . " --fixture_id=" . escapeshellarg((string)($fixtureId ?? 0))
              . " --home_team=" . escapeshellarg($timeCasa)
              . " --away_team=" . escapeshellarg($timeFora)
              . " --palpite=" . escapeshellarg($palpite)
              . " --odd=" . escapeshellarg((string)$odd)
+             . ($isInplay ? " --is_inplay" : "")
              . " 2>/dev/null";
 
         $output = shell_exec($cmd);

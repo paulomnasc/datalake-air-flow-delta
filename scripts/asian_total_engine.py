@@ -432,7 +432,8 @@ def evaluate_and_select_best_goals_candidate(
     xg_a: float,
     u5j_h: dict = None,
     u5j_a: dict = None,
-    has_superfavorite: bool = False
+    has_superfavorite: bool = False,
+    is_inplay: bool = False
 ) -> tuple:
     """
     Aplica o Gatekeeper de Gols Asiáticos para filtrar e ranquear candidatos viáveis.
@@ -442,6 +443,7 @@ def evaluate_and_select_best_goals_candidate(
     - Probabilidade Efetiva >= 52.0%
     - Trava Universal Anti-Goleada: Se 1X2 <= 1.20, veta terminantemente apostas em Under
     - Filtro de Coerência de Gols (Over exige histórico de gols recentes; Under exige consistência defensiva)
+    - Abordagem Híbrida: No Pré-Jogo autorizadas estritamente linhas inteiras (.0); no In-Play autorizadas linhas fracionadas com hedge
     Retorna: (status_gk, best_cand, approved_list, reason_msg)
     """
     total_xg = round(xg_h + xg_a, 2)
@@ -454,10 +456,14 @@ def evaluate_and_select_best_goals_candidate(
         ev_pct = cand['ev_pct']
         prob = cand['prob_efetiva']
 
-        # 0. Trava Soberana de Linhas Inteiras: Descontinuação absoluta de linhas fracionadas (.25, .5 e .75)
-        # Autorizadas exclusivamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols)
-        if round(line % 1.0, 2) != 0.0 or line not in (2.0, 3.0):
-            continue
+        # 0. Trava Soberana de Linhas: Híbrida (Inteiras em Pré-Jogo; Fracionadas autorizadas no In-Play com Hedge)
+        if is_inplay:
+            if line not in (1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0):
+                continue
+        else:
+            # Pré-Jogo: Autorizadas exclusivamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols)
+            if round(line % 1.0, 2) != 0.0 or line not in (2.0, 3.0):
+                continue
 
         # 1. Filtro Sweet Spot de Odd Conservador (Alta Assertividade 1.60 a 1.95)
         if odd < 1.60 or odd > 1.95:
@@ -537,7 +543,8 @@ def evaluate_and_select_best_goals_candidate(
 def calculate_unified_goals_recommendation(
     fixture_dict: dict,
     betano_lines: list = None,
-    cursor = None
+    cursor = None,
+    is_inplay: bool = False
 ) -> tuple:
     """
     Função Mestre Unificada para Ingestão, Criação e Auditoria de Apostas em Gols Asiáticos.
@@ -635,7 +642,7 @@ def calculate_unified_goals_recommendation(
     # 5. Executar Gatekeeper
     status_gk, best_cand, approved_list, reason_msg = evaluate_and_select_best_goals_candidate(
         candidates, home_team, away_team, xg_h, xg_a, u_json.get('home'), u_json.get('away'),
-        has_superfavorite=has_superfavorite
+        has_superfavorite=has_superfavorite, is_inplay=is_inplay
     )
 
     if status_gk != 'APPROVED' or not best_cand:
@@ -846,7 +853,8 @@ def cli_evaluate_goals_bet(
     home_team: str = "",
     away_team: str = "",
     palpite: str = "",
-    odd: float = 1.80
+    odd: float = 1.80,
+    is_inplay: bool = False
 ) -> dict:
     """
     Avalia uma aposta específica no mercado de Gols Asiáticos via Poisson e Gatekeeper.
@@ -905,19 +913,35 @@ def cli_evaluate_goals_bet(
             m_line = re.search(r'(\d+\.\d+|\d+)', palpite)
             line_val = float(m_line.group(1)) if m_line else 2.5
 
-            # 2.1 Trava Soberana de Linhas Inteiras: Descontinuação absoluta de linhas fracionadas (.25, .5 e .75)
-            # Autorizadas exclusivamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols)
-            if round(line_val % 1.0, 2) != 0.0 or line_val not in (2.0, 3.0):
-                return {
-                    "fixtureId": fix['fixture_id'] if fix else fixture_id,
-                    "oddJusta": odd,
-                    "probPoisson": 50.0,
-                    "evPercentual": 0.0,
-                    "statusGatekeeper": "NO_BET",
-                    "gatekeeperCategory": "Linha Fracionada Descontinuada",
-                    "gatekeeperMsg": "Regra de Bloqueio Gatekeeper (NO_BET): Linhas fracionadas de Gols Asiáticos (.25, .5 e .75) foram permanentemente descontinuadas para proteção da banca contra variância binária e meias-perdas. Autorizadas estritamente linhas inteiras com amortecedor de Push integral (2.0 e 3.0 Gols).",
-                    "destaque": 0
-                }
+            # Contexto In-Play (Ao Vivo) vs Pré-Jogo
+            fix_status = (fix.get('status') or '').strip().upper() if fix else ''
+            is_live_match = is_inplay or fix_status in ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY')
+
+            # 2.1 Trava Soberana de Linhas: Híbrida (Inteiras em Pré-Jogo; Fracionadas autorizadas no In-Play com Hedge)
+            if not is_live_match:
+                if round(line_val % 1.0, 2) != 0.0 or line_val not in (2.0, 3.0):
+                    return {
+                        "fixtureId": fix['fixture_id'] if fix else fixture_id,
+                        "oddJusta": odd,
+                        "probPoisson": 50.0,
+                        "evPercentual": 0.0,
+                        "statusGatekeeper": "NO_BET",
+                        "gatekeeperCategory": "Linha Fracionada em Pré-Jogo",
+                        "gatekeeperMsg": "Regra de Bloqueio Gatekeeper (NO_BET): Linhas fracionadas no Pré-Jogo (.25, .5 e .75) são restritas para proteção contra red seco. Linhas fracionadas (1.5 e 1.75) são autorizadas exclusivamente em In-Play acompanhadas de cobertura/hedge.",
+                        "destaque": 0
+                    }
+            else:
+                if line_val not in (1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0):
+                    return {
+                        "fixtureId": fix['fixture_id'] if fix else fixture_id,
+                        "oddJusta": odd,
+                        "probPoisson": 50.0,
+                        "evPercentual": 0.0,
+                        "statusGatekeeper": "NO_BET",
+                        "gatekeeperCategory": "Linha In-Play Fora de Escopo",
+                        "gatekeeperMsg": f"Regra de Bloqueio Gatekeeper (NO_BET): Linha {line_val} fora dos limites seguros de In-Play (1.25 a 3.0).",
+                        "destaque": 0
+                    }
 
             # 3. Obter Histórico U5J e Lambdas de Poisson
             h_name = fix.get('home_team') or home_team
@@ -1064,6 +1088,7 @@ if __name__ == '__main__':
     parser.add_argument("--away_team", type=str, default="")
     parser.add_argument("--palpite", type=str, default="")
     parser.add_argument("--odd", type=float, default=1.80)
+    parser.add_argument("--is_inplay", action="store_true", help="Indica partida em andamento (In-Play)")
     args = parser.parse_args()
 
     if args.eval_bet:
@@ -1072,6 +1097,7 @@ if __name__ == '__main__':
             home_team=args.home_team,
             away_team=args.away_team,
             palpite=args.palpite,
-            odd=args.odd
+            odd=args.odd,
+            is_inplay=args.is_inplay
         )
         print(json.dumps(res, ensure_ascii=False))

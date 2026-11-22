@@ -211,7 +211,7 @@ def build_ah_reference_fair_lines(fixture_dict, poisson_matrix, home_team, away_
     line_val = 0.0
     min_piso = 1.60
 
-    standard_steps = [-0.75, -0.5, -0.25, 0.0, 0.25, 0.5]
+    standard_steps = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5]
     for side_is_away in [False, True]:
         team_name = away_team if side_is_away else home_team
         for line_val in standard_steps:

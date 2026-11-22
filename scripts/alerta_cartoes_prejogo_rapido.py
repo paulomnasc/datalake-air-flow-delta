@@ -140,15 +140,19 @@ def executar_monitoramento_rapido():
         if not is_allowed_league(league_id, league_name, fixture_date):
             continue
 
-        # Se já possui aposta confirmada pelo usuário, mantém intacta
+        # Se já possui aposta tratada ou confirmada pelo usuário, mantém intacta e não re-notifica
         cursor.execute("""
             SELECT id, confirmada, status FROM apostas 
             WHERE fixture_id = %s AND mercado = 'Total de Cartões'
         """, (fixture_id,))
         apostas_existentes = cursor.fetchall()
-        tem_confirmada = any(int(a.get('confirmada') or 0) == 1 or a.get('status') not in ('Pendente', 'Cancelada') for a in apostas_existentes)
-        if tem_confirmada:
-            print(f"🔒 [Aposta Confirmada Mantida] {home_team} vs {away_team} já possui bilhete confirmado.")
+        tem_existente = any(
+            int(a.get('confirmada') or 0) == 1 or 
+            a.get('status') in ('Pendente', 'Cancelada', 'Cashout', 'Ganha', 'Perdida', 'ANULADA') 
+            for a in apostas_existentes
+        )
+        if tem_existente:
+            print(f"🔒 [Aposta Existente/Tratada Mantida] {home_team} vs {away_team} já possui bilhete monitorado ou finalizado.")
             continue
 
         # Cálculo Estrutural e Sistêmico de Cartões (Cards Engine - Single Source of Truth)

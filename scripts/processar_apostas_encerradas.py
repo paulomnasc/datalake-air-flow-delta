@@ -16,6 +16,11 @@ from datetime import datetime, timedelta
 
 from db_config import get_db_connection
 
+try:
+    from lifecycle_logger import log_match_milestone, log_lifecycle_event
+except ImportError:
+    from scripts.lifecycle_logger import log_match_milestone, log_lifecycle_event
+
 def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descricao=None):
     """
     Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
@@ -222,7 +227,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 def get_fixture_stats(fixture, cursor=None):
     """
     Extrai as estatísticas reais finais da partida (FT).
-    Retorna None se os dados de gols, status ou a trava score_processed_at estiverem incompletos/nulos no banco.
+    Para mercados de gols e handicap, liquida imediatamente no apito final.
+    Para cartões, busca a súmula oficial e mantém em 'Pendente' caso a súmula ainda não esteja disponível.
     """
     status = (fixture.get('status') or '').strip().upper()
     finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
@@ -230,14 +236,11 @@ def get_fixture_stats(fixture, cursor=None):
         return None
 
     score_processed_at = fixture.get('score_processed_at')
-    if not score_processed_at:
-        return None
-
-    # Premissa Obrigatória: exige janela mínima de consolidação de 20 minutos após score_processed_at
-    if isinstance(score_processed_at, datetime):
-        if (datetime.now() - score_processed_at).total_seconds() < 1200:
-            print(f"⏳ [Maturação Pós-Jogo] Partida #{fixture.get('fixture_id')} encerrada há menos de 20 min ({score_processed_at}). Aguardando consolidação da súmula.")
-            return None
+    if not score_processed_at and cursor and fixture.get('fixture_id'):
+        try:
+            cursor.execute("UPDATE fixtures_trends SET score_processed_at = NOW() WHERE fixture_id = %s", (fixture['fixture_id'],))
+        except Exception:
+            pass
 
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')
@@ -442,13 +445,43 @@ def evaluate_bet(aposta, stats):
         detalhe = f"FT | {target_name}: {actual_cards} ({breakdown}) {comp} Limite {threshold} -> Aposta {status_str.upper()}"
         return status_str, detalhe, (ganhos_reais if won else 0.0)
 
-    # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
+    # 2. MERCADO: GOLS (Gols Asiáticos e Over/Under Tradicional)
     elif 'gol' in mercado_norm or 'gol' in palpite_norm:
-        match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
-        threshold = float(match_thresh.group(1)) if match_thresh else 2.5
+        match_thresh = re.search(r'(\d+(?:[\.,]\d+)?)', palpite)
+        threshold = float(match_thresh.group(1).replace(',', '.')) if match_thresh else 2.5
         
+        # Normalização rigorosa sem acentos/diacríticos para reconhecimento universal de variações (asiático, asiatico, asian)
+        import unicodedata
+        palp_clean = ''.join(c for c in unicodedata.normalize('NFD', palpite_norm) if unicodedata.category(c) != 'Mn')
+        merc_clean = ''.join(c for c in unicodedata.normalize('NFD', mercado_norm) if unicodedata.category(c) != 'Mn')
+
+        is_asian = (
+            'asiatic' in merc_clean or 'asiatic' in palp_clean or
+            'asian' in merc_clean or 'asian' in palp_clean or
+            'gols asiaticos' in merc_clean or
+            round(threshold % 0.5, 2) != 0.0 or
+            round(threshold % 1.0, 2) == 0.0  # Linhas inteiras (.0) no mercado de gols são sempre asiáticas com amortecedor de Push
+        )
+        
+        if is_asian:
+            from asian_total_engine import settle_asian_total_bet
+            st_asian, ret_asian, luc_asian, det_asian = settle_asian_total_bet(
+                total_goals=total_goals,
+                palpite=palpite,
+                odd=odd_original,
+                valor_aposta=valor_aposta,
+                moeda_codigo=moeda_cod
+            )
+            return st_asian, f"FT 23:00 | {det_asian}", ret_asian
+
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
+
+        # Salvaguarda estrutural para linhas inteiras: empate de total de gols com a linha é sempre ANULADA (Push)
+        if round(threshold % 1.0, 2) == 0.0 and total_goals == int(threshold):
+            status_str = 'ANULADA'
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Total {total_goals} Gols == Linha Inteira {threshold}) -> Aposta ANULADA (Reembolso)"
+            return status_str, detalhe, valor_aposta
         
         if is_under:
             won = (total_goals < threshold)
@@ -599,6 +632,30 @@ def process_pending_bets():
             WHERE id = %s
         """, (novo_status, detalhe, valor_computado, aposta_id))
 
+        # Registra liquidação da aposta e marco de encerramento no log transversal da partida
+        try:
+            gh_val = stats.get('goals_home')
+            ga_val = stats.get('goals_away')
+            placar_final = f"{gh_val}x{ga_val}" if gh_val is not None and ga_val is not None else None
+            fix_id_val = aposta.get('fixture_id')
+            if fix_id_val:
+                log_match_milestone(cursor, fix_id_val, 'FIM_DE_JOGO', placar=placar_final)
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fix_id_val,
+                    componente="LIQUIDACAO_ENGINE",
+                    tipo_evento=f"APOSTA_LIQUIDADA_{novo_status.upper().replace(' ', '_')}",
+                    estado_anterior="Pendente",
+                    estado_novo=novo_status,
+                    aposta_id=aposta_id,
+                    fase_jogo="FT",
+                    minuto_jogo=90,
+                    placar_momento=placar_final,
+                    motivo=f"Aposta #{aposta_id} ({aposta.get('mercado')} - {aposta.get('palpite')}) liquidada como {novo_status.upper()}. {detalhe}"
+                )
+        except Exception as e_lf:
+            print(f"⚠️ [Settlement Logger] Falha ao registrar log de liquidação: {e_lf}")
+
         if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
             is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
             if is_confirmada:
@@ -631,10 +688,130 @@ def process_pending_bets():
     print(f"🔴 Apostas Perdidas: {perdidas}")
     print("=======================================================")
 
+    # Reconciliação Fail-Safe: Creditar apostas com status 'Cashout' que ainda não tenham registro em conta_corrente
+    try:
+        cursor.execute("""
+            SELECT a.id, a.usuario_id, a.cash_out, a.time_casa, a.time_fora, a.moeda_codigo
+            FROM apostas a
+            WHERE a.status = 'Cashout'
+              AND a.cash_out > 0
+              AND a.confirmada = 1
+              AND NOT EXISTS (
+                  SELECT 1 FROM conta_corrente cc 
+                  WHERE cc.aposta_id = a.id AND cc.tipo = 'CREDITO_RETORNO_APOSTA'
+              )
+        """)
+        cashouts_pendentes = cursor.fetchall()
+        for c_bet in cashouts_pendentes:
+            c_id = c_bet['id']
+            c_uid = c_bet['usuario_id']
+            c_val = float(c_bet['cash_out'])
+            c_desc = f"Retorno Aposta #{c_id} ({c_bet['time_casa']} x {c_bet['time_fora']} - Cashout)"
+            if creditar_retorno_aposta(cursor, c_uid, c_id, c_val, 'Cashout', c_desc):
+                print(f"💰 [Reconciliação Cashout] Aposta #{c_id} creditada com sucesso ({c_val} {c_bet.get('moeda_codigo')})")
+                conn.commit()
+    except Exception as e_rec:
+        print(f"⚠️ [Erro Reconciliação Cashout]: {e_rec}")
+
     # Processar liquidação dos palpites gerados pela IA
     process_palpites_gerados(cursor)
 
     conn.close()
+
+
+def processar_apostas_fixture(fixture_id: int):
+    """
+    Processa e liquida imediatamente todas as apostas pendentes vinculadas a uma partida específica que deu FT.
+    Executado instantaneamente pelo sincronizador in-play sem aguardar a DAG das 23:00.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        fixture = cursor.fetchone()
+        if not fixture:
+            conn.close()
+            return 0
+
+        status_fix = (fixture.get('status') or '').strip().upper()
+        if status_fix not in ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'):
+            conn.close()
+            return 0
+
+        cursor.execute("""
+            SELECT * FROM apostas 
+            WHERE fixture_id = %s AND status = 'Pendente'
+        """, (fixture_id,))
+        pendentes = cursor.fetchall()
+        if not pendentes:
+            conn.close()
+            return 0
+
+        stats = get_fixture_stats(fixture, cursor)
+        if not stats:
+            conn.close()
+            return 0
+
+        liquidadas = 0
+        for aposta in pendentes:
+            aposta_id = aposta['id']
+            novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)
+            if novo_status == 'Pendente':
+                continue
+
+            cursor.execute("""
+                UPDATE apostas
+                SET status = %s,
+                    resultado_detalhado = %s,
+                    ganhos_potenciais = %s,
+                    processado_em = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (novo_status, detalhe, valor_computado, aposta_id))
+
+            if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
+                is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+                if is_confirmada:
+                    creditar_retorno_aposta(
+                        cursor,
+                        aposta.get('usuario_id'),
+                        aposta_id,
+                        valor_computado,
+                        novo_status,
+                        f"Retorno Aposta #{aposta_id} ({fixture.get('home_team')} x {fixture.get('away_team')} - {novo_status})"
+                    )
+
+            try:
+                gh_val = stats.get('goals_home')
+                ga_val = stats.get('goals_away')
+                placar_final = f"{gh_val}x{ga_val}" if gh_val is not None and ga_val is not None else None
+                log_match_milestone(cursor, fixture_id, 'FIM_DE_JOGO', placar=placar_final)
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fixture_id,
+                    componente="LIQUIDACAO_ENGINE",
+                    tipo_evento=f"APOSTA_LIQUIDADA_{novo_status.upper().replace(' ', '_')}",
+                    estado_anterior="Pendente",
+                    estado_novo=novo_status,
+                    aposta_id=aposta_id,
+                    fase_jogo="FT",
+                    minuto_jogo=90,
+                    placar_momento=placar_final,
+                    motivo=f"Aposta #{aposta_id} ({aposta.get('mercado')} - {aposta.get('palpite')}) liquidada imediatamente no FT como {novo_status.upper()}. {detalhe}"
+                )
+            except Exception as e_lf:
+                pass
+
+            conn.commit()
+            liquidadas += 1
+            print(f"⚡ [Liquidação Imediata FT] Aposta #{aposta_id} -> {novo_status} ({detalhe})")
+
+        conn.close()
+        return liquidadas
+    except Exception as e:
+        print(f"⚠️ Erro ao liquidar apostas da fixture #{fixture_id}: {e}")
+        conn.close()
+        return 0
 
 def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow_home, yellow_away, red_home, red_away, corners_home, corners_away, mercado, linha, odd):
     """

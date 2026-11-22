@@ -336,7 +336,7 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
 # Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
 
-def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
+def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
     """
     Busca os jogos em aberto, verifica a disponibilidade REAL das linhas na Betano (Bookmaker ID 32)
     e cria apostas no mercado de Handicap Asiático para todos os usuários.
@@ -348,7 +348,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     cursor = conn.cursor()
 
     is_prematch_window = False
-    confirmada_val = int(confirmada) if confirmada is not None else 0
+    confirmada_val = int(confirmada) if confirmada is not None else 1
 
     if target_date_str and target_date_str.lower() in ('prematch', 'pre-match'):
         is_prematch_window = True
@@ -991,5 +991,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
 if __name__ == '__main__':
     target_date = sys.argv[1] if len(sys.argv) > 1 else None
-    confirmada_arg = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    if target_date in ('', 'None', 'none'):
+        target_date = None
+    confirmada_arg = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     criar_apostas_handicap_diario(target_date, confirmada_arg)

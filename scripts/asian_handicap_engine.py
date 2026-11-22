@@ -14,6 +14,7 @@ docs/footballweb/PROCESSO_CRIACAO_PALPITES_HANDICAP_ASIATICO.md:
 """
 
 import os
+import sys
 import re
 import json
 import math
@@ -512,14 +513,83 @@ def format_bookmaker_name(raw_name: str) -> str:
     return n.capitalize() if n.isupper() else n
 
 
-def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
+def fetch_all_cloudbet_ah_lines(home_team: str, away_team: str, fixture_date=None) -> list:
     """
-    Busca TODAS as linhas ativas de Handicap Asiático (Bet ID 4) e Draw No Bet (Bet ID 2/16)
-    oferecidas no mercado esportivo para a fixture, implementando o protocolo Multi-Bookmaker
-    (Best Odds Execution):
-    - Audita todas as casas retornadas pela API oficial (Betano, Pinnacle, Bet365, Betfair, 1xBet, Bwin).
-    - Para cada linha/seleção, elege soberanamente a MAIOR cotação real de mercado.
-    - Em caso de empate de odds, prioriza Betano como bookmaker canônica.
+    Prioridade 1: Busca linhas ativas de Handicap Asiático (FT) na Cloudbet (Bookmaker Cripto / USDT).
+    Consome CloudbetMatcher com filtro estrito de SELECTION_ENABLED e cotação real (> 1.0).
+    """
+    if not home_team or not away_team:
+        return []
+    try:
+        try:
+            from cloudbet_matcher import CloudbetMatcher
+        except ImportError:
+            from scripts.cloudbet_matcher import CloudbetMatcher
+
+        matcher = CloudbetMatcher()
+        matched = matcher.find_matching_event(home_team, away_team, fixture_date=fixture_date)
+        if not matched or not matched.get('id'):
+            return []
+
+        raw_odds = matcher.client.get_event_odds(matched['id'])
+        if not isinstance(raw_odds, dict):
+            return []
+
+        markets_raw = raw_odds.get('markets', {})
+        ah_market = markets_raw.get('soccer.asian_handicap', {})
+        selections = ah_market.get('submarkets', {}).get('period=ft', {}) if isinstance(ah_market, dict) else {}
+        sel_list = selections.get('selections', []) if isinstance(selections, dict) else []
+
+        cloudbet_lines = []
+        for sel in sel_list:
+            if sel.get('status') != 'SELECTION_ENABLED':
+                continue
+            try:
+                price = float(sel.get('price') or 0.0)
+            except (ValueError, TypeError):
+                price = 0.0
+            if price <= 1.0:
+                continue
+
+            params = str(sel.get('params') or '')
+            m = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', params)
+            if not m:
+                continue
+            line_val = float(m.group(1))
+            outcome = str(sel.get('outcome') or '').lower()
+            is_away = (outcome == 'away')
+            target_team = away_team if is_away else home_team
+            sign_str = f"+{line_val:g}" if line_val > 0 else (f"{line_val:g}" if line_val < 0 else "0.0")
+            palpite_fmt = f"{target_team} {sign_str} AH"
+
+            cloudbet_lines.append({
+                'team': 'Away' if is_away else 'Home',
+                'target_team': target_team,
+                'is_away': is_away,
+                'line': line_val,
+                'palpite_str': palpite_fmt,
+                'odd': price,
+                'raw_value': params,
+                'source': 'Cloudbet',
+                'bookmaker': 'Cloudbet',
+                'market_url': sel.get('marketUrl'),
+                'cloudbet_event_id': matched['id']
+            })
+
+        if cloudbet_lines:
+            print(f"🎯 [Cloudbet Multi-Bookmaker] {len(cloudbet_lines)} linhas ativas de AH obtidas para {home_team} x {away_team}")
+        return cloudbet_lines
+    except Exception as e_cb:
+        print(f"⚠️ [Cloudbet AH Fetch] Exceção ao consultar Cloudbet para {home_team} x {away_team}: {e_cb}")
+        return []
+
+
+def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str, fixture_date=None):
+    """
+    Protocolo Multi-Bookmaker em Cascata (Best Odds & Execution Real):
+    1. Prioridade 1: Cloudbet (Bookmaker Canônica em Cripto / USDT);
+    2. Prioridade 2: Betano Direto (Tempo Real / Zero Lag);
+    3. Prioridade 3: API-Sports (Contingência Multi-Bookmaker).
     """
     global _betano_ah_api_disabled
     if not fixture_id or _betano_ah_api_disabled:
@@ -528,8 +598,14 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
     if fixture_id in _betano_ah_odds_cache:
         return _betano_ah_odds_cache[fixture_id]
 
+    # Prioridade 1: Consulta Direta na Cloudbet
+    cloudbet_lines = fetch_all_cloudbet_ah_lines(home_team, away_team, fixture_date)
+    if cloudbet_lines:
+        _betano_ah_odds_cache[fixture_id] = cloudbet_lines
+        return cloudbet_lines
+
     betano_direct_lines = []
-    # Prioridade 1: Consulta Direta na API Pública da Betano (Zero Lag / Tempo Real)
+    # Prioridade 2: Consulta Direta na API Pública da Betano (Zero Lag / Tempo Real)
     if home_team and away_team:
         try:
             try:
@@ -770,7 +846,7 @@ def evaluate_and_select_best_ah_candidate(
     odd_home: float,
     odd_away: float,
     min_ev: float = 5.0,
-    min_prob: float = 58.0,
+    min_prob: float = 60.0,
     home_team_id: int = None,
     away_team_id: int = None,
     home_last5: dict = None,
@@ -803,8 +879,8 @@ def evaluate_and_select_best_ah_candidate(
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
     - Score de Valor = EV% * (Prob / 100.0)
     """
-    standard_allowed_lines = {0.0}
-    moderate_negative_lines = {-0.5, -0.75}
+    standard_allowed_lines = {0.0}  # Linha 0.0 AH / DNB liberada com proteção de devolução no empate
+    moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
     raw_a_odd = float(odd_away or 0.0)
@@ -977,14 +1053,15 @@ def evaluate_and_select_best_ah_candidate(
         is_cand_false_dog_dominant = (
             not c_is_away and
             (cand_odd > opp_odd or cand_odd >= 2.40) and
+            cand_odd <= 2.75 and
             cand_pts_eff >= 8.0 and
             has_30pct_u5j_dominance and
             cand_trend != "CURVA_DESCENDENTE" and
             cand_xg_diff >= 0.0
         )
 
-        # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -0.75 AH
-        if c_line < -0.75:
+        # Trava Global Inviolável: O teto máximo de risco para qualquer favorito é -1.0 AH
+        if c_line < -1.0:
             continue
 
         # =========================================================================
@@ -1007,7 +1084,7 @@ def evaluate_and_select_best_ah_candidate(
         # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
         # Exceção Soberana: Super-Dominância Tier 1 (onde o abismo técnico autoriza até -0.75 AH).
         # =========================================================================
-        if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75)):
+        if c_is_away and c_line < -0.25 and not (is_super_dominant_tier1 and c_line in (-0.5, -0.75, -1.0)):
             continue
 
         u5j_diff = abs(cand_pts_eff - opp_pts_eff)
@@ -1352,7 +1429,7 @@ def evaluate_and_select_best_ah_candidate(
 
         if c_line in moderate_negative_lines:
             # -0.5 AH pode ser liberado para mandantes com dominância de Poisson OU super-favoritos/assimetria
-            # Linha -0.75 AH permanece restrita a Super-Favoritos ou Tier 1 Dominante (teto máximo global)
+            # Linhas -0.75 AH e -1.0 AH permanecem restritas a Super-Favoritos ou Tier 1 Dominante (teto máximo global)
             min_odd_neg = 1.50 if is_super_dominant_tier1 else 1.60
             if c_odd < min_odd_neg or c_odd > 1.95:
                 continue
@@ -1361,12 +1438,18 @@ def evaluate_and_select_best_ah_candidate(
                     continue
                 required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (60.0 if is_home_poisson_dominant_minus_half else 65.0)
                 required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else (5.0 if is_home_poisson_dominant_minus_half else 15.0)
-            else:
+            elif c_line == -0.75:
                 # Linha -0.75 AH: destravamento de Poisson PROIBIDO (destravando -0.5 AH APENAS)
                 if not is_eligible_negative:
                     continue
                 required_prob = 58.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 65.0
                 required_ev = 8.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 15.0
+            else:
+                # Linha -1.0 AH: teto máximo permitido em cenários de super-favoritismo / dominância técnica
+                if not (is_eligible_negative or is_super_dominant_tier1 or is_super_fav_crushed):
+                    continue
+                required_prob = 55.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 60.0
+                required_ev = 5.0 if (is_super_fav_crushed or is_super_dominant_tier1) else 10.0
         elif c_line == -0.25:
             # Linha de Cobertura de -0.25 AH (Carro-Chefe Histórico de Rentabilidade):
             # 1. Elegibilidade: Mandantes com superioridade técnica OU Visitantes em alta contra mandantes em crise
@@ -1442,9 +1525,9 @@ def evaluate_and_select_best_ah_candidate(
         else:
             continue
 
-        # Faixa de odd segura operacional: piso mínimo de 1.50 para Apostas Premium e 1.60 para as demais
-        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.60)
-        max_op_odd = 2.75 if (is_cand_benefited_by_lineup or is_cand_false_dog_dominant) else 2.55
+        # Faixa de odd segura operacional: piso mínimo de 1.45/1.50 e teto conservador de 1.95 (Alta Assertividade)
+        min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.55)
+        max_op_odd = 1.95
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 
@@ -1519,7 +1602,7 @@ def evaluate_and_select_best_ah_candidate(
                 cand_copy['tier'] = BetTier.QUASE_PREMIUM
                 cand_copy['gatekeeper_category'] = 'Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula'
                 cand_copy['is_momentum_surge'] = True
-            elif is_super_dominant_tier1 and c_line in (-0.5, -0.75):
+            elif is_super_dominant_tier1 and c_line in (-0.5, -0.75, -1.0):
                 cand_copy['destaque'] = BetTier.PREMIUM.value
                 cand_copy['is_premium'] = True
                 cand_copy['tier'] = BetTier.PREMIUM
@@ -1906,17 +1989,17 @@ def calculate_unified_handicap_recommendation(
             xg_h = round(xg_h * penal_factor, 2)
             xg_a = round(xg_a * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}", file=sys.stderr)
         elif team_penalizado and team_penalizado in away_team.lower():
             xg_a = round(xg_a * penal_factor, 2)
             xg_h = round(xg_h * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}")
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}", file=sys.stderr)
 
-    # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
+    # 3. Obtenção de linhas ativas na Cloudbet / Betano / API-Sports:
     if betano_lines is None:
         if allow_api_fetch and fixture_id:
-            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team, fixture_date=fixture_dict.get('fixture_date'))
         else:
             betano_lines = []
 
@@ -2146,7 +2229,7 @@ def calculate_unified_handicap_recommendation(
 
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
-        min_ev=5.0, min_prob=58.0,
+        min_ev=5.0, min_prob=60.0,
         home_team_id=h_tid, away_team_id=a_tid,
         home_last5=h_l5, away_last5=a_l5,
         xg_home=xg_h, xg_away=xg_a,
@@ -2412,7 +2495,8 @@ def calculate_unified_handicap_recommendation(
         if betano_lines:
             audit_items, _ = audit_ah_lines_reasons(betano_lines, 'NO_BET', sug, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
             if audit_items:
-                audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+                bm_label = (betano_lines[0].get('source') if betano_lines and isinstance(betano_lines, list) else 'Betano')
+                audit_bullet = f"• 📋 Linhas de Handicap Asiático Auditadas ({bm_label}):\n" + "\n".join(f"  {it}" for it in audit_items)
                 compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
         return 'NO_BET', sug, conf, compound_r, None, []
 
@@ -2464,7 +2548,8 @@ def calculate_unified_handicap_recommendation(
     if betano_lines:
         audit_items, _ = audit_ah_lines_reasons(betano_lines, 'APROVADO', selected_palpite, fixture_dict, (h_l5 or {}).get('trend', 'CURVA_ESTAVEL'), (a_l5 or {}).get('trend', 'CURVA_ESTAVEL'))
         if audit_items:
-            audit_bullet = "• 📋 Linhas de Handicap Asiático Auditadas na Betano:\n" + "\n".join(f"  {it}" for it in audit_items)
+            bm_label = (betano_lines[0].get('source') if betano_lines and isinstance(betano_lines, list) else 'Betano')
+            audit_bullet = f"• 📋 Linhas de Handicap Asiático Auditadas ({bm_label}):\n" + "\n".join(f"  {it}" for it in audit_items)
             compound_r = inject_audit_into_compound_reasoning(compound_r, audit_bullet)
 
     # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)
@@ -2590,12 +2675,24 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
                 # Checagem anti-duplicidade com itens já em matches
                 is_dup = False
                 for m in matches:
+                    m_fid = m.get('fixture_id')
                     m_dt = str(m.get('date', '')).strip()
                     m_sc = str(m.get('score', '')).strip().replace('-', 'x')
                     m_opp = str(m.get('opponent', '')).strip().lower()
-                    if dt_str and m_dt and (dt_str == m_dt or dt_str.startswith(m_dt) or m_dt.startswith(dt_str)):
+
+                    if fid and m_fid and fid == m_fid:
                         is_dup = True
                         break
+
+                    if dt_str and m_dt:
+                        c_d = dt_str.split('/')[:2]
+                        m_d = m_dt.split('/')[:2]
+                        if c_d == m_d:
+                            is_dup = True
+                            break
+                        # Se as datas são distintas, não é duplicata mesmo que adversário e placar coincidam
+                        continue
+
                     if m_opp == str(opp).strip().lower() and m_sc and sc and m_sc == sc:
                         is_dup = True
                         break
@@ -2677,6 +2774,20 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
     tr_lbl = res_dict.get("trend_label") or ""
     tr_suffix = f" | {tr_lbl}" if tr_lbl else ""
     res_dict["text"] = f"{num_v}V-{num_e}E-{num_d}D ({pts} pts | {pts_eff:.1f} pts ef.{tr_suffix})" if matches else "Não localizado (0 pts)"
+
+    # Sincronização e Cura do Cache Local (Regras 1 e 16): Se alcançou 5 jogos, garante persistência no team_last5_cache
+    if len(matches) >= 5 and cursor and team_id:
+        try:
+            cursor.execute("""
+                INSERT INTO team_last5_cache (team_id, team_name, form_json, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE form_json = VALUES(form_json), updated_at = NOW()
+            """, (team_id, team_name, json.dumps(matches[:5])))
+            if hasattr(cursor, 'connection') and cursor.connection:
+                cursor.connection.commit()
+        except Exception:
+            pass
+
     return res_dict
 
 
@@ -3056,6 +3167,16 @@ def compose_compound_ah_reasoning(
     h_u5j = None
     a_u5j = None
 
+    if cursor and (not home_team_id or not away_team_id):
+        try:
+            cursor.execute("SELECT home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+            row_f = cursor.fetchone()
+            if row_f:
+                home_team_id = home_team_id or row_f.get("home_team_id")
+                away_team_id = away_team_id or row_f.get("away_team_id")
+        except Exception:
+            pass
+
     # Prioridade Absoluta (Regra 1): Reutiliza o payload U5J_DATA pré-existente no reasoning
     if existing_reasoning and "|| U5J_DATA:" in existing_reasoning:
         try:
@@ -3066,8 +3187,23 @@ def compose_compound_ah_reasoning(
                 h_u5j = parsed_u.get("home", {})
                 a_u5j = parsed_u.get("away", {})
                 
-                # Garante coerência de pts_efficiency com a fórmula oficial compute_team_u5j_efficiency
                 rebuilt_json = False
+
+                # Fail-Safe de Recomposição Imediata (Regra 16): Se algum time tiver < 5 jogos no payload,
+                # consulta o cache/banco via get_team_u5j_from_db para tentar completar 5 partidas
+                if cursor and (len(h_u5j.get("matches", [])) < 5 or len(a_u5j.get("matches", [])) < 5):
+                    if len(h_u5j.get("matches", [])) < 5:
+                        h_fresh = get_team_u5j_from_db(cursor, home_team_id, home_team)
+                        if len(h_fresh.get("matches", [])) > len(h_u5j.get("matches", [])):
+                            h_u5j = h_fresh
+                            rebuilt_json = True
+                    if len(a_u5j.get("matches", [])) < 5:
+                        a_fresh = get_team_u5j_from_db(cursor, away_team_id, away_team)
+                        if len(a_fresh.get("matches", [])) > len(a_u5j.get("matches", [])):
+                            a_u5j = a_fresh
+                            rebuilt_json = True
+
+                # Garante coerência de pts_efficiency com a fórmula oficial compute_team_u5j_efficiency
                 if h_u5j and isinstance(h_u5j, dict) and h_u5j.get("matches"):
                     h_calc = compute_team_u5j_efficiency(h_u5j)
                     if h_u5j.get("pts_efficiency") != h_calc:
@@ -3302,8 +3438,10 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
         if status_ah == 'APROVADO' and p_str.strip().lower() == str(sug_ah).strip().lower():
             is_aprovada = True
             motivo = "Aprovada pelo Gatekeeper com valor esperado positivo e boa cobertura"
-        elif c_line < -0.75:
-            motivo = "Reprovada: Linha ultra-agressiva (< -0.75 AH) é estritamente proibida pelo teto universal de segurança da banca"
+        elif c_line < -1.0:
+            motivo = "Reprovada: Linha ultra-agressiva (< -1.0 AH) é estritamente proibida pelo teto universal de segurança da banca"
+        elif c_line == 0.0:
+            motivo = "Avaliação da Linha 0.0 AH (Empate Anula): Requer superioridade em U5J, tabela e +EV canônico"
         elif c_line in (0.25, 0.5):
             motivo = "Condicional: Linhas +0.25 e +0.5 AH dependem de dominância >= 30% no U5J do mandante ou desfalques importantes na súmula"
         elif c_line > 0.0:
@@ -3316,7 +3454,7 @@ def audit_ah_lines_reasons(betano_lines, status_ah, sug_ah, fix, h_trend='CURVA_
             motivo = "Reprovada: Cotação deprimida abaixo do piso seguro de 1.50"
         elif 1.61 <= odd_val <= 1.85 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Equipe em curva descendente bloqueada na faixa crítica de risco (1.61 a 1.85)"
-        elif c_line in (-0.5, -0.75):
+        elif c_line in (-0.5, -0.75, -1.0):
             motivo = "Reprovada: Linha sem cobertura de empate exige cotação 1X2 <= 1.55 e dominância indiscutível no U5J"
         elif c_line == -0.25 and cand_trend == "CURVA_DESCENDENTE":
             motivo = "Reprovada: Linha de -0.25 AH exige equipe em estabilidade ou ascensão no U5J"
@@ -3364,7 +3502,7 @@ def sync_fixture_and_bet_handicap(
     ev_perc: float,
     detalhe_calculo: str,
     user_ids: list,
-    confirmada_val: int = 0,
+    confirmada_val: int = 1,
     destaque_val: int = 0,
     best_cand: dict = None
 ):
@@ -3426,6 +3564,8 @@ def sync_fixture_and_bet_handicap(
         """, (uid,))
         meta_row = cursor.fetchone()
         user_moeda = meta_row.get('moeda_codigo') if (meta_row and meta_row.get('moeda_codigo')) else moeda_padrao_cod
+        if user_moeda == 'USDT':
+            casa_nome = 'Cloudbet'
         user_stake = float(meta_row['stake_padrao']) if (meta_row and meta_row.get('stake_padrao')) else 10.00
         if user_stake <= 0.0:
             user_stake = 10.00
@@ -3608,15 +3748,15 @@ def sync_fixture_and_bet_handicap(
                 desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {selected_palpite})"
                 cursor.execute("""
                     INSERT INTO conta_corrente (
-                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                        usuario_id, aposta_id, tipo, moeda_codigo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
                     ) VALUES (
-                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, NOW()
+                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                     )
-                """, (uid, aposta_id, desc_deb, -valor_aposta, s_ant, s_post))
+                """, (uid, aposta_id, user_moeda, desc_deb, -valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
                 tit = f"🎯 Aposta Criada: {home_team} vs {away_team}"
-                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} na {casa_nome} (Débito: R$ {valor_aposta:.2f})."
+                msg = f"A IA gerou a entrada {selected_palpite} @ {odd_val:.2f} na {casa_nome} (Débito: {user_moeda} {valor_aposta:.2f})."
                 lnk = f"/apostas?fixture_id={fixture_id}"
                 registrar_notificacao_usuario(cursor, uid, aposta_id, fixture_id, 'APOSTA_CRIADA', tit, msg, lnk)
             else:
@@ -3912,7 +4052,14 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     Cancelamento automático desativado conforme diretriz operacional (Diário de Bordo 22/10/2026).
     Preserva apostas existentes (confirmadas ou não confirmadas) como 'Pendente' sem estorno ou cancelamento forçado.
     """
-    print(f"🔒 [Aposta Preservada / Cancelamento Automático Desativado] Partida #{fixture_id}: cancelamento automático ignorado. Apostas mantidas intactas.")
+    if cursor and fixture_id:
+        try:
+            cursor.execute("SELECT id FROM apostas WHERE fixture_id = %s LIMIT 1", (fixture_id,))
+            if not cursor.fetchone():
+                return []
+        except Exception:
+            pass
+    print(f"🔒 [Aposta Preservada / Cancelamento Automático Desativado] Partida #{fixture_id}: cancelamento automático ignorado. Apostas mantidas intactas.", file=sys.stderr)
     return []
 
 

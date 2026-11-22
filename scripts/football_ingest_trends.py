@@ -21,13 +21,15 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 try:
-    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club, get_team_pedigree_bonus
+    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club, get_team_pedigree_bonus, is_relevant_national_friendly
 except Exception:
     ALLOWED_LEAGUES = {}
     def is_tier_1_elite_club(team_id=None, team_name=None):
         return False
     def get_team_pedigree_bonus(team_id=None, team_name=None):
         return 0.0
+    def is_relevant_national_friendly(home_id=None, home_name=None, away_id=None, away_name=None):
+        return False
 
 try:
     from asian_handicap_engine import (
@@ -210,10 +212,24 @@ def calculate_team_poisson_under_lines(xc, phi=1.15):
         
     return results
 
-def is_women_game(home_team="", away_team="", league_name=""):
+def is_women_game(home_team="", away_team="", league_name="", league_id=None):
     """
-    Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
+    Filtra e desconsidera partidas femininas não autorizadas no catálogo global leagues_config.py.
     """
+    if league_id is not None:
+        try:
+            if int(league_id) in ALLOWED_LEAGUES:
+                return False
+        except (ValueError, TypeError):
+            pass
+
+    if league_name:
+        l_norm = league_name.lower().strip()
+        for allowed_id, allowed_name in ALLOWED_LEAGUES.items():
+            a_norm = allowed_name.lower().strip()
+            if l_norm in a_norm or a_norm in l_norm:
+                return False
+
     home = str(home_team or "").strip()
     away = str(away_team or "").strip()
     league = str(league_name or "").strip()
@@ -474,20 +490,31 @@ _team_last5_form_cache = {}
 def _is_match_duplicate(cand, existing_list):
     if not cand or not existing_list:
         return False
+    cand_fid = cand.get('fixture_id')
     cand_opp_norm = _normalize_team_name_for_match(cand.get('opponent', ''))
     cand_score = str(cand.get('score', '')).strip().replace('-', 'x')
     cand_date = str(cand.get('date', '')).strip()
 
     for ex in existing_list:
+        ex_fid = ex.get('fixture_id')
         ex_opp_norm = _normalize_team_name_for_match(ex.get('opponent', ''))
         ex_score = str(ex.get('score', '')).strip().replace('-', 'x')
         ex_date = str(ex.get('date', '')).strip()
 
-        # Se as datas coincidem exatamente (e preenchidas), é a mesma partida
-        if cand_date and ex_date and cand_date == ex_date:
+        # 1. Se ambos têm fixture_id preenchido e coincidem, é exatamente a mesma partida
+        if cand_fid and ex_fid and cand_fid == ex_fid:
             return True
 
-        # Se o placar é o mesmo e os nomes normalizados de oponente batem
+        # 2. Se ambas as datas estiverem preenchidas
+        if cand_date and ex_date:
+            c_d = cand_date.split('/')[:2]
+            e_d = ex_date.split('/')[:2]
+            if c_d == e_d:
+                return True
+            # Se as datas são comprovadamente diferentes, NUNCA é duplicata mesmo com mesmo adversário e placar
+            continue
+
+        # 3. Fallback de contingência apenas se alguma data estiver ausente
         if cand_score and ex_score and cand_score == ex_score:
             if cand_opp_norm == ex_opp_norm or (cand_opp_norm and cand_opp_norm in ex_opp_norm) or (ex_opp_norm and ex_opp_norm in cand_opp_norm):
                 return True
@@ -527,7 +554,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             matches.append(am)
                         if len(matches) >= 5:
                             break
-                    if len(matches) > 0:
+                    if len(matches) >= 5:
                         has_cached_entry = True
         except Exception as e_c:
             pass
@@ -799,6 +826,23 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         }
         _team_last5_form_cache[cache_key] = empty_res
         return empty_res
+
+    # Sincronização e Cura do Cache Local (Regras 1 e 16): Se alcançou 5 jogos, garante persistência no team_last5_cache
+    if len(matches) >= 5 and cursor is not None and team_id:
+        try:
+            cursor.execute("""
+                INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE 
+                    form_json = VALUES(form_json),
+                    updated_at = NOW(),
+                    team_name = VALUES(team_name),
+                    league_id = VALUES(league_id)
+            """, (team_id, team_name, league_id, json.dumps(matches[:5])))
+            if hasattr(cursor, 'connection') and cursor.connection:
+                cursor.connection.commit()
+        except Exception as e_heal:
+            pass
 
     # Limpa fixture_id temporário do objeto de retorno das partidas
     clean_matches = []
@@ -3299,13 +3343,21 @@ def main():
     # Filtra partidas pelas ligas permitidas e desconsidera jogos femininos ou de categorias de base (Sub-17, Sub-21, U17, U21, etc.)
     filtered_fixtures = []
     for f in fixtures:
-        if f.get("league", {}).get("id") not in ALLOWED_LEAGUES:
+        lid = f.get("league", {}).get("id")
+        if lid not in ALLOWED_LEAGUES:
             continue
 
         h_name = f.get("teams", {}).get("home", {}).get("name", "")
         a_name = f.get("teams", {}).get("away", {}).get("name", "")
         l_name = f.get("league", {}).get("name", "")
-        if is_women_game(h_name, a_name, l_name) or is_youth_game(h_name, a_name, l_name):
+        h_id = f.get("teams", {}).get("home", {}).get("id")
+        a_id = f.get("teams", {}).get("away", {}).get("id")
+
+        if is_women_game(h_name, a_name, l_name, lid) or is_youth_game(h_name, a_name, l_name):
+            continue
+
+        # Para Amistosos (ID 10): aceita apenas confrontos com seleções internacionais relevantes
+        if lid == 10 and not is_relevant_national_friendly(h_id, h_name, a_id, a_name):
             continue
         
         if is_live_mode:
@@ -3417,17 +3469,17 @@ def main():
         print(f"Aviso ao carregar existing_db_referees: {e_ref}")
 
     try:
-        cursor.execute("SELECT fixture_id, home_team, away_team, league_name FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, league_name, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
         recent_db_fixtures = cursor.fetchall()
         to_delete = [
             r['fixture_id'] for r in recent_db_fixtures 
-            if is_women_game(r['home_team'], r['away_team'], r['league_name']) or is_youth_game(r['home_team'], r['away_team'], r['league_name'])
+            if is_women_game(r['home_team'], r['away_team'], r['league_name'], r.get('league_id')) or is_youth_game(r['home_team'], r['away_team'], r['league_name'])
         ]
         if to_delete:
             format_strings = ','.join(['%s'] * len(to_delete))
             cursor.execute(f"DELETE FROM fixtures_trends WHERE fixture_id IN ({format_strings})", tuple(to_delete))
             conn.commit()
-            print(f"🧹 Limpeza automática: removidas {len(to_delete)} partidas de categorias de base / femininas da base de dados.")
+            print(f"🧹 Limpeza automática: removidas {len(to_delete)} partidas de categorias de base / femininas não autorizadas da base de dados.")
     except Exception as e_clean:
         print(f"Aviso ao executar limpeza de jogos de base/femininos: {e_clean}")
 
@@ -3466,8 +3518,8 @@ def main():
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
 
-            # Desconsiderar partidas/ligas femininas (W) e categorias de base (Sub-17, Sub-21, U17, U21, etc.)
-            if is_women_game(home_team, away_team, league_name) or is_youth_game(home_team, away_team, league_name):
+            # Desconsiderar partidas/ligas femininas não autorizadas e categorias de base (Sub-17, Sub-21, U17, U21, etc.)
+            if is_women_game(home_team, away_team, league_name, league_id) or is_youth_game(home_team, away_team, league_name):
                 continue
 
             # Sanitização: Corrigir atribuição de liga se a API enviar times da Série B sob Série A (league 71)
@@ -4200,8 +4252,14 @@ def main():
                                                 else: ra += 1
                                                 last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
                                         elif ev_type == "Goal":
-                                            goals_list.append(f"{time_str} {player_name}".strip())
-                                            last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                                            if "Missed" in detail or "Disallowed" in detail or "Cancelled" in detail:
+                                                last_ev_text = f"{time_str} Pênalti Desperdiçado/Gol Anulado: {team_name_ev} ({player_name})"
+                                            else:
+                                                goal_text = f"{time_str} {player_name}".strip()
+                                                if "Own" in detail:
+                                                    goal_text += " (GC)"
+                                                goals_list.append(goal_text)
+                                                last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
                                         elif ev_type in ["subst", "Subst", "Substitution"]:
                                             sub_count += 1
                                             if assist_name:

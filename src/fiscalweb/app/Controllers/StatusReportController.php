@@ -230,7 +230,7 @@ class StatusReportController extends BaseController
      */
     protected function consultarGemini(array $dossie, string $apiKey, string $dataHora): string
     {
-        $model = 'gemini-flash-lite-latest';
+        $model = getenv('GEMINI_MODEL') ?: ($_ENV['GEMINI_MODEL'] ?? 'gemini-3.1-flash-lite');
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         $resumoJson = json_encode($dossie, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

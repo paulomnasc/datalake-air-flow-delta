@@ -781,6 +781,53 @@ if (!function_exists('fmtExtratoValor')) {
     </div>
   </div>
 
+  <!-- BANNER DE MARCO ZERO / CICLO DE BANCA ATIVO -->
+  <?php if (!empty($cicloAtivo)): ?>
+    <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%); border: 1px solid <?= !empty($filtrarCiclo) ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)' ?>; border-radius: 1rem; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(56, 189, 248, 0.15); color: #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+          <i class="fas fa-bullseye"></i>
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <strong style="color: #fff; font-size: 1.05rem; font-family: monospace;"><?= esc($cicloAtivo->nome_ciclo) ?></strong>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.72rem; padding: 3px 8px; border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 6px;">PONTO DE CORTE ATIVO</span>
+          </div>
+          <div style="font-size: 0.82rem; color: #94a3b8; margin-top: 3px;">
+            Aporte Base: <strong style="color: #38bdf8;"><?= number_format($cicloAtivo->deposito_inicial, 2) ?> <?= esc($cicloAtivo->moeda_codigo) ?></strong> • Ponto Zero: <span style="color: #f8fafc;"><?= date('d/m/Y H:i', strtotime($cicloAtivo->data_inicio)) ?></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <?php if (!empty($metricasCiclo) && !empty($metricasCiclo['has_ciclo'])): ?>
+          <div style="text-align: right;">
+            <span style="font-size: 0.72rem; color: #94a3b8; display: block; text-transform: uppercase;">Patrimônio do Ciclo</span>
+            <strong style="font-size: 1.15rem; color: #34d399; font-family: monospace;"><?= $metricasCiclo['patrimonio_total_fmt'] ?> <?= esc($metricasCiclo['moeda']) ?></strong>
+          </div>
+          <div style="text-align: right; padding-left: 1rem; border-left: 1px solid rgba(255,255,255,0.1);">
+            <span style="font-size: 0.72rem; color: #94a3b8; display: block; text-transform: uppercase;">Crescimento</span>
+            <span class="badge <?= $metricasCiclo['crescimento_banca_pct'] >= 0 ? 'bg-success' : 'bg-danger' ?>" style="font-size: 0.9rem; font-family: monospace; padding: 4px 8px;">
+              <?= ($metricasCiclo['crescimento_banca_pct'] >= 0 ? '+' : '') . number_format($metricasCiclo['crescimento_banca_pct'], 1) ?>%
+            </span>
+          </div>
+        <?php endif; ?>
+
+        <div>
+          <?php if (!empty($filtrarCiclo)): ?>
+            <a href="<?= site_url('/apostas/extrato') ?>" class="btn-clear" style="padding: 0.55rem 1rem; text-decoration: none; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+              <i class="fas fa-eye"></i> Ver Histórico Geral
+            </a>
+          <?php else: ?>
+            <a href="<?= site_url('/apostas/extrato?ciclo=1') ?>" class="btn-add-credit" style="padding: 0.55rem 1.25rem; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); text-decoration: none; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);">
+              <i class="fas fa-crosshairs"></i> Focar Neste Ciclo
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <!-- Filter Card -->
   <div class="filter-card">
     <form method="GET" action="<?= site_url('/apostas/extrato') ?>" id="extratoFilterForm" class="filter-form">

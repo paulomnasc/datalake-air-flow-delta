@@ -177,7 +177,8 @@ def processar_alertas_5_minutos():
                    ft.home_team, ft.away_team, ft.league_name, ft.fixture_date, ft.status as fixture_status
             FROM apostas a
             JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
-            WHERE a.status IN ('Pendente', 'Não Confirmada')
+            WHERE a.status = 'Pendente'
+              AND a.confirmada = 1
               AND ft.status IN ('NS', 'TBD', 'POSTP')
               AND ft.fixture_date BETWEEN UTC_TIMESTAMP() 
                                       AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL 6 MINUTE)
@@ -200,7 +201,16 @@ def processar_alertas_5_minutos():
             away_team = item['away_team']
             palpite = item['palpite']
             odd = float(item['odd'] or 1.0)
-            ia_resumo = item.get('auditoria_ia_resumo') or 'Escalações auditadas no pré-jogo'
+            ia_resumo_raw = (item.get('auditoria_ia_resumo') or '').strip()
+            ia_status = (item.get('auditoria_ia_status') or '').strip().upper()
+            if ia_resumo_raw:
+                ia_resumo = ia_resumo_raw
+            elif ia_status == 'CONFIRMADO':
+                ia_resumo = 'Escalações confirmadas no pré-jogo'
+            elif ia_status == 'ALERTA_RISCO':
+                ia_resumo = '⚠️ Alerta de risco detectado no pré-jogo'
+            else:
+                ia_resumo = '⚠️ Auditoria de escalação pendente no pré-jogo'
 
             # Converte fixture_date UTC para horário de Brasília (UTC - 3)
             dt_raw = item['fixture_date']

@@ -53,14 +53,58 @@ ALLOWED_LEAGUES = {
     106: "Ekstraklasa (Polonia)",
     345: "Czech First League (Tchequia)",
     253: "Major League Soccer (EUA)",
-    ## 10: "Friendlies (Amistosos de Selecoes)",
+    10: "Friendlies (Amistosos de Selecoes)",
     1: "Copa do Mundo (Mundo)",
     15: "FIFA Club World Cup (Mundo)",
-    17: "AFC Champions League (Asia)"
+    17: "AFC Champions League (Asia)",
+    # Principais Ligas e Copas Femininas de Elite Mundial
+    525: "UEFA Champions League Women (Europa)",
+    44:  "FA WSL (Inglaterra Feminino)",
+    74:  "Brasileirao Feminino (Brasil)",
+    254: "NWSL (EUA Feminino)",
+    142: "Liga F (Espanha Feminino)",
+    82:  "Frauen Bundesliga (Alemanha Feminino)",
+    64:  "Premiere Ligue (Franca Feminino)",
+    139: "Serie A Women (Italia Feminino)",
+    949: "Copa Libertadores Femenina (America do Sul)",
+    8:   "Copa do Mundo Feminina (Mundo)",
+    926: "Copa America Femenina (America do Sul)",
+    698: "FA Women's Cup (Inglaterra Feminino)"
 }
 
 # Conjunto de IDs para busca instantânea O(1)
 ALLOWED_LEAGUE_IDS = set(ALLOWED_LEAGUES.keys())
+
+# ==============================================================================
+# GRAYLIST / WATCHLIST DE LIGAS EM OBSERVAÇÃO (RISCO DE LIQUIDEZ IN-PLAY)
+# ==============================================================================
+# Ligas que permanecem permitidas no catálogo global para o modelo pré-jogo (+EV),
+# porém sob observação estrita de liquidez e hedge ao vivo na Cloudbet.
+# Se acumularem prejuízo por falta de cobertura in-play ou recusa contínua da bookmaker,
+# serão desativadas permanentemente de ALLOWED_LEAGUES.
+GRAYLIST_LEAGUES = {
+    144: {
+        "name": "Pro League (Belgica)",
+        "motivo": "Liquidez in-play instável ou ausente na Cloudbet durante o 2º tempo (ex: Fixture #1558682)",
+        "adicionada_em": "2026-11-20",
+        "status": "EM_OBSERVACAO"
+    }
+}
+
+GRAYLIST_LEAGUE_IDS = set(GRAYLIST_LEAGUES.keys())
+
+
+def is_graylist_league(league_id) -> bool:
+    """
+    Retorna True se a liga pertencer à lista cinza (em observação de liquidez).
+    """
+    if league_id is None:
+        return False
+    try:
+        return int(league_id) in GRAYLIST_LEAGUE_IDS
+    except (ValueError, TypeError):
+        return False
+
 
 # Palavras-chave para validação fallback por nome textual
 ALLOWED_LEAGUE_NAMES = [
@@ -86,35 +130,57 @@ ALLOWED_LEAGUE_NAMES = [
     'k league', 'k-league', 'k league 1',
     'ekstraklasa', 'czech first league',
     'mls', 'major league soccer',
-    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria',
+    'friendlies', 'amistoso', 'amistosos',
+    'uefa champions league women', 'champions league women', 'uwcl',
+    'fa wsl', 'women\'s super league', 'wsl',
+    'brasileirão feminino', 'brasileirao feminino',
+    'nwsl', 'liga f', 'frauen-bundesliga', 'frauen bundesliga',
+    'première ligue', 'premiere ligue', 'feminine division 1',
+    'serie a women', 'libertadores femenina', 'copa libertadores femenina',
+    'world cup - women', 'copa do mundo feminina'
 ]
 
 
-def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bool:
+def is_allowed_league(league_id, league_name: str = "", fixture_date=None, home_id=None, home_name: str = "", away_id=None, away_name: str = "") -> bool:
     """
     Verifica se a liga informada (por ID ou Nome) pertence ao escopo global unificado de ligas monitoradas.
     Filtra automaticamente partidas femininas, torneios de base e divisões secundárias não autorizadas.
+    Para amistosos (ID 10), valida relevância internacional caso os times sejam informados.
     """
     if not league_name and league_id is None:
         return False
 
     l_name_low = str(league_name or '').lower().strip()
 
-    # 1. Bloqueia partidas femininas
+    # 1. Validação primária por ID Numérico Oficial (O(1))
+    if league_id is not None:
+        try:
+            lid = int(league_id)
+            if lid in ALLOWED_LEAGUE_IDS:
+                return True
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Bloqueia partidas femininas genéricas (não autorizadas no catálogo oficial)
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina', ' w ', '(w)']):
+        if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
+            return True
         return False
 
     # 2. Bloqueia categorias de base
     if any(w in l_name_low for w in ['u17', 'u19', 'u20', 'u21', 'u23', 'sub-17', 'sub-20', 'sub-23']):
         return False
 
-    # 3. Validação primária por ID Numérico Oficial (O(1))
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            return lid in ALLOWED_LEAGUE_IDS
-        except (ValueError, TypeError):
-            pass
+    # 3. Validação especial de Amistosos (Liga ID 10)
+    try:
+        lid_check = int(league_id) if league_id is not None else None
+    except (ValueError, TypeError):
+        lid_check = None
+
+    if lid_check == 10 or 'amistoso' in l_name_low or 'friendlies' in l_name_low:
+        if home_name or away_name or home_id or away_id:
+            return is_relevant_national_friendly(home_id, home_name, away_id, away_name)
 
     # 4. Bloqueia divisões secundárias genéricas (Fallback para validação apenas textual)
     if any(tier in l_name_low for tier in ['2. liga', '2. bundesliga', 'segunda division', 'segunda división', 'serie c', 'serie d', 'championship', 'league one', 'league two']):
@@ -592,6 +658,48 @@ def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
             return True
 
     return False
+
+
+def is_relevant_national_friendly(home_id=None, home_name: str = "", away_id=None, away_name: str = "") -> bool:
+    """
+    Verifica se um amistoso (Liga ID 10) possui relevância internacional comprovada.
+    Exige que pelo menos uma das equipes seja uma seleção Tier 1, uma seleção registrada
+    na Copa do Mundo (world_cup_standings_cache) ou seleção de relevância competitiva.
+    Bloqueia amistosos obscuros entre clubes ou equipes amadoras.
+    """
+    # 1. Verifica se mandante ou visitante é Tier 1
+    if is_tier_1_elite_club(team_id=home_id, team_name=home_name):
+        return True
+    if is_tier_1_elite_club(team_id=away_id, team_name=away_name):
+        return True
+
+    # 2. Verifica se mandante ou visitante está no catálogo de seleções de Copa do Mundo
+    info_h = get_world_cup_team_info(team_id=home_id, team_name=home_name)
+    if info_h and info_h.get('team_name'):
+        return True
+    info_a = get_world_cup_team_info(team_id=away_id, team_name=away_name)
+    if info_a and info_a.get('team_name'):
+        return True
+
+    # 3. Lista expandida de seleções nacionais reconhecidas
+    national_keywords = [
+        'argentina', 'brasil', 'colombia', 'chile', 'uruguai', 'venezuela', 'peru', 'equador', 'bolivia', 'paraguai',
+        'russia', 'alemanha', 'franca', 'inglaterra', 'espanha', 'portugal', 'italia', 'holanda', 'belgica',
+        'noruega', 'dinamarca', 'suica', 'suecia', 'croacia', 'polonia', 'ucrania', 'turquia', 'servia',
+        'australia', 'japao', 'coreia do sul', 'arabia saudita', 'iraque', 'ira', 'jordania', 'uzbequistao', 'eau', 'emirados arabes',
+        'estados unidos', 'mexico', 'canada', 'costa rica', 'honduras', 'panama', 'jamaica', 'siria', 'kuwait',
+        'marrocos', 'egito', 'senegal', 'argelia', 'tunisia', 'nigeria', 'costa do marfim', 'gana', 'camaroes'
+    ]
+    import unicodedata
+    for t_name in [home_name, away_name]:
+        if not t_name:
+            continue
+        norm = unicodedata.normalize('NFKD', str(t_name).lower().strip()).encode('ASCII', 'ignore').decode('utf-8')
+        if any(nk in norm for nk in national_keywords):
+            return True
+
+    return False
+
 
 
 

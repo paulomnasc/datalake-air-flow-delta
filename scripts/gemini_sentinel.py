@@ -227,7 +227,7 @@ def coletar_sumula_e_desfalques_apisports(
     # Identifica qual é o time apoiado na aposta (se for Handicap Asiático)
     palpite_lower = (palpite or "").lower()
     is_under_cards = ("menos" in palpite_lower) or ("under" in palpite_lower)
-    apoiado_is_away = (away_team.lower() in palpite_lower) if not is_under_cards else None
+    apoiado_is_away = (away_team.lower() in palpite_lower) if (palpite and not is_under_cards) else None
 
     blocos_sumula = []
     motivos_alerta = []
@@ -360,7 +360,8 @@ def coletar_sumula_e_desfalques_apisports(
             titulares_cache_away = list(titulares_nomes)
 
         is_time_apoiado = (
-            (apoiado_is_away is False and is_home_entry)
+            (apoiado_is_away is None)
+            or (apoiado_is_away is False and is_home_entry)
             or (apoiado_is_away is True and not is_home_entry)
         )
 
@@ -545,6 +546,8 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
             is_drift_no_bet = True
     elif 'cart' in mercado and ('status gk: no_bet' in pred_txt or '[gatekeeper cartões no_bet' in pred_txt or 'bloquead' in pred_txt):
         is_no_bet = True
+    elif ('gol' in mercado or 'total' in mercado) and ('status gk: no_bet' in pred_txt or '[gatekeeper gols no_bet' in pred_txt or 'bloquead' in pred_txt):
+        is_no_bet = True
 
     if is_no_bet:
         desc_cat = gk_cat if gk_cat else "Abstenção / Bloqueio do Gatekeeper"
@@ -553,13 +556,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
                 f"⚠️ Suspeita de Armadilha da Odd Inflada no pré-jogo: A cotação subiu no mercado. Requer validação mandatória da súmula oficial com titulares."
             )
         else:
-            alerta_critico = True
             desc_cat_lower = desc_cat.lower()
             if "falta de valor esperado" in desc_cat_lower or "ev" in desc_cat_lower or "sem entrada" in desc_cat_lower or "liquidez" in desc_cat_lower:
                 motivos_risco.append(
-                    "🚨 As linhas AH viáveis do palpite foram excluídas pelas casas de apostas (Gatekeeper decretou abstenção por falta de valor esperado +EV): Saída preventiva / cancelamento recomendado."
+                    "⚠️ Observação de Mercado: Cotações automatizadas da casa padrão sem valor esperado (+EV) no pré-jogo matinal."
                 )
             else:
+                alerta_critico = True
                 motivos_risco.append(
                     f"🚨 Gatekeeper decretou Abstenção ({desc_cat}): A aposta perdeu os critérios matemáticos de entrada no pré-jogo. Saída preventiva / cancelamento recomendado."
                 )
@@ -573,7 +576,7 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
         alerta_critico = True
         motivos_risco.append(f"Cotações 1X2 ausentes ou zeradas no banco ({odd_home:.2f} x {odd_away:.2f}).")
 
-    if probabilidade <= 0.0 or probabilidade > 100.0:
+    if item.get('probabilidade_poisson') is not None and (probabilidade <= 0.0 or probabilidade > 100.0):
         alerta_critico = True
         motivos_risco.append(f"Probabilidade Poisson anômala ou zerada ({probabilidade:.1f}%).")
 
@@ -638,6 +641,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
         if 1.0 < odd_aposta < 1.50:
             alerta_critico = True
             motivos_risco.append(f"Odd de Cartões ({odd_aposta:.2f}) abaixo do piso viável (1.50).")
+    elif 'gol' in mercado or 'total' in mercado:
+        if 1.0 < odd_aposta < 1.50:
+            alerta_critico = True
+            motivos_risco.append(f"Odd de Gols Asiáticos ({odd_aposta:.2f}) abaixo do piso viável (+EV) do Gatekeeper (1.50).")
+        elif odd_aposta > 3.00:
+            alerta_critico = True
+            motivos_risco.append(f"Odd de Gols Asiáticos ({odd_aposta:.2f}) em patamar de extremidade excessiva (> 3.00).")
 
     # 4. Auditoria de Volatilidade de Mercado e Confronto Equilibrado (Abordagem Percentual de Mercado / Delta de Probabilidade)
     delta_p_vantagem = 0.0
@@ -707,11 +717,13 @@ def auditar_coerencia_e_sanidade_dados_mysql(item: dict, reasoning_text: str) ->
     }
 
 
-def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA", force=False):
+def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, msg, tipo="ALERTA_SENTINELA_IA", force=False, analise_ia=None):
     """
     Registra alerta no Sininho da interface web (tabela notificacoes_usuario).
     Prevenção de duplicidade: se force=False, não insere se já foi notificado nos últimos 45 minutos.
+    Regra 8: inicialização prévia de variáveis numéricas locais.
     """
+    notif_id = 0
     try:
         if not force:
             cursor.execute("""
@@ -728,12 +740,12 @@ def registrar_alerta_sininho(cursor, usuario_id, aposta_id, fixture_id, titulo, 
         link = f"/apostas?fixture_id={fixture_id}"
         cursor.execute("""
             INSERT INTO notificacoes_usuario (
-                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, pinada, criado_em
+                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, analise_ia, link, lida, pinada, criado_em
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
+                %s, %s, %s, %s, %s, %s, %s, %s, 0, 1, NOW()
             )
-        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, link))
-        notif_id = cursor.lastrowid
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, msg, analise_ia, link))
+        notif_id = int(cursor.lastrowid or 0)
         print(f"🔔 [Sininho Alerta Notificado User #{usuario_id}] ID #{notif_id} -> {titulo}")
 
         # Logging transversal automático com vínculo de ID e Data/Hora
@@ -1052,70 +1064,94 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
         h_t = dossie.get("home_team", "Mandante")
         a_t = dossie.get("away_team", "Visitante")
         if lineups_disponiveis or sumula_info.get("tem_sumula"):
-            motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
-            is_alerta = alerta_estrutural or alerta_critico_dados
-            grau_emerg = "ALTO" if is_alerta else ("MEDIO" if confronto_eq else "BAIXO")
-            badge_emerg = "🔴 Risco Alto" if grau_emerg == "ALTO" else ("🟡 Risco Médio" if grau_emerg == "MEDIO" else "🟢 Risco Baixo")
-            
+            tem_alerta_elenco = bool(alerta_estrutural)
+            tem_alerta_dados = bool(alerta_critico_dados)
+
+            if tem_alerta_elenco:
+                motivos_str = "; ".join(motivos_elenco) if motivos_elenco else "Alterações críticas ou desfalques detectados no elenco"
+                veredito_txt = "🔴 Desfalque Crítico no Elenco Detectado"
+                grau_emerg = "ALTO"
+                badge_emerg = "🔴 Risco Alto (Elenco)"
+                titulo_tag = "🔴 Alerta de Desfalques"
+                resumo_txt = f"Desfalques na súmula: {motivos_str}"
+            elif tem_alerta_dados:
+                motivos_str = "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+                veredito_txt = "🟡 Força Máxima Confirmada no Elenco (Com Observação de Mercado/Cotações)"
+                grau_emerg = "MEDIO"
+                badge_emerg = "🟡 Observação de Mercado"
+                titulo_tag = "Força Máxima / ⚠️ Observação de Mercado"
+                resumo_txt = "Força máxima no elenco (com observação de mercado/cotações)"
+            else:
+                motivos_str = "Elenco titular confirmado sem desfalques críticos na espinha dorsal"
+                veredito_txt = "🟢 Força Máxima Confirmada - Sinal Verde"
+                grau_emerg = "BAIXO" if not confronto_eq else "MEDIO"
+                badge_emerg = "🟢 Força Máxima" if not confronto_eq else "🟡 Confronto Equilibrado"
+                titulo_tag = "🟢 Força Máxima"
+                resumo_txt = "Força máxima confirmada sem desfalques críticos"
+
             parecer_sumula = (
                 f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada!\n\n"
                 f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
                 f"{texto_sumula}\n\n"
                 f"--- DIAGNÓSTICO PRÉ-JOGO ---\n"
                 f"• Status do Elenco: {motivos_str}.\n"
-                f"• Veredito: {'🔴 Desfalque Crítico / Risco de Mercado Detectado' if is_alerta else '🟢 Força Máxima Confirmada - Sinal Verde'}"
             )
+            if tem_alerta_dados and aud_dados.get("motivos_risco"):
+                motivos_mkt = "; ".join(aud_dados["motivos_risco"])
+                parecer_sumula += f"• Observação de Mercado/Cotações: ⚠️ {motivos_mkt}\n"
+            parecer_sumula += f"• Veredito: {veredito_txt}"
+
             return {
-                "status": "ALERTA_RISCO" if is_alerta else ("EM_OBSERVACAO" if grau_emerg == "MEDIO" else "CONFIRMADO"),
+                "status": "ALERTA_RISCO" if tem_alerta_elenco else ("CONFIRMADO" if not tem_alerta_dados else "ALERTA_RISCO"),
                 "grau_risco": grau_emerg,
                 "badge_risco": badge_emerg,
-                "tem_alerta": is_alerta,
+                "tem_alerta": tem_alerta_elenco or tem_alerta_dados,
+                "tem_alerta_elenco": tem_alerta_elenco,
+                "tem_alerta_dados": tem_alerta_dados,
                 "escalacao_confirmada": True,
                 "fonte_escalacao": "API_SPORTS",
-                "resumo_escalacao": f"Escalação oficial confirmada na API: {motivos_str}",
-                "titulo_alerta": f"📋 Escalação Confirmada [{badge_emerg}]: {h_t} vs {a_t}",
+                "resumo_escalacao": resumo_txt,
+                "titulo_alerta": f"📋 Escalação Confirmada [{titulo_tag}]: {h_t} vs {a_t}",
                 "parecer_explicativo": parecer_sumula
-            }
-            if alerta_estrutural:
-                return {
-                    "status": "ALERTA_RISCO",
-                    "grau_risco": "ALTO",
-                    "badge_risco": "🔴 Risco Alto",
-                    "tem_alerta": True,
-                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
-                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
-                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
-                }
-            return {
-                "status": None,
-                "grau_risco": "DESCONHECIDO",
-                "badge_risco": "⚪ Indefinido",
-                "tem_alerta": False,
-                "resumo_escalacao": "Auditoria de IA indisponível no momento",
-                "titulo_alerta": "",
-                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
-            }
-            if alerta_estrutural:
-                return {
-                    "status": "ALERTA_RISCO",
-                    "grau_risco": "ALTO",
-                    "badge_risco": "🔴 Risco Alto",
-                    "tem_alerta": True,
-                    "resumo_escalacao": sumula_info.get("resumo_curto", "Alerta estrutural na súmula oficial"),
-                    "titulo_alerta": f"🔴 Alerta [Risco Alto]: {h_t} vs {a_t}",
-                    "parecer_explicativo": f"{h_t} x {a_t} [🔴 Risco Alto]: Auditoria da súmula oficial detectou alteração crítica na escalação: " + "; ".join(motivos_elenco) + "."
-                }
-            return {
-                "status": None,
-                "grau_risco": "DESCONHECIDO",
-                "badge_risco": "⚪ Indefinido",
-                "tem_alerta": False,
-                "resumo_escalacao": "Auditoria de IA indisponível no momento",
-                "titulo_alerta": "",
-                "parecer_explicativo": "Não foi possível concluir a inferência de IA neste ciclo; nova tentativa será realizada no próximo ciclo."
             }
 
         raw_text = raw_text.strip()
+        if not raw_text:
+            # Sem súmula da API e sem inferência de texto externa: avalia soberania do Gatekeeper e dados de mercado
+            if alerta_critico_dados or risco_base_dados == "ALTO":
+                motivos_mkt = "; ".join(aud_dados.get("motivos_risco", [])) if aud_dados.get("motivos_risco") else resumo_aud_dados
+                return {
+                    "status": "ALERTA_RISCO",
+                    "grau_risco": "ALTO",
+                    "badge_risco": "🔴 Risco Alto (Gatekeeper)",
+                    "tem_alerta": True,
+                    "tem_alerta_elenco": False,
+                    "tem_alerta_dados": True,
+                    "escalacao_confirmada": False,
+                    "fonte_escalacao": "NAO_DIVULGADA",
+                    "resumo_escalacao": f"Alerta de Risco no Gatekeeper: {motivos_mkt[:100]}",
+                    "titulo_alerta": f"🔴 Alerta [Risco Alto - Gatekeeper]: {h_t} vs {a_t}",
+                    "parecer_explicativo": (
+                        f"{h_t} x {a_t} [🔴 Risco Alto - Gatekeeper]: ⚠️ Alerta de Gestão de Risco!\n\n"
+                        f"--- AUDITORIA DE MERCADO E GATEKEEPER ---\n"
+                        f"• Diagnóstico: {resumo_aud_dados}\n"
+                        f"• Veredito: 🔴 Desvio Crítico de Mercado / Abstenção decretada pelo Gatekeeper no pré-jogo."
+                    )
+                }
+            return {
+                "status": "EM_OBSERVACAO" if confronto_eq else "CONFIRMADO",
+                "grau_risco": "MEDIO" if confronto_eq else "BAIXO",
+                "badge_risco": "🟡 Aguardando Súmula" if confronto_eq else "🟢 Cotações Estáveis",
+                "tem_alerta": False,
+                "tem_alerta_elenco": False,
+                "tem_alerta_dados": False,
+                "escalacao_confirmada": False,
+                "fonte_escalacao": "NAO_DIVULGADA",
+                "resumo_escalacao": "Aguardando publicação de escalações oficiais",
+                "titulo_alerta": f"📋 Pré-Jogo: {h_t} vs {a_t}",
+                "parecer_explicativo": f"{h_t} x {a_t}: Cotações e mercado estáveis. Súmula oficial ainda não disponibilizada pela federação."
+            }
+
         json_match = re.search(r'(\{.*\})', raw_text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(1))
@@ -1393,6 +1429,59 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
             destaque_val = 2 if (best_cand.get('destaque') == 2 or best_cand.get('is_premium')) else 1
             gk_cat_troca = best_cand.get('gatekeeper_category') or ('Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula')
 
+            # 1. Auditoria Transversal no Ciclo de Vida (pipeline_lifecycle_logs) para confirmadas e pendentes
+            motivo_cat_lf = 'LINHA_TROCADA_DRIFT' if is_drift_reversal else 'LINHA_TROCADA_SINISTRO_SUMULA'
+            motivo_det_lf = (
+                f"Linha de Handicap revertida dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a forte fluxo vendedor e pressão de mercado institucional contra {supported_team}."
+                if is_drift_reversal else
+                f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
+            )
+            try:
+                from lifecycle_logger import log_lifecycle_event
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=fixture_id,
+                    aposta_id=item['aposta_id'],
+                    componente='IA_SENTINELA',
+                    tipo_evento=motivo_cat_lf,
+                    estado_anterior=palpite_atual,
+                    estado_novo=novo_palpite,
+                    delta={'odd_anterior': odd_abertura, 'nova_odd': nova_odd, 'casa': casa_nome, 'ev': ev_perc},
+                    motivo=motivo_det_lf
+                )
+            except Exception as e_lf:
+                print(f"⚠️ [Lifecycle Logger] Falha ao registrar troca de linha: {e_lf}")
+
+            # 2. Notificação Imediata no Sininho do Usuário e Push Mobile
+            if is_drift_reversal:
+                tit_notif = f"🔄 Reset Tático por Drift: {home_team} vs {away_team}"
+                msg_notif = (
+                    f"A IA Sentinela identificou pressão vendedora massiva e descarte institucional contra {supported_team} "
+                    f"e atualizou dinamicamente sua aposta #{item['aposta_id']} revertendo para {novo_palpite} @ {nova_odd:.2f} "
+                    f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                )
+                tipo_notif = 'LINHA_TROCADA_DRIFT'
+            else:
+                tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
+                msg_notif = (
+                    f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
+                    f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
+                    f"na {casa_nome} (EV +{ev_perc:.1f}%)."
+                )
+                tipo_notif = 'LINHA_TROCADA_SUMULA'
+
+            lnk_notif = f"/apostas?fixture_id={fixture_id}"
+            for uid in user_ids:
+                try:
+                    try:
+                        from asian_handicap_engine import registrar_notificacao_usuario
+                    except ImportError:
+                        from scripts.asian_handicap_engine import registrar_notificacao_usuario
+                    registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, tipo_notif, tit_notif, msg_notif, lnk_notif)
+                except Exception as e_ntf:
+                    print(f"⚠️ [Notificação Troca Linha] Falha ao enviar para #{uid}: {e_ntf}")
+
+            # 3. Atualização no Banco de Dados
             if is_confirmada:
                 # Aposta já confirmada no bilhete com débito prévio:
                 # Troca dinamicamente o palpite e a cotação mantendo confirmada=1 e preservando o saldo
@@ -1424,73 +1513,8 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                         updated_at = NOW()
                     WHERE fixture_id = %s
                 """, (novo_palpite, confianca, gk_cat_troca, reasoning_gk, fixture_id))
-
-                # Registra auditoria no ciclo de vida
-                motivo_cat_lf = 'LINHA_TROCADA_DRIFT' if is_drift_reversal else 'LINHA_TROCADA_SINISTRO_SUMULA'
-                motivo_det_lf = (
-                    f"Linha de Handicap revertida dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a forte fluxo vendedor e pressão de mercado institucional contra {supported_team}."
-                    if is_drift_reversal else
-                    f"Linha de Handicap substituída dinamicamente de '{palpite_atual}' (@ {odd_abertura:.2f}) para '{novo_palpite}' (@ {nova_odd:.2f} na {casa_nome}) devido a sinistro na súmula oficial de {supported_team}."
-                )
-                try:
-                    try:
-                        from aposta_lifecycle_logger import log_aposta_lifecycle_event
-                    except ImportError:
-                        from scripts.aposta_lifecycle_logger import log_aposta_lifecycle_event
-                    log_aposta_lifecycle_event(
-                        cursor=cursor,
-                        aposta_id=item['aposta_id'],
-                        fixture_id=fixture_id,
-                        usuario_id=item.get('usuario_id'),
-                        status_anterior=item.get('status', 'Pendente'),
-                        status_novo=item.get('status', 'Pendente'),
-                        motivo_categoria=motivo_cat_lf,
-                        motivo_detalhado=motivo_det_lf
-                    )
-                except Exception as e_lf:
-                    print(f"⚠️ [Lifecycle Logger] Falha ao registrar troca de linha: {e_lf}")
-
-                # Dispara notificação no Sininho do usuário
-                if is_drift_reversal:
-                    tit_notif = f"🔄 Reset Tático por Drift: {home_team} vs {away_team}"
-                    msg_notif = (
-                        f"A IA Sentinela identificou pressão vendedora massiva e descarte institucional contra {supported_team} "
-                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} revertendo para {novo_palpite} @ {nova_odd:.2f} "
-                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
-                    )
-                    tipo_notif = 'LINHA_TROCADA_DRIFT'
-                else:
-                    tit_notif = f"🔄 Troca Dinâmica de Linha: {home_team} vs {away_team}"
-                    msg_notif = (
-                        f"A IA Sentinela identificou descaracterização estrutural na súmula de {supported_team} "
-                        f"e atualizou dinamicamente sua aposta #{item['aposta_id']} para {novo_palpite} @ {nova_odd:.2f} "
-                        f"na {casa_nome} (EV +{ev_perc:.1f}%)."
-                    )
-                    tipo_notif = 'LINHA_TROCADA_SUMULA'
-
-                lnk_notif = f"/apostas?fixture_id={fixture_id}"
-                for uid in user_ids:
-                    try:
-                        try:
-                            from asian_handicap_engine import registrar_notificacao_usuario
-                        except ImportError:
-                            from scripts.asian_handicap_engine import registrar_notificacao_usuario
-                        registrar_notificacao_usuario(cursor, uid, item['aposta_id'], fixture_id, tipo_notif, tit_notif, msg_notif, lnk_notif)
-                    except Exception as e_ntf:
-                        print(f"⚠️ [Notificação Troca Linha] Falha ao enviar para #{uid}: {e_ntf}")
-
                 cursor.connection.commit()
                 print(f"🎯 [Sentinela - Troca Dinâmica em Aposta Confirmada #{item['aposta_id']}] Substituída de '{palpite_atual}' para '{novo_palpite}' (@ {nova_odd:.2f} {casa_nome})")
-
-                return {
-                    'bloquear_sinal_verde': False,
-                    'alerta_risco': False,
-                    'linha_recalibrada': True,
-                    'novo_palpite': novo_palpite,
-                    'nova_odd': nova_odd,
-                    'novo_reasoning': reasoning_gk,
-                    'motivo_recalibragem': motivo_distorcao
-                }
             else:
                 # Aposta não confirmada -> Sincronização padrão
                 sync_fixture_and_bet_handicap(
@@ -1506,23 +1530,22 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
                     ev_perc=ev_perc,
                     detalhe_calculo=reasoning_gk,
                     user_ids=user_ids,
-                    confirmada_val=0,
+                    confirmada_val=1,
                     destaque_val=destaque_val,
                     best_cand=best_cand
                 )
                 cursor.connection.commit()
-
                 print(f"🎯 [Gatekeeper Recalibrado com Sucesso] Aposta #{item['aposta_id']} ajustada para '{novo_palpite}' (@ {nova_odd:.2f} {casa_nome})")
 
-                return {
-                    'bloquear_sinal_verde': False,
-                    'alerta_risco': False,
-                    'linha_recalibrada': True,
-                    'novo_palpite': novo_palpite,
-                    'nova_odd': nova_odd,
-                    'novo_reasoning': reasoning_gk,
-                    'motivo_recalibragem': motivo_distorcao
-                }
+            return {
+                'bloquear_sinal_verde': False,
+                'alerta_risco': False,
+                'linha_recalibrada': True,
+                'novo_palpite': novo_palpite,
+                'nova_odd': nova_odd,
+                'novo_reasoning': reasoning_gk,
+                'motivo_recalibragem': motivo_distorcao
+            }
         else:
             # Gatekeeper reprovou todas as linhas disponíveis no mercado atual
             print(f"🛑 [Gatekeeper Reprovou Linhas Vivas] {home_team} vs {away_team}: nenhuma linha aprovada no mercado atual.")
@@ -1551,7 +1574,208 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
 
 
-def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, phase: int = 2):
+
+def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: list = None):
+    """
+    PILAR OFENSIVO DA SENTINELA (FASE 2 - JANELA T-50m a T-15m):
+    Monitora partidas em NO_BET / Abstenção nas ligas permitidas (Tier 1 e Tier 2).
+    Ao receber a Súmula Oficial de 11 Titulares da API-Sports (gravada em match_lineups_cache),
+    investiga desfalques estruturais, goleiro reserva ou time misto (>= 5 titulares poupados).
+    Se identificado desequilíbrio e a nova cotação se enquadrar no Sweet Spot (1.60 a 1.95)
+    com probabilidade >= 60.0% e +EV >= 5.0%, reverte o status para APROVADO, insere a aposta
+    via sync_fixture_and_bet_handicap e dispara push imediato (Reset Tático por Súmula).
+    Regra 8: inicialização prévia mandatória de variáveis numéricas locais.
+    Regra 16: preservação obrigatória de U5J via compose_compound_ah_reasoning.
+    """
+    total_nobet_avaliados = 0
+    total_reversoes_aprovadas = 0
+    total_sem_sumula_ainda = 0
+    total_erros_repescagem = 0
+
+    if not user_ids:
+        user_ids = get_target_user_ids(cursor)
+
+    try:
+        from leagues_config import is_allowed_league
+        from asian_handicap_engine import (
+            calculate_unified_handicap_recommendation,
+            sync_fixture_and_bet_handicap,
+            fetch_all_betano_ah_lines,
+            compose_compound_ah_reasoning
+        )
+    except ImportError as e_imp:
+        print(f"⚠️ [Sentinela Repescagem] Falha ao importar dependências do motor: {e_imp}")
+        return
+
+    query_nobet = """
+        SELECT ft.fixture_id, ft.league_id, ft.league_name, ft.home_team_id, ft.away_team_id,
+               ft.home_team, ft.away_team, ft.fixture_date, ft.ah_reasoning,
+               ft.odd_home, ft.odd_draw, ft.odd_away, ft.xg_home, ft.xg_away,
+               ft.ah_suggestion, ft.gatekeeper_category
+        FROM fixtures_trends ft
+        WHERE ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
+                                  AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
+          AND (ft.ah_suggestion IS NULL 
+               OR ft.ah_suggestion LIKE '%%Absten%%' 
+               OR ft.ah_suggestion LIKE '%%NO_BET%%' 
+               OR ft.ah_suggestion LIKE '%%Sem Entrada%%'
+               OR ft.ah_suggestion LIKE '%%bloquead%%')
+          AND NOT EXISTS (
+              SELECT 1 FROM apostas a 
+              WHERE a.fixture_id = ft.fixture_id 
+                AND a.status IN ('Pendente', 'Não Confirmada', 'Aprovado')
+          )
+        ORDER BY ft.fixture_date ASC
+        LIMIT 10
+    """
+    cursor.execute(query_nobet, (window_minutes,))
+    nobet_matches = cursor.fetchall()
+
+    if not nobet_matches:
+        print(f"ℹ️ [Sentinela Repescagem] Nenhuma partida em NO_BET elegível na janela T-{window_minutes}m.")
+        return
+
+    print(f"📡 [Sentinela Repescagem] {len(nobet_matches)} partida(s) em NO_BET para conferência de Súmula Oficial...")
+
+    for fix in nobet_matches:
+        total_nobet_avaliados += 1
+        fid = fix['fixture_id']
+        lid = fix.get('league_id')
+        lname = fix.get('league_name') or ''
+        fdate = fix.get('fixture_date')
+        home = (fix.get('home_team') or '').strip()
+        away = (fix.get('away_team') or '').strip()
+        home_id = fix.get('home_team_id')
+        away_id = fix.get('away_team_id')
+
+        if not is_allowed_league(lid, lname, fdate):
+            continue
+
+        # Coleta a Súmula Oficial (com cache local prévio em match_lineups_cache)
+        sumula = coletar_sumula_e_desfalques_apisports(
+            cursor=cursor,
+            fixture_id=fid,
+            home_team_id=home_id,
+            away_team_id=away_id,
+            home_team=home,
+            away_team=away,
+            palpite="",
+            league_id=lid
+        )
+
+        if not sumula.get("tem_sumula"):
+            total_sem_sumula_ainda += 1
+            print(f"⏳ [Sentinela Súmula] #{fid} {home} vs {away}: Súmula oficial ainda não liberada pela federação.")
+            continue
+
+        # Identifica desfalques críticos / time misto
+        time_desfalcado = ""
+        motivo_desfalque = ""
+        rot_h = int(sumula.get("rotacao_home_cnt") or 0)
+        rot_a = int(sumula.get("rotacao_away_cnt") or 0)
+        desf_h = int(sumula.get("desfalques_home_cnt") or 0)
+        desf_a = int(sumula.get("desfalques_away_cnt") or 0)
+
+        # 1. Goleiro reserva
+        for m in sumula.get("motivos_alerta_elenco", []):
+            m_lower = m.lower()
+            if "goleiro reserva" in m_lower or "goleiro titular ausente" in m_lower:
+                if home.lower() in m_lower:
+                    time_desfalcado = home
+                    motivo_desfalque = f"Goleiro reserva escalado no {home}"
+                    break
+                elif away.lower() in m_lower:
+                    time_desfalcado = away
+                    motivo_desfalque = f"Goleiro reserva escalado no {away}"
+                    break
+
+        # 2. Rodízio de elenco (>= 5 alterações nos titulares) ou surto de lesões
+        if not time_desfalcado:
+            if rot_h >= 5 or desf_h >= 4:
+                time_desfalcado = home
+                motivo_desfalque = f"{home} com time misto ({rot_h} alterações nos 11 titulares) e {desf_h} desfalques"
+            elif rot_a >= 5 or desf_a >= 4:
+                time_desfalcado = away
+                motivo_desfalque = f"{away} com time misto ({rot_a} alterações nos 11 titulares) e {desf_a} desfalques"
+
+        desfalques_ctx = None
+        if time_desfalcado:
+            desfalques_ctx = {
+                'time_desfalcado': time_desfalcado,
+                'tipo': 'SUMULA',
+                'motivo': motivo_desfalque
+            }
+            print(f"⚡ [Alerta Súmula Oficial] #{fid} {home} vs {away} -> {motivo_desfalque}!")
+
+        # Reavalia pelo motor canônico de Handicap Asiático
+        try:
+            status_gk, palpite_sug, conf_val, detalhe_calc, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+                fixture_dict=fix,
+                allow_api_fetch=True,
+                cursor=cursor,
+                desfalques_criticos=desfalques_ctx
+            )
+
+            if status_gk in ('APPROVED', 'APROVADO') and best_cand:
+                cand_odd = float(best_cand.get('odd') or 0.0)
+                cand_prob = float(best_cand.get('eval', {}).get('prob_eff') or 0.0)
+                cand_ev = float(best_cand.get('eval', {}).get('ev_percent') or 0.0)
+
+                # Critério estrito de Alta Assertividade: Sweet Spot 1.60 a 1.95 e Prob >= 60%
+                if 1.60 <= cand_odd <= 1.95 and cand_prob >= 60.0:
+                    total_reversoes_aprovadas += 1
+                    cat_nome = "Reset Tático por Súmula" if time_desfalcado else "Reversão de Odds no Sweet Spot"
+                    best_cand['gatekeeper_category'] = cat_nome
+
+                    print(f"🎯 [REVERSÃO TÁTICA CONFIRMADA!] #{fid} ({home} vs {away})")
+                    print(f"   ↳ {cat_nome}: {palpite_sug} @ {cand_odd:.2f} (Prob {cand_prob:.1f}%, +EV {cand_ev:.1f}%)")
+
+                    # Sincroniza Card e Aposta de forma atômica (Regra 16 garantida)
+                    sync_fixture_and_bet_handicap(
+                        cursor=cursor,
+                        fixture_id=fid,
+                        home_team=home,
+                        away_team=away,
+                        fixture_date=fdate,
+                        selected_palpite=palpite_sug,
+                        odd_val=cand_odd,
+                        odd_justa=float(best_cand.get('eval', {}).get('odd_justa') or (100.0 / cand_prob)),
+                        prob_poisson=cand_prob,
+                        ev_perc=cand_ev,
+                        detalhe_calculo=detalhe_calc,
+                        user_ids=user_ids,
+                        confirmada_val=1,
+                        destaque_val=0,
+                        best_cand=best_cand
+                    )
+                    conn.commit()
+
+                    # Notificação Sininho In-App
+                    tit_notif = f"🔄 Reversão Tática [{cat_nome}]: {home} vs {away}"
+                    msg_notif = f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). {motivo_desfalque}"
+                    for uid in user_ids:
+                        registrar_alerta_sininho(cursor, uid, aposta_id=None, fixture_id=fid, titulo=tit_notif, msg=msg_notif, tipo="REVERSAO_TATICA_SUMULA")
+                    conn.commit()
+
+                    # Push Mobile via NTFY
+                    enviar_push_mobile(
+                        titulo=tit_notif,
+                        mensagem=msg_notif,
+                        fixture_id=fid,
+                        prioridade=4,
+                        tags=["arrows_counterclockwise", "dart", "moneybag"]
+                    )
+            else:
+                print(f"ℹ️ [Sentinela Repescagem] #{fid} ({home} vs {away}) mantida em NO_BET após conferência de súmula.")
+        except Exception as e_rev:
+            total_erros_repescagem += 1
+            conn.rollback()
+            print(f"❌ [Sentinela Repescagem] Erro ao reavaliar #{fid} ({home} vs {away}): {e_rev}")
+
+    print(f"🏁 [Sentinela Repescagem] Concluída. Avaliados: {total_nobet_avaliados} | Reversões Aprovadas: {total_reversoes_aprovadas} | Sem súmula: {total_sem_sumula_ainda}")
+
+
+def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: int = None, specific_aposta_id: int = None, phase: int = 2):
     """
     Executa a auditoria da esteira da Sentinela em dois estágios:
     - Fase 1 (Antecipação Matinal - Janela 24h): qualificação prévia com notícias web para emitir Sinal Verde no topo da odd.
@@ -1576,10 +1800,30 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         user_ids = get_target_user_ids(cursor)
 
         # 1. Seleciona apostas elegíveis conforme a Fase da esteira
-        if specific_fixture_id:
+        if specific_aposta_id:
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
+                       a.notificacao_escalacao_enviada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
+                       ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
+                       ft.ah_suggestion, ft.prediction_text
+                FROM apostas a
+                JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+                WHERE a.id = %s
+                  AND a.status IN ('Pendente', 'Não Confirmada')
+            """
+            cursor.execute(query, (specific_aposta_id,))
+        elif specific_fixture_id:
+            query = """
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
+                       a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1590,14 +1834,16 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.fixture_id = %s
                   AND a.status IN ('Pendente', 'Não Confirmada')
-                ORDER BY a.id DESC LIMIT 1
+                ORDER BY a.id ASC
             """
             cursor.execute(query, (specific_fixture_id,))
         elif phase == 1:
             # FASE 1: Antecipação Matinal (Janela de 24h) - Seleciona partidas do dia sem parecer prévio
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1608,6 +1854,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND a.auditoria_ia_status IS NULL
+                  AND (a.mercado IS NULL OR a.mercado NOT LIKE '%%Gol%%')
+                  AND (a.palpite IS NULL OR a.palpite NOT LIKE '%%Gol%%')
                   AND DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR)) = DATE(DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 HOUR))
                   AND ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1617,8 +1865,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
         else:
             # FASE 2: Repescagem Pré-Jogo (T-50m a T-15m) e Vigilância de Drift de Mercado
             query = """
-                SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.mercado, a.tipo, 
+                SELECT a.id as aposta_id, a.usuario_id, a.fixture_id, a.palpite, a.odd, a.odd_justa, a.ev_percentual, a.mercado, a.tipo, 
+                       a.casa_de_aposta, a.valor_aposta, a.moeda_codigo,
                        a.probabilidade_poisson, a.resultado_detalhado, a.status as aposta_status, a.confirmada, a.auditoria_ia_status,
+                       a.gatekeeper_category as aposta_gatekeeper_category,
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
@@ -1630,6 +1880,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 WHERE a.status IN ('Pendente', 'Não Confirmada')
                   AND (a.auditoria_ia_status IS NULL OR a.auditoria_ia_status IN ('EM_OBSERVACAO', 'ALERTA_RISCO') OR a.confirmada = 1)
                   AND (a.notificacao_escalacao_enviada = 0 OR a.notificacao_escalacao_enviada IS NULL)
+                  AND (a.mercado IS NULL OR a.mercado NOT LIKE '%%Gol%%')
+                  AND (a.palpite IS NULL OR a.palpite NOT LIKE '%%Gol%%')
                   AND ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 25 MINUTE)
                                           AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
                 ORDER BY ft.fixture_date ASC
@@ -1641,6 +1893,10 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
 
         if not apostas_para_auditar:
             print(f"ℹ️ [Sentinela IA - Fase {phase}] Nenhuma aposta pendente necessitando auditoria na janela de {window_minutes} min.")
+            # PILAR OFENSIVO (FASE 2): Mesmo sem apostas pré-existentes, checa repescagem de NO_BET por Súmula Oficial
+            if phase == 2 and not specific_aposta_id and not specific_fixture_id:
+                print(f"📡 [Sentinela IA - Fase 2 Ofensiva] Verificando se há jogos em NO_BET para repescagem via Súmula Oficial...")
+                repescar_nobet_por_sumula(cursor, conn, window_minutes, user_ids)
             return
 
         print(f"🚀 [Sentinela IA - Fase {phase}] Iniciando auditoria para {len(apostas_para_auditar)} aposta(s) elegível(is)...")
@@ -1649,6 +1905,26 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             total_processados += 1
             aposta_id = item['aposta_id']
             fixture_id = item['fixture_id']
+            mercado_str = str(item.get('mercado') or '').lower()
+            palpite_str = str(item.get('palpite') or '').lower()
+
+            # Governança de Isolamento: Mercado de Gols Asiáticos opera sob Matemática Pura de Poisson
+            if 'gol' in mercado_str or 'gol' in palpite_str:
+                print(f"ℹ️ [Sentinela IA] Aposta #{aposta_id} é do mercado de Gols Asiáticos. Isolada de auditoria qualitativa (Regra Matemática Pura).")
+                ia_gols_resumo = 'Aprovado pelo Motor Estatístico de Poisson (+EV Puro / Isolado da Sentinela)'
+                ia_gols_parecer = 'Aposta validada exclusivamente sob a ótica estatística de Poisson e dados históricos U5J. O mercado de Gols Asiáticos opera de forma 100% independente de análises qualitativas de elenco.'
+                cursor.execute("""
+                    UPDATE apostas SET
+                        auditoria_ia_status = 'CONFIRMADO',
+                        auditoria_ia_resumo = %s,
+                        auditoria_ia_parecer = %s,
+                        auditoria_ia_checked_at = NOW(),
+                        notificacao_escalacao_enviada = 1
+                    WHERE id = %s
+                """, (ia_gols_resumo, ia_gols_parecer, aposta_id))
+                conn.commit()
+                continue
+
             home_team = item['home_team']
             away_team = item['away_team']
             if item.get('fixture_date'):
@@ -1762,10 +2038,25 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
             # Consulta o Gemini com Google Search Grounding (com fallback para Groq + Súmula API-Sports)
             resultado = consultar_gemini_com_grounding(dossie, api_key)
 
-            st = resultado["status"]
+            st = resultado.get("status")
             if st is None:
-                print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
-                continue
+                if tem_alerta_mercado or bloquear_sinal_verde:
+                    st = "ALERTA_RISCO"
+                    resultado["status"] = "ALERTA_RISCO"
+                    resultado["grau_risco"] = "ALTO"
+                    resultado["badge_risco"] = "🔴 Risco Alto (Gatekeeper)"
+                    resultado["tem_alerta"] = True
+                    resultado["resumo_escalacao"] = "🚨 Alerta de Risco: Gatekeeper decretou Abstenção / Mercado Adverso"
+                    resultado["titulo_alerta"] = f"🔴 Alerta [Risco Alto - Gatekeeper]: {home_team} vs {away_team}"
+                    resultado["parecer_explicativo"] = (
+                        f"{home_team} x {away_team} [🔴 Risco Alto - Gatekeeper]: ⚠️ Alerta de Gestão de Risco!\n\n"
+                        f"--- AUDITORIA DE MERCADO E GATEKEEPER ---\n"
+                        f"• Diagnóstico: {motivo_gk}\n"
+                        f"• Veredito: 🔴 Desvio Crítico de Mercado / Abstenção decretada pelo Gatekeeper no pré-jogo."
+                    )
+                else:
+                    print(f"⏸️ [Sentinela IA] Inferência indisponível para #{fixture_id}; não gravando falso CONFIRMADO.")
+                    continue
             resumo = resultado["resumo_escalacao"]
             parecer = resultado["parecer_explicativo"]
             grau_risco = resultado.get("grau_risco", "ALTO" if st == "ALERTA_RISCO" else "BAIXO")
@@ -1836,14 +2127,24 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         badge_risco = '🔴 Risco Crítico de Mercado'
                         resumo = f"🚨 Alerta de Mercado [Drift Severo / Pressão Vendedora]: {recalib.get('motivo_recalibragem', 'Distorção de mercado')}"
                         titulo_alerta = f"🚨 Alerta de Mercado (Drift de Risco): {home_team} vs {away_team}"
+                    elif resultado.get('tem_alerta_elenco'):
+                        st = 'ALERTA_RISCO'
+                        badge_risco = '🔴 Risco Alto (Elenco)'
+                        resumo = f"📋 Escalação Confirmada [Alerta de Desfalques]: {resultado.get('resumo_escalacao', resumo)}"
+                        titulo_alerta = f"📋 Escalação Confirmada [🔴 Alerta de Desfalques]: {home_team} vs {away_team}"
+                    elif resultado.get('tem_alerta_dados'):
+                        st = 'CONFIRMADO' if (item.get('confirmada') == 1 or item.get('status') == 'Pendente') else 'ALERTA_RISCO'
+                        badge_risco = '🟡 Observação de Mercado'
+                        resumo = f"📋 Escalação Confirmada [Força Máxima / Observação de Mercado]: {resultado.get('resumo_escalacao', resumo)}"
+                        titulo_alerta = f"📋 Escalação Confirmada [Força Máxima / ⚠️ Observação de Mercado]: {home_team} vs {away_team}"
                     elif not tem_alerta:
                         st = 'CONFIRMADO'
                         resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
-                        titulo_alerta = f"📋 Escalação Confirmada [Força Máxima]: {home_team} vs {away_team}"
+                        titulo_alerta = f"📋 Escalação Confirmada [🟢 Força Máxima]: {home_team} vs {away_team}"
                     else:
                         st = 'ALERTA_RISCO'
-                        resumo = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {resumo}"
-                        titulo_alerta = f"📋 Escalação Confirmada [Alerta de Desfalques / Risco]: {home_team} vs {away_team}"
+                        resumo = f"📋 Escalação Confirmada [Observação]: {resumo}"
+                        titulo_alerta = f"📋 Escalação Confirmada [⚠️ Observação]: {home_team} vs {away_team}"
                     if tem_alerta_mercado and recalib.get('parecer_alerta') and recalib.get('parecer_alerta') not in parecer:
                         parecer = f"{recalib['parecer_alerta']}\n\n📋 Análise da Escalação Oficial:\n{parecer}"
                 elif tem_alerta_mercado:
@@ -1901,14 +2202,79 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             tags=["yellow_circle", "hourglass", "soccer"]
                         )
                 elif tem_escalacao:
-                    # GESTÃO DETERMINÍSTICA DE ESCALAÇÃO OFICIAL VIA ENUM LineupNotificationStatus
+                    # GESTÃO SOBERANA DE ESCALAÇÃO OFICIAL VIA IA E ENUM LineupNotificationStatus
                     if deve_notificar_escalacao:
                         total_alertas += 1
-                        tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA" if (tem_alerta or st == 'ALERTA_RISCO') else "ESCALACAO_CONFIRMADA_FORCA_MAXIMA"
-                        print(f"📋 [ESCALAÇÃO OFICIAL NOTIFICADA VIA ENUM]: {titulo_alerta} (Tipo: {tipo_notif})")
+                        prioridade_push = 4
+                        sumula_txt = (
+                            (sumula_oficial.get('texto_sumula') if isinstance(sumula_oficial, dict) else None)
+                            or parecer
+                            or f"Escalação oficial de {home_team} x {away_team}"
+                        )
+
+                        # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
+                        # Executa ANTES da notificação para que o parecer do Sininho contenha a análise tática real da IA
+                        res_grok = {}
+                        try:
+                            from grok_tactical_auditor import auditar_escalacao_com_grok
+                            res_grok = auditar_escalacao_com_grok(
+                                aposta_dict=item,
+                                sumula_texto=sumula_txt,
+                                titulo=titulo_alerta,
+                                cursor=cursor,
+                                conn=conn
+                            )
+                        except Exception as e_grok:
+                            print(f"⚠️ [Grok Tactical Auditor Erro]: {e_grok}")
+                            res_grok = {"veredito": "MANTER_APOSTA", "is_cashout_recommended": False, "analise_ia": None}
+
+                        is_cashout = bool(res_grok.get("is_cashout_recommended", False))
+                        veredito_grok = res_grok.get("veredito", "MANTER_APOSTA")
+                        analise_ia_txt = res_grok.get("analise_ia")
+
+                        if is_cashout:
+                            tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA_HEDGE"
+                            tag_color = "red_circle"
+                            prioridade_push = 5
+                            titulo_alerta = f"🚨 Alerta de Hedge Pré-Jogo [Desfalques Críticos]: {home_team} vs {away_team}"
+                            if analise_ia_txt:
+                                parecer = (
+                                    f"🚨 [Sinistro Tático Detectado pela IA] {home_team} x {away_team}:\n\n"
+                                    f"--- AUDITORIA TÁTICA DA IA (GROK / GEMINI) ---\n"
+                                    f"{analise_ia_txt}\n\n"
+                                    f"--- SÚMULA OFICIAL ---\n{sumula_txt}"
+                                )
+                            print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático crítico confirmado pelo Grok IA na Aposta #{aposta_id}!")
+                            try:
+                                from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                                executar_hedge_prejogo_cloudbet(
+                                    bet=item,
+                                    motivo_tatica=analise_ia_txt or "Sinistro tático detectado na súmula pelo Grok IA.",
+                                    cursor=cursor,
+                                    conn=conn
+                                )
+                            except Exception as e_hdg:
+                                print(f"⚠️ [Hedge Pré-Jogo Erro]: {e_hdg}")
+                        else:
+                            tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA" if (tem_alerta or st == 'ALERTA_RISCO' or veredito_grok == 'ATENCAO') else "ESCALACAO_CONFIRMADA_FORCA_MAXIMA"
+                            tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else ("yellow_circle" if veredito_grok == "ATENCAO" else "green_circle")
+                            prioridade_push = 5 if recalib.get('alerta_risco') else 4
+                            if analise_ia_txt:
+                                badge_ia = "🟢 Força Máxima" if veredito_grok == "MANTER_APOSTA" else "🟡 Atenção Tática"
+                                titulo_alerta = f"📋 Escalação Confirmada [{badge_ia}]: {home_team} vs {away_team}"
+                                parecer = (
+                                    f"{home_team} x {away_team} [{badge_ia}]: 📋 Escalação Oficial Auditada pela IA!\n\n"
+                                    f"--- PARECER TÁTICO DA IA (GROK / GEMINI) ---\n"
+                                    f"{analise_ia_txt}\n\n"
+                                    f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
+                                    f"{sumula_txt}"
+                                )
+                            print(f"🟢 [Grok IA Arbitrator: {veredito_grok}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
+
+                        print(f"📋 [ESCALAÇÃO OFICIAL NOTIFICADA VIA IA]: {titulo_alerta} (Tipo: {tipo_notif})")
                         alerta_enviado = False
                         for uid in user_ids:
-                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_notif, force=True):
+                            if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_notif, force=True, analise_ia=analise_ia_txt):
                                 alerta_enviado = True
                         conn.commit()
 
@@ -1921,13 +2287,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         conn.commit()
                         novo_notif_escalacao = LineupNotificationStatus.NOTIFICADO.value
 
-                        tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else "green_circle"
                         if alerta_enviado:
                             enviar_push_mobile(
                                 titulo=titulo_alerta,
                                 mensagem=parecer,
                                 fixture_id=fixture_id,
-                                prioridade=5 if recalib.get('alerta_risco') else 4,
+                                prioridade=prioridade_push,
                                 tags=[tag_color, "clipboard", "soccer"]
                             )
                     else:
@@ -1935,11 +2300,59 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 elif tem_alerta or st == 'ALERTA_RISCO':
                     total_alertas += 1
                     print(f"⚠️ [ALERTA DE CAMPO DETECTADO]: {titulo_alerta}")
-                    print(f"📝 [Parecer IA]: {parecer}")
-                    tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+
+                    # 🧠 AUDITORIA TÁTICA SOBERANA COM GROK IA (ÁRBITRO PRÉ-JOGO)
+                    # Avalia o risco de mercado / Gatekeeper com a profundidade analítica da IA
+                    res_grok = {}
+                    motivo_auditoria = (
+                        f"Diagnóstico de Campo e Mercado: {resumo}\n"
+                        f"Motivo Gatekeeper: {motivo_gk}\n"
+                        f"Cotações 1X2 Oficiais: Mandante @ {item.get('odd_home')} | Empate @ {item.get('odd_draw')} | Visitante @ {item.get('odd_away')}\n"
+                        f"U5J Desempenho Recente: {u5j_summary}"
+                    )
+                    try:
+                        from grok_tactical_auditor import auditar_escalacao_com_grok
+                        res_grok = auditar_escalacao_com_grok(
+                            aposta_dict=item,
+                            sumula_texto=motivo_auditoria,
+                            titulo=titulo_alerta,
+                            cursor=cursor,
+                            conn=conn
+                        )
+                    except Exception as e_grok:
+                        print(f"⚠️ [Grok Alerta Risco Erro]: {e_grok}")
+                        res_grok = {"veredito": "CASHOUT_IMEDIATO", "is_cashout_recommended": True, "analise_ia": None}
+
+                    is_cashout = bool(res_grok.get("is_cashout_recommended", False))
+                    veredito_grok = res_grok.get("veredito", "CASHOUT_IMEDIATO")
+                    analise_ia_txt = res_grok.get("analise_ia")
+                    if analise_ia_txt:
+                        parecer = analise_ia_txt
+
+                    # 🛡️ DISPARO AUTÔNOMO MANDATÓRIO DA APOSTA HEDGE (PROTEÇÃO DA BANCA)
+                    if is_cashout or st == 'ALERTA_RISCO':
+                        print(f"🚨 [Grok IA Arbitrator: CASHOUT_IMEDIATO] Sinistro tático / Mercado adverso confirmado na Aposta #{aposta_id}! Acionando Hedge Pré-Jogo Autônomo na Cloudbet...")
+                        tipo_alerta = "ALERTA_RISCO_HEDGE_DISPARADO"
+                        titulo_alerta = f"🛡️ Hedge Autônomo Disparado [Risco Alto]: {home_team} vs {away_team}"
+                        try:
+                            from cloudbet_live_cashout import executar_hedge_prejogo_cloudbet
+                            res_hdg = executar_hedge_prejogo_cloudbet(
+                                bet=item,
+                                motivo_tatica=analise_ia_txt or motivo_gk or "Sinistro tático / Risco alto detectado no pré-jogo.",
+                                cursor=cursor,
+                                conn=conn
+                            )
+                            if res_hdg.get("success"):
+                                parecer = f"🛡️ [Hedge Pré-Jogo Executado com Sucesso! Contra-aposta emitida na Cloudbet]\n\n" + parecer
+                        except Exception as e_hdg:
+                            print(f"⚠️ [Hedge Pré-Jogo Erro]: {e_hdg}")
+                    else:
+                        tipo_alerta = "ALERTA_MERCADO_DRIFT" if recalib.get('alerta_risco') else ("ALERTA_REPESCAGEM_REPROVADA" if era_observacao else "ALERTA_SENTINELA_IA")
+
+                    print(f"📝 [Parecer IA]: {parecer[:250]}...")
                     alerta_enviado = False
                     for uid in user_ids:
-                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta):
+                        if registrar_alerta_sininho(cursor, uid, aposta_id, fixture_id, titulo_alerta, parecer, tipo=tipo_alerta, analise_ia=analise_ia_txt):
                             alerta_enviado = True
                     conn.commit()
 
@@ -1950,8 +2363,8 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             titulo=titulo_alerta,
                             mensagem=parecer,
                             fixture_id=fixture_id,
-                            prioridade=5 if recalib.get('alerta_risco') else 4,
-                            tags=[tag_color, "warning", "soccer"]
+                            prioridade=5,
+                            tags=[tag_color, "shield", "soccer"]
                         )
                 else:
                     total_confirmados += 1
@@ -2002,6 +2415,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                 print(f"❌ [Banco de Dados] Falha ao persistir auditoria da aposta #{aposta_id}: {e_sql}")
 
         print(f"\n🏁 [Sentinela IA] Varredura concluída. Total: {total_processados} | Confirmados: {total_confirmados} | Alertas: {total_alertas} | Erros: {total_erros}")
+
+        # PILAR OFENSIVO (FASE 2): Após auditar apostas pendentes, executa repescagem de NO_BET por Súmula Oficial
+        if phase == 2 and not specific_aposta_id and not specific_fixture_id:
+            print(f"\n📡 [Sentinela IA - Fase 2 Ofensiva] Iniciando varredura de Súmulas Oficiais em partidas NO_BET...")
+            repescar_nobet_por_sumula(cursor, conn, window_minutes, user_ids)
 
     finally:
         conn.close()
@@ -2240,6 +2658,7 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Auditor Sentinela Pré-Jogo (Gemini Pro + Google Search)")
     parser.add_argument("--fixture_id", type=int, help="Auditar fixture_id específico sob demanda")
+    parser.add_argument("--aposta_id", type=int, default=None, help="Auditar aposta_id específica sob demanda")
     parser.add_argument("--window", type=int, default=50, help="Janela de minutos pré-jogo para varredura (padrão: 50)")
     parser.add_argument("--phase", type=int, default=2, choices=[1, 2], help="Fase da esteira: 1 (Antecipação Matinal - 24h) ou 2 (Repescagem Pré-Jogo e Drift - 50m)")
     parser.add_argument("--test-ntfy", action="store_true", help="Disparar push fake de teste forçado para validação no app ntfy")
@@ -2250,21 +2669,31 @@ if __name__ == '__main__':
         testar_push_mobile()
     else:
         win = args.window if (args.phase == 2 or args.window != 50) else 1440
-        processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, phase=args.phase)
+        processar_auditoria_prejogo(window_minutes=win, specific_fixture_id=args.fixture_id, specific_aposta_id=args.aposta_id, phase=args.phase)
 
-        if args.json_output and args.fixture_id:
+        if args.json_output and (args.fixture_id or args.aposta_id):
             conn = get_db_connection()
             try:
                 with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
-                               a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
-                               f.home_team, f.away_team, f.ah_suggestion
-                        FROM apostas a
-                        JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
-                        WHERE a.fixture_id = %s
-                        ORDER BY a.confirmada DESC, a.id DESC LIMIT 1
-                    """, (args.fixture_id,))
+                    if args.aposta_id:
+                        cur.execute("""
+                            SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
+                                   a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
+                                   f.home_team, f.away_team, f.ah_suggestion
+                            FROM apostas a
+                            JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
+                            WHERE a.id = %s
+                        """, (args.aposta_id,))
+                    else:
+                        cur.execute("""
+                            SELECT a.id as aposta_id, a.fixture_id, a.palpite, a.odd, a.valor_aposta, a.destaque,
+                                   a.status_gatekeeper, a.gatekeeper_category, a.auditoria_ia_status, a.auditoria_ia_resumo, a.auditoria_ia_parecer,
+                                   f.home_team, f.away_team, f.ah_suggestion
+                            FROM apostas a
+                            JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
+                            WHERE a.fixture_id = %s
+                            ORDER BY a.confirmada DESC, a.id DESC LIMIT 1
+                        """, (args.fixture_id,))
                     row = cur.fetchone()
                     if row:
                         out = {

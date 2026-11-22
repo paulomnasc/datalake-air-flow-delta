@@ -111,7 +111,7 @@ if (!function_exists('simplifyRejectionReasonModal')) {
         if (empty($m)) return 'Reprovada';
         if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
-        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
+        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -1.0 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
         if (stripos($m, 'divergência de mando') !== false || stripos($m, 'caldeirão') !== false || stripos($m, 'restritas exclusivamente a mandantes') !== false) return 'Trava de mando';
         if (stripos($m, 'cobertura de empate') !== false) return 'Exige 1X2 <= 1.55';
@@ -361,13 +361,117 @@ $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($fix->league_id ?
 $leagueCountry = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : ($leagueInfo['country'] ?? '');
 $leagueFlag = $leagueInfo['flag'] ?? '';
 $displayLeague = $fix->league_name ?? 'Liga';
-$prob = !empty($fix->win_probability) ? (float)$fix->win_probability : 50.0;
-$class = ($prob >= 70) ? 'high' : (($prob >= 55) ? 'safe' : 'risky');
+
+// Resolução da Probabilidade Real e Configuração do Hint Explicativo (Regra 8)
+$prob = null;
+$probLabel = 'Confiança / Probabilidade Projetada';
+$probTooltip = 'Probabilidade matemática calculada pelo modelo preditivo (Poisson/Estatística) de a aposta recomendada bater. No nosso modelo de Alta Assertividade, operamos preferencialmente com probabilidades iguais ou superiores a 60% dentro do Sweet Spot (1.60 a 1.95).';
+
+// 1. Se aberto a partir de uma aposta selecionada ($aposta)
+if (!empty($aposta) && isset($aposta->probabilidade_poisson) && is_numeric($aposta->probabilidade_poisson) && (float)$aposta->probabilidade_poisson > 0) {
+    $prob = (float)$aposta->probabilidade_poisson;
+    $palpiteDesc = !empty($aposta->palpite) ? $aposta->palpite : (!empty($aposta->mercado) ? $aposta->mercado : 'Palpite');
+    $probLabel = 'Probabilidade do Palpite (' . $palpiteDesc . ')';
+    $probTooltip = 'Probabilidade estatística calculada pelo modelo Poisson para ' . $palpiteDesc . ' @ ' . number_format((float)($aposta->odd ?? 0), 2) . ' (' . number_format($prob, 1) . '%). Calculada pela esteira de valor esperado (+EV).';
+}
+
+// 2. Se houver palpite em Gols Asiáticos em $fix
+if ($prob === null && isset($fix->asian_total_prob) && is_numeric($fix->asian_total_prob) && (float)$fix->asian_total_prob > 0) {
+    $prob = (float)$fix->asian_total_prob;
+    $totalPick = !empty($fix->asian_total_pick) ? $fix->asian_total_pick : 'Gols Asiáticos';
+    $probLabel = 'Probabilidade Projetada (' . $totalPick . ')';
+    $probTooltip = 'Probabilidade matemática calculada pelo modelo para o mercado de ' . $totalPick . ' (' . number_format($prob, 1) . '%).';
+}
+
+// 3. Se houver recomendação ativa em Handicap Asiático
+if ($prob === null && isset($fix->ah_confidence) && is_numeric($fix->ah_confidence) && (float)$fix->ah_confidence > 0 && !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|no_bet)/i', $fix->ah_suggestion)) {
+    $prob = (float)$fix->ah_confidence;
+    $probLabel = 'Confiança Handicap (' . $fix->ah_suggestion . ')';
+    $probTooltip = 'Nível de confiança estatística do Gatekeeper para a linha ' . $fix->ah_suggestion . ' (' . number_format($prob, 1) . '%).';
+}
+
+// 4. Se for Cartões
+if ($prob === null && isset($fix->over_cards_probability) && is_numeric($fix->over_cards_probability) && (float)$fix->over_cards_probability > 0) {
+    $prob = (float)$fix->over_cards_probability;
+    $probLabel = 'Probabilidade Cartões';
+    $probTooltip = 'Probabilidade estimada para a linha de cartões da partida (' . number_format($prob, 1) . '%).';
+}
+
+// 5. Fallback: Probabilidade Implícita das Odds 1X2 ou Equilíbrio
+if ($prob === null) {
+    $oddH = (float)($fix->odd_home ?? 0);
+    $oddA = (float)($fix->odd_away ?? 0);
+    if ($oddH > 1.0 && ($oddA <= 1.0 || $oddH <= $oddA)) {
+        $prob = round((1.0 / $oddH) * 100, 1);
+        $probLabel = 'Probabilidade Implícita 1X2 (' . ($fix->home_team ?? 'Casa') . ')';
+        $probTooltip = 'Probabilidade implícita das cotações 1X2 para vitória do mandante (' . ($fix->home_team ?? 'Casa') . ' @ ' . number_format($oddH, 2) . '). Partida sem aposta ativa recomendada.';
+    } elseif ($oddA > 1.0) {
+        $prob = round((1.0 / $oddA) * 100, 1);
+        $probLabel = 'Probabilidade Implícita 1X2 (' . ($fix->away_team ?? 'Fora') . ')';
+        $probTooltip = 'Probabilidade implícita das cotações 1X2 para vitória do visitante (' . ($fix->away_team ?? 'Fora') . ' @ ' . number_format($oddA, 2) . '). Partida sem aposta ativa recomendada.';
+    } else {
+        $prob = 50.0;
+        $probLabel = 'Equilíbrio Teórico 1X2';
+        $probTooltip = 'Probabilidade matemática neutra. Não há aposta ativa aprovada e as forças do confronto estão equilibradas.';
+    }
+}
+
+$class = ($prob >= 65.0) ? 'high' : (($prob >= 55.0) ? 'safe' : 'risky');
 
 // Extração de U5J
 $u5j_data = null;
 if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fix->ah_reasoning, $mU5)) {
     $u5j_data = json_decode($mU5[1], true);
+}
+
+// Cálculo de xG Previsto via U5J (Cruzamento Real de Ataque x Defesa)
+$xg_u5j_home = null;
+$xg_u5j_away = null;
+$xg_u5j_total = null;
+
+if (!empty($u5j_data['home']['matches']) && !empty($u5j_data['away']['matches'])) {
+    $hSc = []; $hCon = []; $aSc = []; $aCon = [];
+    foreach ($u5j_data['home']['matches'] as $m) {
+        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+            $p = explode('x', $m['score']);
+            $hSc[] = min(3, (int)$p[0]);
+            $hCon[] = min(3, (int)$p[1]);
+        }
+    }
+    foreach ($u5j_data['away']['matches'] as $m) {
+        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+            $p = explode('x', $m['score']);
+            $aSc[] = min(3, (int)$p[0]);
+            $aCon[] = min(3, (int)$p[1]);
+        }
+    }
+    if (count($hSc) > 0 && count($aCon) > 0) {
+        $xg_u5j_home = round(((array_sum($hSc) / count($hSc) + array_sum($aCon) / count($aCon)) / 2.0) * 1.08, 2);
+    }
+    if (count($aSc) > 0 && count($hCon) > 0) {
+        $xg_u5j_away = round(((array_sum($aSc) / count($aSc) + array_sum($hCon) / count($hCon)) / 2.0) * 0.92, 2);
+    }
+    if ($xg_u5j_home !== null && $xg_u5j_away !== null) {
+        $xg_u5j_total = round($xg_u5j_home + $xg_u5j_away, 2);
+    }
+}
+
+if ($xg_u5j_total === null) {
+    $xgH = (float)($fix->xg_home ?? 0);
+    $xgA = (float)($fix->xg_away ?? 0);
+    if ($xgH > 0 || $xgA > 0) {
+        $xg_u5j_home = $xgH;
+        $xg_u5j_away = $xgA;
+        $xg_u5j_total = round($xgH + $xgA, 2);
+    } else {
+        $hAtk = (float)($fix->home_avg_goals_scored ?? 1.30);
+        $hDef = (float)($fix->home_avg_goals_conceded ?? 1.00);
+        $aAtk = (float)($fix->away_avg_goals_scored ?? 1.05);
+        $aDef = (float)($fix->away_avg_goals_conceded ?? 1.20);
+        $xg_u5j_home = round((($hAtk + $aDef) / 2.0) * 1.08, 2);
+        $xg_u5j_away = round((($aAtk + $hDef) / 2.0) * 0.92, 2);
+        $xg_u5j_total = round($xg_u5j_home + $xg_u5j_away, 2);
+    }
 }
 
 // Extração de Motivação e Explicação
@@ -665,11 +769,14 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
         <span style="color: #a78bfa;">2 (Fora): <strong><?= number_format((float)($fix->odd_away ?? 0), 2) ?></strong></span>
       </div>
       <div class="mt-2 px-1">
-        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.70rem; color: #94a3b8;">
-          <span>Confiança / Probabilidade Projetada</span>
-          <strong class="text-info"><?= number_format($prob, 1) ?>%</strong>
+        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.70rem; color: #94a3b8; margin-bottom: 3px;">
+          <span style="display: inline-flex; align-items: center; gap: 4px; cursor: help;" title="<?= htmlspecialchars($probTooltip, ENT_QUOTES) ?>">
+            <span><?= htmlspecialchars($probLabel) ?></span>
+            <i class="bi bi-info-circle text-info" style="font-size: 0.75rem;"></i>
+          </span>
+          <strong class="<?= ($prob >= 65.0 ? 'text-success' : ($prob >= 55.0 ? 'text-info' : 'text-warning')) ?> fw-bold"><?= number_format($prob, 1) ?>%</strong>
         </div>
-        <div class="prob-bar-container">
+        <div class="prob-bar-container" title="<?= htmlspecialchars($probTooltip, ENT_QUOTES) ?>" style="cursor: help;">
           <div class="prob-bar-fill <?= $class ?>" style="width: <?= min(100, max(10, $prob)) ?>%;"></div>
         </div>
       </div>
@@ -775,10 +882,10 @@ $isQuasePremium = $isCardAhApproved && !$isCardPremium && (
           <strong class="text-warning" style="font-size: 0.88rem;"><?= htmlspecialchars($fix->prediction_text ?? 'Sem palpite de cartões') ?></strong>
         </div>
         <div class="d-flex gap-2">
-          <div class="stat-badge-box flex-fill">
-            <span class="stat-badge-title">Gols Esperados</span>
+          <div class="stat-badge-box flex-fill" title="xG Previsto (U5J) cruzando ataque x defesa (<?= htmlspecialchars($fix->home_team ?? 'Casa') ?>: <?= number_format($xg_u5j_home ?? 0, 2) ?> x <?= number_format($xg_u5j_away ?? 0, 2) ?> <?= htmlspecialchars($fix->away_team ?? 'Fora') ?>)">
+            <span class="stat-badge-title">xG Previsto (U5J)</span>
             <span class="stat-badge-val text-success">
-              <?= number_format(((float)($fix->home_avg_goals_scored ?? 0) + (float)($fix->away_avg_goals_scored ?? 0)), 2) ?>
+              <?= number_format($xg_u5j_total ?? 0, 2) ?>
             </span>
           </div>
           <div class="stat-badge-box flex-fill">

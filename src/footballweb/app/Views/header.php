@@ -344,6 +344,44 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
       display: block; /* Mostra o fundo */
     }
 
+    /* Estilos do Highlight Fixo: Sweet Spot Seguro */
+    .header-sticky-wrapper {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1040 !important;
+        width: 100% !important;
+    }
+    .sweet-spot-pulse-dot {
+        width: 16px;
+        height: 16px;
+        background-color: #10b981;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+        animation: sweetSpotDotGlow 1.4s infinite;
+    }
+    @keyframes sweetSpotDotGlow {
+        0% { transform: scale(0.90); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.9); }
+        70% { transform: scale(1.35); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.90); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .sweet-spot-blink-text {
+        animation: sweetSpotBlinkGlow 2.0s infinite ease-in-out;
+    }
+    @keyframes sweetSpotBlinkGlow {
+        0%, 100% {
+            opacity: 1;
+            color: #38bdf8;
+            text-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 0 0 28px rgba(56, 189, 248, 0.4);
+        }
+        50% {
+            opacity: 0.50;
+            color: #facc15;
+            text-shadow: 0 0 8px rgba(250, 204, 21, 0.6), 0 0 16px rgba(250, 204, 21, 0.3);
+        }
+    }
+
     #head-bar {
         background: url('<?= base_url("assets/img/header-banner.jpg"); ?>?v=<?= time() ?>') center/cover no-repeat !important;
         border: none;
@@ -538,10 +576,40 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </a>
                 <?php endif; ?>
 
-                <!-- Botão para abrir a sidebar -->
+                <?php
+                    // Exibir saldo em conta corrente exclusivamente para paulomnasc@gmail.com
+                    $usuarioIdHeader = (int)($_SESSION['id_usuario_logado'] ?? (function_exists('session') ? session()->get('id_usuario_logado') : 0));
+                    $emailUsuarioHeader = strtolower(trim((string)($_SESSION['email_usuario_logado'] ?? (function_exists('session') ? session()->get('email_usuario_logado') : ''))));
+                    $nomeUsuarioHeader = (string)($_SESSION['nome_usuario_logado'] ?? (function_exists('session') ? session()->get('nome_usuario_logado') : ''));
+                    
+                    $isPauloHeader = ($emailUsuarioHeader === 'paulomnasc@gmail.com') 
+                        || ($usuarioIdHeader === 558) 
+                        || \App\Helpers\SessionHelper::isPauloNascimento($nomeUsuarioHeader);
+
+                    if ($isPauloHeader && $usuarioIdHeader > 0):
+                        $ccModelHeader = new \App\Models\ContaCorrenteModel();
+                        $saldoCcHeader = $ccModelHeader->getSaldo($usuarioIdHeader);
+                        $moedaCodCc = $moedaPadraoHeader ? $moedaPadraoHeader->codigo : 'USDT';
+                ?>
+                <!-- Saldo em Conta Corrente (Exclusivo paulomnasc@gmail.com) -->
+                <a href="<?= base_url('apostas/extrato') ?>" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1 text-nowrap me-2 shadow-sm" style="padding: 6px 12px; font-weight: 600; background: rgba(30, 41, 59, 0.85); border-color: rgba(245, 158, 11, 0.45); text-decoration: none;" title="Saldo Disponível em Conta Corrente: <?= number_format($saldoCcHeader, 2, ',', '.') ?> <?= esc($moedaCodCc) ?> - Clique para ver o Extrato">
+                    <i class="bi bi-wallet2 text-warning" style="font-size: 0.95rem;"></i>
+                    <span class="text-warning fw-bold"><?= number_format($saldoCcHeader, 2, ',', '.') ?></span>
+                    <span class="text-white-50 small" style="font-size: 0.72rem;"><?= esc($moedaCodCc) ?></span>
+                </a>
+                <?php endif; ?>
+
+                <?php
+                    $primeiroNomeUsuario = lang('App.enter');
+                    if (!empty($nomeUsuarioHeader)) {
+                        $partesNome = explode(' ', trim($nomeUsuarioHeader));
+                        $primeiroNomeUsuario = $partesNome[0] ?? $nomeUsuarioHeader;
+                    }
+                ?>
+                <!-- Botão para abrir a sidebar (Exibindo apenas o primeiro nome) -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
-                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.enter'); ?></span>
+                    <span class="ms-2"><?= esc($primeiroNomeUsuario) ?></span>
                 </button>
             </div>
         </div>
@@ -556,7 +624,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
             <ul class="list-unstyled">
                 <li>
-                    <p class="text-white"><?= lang('App.hello') ?> <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.visitor'); ?></p>
+                    <p class="text-white"><?= lang('App.hello') ?> <?= esc(!empty($nomeUsuarioHeader) ? $primeiroNomeUsuario : lang('App.visitor')) ?></p>
                 </li>
 
                 <!-- Seção 'Seu usuário no Airflow' removida -->
@@ -684,8 +752,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     <!-- button class="nav-button" onclick="toggleSidebar()">☰</button-->
 
-    <!-- side bar -->
-    <nav class="navbar navbar-expand-lg bg-white navbar-light shadow sticky-top p-0">
+    <!-- CONTAINER STICKY UNIFICADO (NAVBAR + BANNER FIXADOS NO TOPO) -->
+    <div class="sticky-top shadow p-0 header-sticky-wrapper" style="z-index: 1020; width: 100%;">
+        <nav class="navbar navbar-expand-lg bg-white navbar-light p-0">
         
         <button type="button" class="navbar-toggler me-4" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
             <span class="navbar-toggler-icon"></span>
@@ -704,6 +773,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="<?= base_url('apostas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-success d-flex align-items-center gap-1" title="<?= lang('App.my_bets') ?>">
                         <i class="bi bi-ticket-detailed-fill" style="font-size: 20px;"></i>
                         <span><?= lang('App.my_bets') ?></span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('observabilidade') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #06b6d4;" title="Painel de Observabilidade Ao Vivo (Play in Live & Cash Out)">
+                        <i class="bi bi-speedometer2" style="font-size: 19px;"></i>
+                        <span>Ao Vivo</span>
+                        <span class="badge bg-danger rounded-pill pulse-live-indicator" style="font-size: 0.58rem; padding: 2px 5px; letter-spacing: 0.5px;">LIVE</span>
                     </a>
                 </li>
                 <?php 
@@ -739,6 +815,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <a href="<?= base_url('apostas/relatorio-abstencoes') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-danger d-flex align-items-center gap-1" title="Auditoria de Abstenções (NO_BET)">
                         <i class="bi bi-shield-slash" style="font-size: 18px;"></i>
                         <span>Abstenções (NO_BET)</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('docs') ?>?v=<?= time() ?>" class="nav-link px-2 px-lg-2 font-weight-bold d-flex align-items-center" style="color: #0284c7;" title="Documentação do Pipeline & DAGs Cloudbet">
+                        <i class="bi bi-question-circle-fill" style="font-size: 21px;"></i>
                     </a>
                 </li>
             </ul>
@@ -781,6 +862,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         </div>
     
     </nav>
+    <!-- fecha navbar -->
+
+    <!-- BARRA HIGHLIGHT FIXADA: SWEET SPOT SEGURO (LOGO ABAIXO DO MENU PRINCIPAL) -->
+    <div class="w-100 py-2.5 px-3 text-center sweet-spot-banner-wrapper" style="background: linear-gradient(90deg, #0b1120 0%, #1e293b 50%, #0b1120 100%); border-top: 2px solid rgba(56, 189, 248, 0.35); border-bottom: 3px solid #0284c7; box-shadow: 0 4px 16px rgba(0,0,0,0.45); position: relative; z-index: 1039;">
+        <div class="d-inline-flex align-items-center justify-content-center gap-3">
+            <span class="sweet-spot-pulse-dot"></span>
+            <span class="sweet-spot-blink-text fw-bold text-uppercase" style="font-size: 1.64rem; letter-spacing: 0.8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25;">
+                🎯 Sweet Spot seguro de 1.60 a 1.95
+            </span>
+        </div>
+    </div>
+</div>
+<!-- fecha sticky wrapper -->
     <!-- fecha sidebar -->
 
     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
@@ -1120,15 +1214,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         transform: scale(1.08);
     }
 
-    /* Blindagem Global contra Overflow Horizontal e Proteção da Navbar */
+    /* Blindagem Global contra Overflow Horizontal e Proteção do Header Fixo */
     html, body {
-        overflow-x: hidden !important;
+        overflow-x: clip !important;
         max-width: 100vw !important;
     }
-    .navbar.sticky-top {
+    .header-sticky-wrapper, .navbar.sticky-top {
         width: 100% !important;
         max-width: 100vw !important;
         box-sizing: border-box !important;
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1040 !important;
     }
 
     /* Barra Lateral Dock Retrátil Permanente no Canto Direito */
@@ -1568,6 +1666,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 // Renderizar dropdown (Stop Loss sempre pinado no topo se pinada = 1)
                 const container = document.getElementById('lista-notificacoes-container');
                 if (container && data.notificacoes && data.notificacoes.length > 0) {
+                    // Ordenação estrita por data-hora de criação em ordem descendente (mais recente primeiro)
+                    data.notificacoes.sort((a, b) => {
+                        const pinA = (parseInt(a.pinada || 0) === 1 && parseInt(a.lida || 0) === 0) ? 1 : 0;
+                        const pinB = (parseInt(b.pinada || 0) === 1 && parseInt(b.lida || 0) === 0) ? 1 : 0;
+                        if (pinA !== pinB) return pinB - pinA;
+
+                        const timeA = new Date((a.criado_em || '').replace(' ', 'T')).getTime() || 0;
+                        const timeB = new Date((b.criado_em || '').replace(' ', 'T')).getTime() || 0;
+                        if (timeA !== timeB) return timeB - timeA;
+
+                        return parseInt(b.id || 0) - parseInt(a.id || 0);
+                    });
+
                     let html = '';
                     data.notificacoes.forEach(n => {
                         const isUnread = (parseInt(n.lida) === 0);

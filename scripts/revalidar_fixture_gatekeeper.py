@@ -39,6 +39,10 @@ from cards_engine import (
     is_knockout_round_advanced,
     format_gatekeeper_result as format_cards_gk
 )
+from asian_total_engine import (
+    calculate_unified_goals_recommendation,
+    sync_fixture_and_bet_goals
+)
 
 from db_config import get_db_connection, get_live_env_vars
 
@@ -169,6 +173,22 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             pass
     h_l5 = u5j_json.get('home') if isinstance(u5j_json, dict) else None
     a_l5 = u5j_json.get('away') if isinstance(u5j_json, dict) else None
+
+    # Fail-Safe de Recomposição Imediata (Regra 16): Se U5J tiver < 5 partidas, recompoe via get_team_u5j_from_db
+    try:
+        from asian_handicap_engine import get_team_u5j_from_db
+        if not h_l5 or len(h_l5.get('matches', [])) < 5:
+            h_fresh = get_team_u5j_from_db(cursor, fix.get('home_team_id'), home_team)
+            if h_fresh and len(h_fresh.get('matches', [])) > (len(h_l5.get('matches', [])) if h_l5 else 0):
+                h_l5 = h_fresh
+                u5j_json['home'] = h_l5
+        if not a_l5 or len(a_l5.get('matches', [])) < 5:
+            a_fresh = get_team_u5j_from_db(cursor, fix.get('away_team_id'), away_team)
+            if a_fresh and len(a_fresh.get('matches', [])) > (len(a_l5.get('matches', [])) if a_l5 else 0):
+                a_l5 = a_fresh
+                u5j_json['away'] = a_l5
+    except Exception:
+        pass
     h_trend = (h_l5 or {}).get('trend') or (analyze_trend_and_momentum(home_team, h_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
     a_trend = (a_l5 or {}).get('trend') or (analyze_trend_and_momentum(away_team, a_l5).get('trend') if analyze_trend_and_momentum else 'CURVA_ESTAVEL')
 
@@ -254,7 +274,7 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             ev_perc=ev_ah,
             detalhe_calculo=enriched_reason_ah,
             user_ids=user_ids,
-            confirmada_val=0,
+            confirmada_val=1,
             destaque_val=1 if best_cand_ah.get('is_tier1_massacre') else 0,
             best_cand=best_cand_ah
         )
@@ -269,8 +289,14 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
             """, (enriched_app_r, fixture_id))
     else:
-        # Passa enriched_reason_ah (com audit_bullet) para que o detector de CLV Positivo reconheça a odd atual do mercado
-        cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
+        # Só aciona rotina de cancelamento se houver apostas existentes para a partida no banco
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+            LIMIT 1
+        """, (fixture_id,))
+        if cursor.fetchone():
+            cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo=enriched_reason_ah)
 
         # Verifica se a partida possui aposta preservada (CLV Positivo, aposta confirmada ou ativa)
         cursor.execute("""
@@ -385,6 +411,27 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
                 WHERE fixture_id = %s
             """, (pred_text_cards, over_cards_prob, fixture_id))
 
+    # 4. Revalidação de Gols Asiáticos (asian_total_engine)
+    status_goals = "NO_BET"
+    sug_goals = "Sem Entrada (Abstenção)"
+    odd_goals = None
+    prob_goals = 50.0
+    clean_reason_goals = "Nenhuma cotação com valor esperado no mercado de gols."
+
+    try:
+        st_g, palpite_g, conf_g, r_g, best_g, app_g = calculate_unified_goals_recommendation(
+            fixture_dict=fix,
+            cursor=cursor
+        )
+        status_goals = st_g
+        sug_goals = palpite_g
+        prob_goals = float(conf_g or 50.0)
+        clean_reason_goals = clean_natural_language_reason(r_g)
+        if best_g and best_g.get('odd'):
+            odd_goals = float(best_g['odd'])
+    except Exception as e_goals:
+        print(f"⚠️ [Revalidar Gols] Erro: {e_goals}", file=sys.stderr)
+
     return {
         "success": True,
         "fixture_id": fixture_id,
@@ -412,7 +459,14 @@ def revalidar_fixture(fixture_id: int, usuario_id: int = None):
             "odd": odd_cards,
             "reason_clean": clean_reason_cards
         },
-        "message": f"Odds da {bm_name} e Gatekeepers (Handicap e Cartões) revalidados com sucesso!"
+        "goals": {
+            "status": status_goals,
+            "suggestion": sug_goals,
+            "probability": prob_goals,
+            "odd": odd_goals,
+            "reason_clean": clean_reason_goals
+        },
+        "message": f"Odds da {bm_name} e Gatekeepers (Handicap, Cartões e Gols) revalidados com sucesso!"
     }
 
 if __name__ == "__main__":

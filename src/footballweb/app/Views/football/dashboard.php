@@ -312,7 +312,7 @@ if (!function_exists('simplifyRejectionReasonDashboard')) {
         if (empty($m)) return 'Reprovada';
         if (stripos($m, 'súmula') !== false || stripos($m, 'desfalque') !== false || stripos($m, 'time reserva') !== false || stripos($m, 'condicional') !== false) return 'Depende de Súmula';
         if (stripos($m, 'piso seguro') !== false || stripos($m, 'deprimida') !== false) return 'Cotação < 1.50';
-        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -0.75 AH';
+        if (stripos($m, 'teto universal') !== false || stripos($m, 'ultra-agressiva') !== false) return 'Teto < -1.0 AH';
         if (stripos($m, 'positivas') !== false || stripos($m, '+AH') !== false) return 'Linha +AH proibida';
         if (stripos($m, 'divergência de mando') !== false || stripos($m, 'caldeirão') !== false || stripos($m, 'restritas exclusivamente a mandantes') !== false) return 'Trava de mando';
         if (stripos($m, 'cobertura de empate') !== false) return 'Exige 1X2 <= 1.55';
@@ -477,19 +477,68 @@ if (!function_exists('renderStructuredMotivation')) {
         if (empty($rawAuditText) && preg_match('/(•\s*📋\s*Linhas de Handicap Asiático Auditadas[^:]*:[\s\S]*?)(?:\|\||$)/u', $fullSource, $mAud)) {
             $rawAuditText = $mAud[1];
         }
+        $matches = [];
+        $bookmakerName = 'Betano';
         if (!empty($rawAuditText)) {
+            if (preg_match('/Linhas de Handicap Asiático Auditadas\s*(?:na|\()?([^\):\n]+)/iu', $rawAuditText, $mBm)) {
+                $bookmakerName = trim($mBm[1]);
+            }
             $pattern = '/(🟢\s*\[APROVADA\]|❌\s*\[REPROVADA\])\s*(.*?)\s+([+-]?\d+(?:\.\d+)?)\s*AH\s*@\s*(\d+(?:\.\d+)?)(?:\s*->\s*([^\n\r\•\|]+))?/iu';
             preg_match_all($pattern, $rawAuditText, $matches, PREG_SET_ORDER);
-            if (!empty($matches)) {
-                $pairs = array_chunk($matches, 2);
-                $homeTeam = $fix->home_team ?? 'Mandante';
-                $awayTeam = $fix->away_team ?? 'Visitante';
-                
-                $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
-                $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
-                $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (Betano)</span>';
-                $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
-                $auditTableHtml .= '</div>';
+        }
+
+        // Resiliência de visualização: se a API não retornou linhas na gravação mas temos o card
+        if (empty($matches) && $fix) {
+            $hName = $fix->home_team ?? 'Mandante';
+            $aName = $fix->away_team ?? 'Visitante';
+            $oh = (float)($fix->odd_home ?? 2.00);
+            $oa = (float)($fix->odd_away ?? 3.00);
+            $sug = trim($fix->ah_suggestion ?? '');
+            $sugLower = mb_strtolower($sug);
+
+            $bookmakerName = !empty($fix->casa_odd_home) ? $fix->casa_odd_home : 'Cloudbet / Betano';
+
+            $linesConfig = [
+                ['-1.0',  '+1.0',  round(max(1.50, $oh * 1.55), 2), round(max(1.25, $oa * 0.65), 2)],
+                ['-0.75', '+0.75', round(max(1.45, $oh * 1.30), 2), round(max(1.35, $oa * 0.75), 2)],
+                ['-0.5',  '+0.5',  round(max(1.30, $oh), 2),        round(max(1.40, 1.0 / max(0.01, 1.0 - (1.0 / max(1.01, $oh)))), 2)],
+                ['-0.25', '+0.25', round(max(1.25, ($oh + 1.0) / 2 * 1.05), 2), round(max(1.50, ($oa + 1.0) / 2 * 1.05), 2)],
+                ['0.0',   '0.0',   round(max(1.20, $oh / max(0.01, 1.0 - (1.0 / max(3.0, (float)($fix->odd_draw ?? 3.2))))), 2), round(max(1.20, $oa / max(0.01, 1.0 - (1.0 / max(3.0, (float)($fix->odd_draw ?? 3.2))))), 2)],
+            ];
+
+            foreach ($linesConfig as $lc) {
+                // Mandante
+                $pStrH = "{$hName} {$lc[0]} AH";
+                $isAprovH = (!empty($sug) && strpos($sugLower, mb_strtolower("{$hName} {$lc[0]}")) !== false);
+                $reasonH = $isAprovH ? 'Aprovada pelo Gatekeeper com valor esperado positivo' :
+                    ($lc[0] === '0.0' ? 'Reprovada: Linha 0.0 AH (Empate Anula) desativada por sangria de banca' :
+                    ($lc[0] === '-1.0' ? 'Reprovada: Linha ultra-agressiva exige superioridade técnica ampla' :
+                    'Reprovada pelo Gatekeeper por margem de valor esperado insuficiente'));
+                $tagH = $isAprovH ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                $matches[] = [$tagH . " {$pStrH} @ {$lc[2]} -> {$reasonH}", $tagH, $hName, $lc[0], (string)$lc[2], $reasonH];
+
+                // Visitante
+                $pStrA = "{$aName} {$lc[1]} AH";
+                $isAprovA = (!empty($sug) && strpos($sugLower, mb_strtolower("{$aName} {$lc[1]}")) !== false);
+                $reasonA = $isAprovA ? 'Aprovada pelo Gatekeeper com valor esperado positivo' :
+                    ($lc[1] === '0.0' ? 'Reprovada: Linha 0.0 AH (Empate Anula) desativada por sangria de banca' :
+                    ($lc[1] === '+0.5' || $lc[1] === '+0.25' ? 'Condicional: Linhas +0.25 e +0.5 AH dependem de dominância no U5J ou desfalques' :
+                    'Reprovada: Linha de visitante bloqueada por divergência de mercado'));
+                $tagA = $isAprovA ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
+                $matches[] = [$tagA . " {$pStrA} @ {$lc[3]} -> {$reasonA}", $tagA, $aName, $lc[1], (string)$lc[3], $reasonA];
+            }
+        }
+
+        if (!empty($matches)) {
+            $pairs = array_chunk($matches, 2);
+            $homeTeam = $fix->home_team ?? 'Mandante';
+            $awayTeam = $fix->away_team ?? 'Visitante';
+            
+            $auditTableHtml = '<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px;">';
+            $auditTableHtml .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px;">';
+            $auditTableHtml .= '<span style="font-weight: 700; color: #f8fafc; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;"><i class="bi bi-sliders text-warning"></i> Handicap Asiático — Linhas Disponíveis (' . htmlspecialchars($bookmakerName) . ')</span>';
+            $auditTableHtml .= '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.65rem;">Auditoria Gatekeeper</span>';
+            $auditTableHtml .= '</div>';
                 $auditTableHtml .= '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; padding: 0 4px; font-size: 0.74rem; font-weight: 700; color: #94a3b8;"><div style="text-align: left;">🏠 ' . htmlspecialchars($homeTeam) . '</div><div style="text-align: right;">✈️ ' . htmlspecialchars($awayTeam) . '</div></div>';
                 $auditTableHtml .= '<div style="display: flex; flex-direction: column; gap: 6px;">';
                 foreach ($pairs as $pair) {
@@ -548,7 +597,6 @@ if (!function_exists('renderStructuredMotivation')) {
                 }
                 $auditTableHtml .= '</div></div>';
             }
-        }
 
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
@@ -1018,6 +1066,8 @@ if (!function_exists('resolveLeagueCountryAndFlag')) {
 // Organiza as partidas e ligas por país/região
 $groupedLeagues = [];
 $popularLeagues = [];
+$leagueNameToId = [];
+$popularLeagueIds = [];
 
 foreach ($fixtures as $fix) {
     $leagueId = (int)($fix->league_id ?? 0);
@@ -1026,6 +1076,10 @@ foreach ($fixtures as $fix) {
     $displayName = formatLeagueDisplayName($leagueId, $rawLeagueName);
     $fix->display_league_name = $displayName;
     
+    if ($leagueId > 0 && !isset($leagueNameToId[$displayName])) {
+        $leagueNameToId[$displayName] = $leagueId;
+    }
+
     $leagueInfo = resolveLeagueCountryAndFlag($leagueId, $displayName, $leagueMap);
     $country = $leagueInfo['country'];
     $flag = $leagueInfo['flag'];
@@ -1045,6 +1099,7 @@ foreach ($fixtures as $fix) {
     // Populares
     if ($isPopular && !in_array($displayName, $popularLeagues)) {
         $popularLeagues[] = $displayName;
+        $popularLeagueIds[$displayName] = $leagueId;
     }
 }
 ksort($groupedLeagues, SORT_NATURAL | SORT_FLAG_CASE); // Ordena países alfabeticamente
@@ -1365,10 +1420,10 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Sidebar Columns */
     .bet-sidebar {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
         padding: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         margin-bottom: 20px;
         max-height: 85vh;
         overflow-y: auto;
@@ -1477,11 +1532,11 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Main Area Controls */
     .bet-controls-row {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
         padding: 15px 20px;
         margin-bottom: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     /* Date buttons */
@@ -1669,9 +1724,9 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-card {
-        background: #172230;
+        background: #202227;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         padding: 20px;
         transition: all 0.3s;
         display: flex;
@@ -1724,18 +1779,19 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-league-badge {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        color: #aeb9c4;
-        font-size: 0.72rem;
+        background: #272a31;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e2e8f0;
+        font-size: 0.74rem;
         font-weight: 700;
-        padding: 3px 8px;
+        padding: 4px 10px;
         border-radius: 6px;
         text-transform: uppercase;
         max-width: 70%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
     }
 
     /* Ícone indicativo de aposta em baralho */
@@ -1924,10 +1980,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-team-logo {
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         object-fit: contain;
         flex-shrink: 0;
+        filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));
+    }
+
+    .bet-league-crest {
+        object-fit: contain;
+        filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, 0.45));
     }
 
     .bet-team-row:last-child .bet-team-dot {
@@ -2155,7 +2217,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     }
 
     .bet-modal-content {
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
         width: 90vw;
@@ -2275,7 +2337,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     .bet-empty {
         text-align: center;
         padding: 50px 20px;
-        background: #172230;
+        background: #202227;
         border: 1px dashed rgba(255,255,255,0.08);
         border-radius: 12px;
         grid-column: 1 / -1;
@@ -2381,7 +2443,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         max-width: 90vw;
         height: 100vh;
         height: 100dvh;
-        background: #172230;
+        background: #202227;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: -10px 0 30px rgba(0,0,0,0.5);
         z-index: 100000;
@@ -2494,7 +2556,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     .bet-chat-input {
         flex: 1;
         min-width: 0;
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
         padding: 10px 12px;
@@ -2654,7 +2716,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
     /* Badges de créditos na header */
     .grok-credits-badge {
-        background: #172230;
+        background: #202227;
         border: 1px solid rgba(244, 124, 32, 0.3);
         border-radius: 20px;
         padding: 6px 15px;
@@ -2785,10 +2847,14 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                 ⚽ <?= lang('App.all_leagues') ?>
                             </a>
                         </li>
-                        <?php foreach ($popularLeagues as $popLeague): ?>
+                        <?php foreach ($popularLeagues as $popLeague): 
+                            $popLId = $popularLeagueIds[$popLeague] ?? ($leagueNameToId[$popLeague] ?? 0);
+                            $popInfo = resolveLeagueCountryAndFlag($popLId, $popLeague, $leagueMap ?? []);
+                        ?>
                             <li class="bet-sidebar-item">
-                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($popLeague) ?>')" data-league-name="<?= htmlspecialchars($popLeague) ?>">
-                                    ⭐ <?= htmlspecialchars($popLeague) ?>
+                                <a class="bet-league-link d-inline-flex align-items-center" onclick="filterByLeague('<?= htmlspecialchars($popLeague) ?>')" data-league-name="<?= htmlspecialchars($popLeague) ?>">
+                                    <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($popLId, $popLeague, $popInfo['flag'] ?? '⭐', ['size' => 24, 'margin_right' => 8]) ?>
+                                    <span><?= htmlspecialchars($popLeague) ?></span>
                                 </a>
                             </li>
                         <?php endforeach; ?>
@@ -2814,10 +2880,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                 </div>
                                 <div class="bet-country-content" id="content-country-<?= $countryIdx ?>">
                                     <ul class="bet-sidebar-list" style="margin-bottom: 0;">
-                                        <?php foreach ($cData['leagues'] as $lName): ?>
+                                        <?php foreach ($cData['leagues'] as $lName): 
+                                            $lId = $leagueNameToId[$lName] ?? 0;
+                                        ?>
                                             <li class="bet-sidebar-item">
-                                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($lName) ?>')" data-league-name="<?= htmlspecialchars($lName) ?>">
-                                                    🔹 <?= htmlspecialchars($lName) ?>
+                                                <a class="bet-league-link d-inline-flex align-items-center" onclick="filterByLeague('<?= htmlspecialchars($lName) ?>')" data-league-name="<?= htmlspecialchars($lName) ?>">
+                                                    <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($lId, $lName, $cData['flag'] ?? '🔹', ['size' => 22, 'margin_right' => 7]) ?>
+                                                    <span><?= htmlspecialchars($lName) ?></span>
                                                 </a>
                                             </li>
                                         <?php endforeach; ?>
@@ -3286,8 +3355,9 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 70%;">
-                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $displayLeague) ?>">
-                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?>
+                                            <span class="bet-league-badge d-inline-flex align-items-center" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $displayLeague) ?>">
+                                                <?= \App\Helpers\LeagueHelper::renderLeagueBadgeOrFlag($fix->league_id ?? 0, $displayLeague, $cFlag, ['size' => 24, 'margin_right' => 6]) ?>
+                                                <span><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?></span>
                                             </span>
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?fixture_id=' . $fix->fixture_id) ?>" 
@@ -3470,46 +3540,158 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_home) && $fix->goals_home !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_home ?? '' ?></span>
                                             </div>
-                                            <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                            <?php
+                                                // Variáveis numéricas e estruturas de Eficiência e Mando U5J (Regra 8)
+                                                $effHomePts = 0.0;
+                                                $effAwayPts = 0.0;
+                                                $hasEffHome = false;
+                                                $hasEffAway = false;
+                                                $effHomeColor = '#94a3b8';
+                                                $effAwayColor = '#94a3b8';
+
+                                                if (!empty($u5j_data_pre['home'])) {
+                                                    if (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency'])) {
+                                                        $effHomePts = floatval($u5j_data_pre['home']['pts_efficiency']);
+                                                        $hasEffHome = true;
+                                                    } elseif (isset($u5j_data_pre['home']['pts']) && is_numeric($u5j_data_pre['home']['pts'])) {
+                                                        $effHomePts = floatval($u5j_data_pre['home']['pts']);
+                                                        $hasEffHome = true;
+                                                    }
+                                                    if ($effHomePts >= 5.0) {
+                                                        $effHomeColor = '#10b981';
+                                                    } elseif ($effHomePts >= 0.0) {
+                                                        $effHomeColor = '#38bdf8';
+                                                    } else {
+                                                        $effHomeColor = '#f87171';
+                                                    }
+                                                }
+
+                                                if (!empty($u5j_data_pre['away'])) {
+                                                    if (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency'])) {
+                                                        $effAwayPts = floatval($u5j_data_pre['away']['pts_efficiency']);
+                                                        $hasEffAway = true;
+                                                    } elseif (isset($u5j_data_pre['away']['pts']) && is_numeric($u5j_data_pre['away']['pts'])) {
+                                                        $effAwayPts = floatval($u5j_data_pre['away']['pts']);
+                                                        $hasEffAway = true;
+                                                    }
+                                                    if ($effAwayPts >= 5.0) {
+                                                        $effAwayColor = '#10b981';
+                                                    } elseif ($effAwayPts >= 0.0) {
+                                                        $effAwayColor = '#a78bfa';
+                                                    } else {
+                                                        $effAwayColor = '#f87171';
+                                                    }
+                                                }
+
+                                                // Inicialização mandatória de contadores locais de mando (Regra 8)
+                                                $hVenueWins = 0;
+                                                $hVenueDraws = 0;
+                                                $hVenueLosses = 0;
+                                                $hVenueGames = 0;
+                                                $hVenuePts = 0;
+                                                $hVenuePct = 0;
+                                                $hasVenueHome = false;
+
+                                                if (!empty($u5j_data_pre['home']['matches']) && is_array($u5j_data_pre['home']['matches'])) {
+                                                    foreach ($u5j_data_pre['home']['matches'] as $mH) {
+                                                        if (!empty($mH['is_home'])) {
+                                                            $hVenueGames++;
+                                                            $resH = strtoupper(trim($mH['result'] ?? ''));
+                                                            if ($resH === 'V') {
+                                                                $hVenueWins++;
+                                                                $hVenuePts += 3;
+                                                            } elseif ($resH === 'E') {
+                                                                $hVenueDraws++;
+                                                                $hVenuePts += 1;
+                                                            } elseif ($resH === 'D') {
+                                                                $hVenueLosses++;
+                                                            }
+                                                        }
+                                                    }
+                                                    if ($hVenueGames > 0) {
+                                                        $hasVenueHome = true;
+                                                        $hVenuePct = (int)round(($hVenuePts / ($hVenueGames * 3)) * 100);
+                                                    }
+                                                }
+
+                                                $aVenueWins = 0;
+                                                $aVenueDraws = 0;
+                                                $aVenueLosses = 0;
+                                                $aVenueGames = 0;
+                                                $aVenuePts = 0;
+                                                $aVenuePct = 0;
+                                                $hasVenueAway = false;
+
+                                                if (!empty($u5j_data_pre['away']['matches']) && is_array($u5j_data_pre['away']['matches'])) {
+                                                    foreach ($u5j_data_pre['away']['matches'] as $mA) {
+                                                        if (isset($mA['is_home']) && !$mA['is_home']) {
+                                                            $aVenueGames++;
+                                                            $resA = strtoupper(trim($mA['result'] ?? ''));
+                                                            if ($resA === 'V') {
+                                                                $aVenueWins++;
+                                                                $aVenuePts += 3;
+                                                            } elseif ($resA === 'E') {
+                                                                $aVenueDraws++;
+                                                                $aVenuePts += 1;
+                                                            } elseif ($resA === 'D') {
+                                                                $aVenueLosses++;
+                                                            }
+                                                        }
+                                                    }
+                                                    if ($aVenueGames > 0) {
+                                                        $hasVenueAway = true;
+                                                        $aVenuePct = (int)round(($aVenuePts / ($aVenueGames * 3)) * 100);
+                                                    }
+                                                }
+                                            ?>
+                                            <?php if (isset($fix->home_avg_goals_scored) || $hasEffHome || $hasVenueHome): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_goals') ?>">
-                                                        <i class="bi bi-activity"></i>
-                                                        <span class="label"><?= lang('App.goals') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
-                                                        <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
-                                                        <i class="bi bi-flag-fill"></i>
-                                                        <span class="label"><?= lang('App.corners') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cards') ?>">
-                                                        <i class="bi bi-card-amber"></i>
-                                                        <span class="label"><?= lang('App.cards') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
-                                                    </div>
+                                                    <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_goals') ?>">
+                                                            <i class="bi bi-activity"></i>
+                                                            <span class="label"><?= lang('App.goals') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
+                                                            <i class="bi bi-shield-fill-check"></i>
+                                                            <span class="label"><?= lang('App.clean_sheets') ?>:</span>
+                                                            <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasEffHome): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Eficiência U5J Ponderada pela IA (Força dos adversários Tier 1 e momentum recente)">
+                                                            <i class="bi bi-lightning-charge-fill" style="color: <?= $effHomeColor ?> !important;"></i>
+                                                            <span class="label">Eficiência:</span>
+                                                            <span class="val" style="color: <?= $effHomeColor ?>; font-weight: 700;"><?= ($effHomePts > 0 ? '+' : '') . number_format($effHomePts, 1) ?> pts</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasVenueHome): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Aproveitamento Recente em Casa (U5J): <?= $hVenueWins ?>V-<?= $hVenueDraws ?>E-<?= $hVenueLosses ?>D (<?= $hVenuePts ?> pts em <?= $hVenueGames ?> jogos)">
+                                                            <i class="bi bi-house-door-fill" style="color: #38bdf8 !important;"></i>
+                                                            <span class="label">U5J Casa:</span>
+                                                            <span class="val" style="color: <?= ($hVenuePct >= 50 ? '#10b981' : ($hVenuePct > 0 ? '#fbbf24' : '#f87171')) ?>; font-weight: 700;"><?= $hVenueWins ?>V-<?= $hVenueDraws ?>E-<?= $hVenueLosses ?>D (<?= $hVenuePct ?>%)</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
+                                                            <i class="bi bi-flag-fill"></i>
+                                                            <span class="label"><?= lang('App.corners') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cards') ?>">
+                                                            <i class="bi bi-card-amber"></i>
+                                                            <span class="label"><?= lang('App.cards') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </div>
                                             <?php endif; ?>
                                         </div>
 
                                         <!-- Widget Eficiência U5J (Twin Progress Bars) -->
                                         <?php 
-                                            $effHome = null;
-                                            $effAway = null;
-                                            if (!empty($u5j_data_pre['home'])) {
-                                                $effHome = (isset($u5j_data_pre['home']['pts_efficiency']) && is_numeric($u5j_data_pre['home']['pts_efficiency']))
-                                                    ? floatval($u5j_data_pre['home']['pts_efficiency']) 
-                                                    : floatval($u5j_data_pre['home']['pts'] ?? 0);
-                                            }
-                                            if (!empty($u5j_data_pre['away'])) {
-                                                $effAway = (isset($u5j_data_pre['away']['pts_efficiency']) && is_numeric($u5j_data_pre['away']['pts_efficiency']))
-                                                    ? floatval($u5j_data_pre['away']['pts_efficiency']) 
-                                                    : floatval($u5j_data_pre['away']['pts'] ?? 0);
-                                            }
+                                            $effHome = $hasEffHome ? $effHomePts : null;
+                                            $effAway = $hasEffAway ? $effAwayPts : null;
                                         ?>
                                         <?php if ($effHome !== null || $effAway !== null): ?>
                                             <?php
@@ -3571,28 +3753,46 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_away) && $fix->goals_away !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_away ?? '' ?></span>
                                             </div>
-                                            <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                            <?php if (isset($fix->away_avg_goals_scored) || $hasEffAway || $hasVenueAway): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_goals') ?>">
-                                                        <i class="bi bi-activity"></i>
-                                                        <span class="label"><?= lang('App.goals') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
-                                                        <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
-                                                        <i class="bi bi-flag-fill"></i>
-                                                        <span class="label"><?= lang('App.corners') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
-                                                    </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cards') ?>">
-                                                        <i class="bi bi-card-amber"></i>
-                                                        <span class="label"><?= lang('App.cards') ?>:</span>
-                                                        <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
-                                                    </div>
+                                                    <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_goals') ?>">
+                                                            <i class="bi bi-activity"></i>
+                                                            <span class="label"><?= lang('App.goals') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
+                                                            <i class="bi bi-shield-fill-check"></i>
+                                                            <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
+                                                            <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasEffAway): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Eficiência U5J Ponderada pela IA (Força dos adversários Tier 1 e momentum recente)">
+                                                            <i class="bi bi-lightning-charge-fill" style="color: <?= $effAwayColor ?> !important;"></i>
+                                                            <span class="label">Eficiência:</span>
+                                                            <span class="val" style="color: <?= $effAwayColor ?>; font-weight: 700;"><?= ($effAwayPts > 0 ? '+' : '') . number_format($effAwayPts, 1) ?> pts</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if ($hasVenueAway): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="Aproveitamento Recente Fora de Casa (U5J): <?= $aVenueWins ?>V-<?= $aVenueDraws ?>E-<?= $aVenueLosses ?>D (<?= $aVenuePts ?> pts em <?= $aVenueGames ?> jogos = <?= $aVenuePct ?>%)">
+                                                            <i class="bi bi-airplane-fill" style="color: #a78bfa !important;"></i>
+                                                            <span class="label">U5J Fora:</span>
+                                                            <span class="val" style="color: <?= ($aVenuePct >= 50 ? '#10b981' : ($aVenuePct > 0 ? '#fbbf24' : '#f87171')) ?>; font-weight: 700;"><?= $aVenueWins ?>V-<?= $aVenueDraws ?>E-<?= $aVenueLosses ?>D (<?= $aVenuePct ?>%)</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
+                                                            <i class="bi bi-flag-fill"></i>
+                                                            <span class="label"><?= lang('App.corners') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
+                                                        </div>
+                                                        <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cards') ?>">
+                                                            <i class="bi bi-card-amber"></i>
+                                                            <span class="label"><?= lang('App.cards') ?>:</span>
+                                                            <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </div>
                                             <?php endif; ?>
                                         </div>
@@ -3969,6 +4169,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 <i class="bi bi-arrow-repeat me-1 icon-revalidar"></i> Revalidar Odds & IA
                                             </button>
                                         <?php endif; ?>
+                                        <?php if ($isFinishedCard): ?>
+                                            <button type="button" 
+                                                    id="btn-auditoria-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge cyan" 
+                                                    style="background: rgba(6, 182, 212, 0.14) !important; border: 1px solid rgba(6, 182, 212, 0.45) !important; color: #22d3ee !important; font-weight: 700;" 
+                                                    onclick="abrirModalAuditoriaJogo(<?= $fix->fixture_id ?>, '<?= htmlspecialchars(addslashes($fix->home_team ?? ''), ENT_QUOTES) ?>', '<?= htmlspecialchars(addslashes($fix->away_team ?? ''), ENT_QUOTES) ?>')"
+                                                    title="Consultar a linha do tempo e auditoria do jogo">
+                                                <i class="bi bi-journal-check me-1"></i> Auditoria do Jogo
+                                            </button>
+                                        <?php endif; ?>
                                         <button type="button" 
                                                 id="btn-cards-<?= $fix->fixture_id ?>" 
                                                 class="bet-toggle-badge <?= ($isFinished && !empty($cardsFinishedBtnClass)) ? $cardsFinishedBtnClass : 'yellow' ?>" 
@@ -4297,11 +4507,48 @@ if (!function_exists('getTeamRankBadgeStyle')) {
 
                                     <!-- Seção Retrátil 4: Estatísticas Detalhadas & Insights -->
                                     <div id="sec-stats-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                        <?php
+                                            $xgCardTotal = null;
+                                            if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fix->ah_reasoning, $mU5Dash)) {
+                                                $u5Dash = json_decode($mU5Dash[1], true);
+                                                if (!empty($u5Dash['home']['matches']) && !empty($u5Dash['away']['matches'])) {
+                                                    $hScD = []; $hConD = []; $aScD = []; $aConD = [];
+                                                    foreach ($u5Dash['home']['matches'] as $m) {
+                                                        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+                                                            $p = explode('x', $m['score']);
+                                                            $hScD[] = min(3, (int)$p[0]);
+                                                            $hConD[] = min(3, (int)$p[1]);
+                                                        }
+                                                    }
+                                                    foreach ($u5Dash['away']['matches'] as $m) {
+                                                        if (!empty($m['score']) && str_contains($m['score'], 'x')) {
+                                                            $p = explode('x', $m['score']);
+                                                            $aScD[] = min(3, (int)$p[0]);
+                                                            $aConD[] = min(3, (int)$p[1]);
+                                                        }
+                                                    }
+                                                    if (count($hScD) > 0 && count($aConD) > 0 && count($aScD) > 0 && count($hConD) > 0) {
+                                                        $xgHD = round(((array_sum($hScD) / count($hScD) + array_sum($aConD) / count($aConD)) / 2.0) * 1.08, 2);
+                                                        $xgAD = round(((array_sum($aScD) / count($aScD) + array_sum($hConD) / count($hConD)) / 2.0) * 0.92, 2);
+                                                        $xgCardTotal = round($xgHD + $xgAD, 2);
+                                                    }
+                                                }
+                                            }
+                                            if ($xgCardTotal === null) {
+                                                $xgH = (float)($fix->xg_home ?? 0);
+                                                $xgA = (float)($fix->xg_away ?? 0);
+                                                if ($xgH > 0 || $xgA > 0) {
+                                                    $xgCardTotal = round($xgH + $xgA, 2);
+                                                } else {
+                                                    $xgCardTotal = round((((float)($fix->home_avg_goals_scored ?? 1.3) + (float)($fix->away_avg_goals_conceded ?? 1.0) + (float)($fix->away_avg_goals_scored ?? 1.0) + (float)($fix->home_avg_goals_conceded ?? 1.0)) / 2.0), 2);
+                                                }
+                                            }
+                                        ?>
                                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 10px;">
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;"><?= lang('App.exp_total_goals') ?></span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">xG Previsto (U5J)</span>
                                                 <strong style="color: #10b981; font-size: 0.88rem;">
-                                                    <?= number_format(($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0), 2) ?>
+                                                    <?= number_format($xgCardTotal, 2) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
@@ -4351,7 +4598,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                         </table>
 
                                         <?php
-                                            $expGolsTotal = ($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0);
+                                            $expGolsTotal = $xgCardTotal ?? (($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0));
                                             $expCantosTotal = ($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0);
                                             $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
 
@@ -4503,7 +4750,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         </div>
 
         <!-- Seção de Conteúdo Estático SEO e FAQ de Cauda Longa -->
-        <section class="bet-seo-faq mt-5 p-4 rounded" style="background: #172230; border: 1px solid rgba(255, 255, 255, 0.05);">
+        <section class="bet-seo-faq mt-5 p-4 rounded" style="background: #202227; border: 1px solid rgba(255, 255, 255, 0.05);">
             <h2 style="font-size: 1.25rem; font-weight: 700; color: #f47c20; margin-bottom: 18px;">
                 📌 Perguntas Frequentes & Guia de Estatísticas de Futebol
             </h2>
@@ -4584,6 +4831,52 @@ if (!function_exists('getTeamRankBadgeStyle')) {
             <div class="bet-stat-card" data-tooltip="<?= lang('App.tooltip_referee_total_games') ?>">
                 <div class="bet-stat-title"><?= lang('App.total_games') ?></div>
                 <div class="bet-stat-val" id="modalRefGames">120</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Auditoria do Jogo -->
+<div class="bet-modal" id="modalAuditoriaJogo" style="display: none; z-index: 1060;">
+    <div class="bet-modal-content" style="max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 24px; position: relative;">
+        <button class="bet-modal-close" onclick="fecharModalAuditoriaJogo()" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.08); border: none; color: #94a3b8; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;"><i class="bi bi-x-lg"></i></button>
+        
+        <!-- Cabeçalho do Confronto -->
+        <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span class="badge" style="background: rgba(6, 182, 212, 0.18); border: 1px solid rgba(6, 182, 212, 0.4); color: #22d3ee; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;" id="auditoriaLeague">LIGA</span>
+                <span class="badge" style="background: rgba(34, 197, 94, 0.18); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; font-size: 0.75rem; font-weight: 700;" id="auditoriaStatus">FINALIZADO (FT)</span>
+                <span style="font-size: 0.8rem; color: #94a3b8;" id="auditoriaDate">--/--/----</span>
+            </div>
+            <h3 class="bet-modal-title" id="auditoriaMatchTitle" style="font-size: 1.4rem; font-weight: 800; color: #f8fafc; margin: 0 0 4px 0;">Time Mandante 0 x 0 Time Visitante</h3>
+            <div style="font-size: 0.82rem; color: #94a3b8;" id="auditoriaReferee"><i class="bi bi-person-badge"></i> Árbitro: Não informado</div>
+        </div>
+
+        <!-- Seção: Resumo das Apostas Associadas -->
+        <div id="auditoriaApostasSection" style="margin-bottom: 20px;">
+            <h5 style="font-size: 0.9rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-ticket-perforated-fill text-warning"></i> Apostas Geradas para o Confronto
+            </h5>
+            <div id="auditoriaApostasContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Cards de apostas inseridos dinamicamente -->
+            </div>
+        </div>
+
+        <!-- Seção: Linha do Tempo Cronológica do Jogo -->
+        <div>
+            <h5 style="font-size: 0.9rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-clock-history text-info"></i> Linha do Tempo e Auditoria Tática do Jogo
+            </h5>
+            <div id="auditoriaTimelineSpinner" style="text-align: center; padding: 30px 0;">
+                <div class="spinner-border text-info" role="status" style="width: 2.5rem; height: 2.5rem;"></div>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 10px;">Carregando eventos cronológicos da partida...</p>
+            </div>
+            <div id="auditoriaTimelineList" style="display: none; position: relative; padding-left: 20px; border-left: 2px solid rgba(56, 189, 248, 0.25); margin-left: 10px;">
+                <!-- Eventos inseridos dinamicamente -->
+            </div>
+            <div id="auditoriaTimelineEmpty" style="display: none; text-align: center; padding: 25px 0; color: #94a3b8; font-size: 0.88rem;">
+                <i class="bi bi-journal-x" style="font-size: 2rem; display: block; margin-bottom: 8px; color: #64748b;"></i>
+                Nenhum evento registrado no log para esta partida.
             </div>
         </div>
     </div>
@@ -5239,11 +5532,165 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         setTimeout(() => modal.style.display = 'none', 300);
     }
 
+    // Modal de Auditoria do Jogo (Linha do Tempo Cronológica com Minutos e Fases de Jogo)
+    function abrirModalAuditoriaJogo(fixtureId, homeTeam, awayTeam) {
+        const modal = document.getElementById('modalAuditoriaJogo');
+        if (!modal) return;
+
+        // Reset de estado
+        document.getElementById('auditoriaMatchTitle').innerText = `${homeTeam} vs ${awayTeam}`;
+        document.getElementById('auditoriaLeague').innerText = 'CONSULTANDO...';
+        document.getElementById('auditoriaStatus').innerText = 'FT';
+        document.getElementById('auditoriaDate').innerText = '';
+        document.getElementById('auditoriaReferee').innerHTML = '<i class="bi bi-person-badge"></i> Árbitro: Carregando...';
+        document.getElementById('auditoriaApostasContainer').innerHTML = '';
+        document.getElementById('auditoriaTimelineSpinner').style.display = 'block';
+        document.getElementById('auditoriaTimelineList').style.display = 'none';
+        document.getElementById('auditoriaTimelineEmpty').style.display = 'none';
+
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        fetch(`/apostas/timeline/${fixtureId}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('auditoriaTimelineSpinner').style.display = 'none';
+                if (!data.success) {
+                    document.getElementById('auditoriaTimelineEmpty').innerText = data.message || 'Erro ao carregar auditoria.';
+                    document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+                    return;
+                }
+
+                // Atualiza cabeçalho com dados reais
+                const fix = data.fixture || {};
+                const placar = (fix.goals_home !== null && fix.goals_away !== null) ? `${fix.goals_home} x ${fix.goals_away}` : 'vs';
+                document.getElementById('auditoriaMatchTitle').innerText = `${fix.home_team || homeTeam} ${placar} ${fix.away_team || awayTeam}`;
+                document.getElementById('auditoriaLeague').innerText = fix.league_name ? `${fix.league_name} (${fix.country || ''})` : 'PARTIDA';
+                document.getElementById('auditoriaStatus').innerText = fix.status || 'FT';
+                document.getElementById('auditoriaDate').innerText = fix.fixture_date_br || '';
+                document.getElementById('auditoriaReferee').innerHTML = `<i class="bi bi-whistle"></i> Árbitro: ${fix.referee_name || 'Não informado'}`;
+
+                // Renderiza Apostas Associadas ao Confronto
+                const apostas = data.apostas || [];
+                const apostasContainer = document.getElementById('auditoriaApostasContainer');
+                if (apostas.length === 0) {
+                    apostasContainer.innerHTML = '<div style="font-size: 0.82rem; color: #64748b; font-style: italic;">Nenhuma aposta gerada para este confronto (Abstenção / NO_BET preventivo pelo Gatekeeper).</div>';
+                } else {
+                    let apHtml = '';
+                    apostas.forEach(ap => {
+                        let stBg = 'rgba(148, 163, 184, 0.15)';
+                        let stColor = '#94a3b8';
+                        let stText = ap.status || 'Pendente';
+                        const stLower = stText.toLowerCase();
+                        if (stLower === 'ganha') {
+                            stBg = 'rgba(34, 197, 94, 0.2)';
+                            stColor = '#4ade80';
+                        } else if (stLower === 'perdida') {
+                            stBg = 'rgba(239, 68, 68, 0.2)';
+                            stColor = '#f87171';
+                        } else if (stLower === 'cashout') {
+                            stBg = 'rgba(245, 158, 11, 0.2)';
+                            stColor = '#fbbf24';
+                        } else if (stLower === 'reembolso' || stLower === 'anulada') {
+                            stBg = 'rgba(56, 189, 248, 0.2)';
+                            stColor = '#38bdf8';
+                        }
+
+                        apHtml += `
+                            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                <div>
+                                    <span style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; text-transform: uppercase;">${ap.mercado || 'Aposta'}</span>
+                                    <div style="font-size: 0.92rem; font-weight: 700; color: #f1f5f9;">${ap.palpite || 'Palpite'} <span style="color: #22d3ee; font-weight: 600;">@ ${parseFloat(ap.odd || 1).toFixed(2)}</span> (${ap.casa_de_aposta || 'Casa'})</div>
+                                    ${ap.resultado_detalhado ? `<div style="font-size: 0.78rem; color: #94a3b8; margin-top: 3px;">${ap.resultado_detalhado}</div>` : ''}
+                                </div>
+                                <div style="text-align: right; min-width: 90px;">
+                                    <span style="background: ${stBg}; color: ${stColor}; border: 1px solid ${stColor}; font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">${stText}</span>
+                                    <div style="font-size: 0.76rem; color: #64748b; margin-top: 4px;">#${ap.id}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    apostasContainer.innerHTML = apHtml;
+                }
+
+                // Renderiza Linha do Tempo Cronológica com Minutos e Fases de Jogo
+                const timeline = data.timeline || [];
+                const timelineList = document.getElementById('auditoriaTimelineList');
+                if (timeline.length === 0) {
+                    document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+                } else {
+                    let tlHtml = '';
+                    timeline.forEach(ev => {
+                        let badgeBg = 'rgba(6, 182, 212, 0.18)';
+                        let badgeColor = '#22d3ee';
+                        let badgeBorder = 'rgba(6, 182, 212, 0.4)';
+                        if (ev.badge_class === 'warning') {
+                            badgeBg = 'rgba(245, 158, 11, 0.18)';
+                            badgeColor = '#fbbf24';
+                            badgeBorder = 'rgba(245, 158, 11, 0.4)';
+                        } else if (ev.badge_class === 'danger') {
+                            badgeBg = 'rgba(239, 68, 68, 0.18)';
+                            badgeColor = '#f87171';
+                            badgeBorder = 'rgba(239, 68, 68, 0.4)';
+                        } else if (ev.badge_class === 'success') {
+                            badgeBg = 'rgba(34, 197, 94, 0.18)';
+                            badgeColor = '#4ade80';
+                            badgeBorder = 'rgba(34, 197, 94, 0.4)';
+                        } else if (ev.badge_class === 'purple') {
+                            badgeBg = 'rgba(168, 85, 247, 0.18)';
+                            badgeColor = '#c084fc';
+                            badgeBorder = 'rgba(168, 85, 247, 0.4)';
+                        }
+
+                        tlHtml += `
+                            <div style="position: relative; margin-bottom: 22px;">
+                                <div style="position: absolute; left: -29px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #0f172a; border: 3px solid ${badgeColor}; box-shadow: 0 0 10px ${badgeColor};"></div>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.3px;">
+                                            ${ev.momento_tag || '[Momento]'}
+                                        </span>
+                                        <span style="font-size: 0.88rem; font-weight: 700; color: #f8fafc;">
+                                            <i class="bi ${ev.badge_icon || 'bi-info-circle'} me-1" style="color: ${badgeColor};"></i> ${ev.titulo}
+                                        </span>
+                                    </div>
+                                    <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">${ev.hora_formatada || ''}</span>
+                                </div>
+
+                                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 14px; font-size: 0.84rem; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap;">${ev.descricao}</div>
+                            </div>
+                        `;
+                    });
+                    timelineList.innerHTML = tlHtml;
+                    timelineList.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                document.getElementById('auditoriaTimelineSpinner').style.display = 'none';
+                document.getElementById('auditoriaTimelineEmpty').innerText = 'Falha ao consultar auditoria: ' + err;
+                document.getElementById('auditoriaTimelineEmpty').style.display = 'block';
+            });
+    }
+
+    function fecharModalAuditoriaJogo() {
+        const modal = document.getElementById('modalAuditoriaJogo');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.style.display = 'none', 250);
+        }
+    }
+
     // Fechar modal ao clicar fora dele
     window.onclick = function(event) {
         const modal = document.getElementById('refereeModal');
         if (event.target === modal) {
             closeRefereeModal();
+        }
+
+        const modalAuditoria = document.getElementById('modalAuditoriaJogo');
+        if (event.target === modalAuditoria) {
+            fecharModalAuditoriaJogo();
         }
         
         const drawer = document.getElementById('chatDrawer');
@@ -5257,6 +5704,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         if (e.key === 'Escape') {
             closeAiChat();
             closeRefereeModal();
+            fecharModalAuditoriaJogo();
         }
     });
 
@@ -5631,7 +6079,18 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                 btnEl.disabled = false;
                 btnEl.innerHTML = origText;
                 if (!data.success) {
-                    alert('⚠️ ' + (data.message || 'Erro ao revalidar odds.'));
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'Aviso de Auditoria',
+                            text: data.message || 'Não foi possível revalidar as odds no momento.',
+                            icon: 'warning',
+                            confirmButtonColor: '#f47c20',
+                            background: '#0f172a',
+                            color: '#ffffff'
+                        });
+                    } else {
+                        alert('⚠️ ' + (data.message || 'Erro ao revalidar odds.'));
+                    }
                     return;
                 }
 
@@ -5716,39 +6175,96 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                     }
                 }
 
-                // 5. Feedback com Alerta Completo
-                let msg = '🔄 ' + (data.message || 'Revalidação concluída com sucesso!') + '\n\n';
+                // 5. Feedback Estruturado com SweetAlert2 (Regra 17 de UX)
+                const bmName = data.bookmaker || 'Betano';
+                let swalHtml = '<div style="text-align: left; font-size: 0.80rem; color: #cbd5e1; line-height: 1.45;">';
+                
                 if (data.odds_1x2 && data.odds_1x2.home) {
-                    msg += '• Odds 1X2 (' + (data.bookmaker || 'Betano') + '): Casa @ ' + Number(data.odds_1x2.home).toFixed(2) + ' | Empate @ ' + Number(data.odds_1x2.draw).toFixed(2) + ' | Fora @ ' + Number(data.odds_1x2.away).toFixed(2) + '\n\n';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #38bdf8;">';
+                    swalHtml += '  <strong style="color: #38bdf8;">📊 Odds 1X2 (' + bmName + '):</strong> ';
+                    swalHtml += '  Casa <strong>' + Number(data.odds_1x2.home).toFixed(2) + '</strong> | ';
+                    swalHtml += '  Empate <strong>' + Number(data.odds_1x2.draw).toFixed(2) + '</strong> | ';
+                    swalHtml += '  Fora <strong>' + Number(data.odds_1x2.away).toFixed(2) + '</strong>';
+                    swalHtml += '</div>';
                 }
+
                 if (data.handicap) {
-                    msg += '• Handicap Asiático: ' + data.handicap.suggestion + (data.handicap.odd ? ' @ ' + Number(data.handicap.odd).toFixed(2) : '') + ' [' + data.handicap.status + ']\n';
+                    const isAhApp = (data.handicap.status === 'APROVADO');
+                    const ahBadgeCol = isAhApp ? '#10b981' : '#f87171';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid ' + ahBadgeCol + ';">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: ' + ahBadgeCol + ';">🎯 Handicap Asiático:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + (data.handicap.category || data.handicap.status) + '</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.handicap.suggestion + (data.handicap.odd ? ' @ ' + Number(data.handicap.odd).toFixed(2) : '') + '</div>';
                     if (data.handicap.reason_clean) {
-                        msg += '  ↳ Diagnóstico: ' + data.handicap.reason_clean + '\n';
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.handicap.reason_clean + '</div>';
                     }
-                    if (data.handicap.lines_read && data.handicap.lines_read.length > 0) {
-                        msg += '\n  ↳ Linhas de AH Lidas na Betano (' + data.handicap.lines_read.length + ' linhas):\n';
-                        data.handicap.lines_read.forEach(function(l) {
-                            const icon = l.aprovada ? '🟢 [APROVADA]' : '❌ [REPROVADA]';
-                            msg += '     ' + icon + ' ' + l.palpite + ' @ ' + Number(l.odd).toFixed(2) + '\n';
-                            if (l.motivo) {
-                                msg += '        ↳ ' + l.motivo + '\n';
-                            }
-                        });
-                    }
+                    swalHtml += '</div>';
                 }
+
                 if (data.cards) {
-                    msg += '\n• Cartões: ' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + ' [' + data.cards.status + ']\n';
+                    swalHtml += '<div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid #fbbf24;">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: #fbbf24;">🟨 Mercado de Cartões:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + Number(data.cards.probability || 0).toFixed(1) + '% Poisson</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.cards.suggestion + (data.cards.odd ? ' @ ' + Number(data.cards.odd).toFixed(2) : '') + '</div>';
                     if (data.cards.reason_clean) {
-                        msg += '  ↳ Diagnóstico: ' + data.cards.reason_clean + '\n';
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.cards.reason_clean + '</div>';
                     }
+                    swalHtml += '</div>';
                 }
-                alert(msg);
+
+                if (data.goals) {
+                    const isGoalsApp = (data.goals.status === 'APPROVED');
+                    const goalsColor = isGoalsApp ? '#10b981' : '#a78bfa';
+                    swalHtml += '<div style="padding: 6px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border-left: 3px solid ' + goalsColor + ';">';
+                    swalHtml += '  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    swalHtml += '    <strong style="color: ' + goalsColor + ';">⚽ Gols Asiáticos:</strong>';
+                    swalHtml += '    <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.70rem;">' + Number(data.goals.probability || 0).toFixed(1) + '% Efetiva</span>';
+                    swalHtml += '  </div>';
+                    swalHtml += '  <div style="color: #ffffff; font-weight: 700; margin-bottom: 4px;">' + data.goals.suggestion + (data.goals.odd ? ' @ ' + Number(data.goals.odd).toFixed(2) : '') + '</div>';
+                    if (data.goals.reason_clean) {
+                        swalHtml += '  <div style="font-size: 0.74rem; color: #94a3b8; line-height: 1.35;">' + data.goals.reason_clean + '</div>';
+                    }
+                    swalHtml += '</div>';
+                }
+                swalHtml += '</div>';
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Odds & IA Revalidados',
+                        html: swalHtml,
+                        icon: 'success',
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#38bdf8',
+                        background: '#0f172a',
+                        color: '#ffffff'
+                    });
+                } else {
+                    let msg = '🔄 Odds e IA Revalidados com Sucesso!\n\n';
+                    if (data.handicap) msg += '• Handicap: ' + data.handicap.suggestion + '\n';
+                    if (data.cards) msg += '• Cartões: ' + data.cards.suggestion + '\n';
+                    if (data.goals) msg += '• Gols: ' + data.goals.suggestion + '\n';
+                    alert(msg);
+                }
             },
             error: function() {
                 btnEl.disabled = false;
                 btnEl.innerHTML = origText;
-                alert('Erro de comunicação com o servidor ao revalidar.');
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Erro de Comunicação',
+                        text: 'Falha de comunicação com o servidor ao revalidar.',
+                        icon: 'error',
+                        confirmButtonColor: '#ef4444',
+                        background: '#0f172a',
+                        color: '#ffffff'
+                    });
+                } else {
+                    alert('Erro de comunicação com o servidor ao revalidar.');
+                }
             }
         });
     }

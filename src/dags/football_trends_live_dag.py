@@ -5,16 +5,16 @@ import subprocess
 import os
 import sys
 
-def run_football_sync_live_betano_script(**kwargs):
+def run_football_sync_live_script(**kwargs):
     """
-    Executa o script de sincronização in-play (football_sync_live_betano.py)
-    para captura de placares, minutos reais e oportunidades ao vivo via Betano
+    Executa o script de sincronização in-play (football_sync_live.py)
+    para captura de placares, minutos reais e oportunidades ao vivo via Cloudbet e Betano
     com consumo zero de cota da API-Football.
     """
     candidate_paths = [
-        '/usr/local/bin/scripts/football_sync_live_betano.py',
-        '/root/datalake-air-flow-delta/scripts/football_sync_live_betano.py',
-        os.path.abspath(os.path.join(os.path.dirname(__file__), '../../scripts/football_sync_live_betano.py'))
+        '/usr/local/bin/scripts/football_sync_live.py',
+        '/root/datalake-air-flow-delta/scripts/football_sync_live.py',
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '../../scripts/football_sync_live.py'))
     ]
     
     script_path = None
@@ -28,7 +28,7 @@ def run_football_sync_live_betano_script(**kwargs):
 
     cmd = ['python3', script_path]
 
-    print(f"🚀 [Airflow DAG Live] Executando sincronização in-play Betano: {' '.join(cmd)}")
+    print(f"🚀 [Airflow DAG Live] Executando sincronização in-play: {' '.join(cmd)}")
     
     result = subprocess.run(cmd, capture_output=True, text=True)
     
@@ -53,14 +53,14 @@ default_args = {
 dag = DAG(
     'football_trends_live_dag',
     default_args=default_args,
-    schedule_interval='*/3 * * * *',  # Executa a cada 3 minutos para acompanhamento em tempo quase real
+    schedule_interval='* * * * *',  # Executa a cada 1 minuto (Acompanhamento contínuo em tempo real sem lag)
     catchup=False,
-    description="DAG do Airflow dedicada a monitorar a cada 3 min partidas de futebol em andamento (1H, HT, 2H) via API gratuita da Betano, atualizando cronômetro e placar no dashboard e alertando novas oportunidades in-play sem consumir cota da API-Football.",
-    tags=['football', 'trends', 'live', 'in-play', 'betano', 'sininho']
+    description="DAG do Airflow dedicada a monitorar partidas de futebol em andamento (1H, HT, 2H) via API gratuita da Cloudbet e Betano com consumo zero de API-Sports, atualizando cronômetro e placar no dashboard e alertando novas oportunidades in-play.",
+    tags=['football', 'trends', 'live', 'in-play', 'cloudbet', 'betano', 'sininho']
 )
 
 sync_live_task = PythonOperator(
     task_id='sync_live_betano_trends',
-    python_callable=run_football_sync_live_betano_script,
+    python_callable=run_football_sync_live_script,
     dag=dag
 )

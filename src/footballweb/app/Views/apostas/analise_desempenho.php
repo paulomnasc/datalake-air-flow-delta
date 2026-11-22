@@ -178,6 +178,96 @@
     font-weight: 700;
     box-shadow: 0 0 10px rgba(255, 82, 82, 0.4);
   }
+
+  /* Perf Tabs Navigation */
+  .perf-tabs-container {
+    background: var(--bet-card-bg);
+    border: 1px solid var(--bet-card-border);
+    border-radius: 16px;
+    padding: 8px 10px;
+    margin-bottom: 25px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .perf-tabs-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  .perf-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--bet-text-muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .perf-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .perf-tab-btn.active {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .perf-tab-btn.active i {
+    filter: drop-shadow(0 0 10px currentColor);
+  }
+
+  .perf-tab-pill {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .perf-tab-pane {
+    animation: fadeInPerfTab 0.25s ease-in-out;
+  }
+
+  @keyframes fadeInPerfTab {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Liquidity Progress Bar */
+  .liq-progress-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .liq-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
 </style>
 
 <div class="bet-container">
@@ -264,12 +354,27 @@
         </div>
       </div>
 
+      <!-- Filtro de Modalidade Esportiva -->
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;">
+          <i class="bi bi-pie-chart-fill text-info"></i> Modalidade:
+        </span>
+        <select id="perfModalitySelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="Filtrar por modalidade de mercado">
+          <option value="all" selected>Todas as Modalidades</option>
+          <option value="cartoes">Total de Cartões (Under)</option>
+          <option value="ah">Handicap Asiático (AH)</option>
+          <option value="gols">Gols Asiáticos (Over/Under)</option>
+        </select>
+      </div>
+
       <div class="d-flex align-items-center gap-2">
         <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:</span>
-        <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 130px;" onchange="updatePerformanceDashboard()">
+        <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 145px;" onchange="onPerfGroupChange(this.value)">
           <option value="dia" selected>📅 Por Dia</option>
           <option value="semana">🗓️ Por Semana</option>
           <option value="mes">📆 Por Mês</option>
+          <option value="trimestre">📊 Por Trimestre</option>
+          <option value="ano">🏛️ Por Ano</option>
         </select>
       </div>
     </div>
@@ -310,385 +415,520 @@
     </div>
   </div>
 
-  <!-- Line Chart Section -->
-  <div class="chart-card">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
-        <i class="bi bi-activity text-success"></i> <?= lang('App.bankroll_evolution_curve') ?>
-      </h5>
-      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
-        <i class="bi bi-info-circle me-1 text-info"></i> Exibição Acumulada no Tempo
-      </span>
-    </div>
-
-    <div class="chart-container-box">
-      <canvas id="performanceChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Detailed Table Breakdown (Posicionada abaixo da Curva de Evolução da Banca) -->
-  <div class="table-card mt-4 mb-4">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
-        <i class="bi bi-table text-info"></i> Detalhamento por Período
-      </h5>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 d-flex align-items-center gap-1.5" id="btnExportBreakdownCsv" onclick="exportBreakdownCsv()" title="Exportar tabela de detalhamento em CSV">
-          <i class="bi bi-download"></i> Exportar .CSV
-        </button>
-        <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
-          <i class="bi bi-calendar3 me-1 text-warning"></i> Performance Diária & Assertividade
-        </span>
-      </div>
-    </div>
-    
-    <div class="table-responsive">
-      <table class="table table-dark table-hover align-middle mb-0" style="font-size: 0.9rem;">
-        <thead>
-          <tr class="text-white-50 border-secondary">
-            <th>Período</th>
-            <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
-            <th class="text-center"><i class="bi bi-check-circle-fill text-success me-1"></i> <?= lang('App.win_rate') ?? 'Taxa de Acerto' ?></th>
-            <th>Simulado Bruto</th>
-            <th>Retorno Bruto</th>
-            <th>Lucro Bruto</th>
-            <th>ROI (%)</th>
-            <th>Líquido em Reais (R$)</th>
-          </tr>
-        </thead>
-        <tbody id="tableBreakdownBody">
-          <tr>
-            <td colspan="8" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
-          </tr>
-        </tbody>
-        <tfoot id="tableBreakdownFoot"></tfoot>
-      </table>
+  <!-- Perf Tabs Navigation -->
+  <div class="perf-tabs-container">
+    <div class="perf-tabs-nav" id="perfTabsNav">
+      <button type="button" class="perf-tab-btn active" data-tab="tab-banca" onclick="switchPerformanceTab('tab-banca', this)">
+        <i class="bi bi-activity text-success"></i>
+        <span>Evolução da Banca</span>
+        <span class="perf-tab-pill bg-success text-dark" id="pillBancaInfo">Curva & Detalhes</span>
+      </button>
+      <button type="button" class="perf-tab-btn" data-tab="tab-modalidades" onclick="switchPerformanceTab('tab-modalidades', this)">
+        <i class="bi bi-intersect text-warning"></i>
+        <span>Modalidades Esportivas</span>
+        <span class="perf-tab-pill bg-warning text-dark" id="pillModalidadesInfo">AH / Gols / Cartões</span>
+      </button>
+      <button type="button" class="perf-tab-btn" data-tab="tab-liquidez" onclick="switchPerformanceTab('tab-liquidez', this)">
+        <i class="bi bi-droplet-half text-info"></i>
+        <span>Mercados & Liquidez</span>
+        <span class="perf-tab-pill bg-info text-dark" id="pillLiquidezInfo">Score & Teto</span>
+      </button>
+      <button type="button" class="perf-tab-btn" data-tab="tab-ligas" onclick="switchPerformanceTab('tab-ligas', this)">
+        <i class="bi bi-trophy-fill text-warning"></i>
+        <span>Ranking de Ligas</span>
+        <span class="perf-tab-pill bg-danger text-white" id="pillLigasInfo">Ralos & Top</span>
+      </button>
+      <button type="button" class="perf-tab-btn" data-tab="tab-gatekeeper" onclick="switchPerformanceTab('tab-gatekeeper', this)">
+        <i class="bi bi-shield-check text-accent"></i>
+        <span>Auditoria Gatekeeper IA</span>
+        <span class="perf-tab-pill bg-primary text-white" id="pillGatekeeperInfo">BET vs NO_BET</span>
+      </button>
     </div>
   </div>
 
-  <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático) -->
-  <div class="chart-card" id="modalitiesComparisonSection">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <div>
-        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
-          <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático' ?>
+  <!-- ABA 1: Evolução da Banca & Detalhamento Periódico -->
+  <div class="perf-tab-pane active" id="tab-banca">
+    <!-- Line Chart Section -->
+    <div class="chart-card">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-activity text-success"></i> <?= lang('App.bankroll_evolution_curve') ?>
         </h5>
-        <div class="small" style="color: #cbd5e1 !important;">
-          <i class="bi bi-info-circle text-info"></i> <?= lang('App.modalities_profit_subtitle') ?? 'Acompanhe a curva de evolução e lucratividade separada por modalidade no período' ?>
-        </div>
-      </div>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-dark border border-success text-success px-3 py-1.5" style="font-size: 0.8rem;" id="badgeCardsSummary">
-          <i class="bi bi-square-fill me-1" style="color: #00e676;"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
-        </span>
-        <span class="badge bg-dark border border-warning text-warning px-3 py-1.5" style="font-size: 0.8rem;" id="badgeAhSummary">
-          <i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
-        </span>
-      </div>
-    </div>
-
-    <!-- Mini KPI Diagnosis Cards for Modalities -->
-    <div class="row g-3 mb-3">
-      <!-- Card Cartões -->
-      <div class="col-md-4 col-sm-6">
-        <div class="p-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.06); border-color: rgba(0, 230, 118, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
-              <i class="bi bi-shield-check"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="d-flex align-items-center gap-1.5">
+            <span class="text-light-50 small fw-semibold d-flex align-items-center gap-1">
+              <i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:
             </span>
-            <span class="badge bg-success text-dark fw-bold" id="kpiCardsBadge" style="font-size: 0.7rem;">Estável 🟢</span>
+            <select id="perfGroupSelectChart" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 145px; border-radius: 8px;" onchange="onPerfGroupChange(this.value)">
+              <option value="dia" selected>📅 Por Dia</option>
+              <option value="semana">🗓️ Por Semana</option>
+              <option value="mes">📆 Por Mês</option>
+              <option value="trimestre">📊 Por Trimestre</option>
+              <option value="ano">🏛️ Por Ano</option>
+            </select>
           </div>
-          <div class="d-flex align-items-baseline gap-2">
-            <div class="fw-bold fs-5 text-white" id="kpiCardsLucro">R$ 0,00</div>
-            <span class="small fw-semibold" id="kpiCardsRoi">ROI: 0%</span>
-          </div>
-          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiCardsDetails">
-            0 bets | Win Rate: 0,0%
-          </div>
-        </div>
-      </div>
 
-      <!-- Card Handicap Asiático -->
-      <div class="col-md-4 col-sm-6">
-        <div class="p-3 rounded-3 border h-100" id="kpiAhCardBox" style="background: rgba(255, 145, 0, 0.06); border-color: rgba(255, 145, 0, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-warning d-flex align-items-center gap-1">
-              <i class="bi bi-sliders"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+          <!-- Slide Button: Camada de Liquidez -->
+          <div class="d-flex align-items-center gap-1.5" title="Ativar camada de Liquidez & Capacidade Institucional (0 a 100) no eixo Y secundário do gráfico">
+            <span class="text-light-50 small fw-semibold d-flex align-items-center gap-1">
+              <i class="bi bi-droplet-half text-info"></i> Liquidez:
             </span>
-            <span class="badge bg-warning text-dark fw-bold" id="kpiAhBadge" style="font-size: 0.7rem;">Volátil ⚡</span>
+            <div class="bet-slide-toggle" id="perfLiquiditySlideToggle">
+              <button type="button" class="slide-btn" data-val="0" onclick="setPerfLiquidityLayer(false, this)" title="Ocultar camada de liquidez">Off</button>
+              <button type="button" class="slide-btn active" data-val="1" onclick="setPerfLiquidityLayer(true, this)" title="Exibir barras de Score de Liquidez Médio (0 a 100) no eixo secundário">💧 Ativa</button>
+            </div>
           </div>
-          <div class="d-flex align-items-baseline gap-2">
-            <div class="fw-bold fs-5 text-white" id="kpiAhLucro">R$ 0,00</div>
-            <span class="small fw-semibold" id="kpiAhRoi">ROI: 0%</span>
-          </div>
-          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiAhDetails">
-            0 bets | Win Rate: 0,0%
-          </div>
+
+          <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+            <i class="bi bi-info-circle me-1 text-info"></i> Exibição Acumulada no Tempo
+          </span>
         </div>
       </div>
 
-      <!-- Card Comparativo Diferencial -->
-      <div class="col-md-4 col-sm-12">
-        <div class="p-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
-              <i class="bi bi-arrow-left-right"></i> Balanço Diferencial (Impacto)
-            </span>
-            <span class="badge bg-dark border border-info text-info" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
-          </div>
-          <div class="d-flex align-items-baseline gap-2">
-            <div class="fw-bold fs-5 text-white" id="kpiDeltaLucro">R$ 0,00</div>
-            <span class="small text-info fw-semibold" id="kpiDeltaStatus">Vantagem Cartões</span>
-          </div>
-          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiDeltaDetails">
-            Impacto líquido comparativo no período selecionado
-          </div>
-        </div>
+      <div class="chart-container-box">
+        <canvas id="performanceChart"></canvas>
       </div>
     </div>
 
-    <!-- Chart Container -->
-    <div class="chart-container-box">
-      <canvas id="modalidadesProfitChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Mercado Profit Chart Section -->
-  <div class="chart-card">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
-        <i class="bi bi-bar-chart-line-fill text-accent"></i> <?= lang('App.net_profit_by_market') ?>
-      </h5>
-      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
-        <i class="bi bi-funnel-fill me-1 text-warning"></i> Agrupado pelos Mesmos Filtros
-      </span>
-    </div>
-
-    <div class="chart-container-box" id="mercadoChartBox" style="height: 380px;">
-      <canvas id="mercadoProfitChart"></canvas>
-    </div>
-  </div>
-
-  <!-- League Profitability & Banca Drain Analysis Section -->
-  <div class="chart-card" id="leagueProfitSection">
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <div>
-        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
-          <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.net_profit_by_league') ?? 'Lucratividade por Liga de Futebol (Ranking Geral)' ?>
+    <!-- Detailed Table Breakdown (Posicionada abaixo da Curva de Evolução da Banca) -->
+    <div class="table-card mt-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-table text-info"></i> Detalhamento por Período
         </h5>
-        <div class="small" style="color: #cbd5e1 !important;">
-          <i class="bi bi-shield-exclamation text-info"></i> <?= lang('App.league_profit_subtitle') ?? 'Identifique as ligas mais rentáveis e os ralos da sua banca para cortes estratégicos' ?>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 d-flex align-items-center gap-1.5" id="btnExportBreakdownCsv" onclick="exportBreakdownCsv()" title="Exportar tabela de detalhamento em CSV">
+            <i class="bi bi-download"></i> Exportar .CSV
+          </button>
+          <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+            <i class="bi bi-calendar3 me-1 text-warning"></i> Performance Diária & Assertividade
+          </span>
         </div>
       </div>
       
-      <!-- Controls Toolbar -->
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <!-- Segment Filter (All / Losses / Profits) -->
-        <div class="bet-slide-toggle" id="leagueSegmentToggle">
-          <button type="button" class="slide-btn active" data-seg="all" onclick="setLeagueSegmentFilter('all', this)" title="Exibir todas as ligas">Todas</button>
-          <button type="button" class="slide-btn" data-seg="loss_only" onclick="setLeagueSegmentFilter('loss_only', this)" title="Exibir apenas ligas com prejuízo acumulado (candidatas a corte)">Prejuízo 🔴</button>
-          <button type="button" class="slide-btn" data-seg="profit_only" onclick="setLeagueSegmentFilter('profit_only', this)" title="Exibir apenas ligas lucrativas">Lucrativas 🟢</button>
-        </div>
-
-        <!-- Outliers Filter Toggle -->
-        <div class="bet-slide-toggle" id="leagueOutliersToggle">
-          <button type="button" class="slide-btn active" data-outlier="filter" onclick="setLeagueOutliersFilter('filter', this)" title="Eliminar ligas com volume muito abaixo da média (outliers estatísticos)">Sem Outliers 🛡️</button>
-          <button type="button" class="slide-btn" data-outlier="all" onclick="setLeagueOutliersFilter('all', this)" title="Exibir todas as ligas inclusive de baixo volume">Todas</button>
-        </div>
-
-        <!-- Sort Select -->
-        <select id="leagueSortSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer;" onchange="onLeagueSortChange(this.value)">
-          <option value="losses_first" selected>🚨 Maiores Prejuízos Primeiro (Cortes)</option>
-          <option value="profit_first">🏆 Mais Lucrativas Primeiro</option>
-          <option value="roi">📈 Pior ROI % Primeiro</option>
-          <option value="volume">🎫 Maior Volume de Apostas</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Mini KPI Diagnosis Cards for Leagues -->
-    <div class="row g-2 mb-3" id="leagueDiagnosticRow">
-      <div class="col-md-4 col-sm-6">
-        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(255, 82, 82, 0.08); border-color: rgba(255, 82, 82, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-danger d-flex align-items-center gap-1">
-              <i class="bi bi-exclamation-octagon-fill"></i> <?= lang('App.league_drain_alert') ?? 'Maior Ralo da Banca' ?>
-            </span>
-            <span class="badge bg-danger text-white" id="badgeDrainAction" style="font-size: 0.65rem;">Corte Recomendado</span>
-          </div>
-          <div class="fw-bold text-white fs-6 text-truncate" id="kpiWorstLeagueName">-</div>
-          <div class="d-flex align-items-center gap-2 small">
-            <span class="text-danger fw-bold fs-6" id="kpiWorstLeagueProfit">R$ 0,00</span>
-            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiWorstLeagueDetails">ROI: 0% | 0 apostas</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-4 col-sm-6">
-        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
-              <i class="bi bi-star-fill"></i> <?= lang('App.league_best_alert') ?? 'Liga Mais Lucrativa' ?>
-            </span>
-            <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">Top Performance</span>
-          </div>
-          <div class="fw-bold text-white fs-6 text-truncate" id="kpiBestLeagueName">-</div>
-          <div class="d-flex align-items-center gap-2 small">
-            <span class="text-success fw-bold fs-6" id="kpiBestLeagueProfit">+R$ 0,00</span>
-            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiBestLeagueDetails">ROI: +0% | 0 apostas</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-4 col-sm-12">
-        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3) !important;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
-              <i class="bi bi-pie-chart-fill"></i> Balanço de Ligas
-            </span>
-            <span class="badge bg-dark border border-secondary text-info" id="kpiLeagueCountBadge" style="font-size: 0.65rem;">0 Ligas</span>
-          </div>
-          <div class="fw-bold text-white fs-6" id="kpiLeagueBalanceSummary">0 Positivas / 0 Negativas</div>
-          <div class="text-white-50 small" style="color: #cbd5e1 !important;" id="kpiLeagueLossTotal">Prejuízo Total Drenado: R$ 0,00</div>
-          <div class="small mt-1" id="kpiLeagueOutliersInfo" style="display: none; color: #94a3b8; font-size: 0.74rem;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Chart Container -->
-    <div class="chart-container-box" id="leagueChartBox" style="height: 400px;">
-      <canvas id="leagueProfitChart"></canvas>
-    </div>
-
-    <!-- Collapsible Table: Detalhamento de Ligas e Recomendações de Corte -->
-    <div class="mt-3 text-end">
-      <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#leagueTableCollapse" aria-expanded="false" aria-controls="leagueTableCollapse">
-        <i class="bi bi-list-columns-reverse me-1 text-warning"></i> Alternar Tabela de Auditoria por Liga
-      </button>
-    </div>
-
-    <div class="collapse mt-3" id="leagueTableCollapse">
-      <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
-        <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0" style="font-size: 0.9rem;">
           <thead>
             <tr class="text-white-50 border-secondary">
-              <th>Liga</th>
-              <th class="text-center">Apostas</th>
-              <th class="text-center">V / D / A</th>
-              <th class="text-center">Win Rate</th>
-              <th>Apostado</th>
-              <th>Retorno</th>
-              <th>Lucro Líquido</th>
+              <th>Período</th>
+              <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
+              <th class="text-center"><i class="bi bi-check-circle-fill text-success me-1"></i> <?= lang('App.win_rate') ?? 'Taxa de Acerto' ?></th>
+              <th>Simulado Bruto</th>
+              <th>Retorno Bruto</th>
+              <th>Lucro Bruto</th>
               <th>ROI (%)</th>
-              <th class="text-center">Diagnóstico</th>
+              <th>Líquido em Reais (R$)</th>
             </tr>
           </thead>
-          <tbody id="leagueTableBody">
+          <tbody id="tableBreakdownBody">
             <tr>
-              <td colspan="9" class="text-center text-muted py-3">Carregando dados das ligas...</td>
+              <td colspan="8" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
             </tr>
           </tbody>
+          <tfoot id="tableBreakdownFoot"></tfoot>
         </table>
       </div>
     </div>
-  </div>
+  </div> <!-- /tab-banca -->
 
-  <!-- Gatekeeper Categories & Repressed Bets Analysis Card (BET vs NO_BET) -->
-  <div class="chart-card mt-4" id="gatekeeperCategoriesCard">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-      <div>
-        <h5 class="fw-bold text-white d-flex align-items-center gap-2 mb-1">
-          <i class="bi bi-shield-check text-info"></i> Eficácia por Categoria do Gatekeeper (BET vs NO_BET)
-        </h5>
-        <div class="text-white-50 small" style="font-size: 0.84rem;">
-          Auditoria de frequência de mercado, assertividade de palpites recomendados e taxa de acerto/erro dos palpites reprimidos nas abstenções.
+  <!-- ABA 2: Modalidades Esportivas (Cartões vs Handicap Asiático vs Gols Asiáticos) -->
+  <div class="perf-tab-pane" id="tab-modalidades" style="display: none;">
+    <div class="chart-card" id="modalitiesComparisonSection">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+            <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático vs Gols Asiáticos' ?>
+          </h5>
+          <div class="small" style="color: #cbd5e1 !important;">
+            <i class="bi bi-info-circle text-info"></i> <?= lang('App.modalities_profit_subtitle') ?? 'Acompanhe a curva de evolução e lucratividade separada por modalidade no período' ?>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-dark border border-success text-success px-3 py-1.5" style="font-size: 0.8rem;" id="badgeCardsSummary">
+            <i class="bi bi-square-fill me-1" style="color: #00e676;"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+          </span>
+          <span class="badge bg-dark border border-warning text-warning px-3 py-1.5" style="font-size: 0.8rem;" id="badgeAhSummary">
+            <i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+          </span>
+          <span class="badge bg-dark border border-info text-info px-3 py-1.5" style="font-size: 0.8rem;" id="badgeGoalsSummary">
+            <i class="bi bi-square-fill me-1" style="color: #38bdf8;"></i> Gols Asiáticos
+          </span>
         </div>
       </div>
 
-      <!-- Segment Toggle: Todos, Apenas BET, Apenas NO_BET -->
-      <div class="d-flex align-items-center gap-2">
-        <div class="bet-slide-toggle" id="gkSegmentToggle">
-          <button type="button" class="slide-btn active" onclick="setGkSegmentFilter('all', this)">
-            <i class="bi bi-grid-fill me-1"></i> Todos
-          </button>
-          <button type="button" class="slide-btn" onclick="setGkSegmentFilter('bet', this)">
-            <i class="bi bi-check-circle-fill me-1 text-success"></i> Apenas BET
-          </button>
-          <button type="button" class="slide-btn" onclick="setGkSegmentFilter('no_bet', this)">
-            <i class="bi bi-slash-circle-fill me-1 text-danger"></i> Apenas NO_BET
-          </button>
+      <!-- Mini KPI Diagnosis Cards for Modalities (4 Colunas) -->
+      <div class="row g-3 mb-3">
+        <!-- Card Cartões -->
+        <div class="col-lg-3 col-md-6 col-sm-6">
+          <div class="p-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.06); border-color: rgba(0, 230, 118, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+                <i class="bi bi-shield-check"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+              </span>
+              <span class="badge bg-success text-dark fw-bold" id="kpiCardsBadge" style="font-size: 0.7rem;">Estável 🟢</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+              <div class="fw-bold fs-5 text-white" id="kpiCardsLucro">R$ 0,00</div>
+              <span class="small fw-semibold" id="kpiCardsRoi">ROI: 0%</span>
+            </div>
+            <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiCardsDetails">
+              0 bets | Win Rate: 0,0%
+            </div>
+          </div>
         </div>
+
+        <!-- Card Handicap Asiático -->
+        <div class="col-lg-3 col-md-6 col-sm-6">
+          <div class="p-3 rounded-3 border h-100" id="kpiAhCardBox" style="background: rgba(255, 145, 0, 0.06); border-color: rgba(255, 145, 0, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-sliders"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+              </span>
+              <span class="badge bg-warning text-dark fw-bold" id="kpiAhBadge" style="font-size: 0.7rem;">Volátil ⚡</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+              <div class="fw-bold fs-5 text-white" id="kpiAhLucro">R$ 0,00</div>
+              <span class="small fw-semibold" id="kpiAhRoi">ROI: 0%</span>
+            </div>
+            <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiAhDetails">
+              0 bets | Win Rate: 0,0%
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Gols Asiáticos -->
+        <div class="col-lg-3 col-md-6 col-sm-6">
+          <div class="p-3 rounded-3 border h-100" id="kpiGoalsCardBox" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+                <i class="bi bi-bullseye"></i> Gols Asiáticos
+              </span>
+              <span class="badge bg-info text-dark fw-bold" id="kpiGoalsBadge" style="font-size: 0.7rem;">Ativo 🔵</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+              <div class="fw-bold fs-5 text-white" id="kpiGoalsLucro">R$ 0,00</div>
+              <span class="small fw-semibold" id="kpiGoalsRoi">ROI: 0%</span>
+            </div>
+            <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiGoalsDetails">
+              0 bets | Win Rate: 0,0%
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Comparativo Diferencial / Diagnóstico -->
+        <div class="col-lg-3 col-md-6 col-sm-12">
+          <div class="p-3 rounded-3 border h-100" style="background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-light d-flex align-items-center gap-1">
+                <i class="bi bi-trophy-fill text-warning"></i> Maior Rentabilidade
+              </span>
+              <span class="badge bg-dark border border-secondary text-light-50" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+              <div class="fw-bold fs-5 text-white" id="kpiDeltaLucro">R$ 0,00</div>
+              <span class="small text-info fw-semibold" id="kpiDeltaStatus">Líder</span>
+            </div>
+            <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiDeltaDetails">
+              Impacto líquido comparativo no período selecionado
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="chart-container-box">
+        <canvas id="modalidadesProfitChart"></canvas>
+      </div>
+    </div>
+  </div> <!-- /tab-modalidades -->
+
+  <!-- ABA 3: Mercados & Liquidez da Banca -->
+  <div class="perf-tab-pane" id="tab-liquidez" style="display: none;">
+    <!-- Mercado Profit Chart Section -->
+    <div class="chart-card">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+            <i class="bi bi-bar-chart-line-fill text-accent"></i> <?= lang('App.net_profit_by_market') ?>
+          </h5>
+          <div class="small text-white-50">
+            Comparativo de lucratividade por linha e tipo de mercado filtrado
+          </div>
+        </div>
+        <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+          <i class="bi bi-funnel-fill me-1 text-warning"></i> Agrupado pelos Mesmos Filtros
+        </span>
+      </div>
+
+      <div class="chart-container-box" id="mercadoChartBox" style="height: 380px;">
+        <canvas id="mercadoProfitChart"></canvas>
       </div>
     </div>
 
-    <!-- KPI Summary Row for Gatekeeper -->
-    <div class="row g-2 mb-3">
-      <div class="col-md-3 col-6">
-        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
-          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TOTAL CONFRONTOS</div>
-          <div class="fs-5 fw-bold text-white" id="gkKpiTotalMatches">0</div>
-          <div class="text-white-50" style="font-size: 0.7rem;" id="gkKpiTotalSub">Auditados pelo Gatekeeper</div>
+    <!-- Tabela de Auditoria de Liquidez & Capacidade da Banca por Mercado -->
+    <div class="table-card mt-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+            <i class="bi bi-droplet-half text-info"></i> Auditoria de Liquidez & Capacidade da Banca por Mercado
+          </h5>
+          <div class="small text-white-50">
+            Classificação institucional de absorção de capital, teto de stake recomendada e índice de risco de limitação pelas casas de apostas.
+          </div>
         </div>
+        <span class="badge bg-dark border border-info text-info px-3 py-1.5" style="font-size: 0.8rem;">
+          <i class="bi bi-shield-check me-1"></i> Gestão de Risco de Limitação
+        </span>
       </div>
-      <div class="col-md-3 col-6">
-        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
-          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">PALPITES APROVADOS (BET)</div>
-          <div class="fs-5 fw-bold text-success" id="gkKpiBetsCount">0</div>
-          <div class="text-success small" style="font-size: 0.7rem;" id="gkKpiBetsWinRate">0% Assertividade</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-6">
-        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
-          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">ABSTENÇÕES (NO_BET)</div>
-          <div class="fs-5 fw-bold text-warning" id="gkKpiNoBetsCount">0</div>
-          <div class="text-warning small" style="font-size: 0.7rem;" id="gkKpiNoBetsShield">0 Perdas Evitadas</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-6">
-        <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
-          <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TAXA DE PROTEÇÃO IA</div>
-          <div class="fs-5 fw-bold text-info" id="gkKpiProtectionRate">0%</div>
-          <div class="text-info small" style="font-size: 0.7rem;">Confrontos Filtrados</div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Chart Container (Horizontal Bar Chart) -->
-    <div class="chart-container-box" style="height: 440px; position: relative;">
-      <canvas id="gatekeeperCategoriesChart"></canvas>
-    </div>
-
-    <!-- Collapsible Breakdown Table -->
-    <div class="mt-3 text-end">
-      <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#gkCategoriesTableCollapse" aria-expanded="true" aria-controls="gkCategoriesTableCollapse">
-        <i class="bi bi-table me-1 text-info"></i> Alternar Tabela Detalhada por Categoria
-      </button>
-    </div>
-
-    <div class="collapse show mt-3" id="gkCategoriesTableCollapse">
-      <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
-        <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0" style="font-size: 0.88rem;">
           <thead>
             <tr class="text-white-50 border-secondary">
-              <th>Categoria do Gatekeeper</th>
-              <th class="text-center">Tipo</th>
-              <th class="text-center">Ocorrência (%)</th>
-              <th class="text-center">Jogos FT</th>
-              <th class="text-center">% Green / Reprimido</th>
-              <th class="text-center">% Red / Evitado</th>
-              <th class="text-center">% Reembolso</th>
-              <th>Impacto & Diagnóstico da IA</th>
+              <th>Mercado / Linha</th>
+              <th class="text-center" style="min-width: 150px;">Score de Liquidez</th>
+              <th class="text-center">Classificação</th>
+              <th class="text-center">Apostas</th>
+              <th>Stake Média</th>
+              <th>Lucro Líquido</th>
+              <th class="text-center">Teto de Stake Seguro</th>
+              <th class="text-center">Risco de Limitação</th>
             </tr>
           </thead>
-          <tbody id="gkCategoriesTableBody">
+          <tbody id="tableLiquidezBody">
             <tr>
-              <td colspan="8" class="text-center text-muted py-3">Carregando auditoria de categorias...</td>
+              <td colspan="8" class="text-center text-muted py-3">Carregando métricas de liquidez...</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-  </div>
+  </div> <!-- /tab-liquidez -->
+
+  <!-- ABA 4: Ranking de Ligas & Ralos da Banca -->
+  <div class="perf-tab-pane" id="tab-ligas" style="display: none;">
+    <div class="chart-card" id="leagueProfitSection">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+            <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.net_profit_by_league') ?? 'Lucratividade por Liga de Futebol (Ranking Geral)' ?>
+          </h5>
+          <div class="small" style="color: #cbd5e1 !important;">
+            <i class="bi bi-shield-exclamation text-info"></i> <?= lang('App.league_profit_subtitle') ?? 'Identifique as ligas mais rentáveis e os ralos da sua banca para cortes estratégicos' ?>
+          </div>
+        </div>
+        
+        <!-- Controls Toolbar -->
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <!-- Segment Filter (All / Losses / Profits) -->
+          <div class="bet-slide-toggle" id="leagueSegmentToggle">
+            <button type="button" class="slide-btn active" data-seg="all" onclick="setLeagueSegmentFilter('all', this)" title="Exibir todas as ligas">Todas</button>
+            <button type="button" class="slide-btn" data-seg="loss_only" onclick="setLeagueSegmentFilter('loss_only', this)" title="Exibir apenas ligas com prejuízo acumulado (candidatas a corte)">Prejuízo 🔴</button>
+            <button type="button" class="slide-btn" data-seg="profit_only" onclick="setLeagueSegmentFilter('profit_only', this)" title="Exibir apenas ligas lucrativas">Lucrativas 🟢</button>
+          </div>
+
+          <!-- Outliers Filter Toggle -->
+          <div class="bet-slide-toggle" id="leagueOutliersToggle">
+            <button type="button" class="slide-btn active" data-outlier="filter" onclick="setLeagueOutliersFilter('filter', this)" title="Eliminar ligas com volume muito abaixo da média (outliers estatísticos)">Sem Outliers 🛡️</button>
+            <button type="button" class="slide-btn" data-outlier="all" onclick="setLeagueOutliersFilter('all', this)" title="Exibir todas as ligas inclusive de baixo volume">Todas</button>
+          </div>
+
+          <!-- Sort Select -->
+          <select id="leagueSortSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer;" onchange="onLeagueSortChange(this.value)">
+            <option value="losses_first" selected>🚨 Maiores Prejuízos Primeiro (Cortes)</option>
+            <option value="profit_first">🏆 Mais Lucrativas Primeiro</option>
+            <option value="roi">📈 Pior ROI % Primeiro</option>
+            <option value="volume">🎫 Maior Volume de Apostas</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mini KPI Diagnosis Cards for Leagues -->
+      <div class="row g-2 mb-3" id="leagueDiagnosticRow">
+        <div class="col-md-4 col-sm-6">
+          <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(255, 82, 82, 0.08); border-color: rgba(255, 82, 82, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-danger d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-octagon-fill"></i> <?= lang('App.league_drain_alert') ?? 'Maior Ralo da Banca' ?>
+              </span>
+              <span class="badge bg-danger text-white" id="badgeDrainAction" style="font-size: 0.65rem;">Corte Recomendado</span>
+            </div>
+            <div class="fw-bold text-white fs-6 text-truncate" id="kpiWorstLeagueName">-</div>
+            <div class="d-flex align-items-center gap-2 small">
+              <span class="text-danger fw-bold fs-6" id="kpiWorstLeagueProfit">R$ 0,00</span>
+              <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiWorstLeagueDetails">ROI: 0% | 0 apostas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4 col-sm-6">
+          <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+                <i class="bi bi-star-fill"></i> <?= lang('App.league_best_alert') ?? 'Liga Mais Lucrativa' ?>
+              </span>
+              <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">Top Performance</span>
+            </div>
+            <div class="fw-bold text-white fs-6 text-truncate" id="kpiBestLeagueName">-</div>
+            <div class="d-flex align-items-center gap-2 small">
+              <span class="text-success fw-bold fs-6" id="kpiBestLeagueProfit">+R$ 0,00</span>
+              <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiBestLeagueDetails">ROI: +0% | 0 apostas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4 col-sm-12">
+          <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+                <i class="bi bi-pie-chart-fill"></i> Balanço de Ligas
+              </span>
+              <span class="badge bg-dark border border-secondary text-info" id="kpiLeagueCountBadge" style="font-size: 0.65rem;">0 Ligas</span>
+            </div>
+            <div class="fw-bold text-white fs-6" id="kpiLeagueBalanceSummary">0 Positivas / 0 Negativas</div>
+            <div class="text-white-50 small" style="color: #cbd5e1 !important;" id="kpiLeagueLossTotal">Prejuízo Total Drenado: R$ 0,00</div>
+            <div class="small mt-1" id="kpiLeagueOutliersInfo" style="display: none; color: #94a3b8; font-size: 0.74rem;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="chart-container-box" id="leagueChartBox" style="height: 400px;">
+        <canvas id="leagueProfitChart"></canvas>
+      </div>
+
+      <!-- Collapsible Table: Detalhamento de Ligas e Recomendações de Corte -->
+      <div class="mt-3 text-end">
+        <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#leagueTableCollapse" aria-expanded="false" aria-controls="leagueTableCollapse">
+          <i class="bi bi-list-columns-reverse me-1 text-warning"></i> Alternar Tabela de Auditoria por Liga
+        </button>
+      </div>
+
+      <div class="collapse mt-3" id="leagueTableCollapse">
+        <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
+          <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+            <thead>
+              <tr class="text-white-50 border-secondary">
+                <th>Liga</th>
+                <th class="text-center">Apostas</th>
+                <th class="text-center">V / D / A</th>
+                <th class="text-center">Win Rate</th>
+                <th>Apostado</th>
+                <th>Retorno</th>
+                <th>Lucro Líquido</th>
+                <th>ROI (%)</th>
+                <th class="text-center">Diagnóstico</th>
+              </tr>
+            </thead>
+            <tbody id="leagueTableBody">
+              <tr>
+                <td colspan="9" class="text-center text-muted py-3">Carregando dados das ligas...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div> <!-- /tab-ligas -->
+
+  <!-- ABA 5: Eficácia do Gatekeeper IA -->
+  <div class="perf-tab-pane" id="tab-gatekeeper" style="display: none;">
+    <div class="chart-card mt-0" id="gatekeeperCategoriesCard">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <div>
+          <h5 class="fw-bold text-white d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-shield-check text-info"></i> Eficácia por Categoria do Gatekeeper (BET vs NO_BET)
+          </h5>
+          <div class="text-white-50 small" style="font-size: 0.84rem;">
+            Auditoria de frequência de mercado, assertividade de palpites recomendados e taxa de acerto/erro dos palpites reprimidos nas abstenções.
+          </div>
+        </div>
+
+        <!-- Segment Toggle: Todos, Apenas BET, Apenas NO_BET -->
+        <div class="d-flex align-items-center gap-2">
+          <div class="bet-slide-toggle" id="gkSegmentToggle">
+            <button type="button" class="slide-btn active" onclick="setGkSegmentFilter('all', this)">
+              <i class="bi bi-grid-fill me-1"></i> Todos
+            </button>
+            <button type="button" class="slide-btn" onclick="setGkSegmentFilter('bet', this)">
+              <i class="bi bi-check-circle-fill me-1 text-success"></i> Apenas BET
+            </button>
+            <button type="button" class="slide-btn" onclick="setGkSegmentFilter('no_bet', this)">
+              <i class="bi bi-slash-circle-fill me-1 text-danger"></i> Apenas NO_BET
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Row for Gatekeeper -->
+      <div class="row g-2 mb-3">
+        <div class="col-md-3 col-6">
+          <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+            <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TOTAL CONFRONTOS</div>
+            <div class="fs-5 fw-bold text-white" id="gkKpiTotalMatches">0</div>
+            <div class="text-white-50" style="font-size: 0.7rem;" id="gkKpiTotalSub">Auditados pelo Gatekeeper</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+            <div class="text-muted small fw-bold" style="font-size: 0.72rem;">PALPITES APROVADOS (BET)</div>
+            <div class="fs-5 fw-bold text-success" id="gkKpiBetsCount">0</div>
+            <div class="text-success small" style="font-size: 0.7rem;" id="gkKpiBetsWinRate">0% Assertividade</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+            <div class="text-muted small fw-bold" style="font-size: 0.72rem;">ABSTENÇÕES (NO_BET)</div>
+            <div class="fs-5 fw-bold text-warning" id="gkKpiNoBetsCount">0</div>
+            <div class="text-warning small" style="font-size: 0.7rem;" id="gkKpiNoBetsShield">0 Perdas Evitadas</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="p-2 rounded border border-secondary bg-dark" style="background: rgba(15, 23, 42, 0.6) !important;">
+            <div class="text-muted small fw-bold" style="font-size: 0.72rem;">TAXA DE PROTEÇÃO IA</div>
+            <div class="fs-5 fw-bold text-info" id="gkKpiProtectionRate">0%</div>
+            <div class="text-info small" style="font-size: 0.7rem;">Confrontos Filtrados</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Container (Horizontal Bar Chart) -->
+      <div class="chart-container-box" style="height: 440px; position: relative;">
+        <canvas id="gatekeeperCategoriesChart"></canvas>
+      </div>
+
+      <!-- Collapsible Breakdown Table -->
+      <div class="mt-3 text-end">
+        <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#gkCategoriesTableCollapse" aria-expanded="true" aria-controls="gkCategoriesTableCollapse">
+          <i class="bi bi-table me-1 text-info"></i> Alternar Tabela Detalhada por Categoria
+        </button>
+      </div>
+
+      <div class="collapse show mt-3" id="gkCategoriesTableCollapse">
+        <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
+          <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+            <thead>
+              <tr class="text-white-50 border-secondary">
+                <th>Categoria do Gatekeeper</th>
+                <th class="text-center">Tipo</th>
+                <th class="text-center">Ocorrência (%)</th>
+                <th class="text-center">Jogos FT</th>
+                <th class="text-center">% Green / Reprimido</th>
+                <th class="text-center">% Red / Evitado</th>
+                <th class="text-center">% Reembolso</th>
+                <th>Impacto & Diagnóstico da IA</th>
+              </tr>
+            </thead>
+            <tbody id="gkCategoriesTableBody">
+              <tr>
+                <td colspan="8" class="text-center text-muted py-3">Carregando auditoria de categorias...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div> <!-- /tab-gatekeeper -->
 </div>
 
 <script>
@@ -738,6 +978,106 @@ function setPerfEspelharFilter(val, btnEl) {
     badge.style.display = (val === '1') ? 'inline-block' : 'none';
   }
   updatePerformanceDashboard();
+}
+
+let currentActiveTab = 'tab-banca';
+let showLiquidityLayer = true;
+
+function switchPerformanceTab(tabId, btnEl) {
+  currentActiveTab = tabId;
+  document.querySelectorAll('.perf-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) {
+    btnEl.classList.add('active');
+  } else {
+    const btn = document.querySelector(`.perf-tab-btn[data-tab="${tabId}"]`);
+    if (btn) btn.classList.add('active');
+  }
+
+  document.querySelectorAll('.perf-tab-pane').forEach(p => {
+    p.style.display = 'none';
+    p.classList.remove('active');
+  });
+
+  const targetPane = document.getElementById(tabId);
+  if (targetPane) {
+    targetPane.style.display = 'block';
+    targetPane.classList.add('active');
+  }
+
+  // Redimensionar gráficos na aba recém-exibida para prevenir distorções do Chart.js
+  setTimeout(() => {
+    if (tabId === 'tab-banca' && perfChart) {
+      perfChart.resize();
+    } else if (tabId === 'tab-modalidades' && modalidadesChart) {
+      modalidadesChart.resize();
+    } else if (tabId === 'tab-liquidez' && mercadoChart) {
+      mercadoChart.resize();
+    } else if (tabId === 'tab-ligas' && leagueChart) {
+      leagueChart.resize();
+    } else if (tabId === 'tab-gatekeeper' && gatekeeperCategoriesChart) {
+      gatekeeperCategoriesChart.resize();
+    }
+  }, 40);
+}
+
+function setPerfLiquidityLayer(enable, btnEl) {
+  showLiquidityLayer = enable;
+  const container = document.getElementById('perfLiquiditySlideToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => btn.classList.remove('active'));
+  }
+  if (btnEl) btnEl.classList.add('active');
+  updatePerformanceDashboard();
+}
+
+function getBetLiquidityScore(bet) {
+  const bMercado = (bet.mercado || '').trim();
+  const bPalpite = (bet.palpite || '').trim();
+  const isCard = /cart|card/i.test(bMercado) || /cart|card/i.test(bPalpite);
+  const isAh = !isCard && (/handicap|empate anula|dnb/i.test(bMercado) || /ah|handicap|empate anula|dnb/i.test(bPalpite));
+  const isGols = !isCard && !isAh && (/gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bMercado) || /gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bPalpite));
+
+  let score = 60;
+  let category = 'Comercial';
+  let badgeClass = 'bg-info text-dark';
+  let maxStakeEst = 'R$ 1.000 - R$ 3.000';
+  let riscoLimitacao = 'Moderado';
+  let riscoClass = 'text-warning';
+
+  if (isAh) {
+    score = 92;
+    category = 'Institucional';
+    badgeClass = 'bg-success text-dark';
+    maxStakeEst = 'R$ 10.000 - R$ 50.000+';
+    riscoLimitacao = 'Baixo (Alta Escalabilidade)';
+    riscoClass = 'text-success';
+  } else if (isGols) {
+    score = 80;
+    category = 'Comercial Alta';
+    badgeClass = 'bg-primary text-white';
+    maxStakeEst = 'R$ 3.000 - R$ 15.000';
+    riscoLimitacao = 'Moderado';
+    riscoClass = 'text-info';
+  } else if (isCard) {
+    score = 45;
+    category = 'Nicho / Props';
+    badgeClass = 'bg-warning text-dark';
+    maxStakeEst = 'R$ 200 - R$ 600';
+    riscoLimitacao = 'Alto (Risco de Limitação)';
+    riscoClass = 'text-danger';
+  }
+
+  const lName = (bet.display_league_name || bet.league_name || '').toLowerCase();
+  const isTier1 = /brasileir[ãa]o\s*s[ée]rie\s*a|premier\s*league|la\s*liga|serie\s*a|bundesliga|champions\s*league|copa\s*do\s*brasil/i.test(lName);
+  const isSecondary = /copa\s*paulista|sub|u20|u23|segunda|terceira|s[ée]rie\s*[cd]/i.test(lName);
+
+  if (isTier1) {
+    score = Math.min(100, score + 8);
+  } else if (isSecondary) {
+    score = Math.max(20, score - 15);
+  }
+
+  return { score, category, badgeClass, maxStakeEst, riscoLimitacao, riscoClass };
 }
 
 let perfChart = null;
@@ -952,6 +1292,27 @@ function getWeekKey(dateStr) {
   return `${year}-W${String(weekNumber).padStart(2, '0')}`;
 }
 
+function getQuarterKey(dateStr) {
+  if (!dateStr) return 'Sem Data';
+  const d = new Date(dateStr + 'T00:00:00');
+  const year = d.getFullYear();
+  const quarter = Math.floor(d.getMonth() / 3) + 1;
+  return `${year}-Q${quarter}`;
+}
+
+function getYearKey(dateStr) {
+  if (!dateStr) return 'Sem Data';
+  return dateStr.trim().substring(0, 4);
+}
+
+function onPerfGroupChange(val) {
+  const s1 = document.getElementById('perfGroupSelect');
+  const s2 = document.getElementById('perfGroupSelectChart');
+  if (s1 && s1.value !== val) s1.value = val;
+  if (s2 && s2.value !== val) s2.value = val;
+  updatePerformanceDashboard();
+}
+
 function getBetNormalizedValues(item) {
   const isEspelhar = (perfEspelharFilter === '1');
   const status = item.status || '';
@@ -1052,7 +1413,13 @@ function updatePerformanceDashboard() {
   const startDate = document.getElementById('perfStartDateInput')?.value || '';
   const endDate = document.getElementById('perfEndDateInput')?.value || '';
   const statusFilter = document.getElementById('perfStatusSelect')?.value || 'concluidas';
-  const groupMode = document.getElementById('perfGroupSelect')?.value || 'dia';
+  const modalityFilter = document.getElementById('perfModalitySelect')?.value || 'all';
+
+  const groupSelectEl = document.getElementById('perfGroupSelect');
+  const groupChartSelectEl = document.getElementById('perfGroupSelectChart');
+  const groupMode = groupChartSelectEl?.value || groupSelectEl?.value || 'dia';
+  if (groupSelectEl && groupSelectEl.value !== groupMode) groupSelectEl.value = groupMode;
+  if (groupChartSelectEl && groupChartSelectEl.value !== groupMode) groupChartSelectEl.value = groupMode;
 
   const filteredBets = rawBets.filter(bet => {
     const status = bet.status || 'Pendente';
@@ -1071,6 +1438,17 @@ function updatePerformanceDashboard() {
       if (status !== 'Cashout') return false;
     } else if (statusFilter === 'ANULADA') {
       if (status !== 'ANULADA' && status !== 'Anulada' && status !== 'Cancelada' && status !== 'CANCELADA') return false;
+    }
+
+    if (modalityFilter !== 'all') {
+      const bMercado = (bet.mercado || '').trim();
+      const bPalpite = (bet.palpite || '').trim();
+      const isCard = /cart|card/i.test(bMercado) || /cart|card/i.test(bPalpite);
+      const isAh = !isCard && (/handicap|empate anula|dnb/i.test(bMercado) || /ah|handicap|empate anula|dnb/i.test(bPalpite));
+      const isGols = !isCard && !isAh && (/gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bMercado) || /gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(bPalpite));
+      if (modalityFilter === 'cartoes' && !isCard) return false;
+      if (modalityFilter === 'ah' && !isAh) return false;
+      if (modalityFilter === 'gols' && !isGols) return false;
     }
 
     if (perfConfirmedFilter === '1') {
@@ -1127,6 +1505,7 @@ function updatePerformanceDashboard() {
   const modalityBuckets = {
     cartoes: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
     ah: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    gols: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
     outros: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 }
   };
   const modalityTimeline = {};
@@ -1246,7 +1625,8 @@ function updatePerformanceDashboard() {
     let finalMercadoKey = rawMercado;
 
     const isCardMarket = /cart|card/i.test(rawMercado) || /cart|card/i.test(palpite);
-    const isHandicapMarket = /handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite);
+    const isHandicapMarket = !isCardMarket && (/handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite));
+    const isGoalsMarket = !isCardMarket && !isHandicapMarket && (/gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(rawMercado) || /gols?\s*asi[áa]ticos?|total\s*de\s*gols?|over\/under|mais\s*de.*gols?|menos\s*de.*gols?/i.test(palpite));
 
     if (isCardMarket) {
       const isIndividual = /individual|time/i.test(rawMercado) || /individual|time/i.test(palpite);
@@ -1298,6 +1678,18 @@ function updatePerformanceDashboard() {
       } else {
         finalMercadoKey = 'Handicap Asiático';
       }
+    } else if (isGoalsMarket) {
+      let isUnder = /under|menos/i.test(palpite) || /under|menos/i.test(rawMercado);
+      let isOver = /over|mais/i.test(palpite) || /over|mais/i.test(rawMercado);
+      let lineMatch = palpite.match(/(\d+(?:[\.,]\d+)?)/) || rawMercado.match(/(\d+(?:[\.,]\d+)?)/);
+
+      if (lineMatch && (isUnder || isOver)) {
+        let dirStr = isUnder ? 'Menos de' : 'Mais de';
+        let lineVal = lineMatch[1].replace(',', '.');
+        finalMercadoKey = `${dirStr} ${lineVal} Gols Asiáticos`;
+      } else {
+        finalMercadoKey = 'Gols Asiáticos';
+      }
     } else {
       if (palpite && !rawMercado.toLowerCase().includes(palpite.toLowerCase())) {
         if (/mais de|menos de|over|under|[+-]\d|vence|vitória|empate/i.test(palpite)) {
@@ -1310,13 +1702,29 @@ function updatePerformanceDashboard() {
       }
     }
 
+    const betLiq = getBetLiquidityScore(bet);
+
     if (!mercadoBuckets[finalMercadoKey]) {
-      mercadoBuckets[finalMercadoKey] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+      mercadoBuckets[finalMercadoKey] = {
+        apostado: 0,
+        retorno: 0,
+        lucro: 0,
+        count: 0,
+        liquidityScoreSum: 0,
+        liquidityCount: 0,
+        category: betLiq.category,
+        badgeClass: betLiq.badgeClass,
+        maxStakeEst: betLiq.maxStakeEst,
+        riscoLimitacao: betLiq.riscoLimitacao,
+        riscoClass: betLiq.riscoClass
+      };
     }
     mercadoBuckets[finalMercadoKey].apostado += valor;
     mercadoBuckets[finalMercadoKey].retorno += grossReturn;
     mercadoBuckets[finalMercadoKey].lucro += netProfit;
     mercadoBuckets[finalMercadoKey].count += 1;
+    mercadoBuckets[finalMercadoKey].liquidityScoreSum += betLiq.score;
+    mercadoBuckets[finalMercadoKey].liquidityCount += 1;
 
     let key = rawDate || 'Sem Data';
     if (rawDate) {
@@ -1324,6 +1732,10 @@ function updatePerformanceDashboard() {
         key = getWeekKey(rawDate);
       } else if (groupMode === 'mes') {
         key = rawDate.substring(0, 7);
+      } else if (groupMode === 'trimestre') {
+        key = getQuarterKey(rawDate);
+      } else if (groupMode === 'ano') {
+        key = getYearKey(rawDate);
       }
     }
 
@@ -1341,9 +1753,13 @@ function updatePerformanceDashboard() {
         ganhas: 0,
         perdidas: 0,
         anuladas: 0,
-        decided: 0
+        decided: 0,
+        liquidityScoreSum: 0,
+        liquidityCount: 0
       };
     }
+    buckets[key].liquidityScoreSum += betLiq.score;
+    buckets[key].liquidityCount += 1;
 
     const bMoeda = (perfEspelharFilter === '1') ? activeMoedaCodigo : (bet.moeda_codigo || 'BRL');
     const mInfo = moedasMap[bMoeda] || { tipo: 'FIAT', cotacao_brl: 1.0, taxa_saque_fixa: 0, taxa_rede_estimada: 0, taxa_spot_percentual: 0 };
@@ -1393,6 +1809,8 @@ function updatePerformanceDashboard() {
       modKey = 'cartoes';
     } else if (isHandicapMarket) {
       modKey = 'ah';
+    } else if (isGoalsMarket) {
+      modKey = 'gols';
     }
 
     modalityBuckets[modKey].apostado += valor;
@@ -1421,7 +1839,7 @@ function updatePerformanceDashboard() {
     }
 
     if (!modalityTimeline[key]) {
-      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0 };
+      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, golsLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0, golsCount: 0 };
     }
     if (modKey === 'cartoes') {
       modalityTimeline[key].cartoesLucro += netProfit;
@@ -1429,6 +1847,9 @@ function updatePerformanceDashboard() {
     } else if (modKey === 'ah') {
       modalityTimeline[key].ahLucro += netProfit;
       modalityTimeline[key].ahCount += 1;
+    } else if (modKey === 'gols') {
+      modalityTimeline[key].golsLucro += netProfit;
+      modalityTimeline[key].golsCount += 1;
     } else {
       modalityTimeline[key].outrosLucro += netProfit;
     }
@@ -1492,12 +1913,15 @@ function updatePerformanceDashboard() {
   const cumulativeLucroData = [];
   const cumulativeCartoesLucro = [];
   const cumulativeAhLucro = [];
+  const cumulativeGolsLucro = [];
   const cumulativeWinRateData = [];
+  const cumulativeLiquidityData = [];
 
   let runningApostado = 0;
   let runningLucro = 0;
   let runningCartoesLucro = 0;
   let runningAhLucro = 0;
+  let runningGolsLucro = 0;
   let runningGanhas = 0;
   let runningDecided = 0;
 
@@ -1508,16 +1932,21 @@ function updatePerformanceDashboard() {
     runningApostado += b.apostado;
     runningLucro += b.lucro;
 
-    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
-    runningCartoesLucro += modTime.cartoesLucro;
-    runningAhLucro += modTime.ahLucro;
+    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0, golsLucro: 0 };
+    runningCartoesLucro += (modTime.cartoesLucro || 0);
+    runningAhLucro += (modTime.ahLucro || 0);
+    runningGolsLucro += (modTime.golsLucro || 0);
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
+    cumulativeGolsLucro.push(runningGolsLucro);
 
     runningGanhas += (b.ganhas || 0);
     runningDecided += (b.decided || 0);
     const curWinRate = runningDecided > 0 ? (runningGanhas / runningDecided) * 100 : 0;
     cumulativeWinRateData.push(parseFloat(curWinRate.toFixed(1)));
+
+    const bAvgLiq = (b.liquidityCount > 0) ? Math.round(b.liquidityScoreSum / b.liquidityCount) : 70;
+    cumulativeLiquidityData.push(bAvgLiq);
 
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
@@ -1526,6 +1955,11 @@ function updatePerformanceDashboard() {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     labels.push(label);
@@ -1543,6 +1977,11 @@ function updatePerformanceDashboard() {
   const ahApostado = modalityBuckets.ah.apostado;
   const ahRoi = ahApostado > 0 ? (ahLucro / ahApostado) * 100 : 0;
   const ahWinRate = modalityBuckets.ah.decided > 0 ? (modalityBuckets.ah.ganhas / modalityBuckets.ah.decided) * 100 : 0;
+
+  const golsLucro = modalityBuckets.gols.lucro;
+  const golsApostado = modalityBuckets.gols.apostado;
+  const golsRoi = golsApostado > 0 ? (golsLucro / golsApostado) * 100 : 0;
+  const golsWinRate = modalityBuckets.gols.decided > 0 ? (modalityBuckets.gols.ganhas / modalityBuckets.gols.decided) * 100 : 0;
 
   const deltaLucro = cartoesLucro - ahLucro;
 
@@ -1584,8 +2023,11 @@ function updatePerformanceDashboard() {
     elAhDetails.textContent = `${modalityBuckets.ah.count} bets | Win: ${ahWinRate.toFixed(1).replace('.', ',')}%`;
   }
   if (elAhBadge) {
-    if (ahLucro < 0) {
-      elAhBadge.textContent = 'Dreno de Lucro 🔴';
+    if (modalityBuckets.ah.count === 0) {
+      elAhBadge.textContent = 'Sem Bets';
+      elAhBadge.className = 'badge bg-secondary text-white';
+    } else if (ahLucro < 0) {
+      elAhBadge.textContent = 'Dreno 🔴';
       elAhBadge.className = 'badge bg-danger text-white fw-bold';
     } else {
       elAhBadge.textContent = 'Lucrativo 🟢';
@@ -1605,15 +2047,68 @@ function updatePerformanceDashboard() {
     elBadgeAh.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> AH: ${formatBrl(ahLucro)}`;
   }
 
+  // Mini KPI Gols Asiáticos
+  const elGoalsLucro = document.getElementById('kpiGoalsLucro');
+  const elGoalsRoi = document.getElementById('kpiGoalsRoi');
+  const elGoalsDetails = document.getElementById('kpiGoalsDetails');
+  const elGoalsBadge = document.getElementById('kpiGoalsBadge');
+  const elBadgeGoals = document.getElementById('badgeGoalsSummary');
+  const elGoalsCardBox = document.getElementById('kpiGoalsCardBox');
+
+  if (elGoalsLucro) {
+    elGoalsLucro.textContent = formatBrl(golsLucro);
+    elGoalsLucro.className = 'fw-bold fs-5 ' + (golsLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elGoalsRoi) {
+    elGoalsRoi.textContent = 'ROI: ' + formatPct(golsRoi);
+    elGoalsRoi.className = 'small fw-semibold ' + (golsRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elGoalsDetails) {
+    elGoalsDetails.textContent = `${modalityBuckets.gols.count} bets | Win: ${golsWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elGoalsBadge) {
+    if (modalityBuckets.gols.count === 0) {
+      elGoalsBadge.textContent = 'Sem Bets';
+      elGoalsBadge.className = 'badge bg-secondary text-white';
+    } else if (golsLucro < 0) {
+      elGoalsBadge.textContent = 'Dreno 🔴';
+      elGoalsBadge.className = 'badge bg-danger text-white fw-bold';
+    } else {
+      elGoalsBadge.textContent = 'Lucrativo 🟢';
+      elGoalsBadge.className = 'badge bg-success text-dark fw-bold';
+    }
+  }
+  if (elGoalsCardBox) {
+    if (golsLucro < 0) {
+      elGoalsCardBox.style.background = 'rgba(255, 82, 82, 0.08)';
+      elGoalsCardBox.style.borderColor = 'rgba(255, 82, 82, 0.3)';
+    } else {
+      elGoalsCardBox.style.background = 'rgba(56, 189, 248, 0.06)';
+      elGoalsCardBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    }
+  }
+  if (elBadgeGoals) {
+    elBadgeGoals.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #38bdf8;"></i> Gols: ${formatBrl(golsLucro)}`;
+  }
+
   const elDeltaLucro = document.getElementById('kpiDeltaLucro');
   const elDeltaStatus = document.getElementById('kpiDeltaStatus');
   const elDeltaDetails = document.getElementById('kpiDeltaDetails');
+
+  const maxModLucro = Math.max(cartoesLucro, ahLucro, golsLucro);
+  let bestMod = 'Cartões';
+  if (ahLucro === maxModLucro && ahLucro > cartoesLucro) bestMod = 'AH';
+  if (golsLucro === maxModLucro && golsLucro > cartoesLucro && golsLucro > ahLucro) bestMod = 'Gols Asiáticos';
+
   if (elDeltaLucro) {
     elDeltaLucro.textContent = (deltaLucro >= 0 ? '+' : '') + formatBrl(deltaLucro);
     elDeltaLucro.className = 'fw-bold fs-5 ' + (deltaLucro >= 0 ? 'text-success' : 'text-danger');
   }
   if (elDeltaStatus) {
-    if (deltaLucro > 0) {
+    if (bestMod === 'Gols Asiáticos') {
+      elDeltaStatus.textContent = 'Liderança Gols ⚽';
+      elDeltaStatus.className = 'small text-info fw-semibold';
+    } else if (deltaLucro > 0) {
       elDeltaStatus.textContent = 'Vantagem Cartões 🛡️';
       elDeltaStatus.className = 'small text-success fw-semibold';
     } else if (deltaLucro < 0) {
@@ -1625,9 +2120,11 @@ function updatePerformanceDashboard() {
     }
   }
   if (elDeltaDetails) {
-    elDeltaDetails.textContent = deltaLucro > 0
-      ? `Cartões superou AH em ${formatBrl(Math.abs(deltaLucro))} no saldo real`
-      : (deltaLucro < 0 ? `AH superou Cartões em ${formatBrl(Math.abs(deltaLucro))} no saldo real` : 'Ambas modalidades com resultado idêntico');
+    let detailsTxt = `Cartões vs AH: ${deltaLucro >= 0 ? '+' : ''}${formatBrl(deltaLucro)}`;
+    if (modalityBuckets.gols.count > 0) {
+      detailsTxt += ` | Gols: ${formatBrl(golsLucro)}`;
+    }
+    elDeltaDetails.textContent = detailsTxt;
   }
 
   const mercadoKeys = Object.keys(mercadoBuckets).sort((a, b) => mercadoBuckets[b].lucro - mercadoBuckets[a].lucro);
@@ -1825,15 +2322,16 @@ function updatePerformanceDashboard() {
     });
   });
 
-  renderChart(labels, cumulativeApostadoData, cumulativeLucroData, cumulativeWinRateData);
-  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
+  renderChart(labels, cumulativeApostadoData, cumulativeLucroData, cumulativeWinRateData, cumulativeLiquidityData);
+  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, cumulativeGolsLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
+  renderLiquidezTable(mercadoBuckets);
   renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
   renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets, outlierLeaguesCount, minGamesThreshold);
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
-function renderChart(labels, apostadoData, lucroData, winRateData) {
+function renderChart(labels, apostadoData, lucroData, winRateData, liquidityData) {
   const canvas = document.getElementById('performanceChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1842,52 +2340,74 @@ function renderChart(labels, apostadoData, lucroData, winRateData) {
     perfChart.destroy();
   }
 
+  const chartDatasets = [
+    {
+      label: 'Valor Simulado Bruto Acumulado (R$)',
+      data: apostadoData,
+      borderColor: '#00b0ff',
+      backgroundColor: 'rgba(0, 176, 255, 0.12)',
+      borderWidth: 3,
+      pointRadius: 4,
+      pointBackgroundColor: '#00b0ff',
+      tension: 0.3,
+      fill: true,
+      yAxisID: 'y',
+      order: 3
+    },
+    {
+      label: 'Lucro Líquido Real Acumulado (R$)',
+      data: lucroData,
+      borderColor: '#00e676',
+      backgroundColor: 'rgba(0, 230, 118, 0.15)',
+      borderWidth: 3.5,
+      pointRadius: 5,
+      pointBackgroundColor: '#00e676',
+      tension: 0.3,
+      fill: true,
+      yAxisID: 'y',
+      order: 1
+    },
+    {
+      label: 'Taxa de Acerto Acumulada (%)',
+      data: winRateData,
+      borderColor: '#f59e0b',
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderWidth: 2.5,
+      borderDash: [5, 4],
+      pointRadius: 4,
+      pointBackgroundColor: '#f59e0b',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 1.5,
+      pointHoverRadius: 6,
+      tension: 0.3,
+      fill: false,
+      yAxisID: 'y1',
+      order: 2
+    }
+  ];
+
+  if (showLiquidityLayer && liquidityData && liquidityData.length > 0) {
+    chartDatasets.push({
+      type: 'bar',
+      label: '💧 Índice Médio de Liquidez (0-100)',
+      data: liquidityData,
+      backgroundColor: 'rgba(56, 189, 248, 0.22)',
+      hoverBackgroundColor: 'rgba(56, 189, 248, 0.45)',
+      borderColor: 'rgba(56, 189, 248, 0.7)',
+      borderWidth: 1,
+      borderRadius: 5,
+      barPercentage: 0.45,
+      categoryPercentage: 0.65,
+      yAxisID: 'y1',
+      order: 99
+    });
+  }
+
   perfChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
-      datasets: [
-        {
-          label: 'Valor Simulado Bruto Acumulado (R$)',
-          data: apostadoData,
-          borderColor: '#00b0ff',
-          backgroundColor: 'rgba(0, 176, 255, 0.12)',
-          borderWidth: 3,
-          pointRadius: 4,
-          pointBackgroundColor: '#00b0ff',
-          tension: 0.3,
-          fill: true,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Lucro Líquido Real Acumulado (R$)',
-          data: lucroData,
-          borderColor: '#00e676',
-          backgroundColor: 'rgba(0, 230, 118, 0.15)',
-          borderWidth: 3.5,
-          pointRadius: 5,
-          pointBackgroundColor: '#00e676',
-          tension: 0.3,
-          fill: true,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Taxa de Acerto Acumulada (%)',
-          data: winRateData,
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.08)',
-          borderWidth: 2.5,
-          borderDash: [5, 4],
-          pointRadius: 4,
-          pointBackgroundColor: '#f59e0b',
-          pointBorderColor: '#ffffff',
-          pointBorderWidth: 1.5,
-          pointHoverRadius: 6,
-          tension: 0.3,
-          fill: false,
-          yAxisID: 'y1'
-        }
-      ]
+      datasets: chartDatasets
     },
     options: {
       responsive: true,
@@ -1911,7 +2431,14 @@ function renderChart(labels, apostadoData, lucroData, winRateData) {
                 label += ': ';
               }
               if (context.parsed.y !== null) {
-                if (context.dataset.yAxisID === 'y1' || (context.dataset.label && context.dataset.label.includes('%'))) {
+                if (label.includes('Liquidez')) {
+                  const val = Math.round(context.parsed.y);
+                  let desc = 'Comercial Sólida';
+                  if (val >= 85) desc = 'Institucional / Alta 🟢';
+                  else if (val >= 70) desc = 'Comercial Boa 🔵';
+                  else if (val < 55) desc = 'Nicho / Props (Risco de Limitação) 🔴';
+                  return `💧 Liquidez Média: ${val}/100 (${desc})`;
+                } else if (context.dataset.yAxisID === 'y1' || (context.dataset.label && context.dataset.label.includes('%'))) {
                   label += context.parsed.y.toFixed(1).replace('.', ',') + '%';
                 } else {
                   label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1951,7 +2478,7 @@ function renderChart(labels, apostadoData, lucroData, winRateData) {
             color: '#f59e0b',
             font: { family: 'Inter', weight: 'bold' },
             callback: function(value) {
-              return value + '%';
+              return value + (showLiquidityLayer ? ' (%/Pts)' : '%');
             }
           }
         }
@@ -1960,7 +2487,81 @@ function renderChart(labels, apostadoData, lucroData, winRateData) {
   });
 }
 
-function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, rawKeys) {
+function renderLiquidezTable(mercadoBuckets) {
+  const tbody = document.getElementById('tableLiquidezBody');
+  if (!tbody) return;
+
+  const mKeys = Object.keys(mercadoBuckets || {});
+  if (mKeys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Nenhum mercado com dados no período selecionado.</td></tr>';
+    return;
+  }
+
+  // Ordenar por score de liquidez desc, depois por volume de apostas desc
+  mKeys.sort((a, b) => {
+    const ma = mercadoBuckets[a];
+    const mb = mercadoBuckets[b];
+    const scoreA = (ma.liquidityCount > 0) ? Math.round(ma.liquidityScoreSum / ma.liquidityCount) : 50;
+    const scoreB = (mb.liquidityCount > 0) ? Math.round(mb.liquidityScoreSum / mb.liquidityCount) : 50;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return mb.count - ma.count;
+  });
+
+  let html = '';
+  mKeys.forEach(mName => {
+    const b = mercadoBuckets[mName];
+    const score = (b.liquidityCount > 0) ? Math.round(b.liquidityScoreSum / b.liquidityCount) : 50;
+    const avgStake = b.count > 0 ? (b.apostado / b.count) : 0;
+    
+    // Cor da barra de progresso
+    let barColor = '#00e676';
+    let textClass = 'text-success';
+    if (score < 60) {
+      barColor = '#ff5252';
+      textClass = 'text-danger';
+    } else if (score < 80) {
+      barColor = '#38bdf8';
+      textClass = 'text-info';
+    }
+
+    const category = b.category || (score >= 85 ? 'Institucional' : (score >= 65 ? 'Comercial' : 'Nicho / Props'));
+    const badgeClass = b.badgeClass || (score >= 85 ? 'bg-success text-dark' : (score >= 65 ? 'bg-info text-dark' : 'bg-warning text-dark'));
+    const maxStakeEst = b.maxStakeEst || (score >= 85 ? 'R$ 10.000 - R$ 50.000+' : (score >= 65 ? 'R$ 2.000 - R$ 10.000' : 'R$ 200 - R$ 600'));
+    const riscoLimitacao = b.riscoLimitacao || (score >= 85 ? 'Baixo (Alta Escalabilidade)' : (score >= 65 ? 'Moderado' : 'Alto (Risco de Limitação)'));
+    const riscoClass = b.riscoClass || (score >= 85 ? 'text-success' : (score >= 65 ? 'text-info' : 'text-danger'));
+
+    html += `
+      <tr>
+        <td class="fw-semibold text-white">
+          <i class="bi bi-tag-fill me-1 text-secondary"></i> ${mName}
+        </td>
+        <td class="text-center">
+          <div class="d-flex align-items-center justify-content-center gap-2">
+            <span class="fw-bold ${textClass}">${score}</span><span class="text-muted small">/100</span>
+            <div class="liq-progress-bar" style="width: 70px;">
+              <div class="liq-progress-fill" style="width: ${score}%; background: ${barColor};"></div>
+            </div>
+          </div>
+        </td>
+        <td class="text-center">
+          <span class="badge ${badgeClass} fw-bold" style="font-size: 0.72rem;">${category}</span>
+        </td>
+        <td class="text-center fw-semibold text-white">${b.count}</td>
+        <td class="text-white">${formatDynamicCurrency(avgStake)}</td>
+        <td class="fw-bold ${b.lucro >= 0 ? 'text-success' : 'text-danger'}">${formatDynamicCurrency(b.lucro)}</td>
+        <td class="text-center small fw-semibold text-light">${maxStakeEst}</td>
+        <td class="text-center small fw-bold ${riscoClass}">
+          <i class="bi ${score >= 85 ? 'bi-shield-check' : (score >= 65 ? 'bi-shield-exclamation' : 'bi-exclamation-triangle-fill')} me-1"></i>
+          ${riscoLimitacao}
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function renderModalidadesChart(labels, cartoesData, ahData, golsData, modalityTimeline, rawKeys) {
   const canvas = document.getElementById('modalidadesProfitChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1994,6 +2595,18 @@ function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, r
           borderWidth: 3,
           pointRadius: 4,
           pointBackgroundColor: '#ff9100',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        },
+        {
+          label: 'Gols Asiáticos (Over/Under) - Lucro Acumulado (R$)',
+          data: golsData,
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56, 189, 248, 0.12)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#38bdf8',
           pointHoverRadius: 6,
           tension: 0.3,
           fill: true
@@ -2033,8 +2646,9 @@ function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, r
               const lines = [];
               lines.push('──────────────────────');
               lines.push(`Resultado no Ponto (${tooltipItems[0].label}):`);
-              lines.push(`• Cartões: ${t.cartoesLucro >= 0 ? '+' : ''}${t.cartoesLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount} bets)`);
-              lines.push(`• Handicap Asiático: ${t.ahLucro >= 0 ? '+' : ''}${t.ahLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount} bets)`);
+              lines.push(`• Cartões: ${(t.cartoesLucro || 0) >= 0 ? '+' : ''}${(t.cartoesLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount || 0} bets)`);
+              lines.push(`• Handicap Asiático: ${(t.ahLucro || 0) >= 0 ? '+' : ''}${(t.ahLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount || 0} bets)`);
+              lines.push(`• Gols Asiáticos: ${(t.golsLucro || 0) >= 0 ? '+' : ''}${(t.golsLucro || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.golsCount || 0} bets)`);
               return lines;
             }
           }
@@ -2369,6 +2983,11 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     const bLucro = b.lucro;
@@ -2500,6 +3119,11 @@ function exportBreakdownCsv() {
     } else if (groupMode === 'mes' && k.length === 7) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
+    } else if (groupMode === 'trimestre') {
+      const parts = k.split('-');
+      label = parts.length === 2 ? `${parts[1]}/${parts[0]}` : k;
+    } else if (groupMode === 'ano') {
+      label = k;
     }
 
     if (isOpen) {

@@ -714,6 +714,54 @@ class FootballTrendsController extends BaseController
             ->setHeader('Cache-Control', 'public, max-age=604800')
             ->setBody($imageData);
     }
+
+    /**
+     * Proxy seguro e com cache local para os brasões das ligas/campeonatos (evita bloqueio por AdBlockers/CORS e zero custo de cota)
+     */
+    public function leagueLogo($leagueId = null)
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        $leagueId = (int)$leagueId;
+        if ($leagueId <= 0) {
+            return $this->response->setStatusCode(404);
+        }
+
+        $cache = \Config\Services::cache();
+        $cacheKey = "league_logo_{$leagueId}";
+        $imageData = $cache->get($cacheKey);
+
+        if ($imageData === 'NOT_FOUND') {
+            return $this->response->setStatusCode(404);
+        }
+
+        if (!$imageData) {
+            $url = "https://media.api-sports.io/football/leagues/{$leagueId}.png";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+            $imageData = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($imageData)) {
+                $cache->save($cacheKey, $imageData, 604800); // 7 dias de cache local
+            } else {
+                $cache->save($cacheKey, 'NOT_FOUND', 86400); // Evita chamadas repetidas se não existir brasão
+                return $this->response->setStatusCode(404);
+            }
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'image/png')
+            ->setHeader('Cache-Control', 'public, max-age=604800')
+            ->setBody($imageData);
+    }
 }
 
 

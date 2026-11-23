@@ -661,6 +661,7 @@ def run_cloudbet_bet_creator(
                 else:
                     exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, _ = calc_cards
                     card_bet_placed = False
+                    reject_reasons = []
 
                     # Ordena linhas da maior para a menor (maior linha = menor risco: 8.5 -> 7.5 -> 6.5 -> 5.5)
                     sorted_lines = sorted(cards_markets.keys(), reverse=True)
@@ -716,9 +717,25 @@ def run_cloudbet_bet_creator(
                                     apostas_duplicadas += 1
                             card_bet_placed = True
                             break # Encerra na melhor linha aprovada do jogo
+                        else:
+                            motivo_linha = []
+                            if not is_ref_confirmed:
+                                motivo_linha.append("Árbitro não confirmado")
+                            elif not is_ref_ok:
+                                motivo_linha.append(f"Árbitro rigoroso ({ref_cards_avg:.1f} cartões/jogo)")
+                            if not is_xc_ok:
+                                motivo_linha.append(f"Expectativa alta ({exp_cards:.2f} xC vs linha {line_val:g})")
+                            if prob_poisson_c < 60.0:
+                                motivo_linha.append(f"Probabilidade insuficiente ({prob_poisson_c:.1f}%)")
+                            if ev_perc_c <= 0.0:
+                                motivo_linha.append(f"Sem valor esperado ({ev_perc_c:+.1f}% EV @ {odd_cards:.2f})")
+                            if odd_cards < 1.50:
+                                motivo_linha.append(f"Odd abaixo de 1.50 (@ {odd_cards:.2f})")
+                            reject_reasons.append(f"Under {line_val:g}: {', '.join(motivo_linha)}")
 
                     if not card_bet_placed:
-                        print(f"   ❌ [Gatekeeper Cartões - Reprovado] {home} vs {away}: NO_BET | Cotações ou margens insuficientes para Under Cartões.")
+                        resumo_reprov = reject_reasons[0] if reject_reasons else "Cotações ou margens insuficientes para Under Cartões."
+                        print(f"   ❌ [Gatekeeper Cartões - Reprovado] {home} vs {away}: NO_BET | Motivo: {resumo_reprov}")
         else:
             print(f"   ⏳ [Cloudbet Cartões] Nenhuma linha de Cartões aberta no momento (seleções desativadas pela corretora).")
 

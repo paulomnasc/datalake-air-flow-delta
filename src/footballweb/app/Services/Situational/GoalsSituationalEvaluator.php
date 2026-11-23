@@ -82,18 +82,28 @@ class GoalsSituationalEvaluator implements SituationalEvaluatorInterface
                 );
             }
 
-            if ($sobraGols <= 0.5) {
-                // A 1 gol do estouro
-                if ($elapsed >= 82) {
+            // Se o placar atingiu 80% do limite de gols OU sobra <= 0.5 (a 1 gol de estourar a linha)
+            $progressoUnder = ($lineVal > 0) ? ($totalGols / $lineVal) : 0.0;
+            if ($sobraGols <= 0.5 || $progressoUnder >= 0.80) {
+                // A 1 gol do estouro ou >= 80% do limite
+                if ($elapsed >= 80) {
                     $gaugePct = 35;
                     $faixaCor = 'verde';
                     $isCashoutMoment = false;
                     $alertaTitulo = '🟢 Segure até o Fim (Reta Final)';
                     $alertaMsg = "{$totalGols} gols aos {$elapsed}'. Reta final: deixe o relógio correr para consolidar o Green!";
-                } else {
+                } elseif ($elapsed >= 46 && $elapsed <= 79) {
+                    // Janela Nobre de Cash Out (46' a 79' - Meio de Jogo)
                     $gaugePct = 60;
                     $faixaCor = 'cashout';
                     $isCashoutMoment = true;
+                    $alertaTitulo = '⚡ JANELA NOBRE DE CASHOUT (A 1 Gol do Limite)';
+                    $alertaMsg = "{$totalGols} gols marcados aos {$elapsed}' (próximo a 80% do limite de {$lineVal} gols). Momento ideal de agir na Cloudbet para resgate de capital!";
+                } else {
+                    // 1º tempo com risco elevado
+                    $gaugePct = 65;
+                    $faixaCor = 'cashout';
+                    $isCashoutMoment = ($totalGols >= 2);
                     $alertaTitulo = '⚡ MOMENTO DO CASHOUT';
                     $alertaMsg = "{$totalGols} gols marcados aos {$elapsed}'. Apenas 1 gol de margem de segurança. Avalie cashout preventivo!";
                 }
@@ -118,6 +128,8 @@ class GoalsSituationalEvaluator implements SituationalEvaluatorInterface
             );
         } else {
             // MERCADO OVER GOLS
+            $progressoOver = ($lineVal > 0) ? ($totalGols / $lineVal) : 0.0;
+
             if ($isLineInteger && $totalGols == (int)$lineVal) {
                 // Push garantido na linha inteira
                 return new SituationalResult(
@@ -149,7 +161,7 @@ class GoalsSituationalEvaluator implements SituationalEvaluatorInterface
             }
 
             if ($totalGols == ($isLineInteger ? ((int)$lineVal - 1) : floor($lineVal))) {
-                // Falta 1 gol
+                // Falta 1 gol para a meta
                 if ($elapsed <= 45) {
                     $gaugePct = 20;
                     $faixaCor = 'verde';
@@ -170,14 +182,22 @@ class GoalsSituationalEvaluator implements SituationalEvaluatorInterface
                     $alertaMsg = "Reta final de jogo ({$elapsed}'). Falta 1 gol para a meta. Avalie cashout para travar retorno parcial!";
                 }
             } else {
-                if ($elapsed >= 70) {
-                    $gaugePct = 85;
+                // Placar abaixo de 75% da meta de Over (ex: 0x0 em Over 2.0 / 2.5)
+                if ($elapsed >= 46 && $elapsed <= 79 && $progressoOver < 0.75) {
+                    // Janela Nobre de Cash Out (46' a 79' - Meio de Jogo)
+                    $gaugePct = ($elapsed >= 65) ? 85 : 70;
+                    $faixaCor = ($elapsed >= 65) ? 'vermelho' : 'cashout';
+                    $isCashoutMoment = true;
+                    $alertaTitulo = '⚡ JANELA NOBRE DE CASHOUT (Ritmo Lento)';
+                    $alertaMsg = "Apenas {$totalGols} gol(s) aos {$elapsed}' (abaixo de 75% do Over {$lineVal}). Momento ideal de agir na Cloudbet para resgate de capital com boas cotações!";
+                } elseif ($elapsed >= 80) {
+                    $gaugePct = 90;
                     $faixaCor = 'vermelho';
                     $isCashoutMoment = true;
-                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Ritmo Lento)';
+                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Reta Final)';
                     $alertaMsg = "Apenas {$totalGols} gols aos {$elapsed}'. Tempo escasseando para cobrir a linha Over {$lineVal}.";
                 } else {
-                    $gaugePct = max(25, min(70, round(65 - ($totalGols / $lineVal) * 40)));
+                    $gaugePct = max(25, min(70, round(65 - $progressoOver * 40)));
                     $faixaCor = ($gaugePct >= 50) ? 'amarelo' : 'verde';
                     $isCashoutMoment = false;
                     $alertaTitulo = ($gaugePct >= 50) ? '🟡 Buscando Gols' : '🟢 Jogo Aberto';

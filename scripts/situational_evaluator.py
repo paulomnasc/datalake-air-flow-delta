@@ -488,17 +488,25 @@ class GoalsSituationalEvaluator(SituationalEvaluatorInterface):
                     detalhe_tatico=detalhe_tatico
                 )
 
-            if sobra_gols <= 0.5:
-                if elapsed >= 82:
+            progresso_under = (total_gols / line_val) if line_val > 0 else 0.0
+            if sobra_gols <= 0.5 or progresso_under >= 0.80:
+                if elapsed >= 80:
                     gauge_pct = 35
                     faixa_cor = "verde"
                     is_cashout_moment = False
                     alerta_titulo = "🟢 Segure até o Fim (Reta Final)"
                     alerta_msg = f"{total_gols} gols aos {elapsed}'. Reta final: deixe o relógio correr para consolidar o Green!"
-                else:
+                elif 46 <= elapsed <= 79:
+                    # Janela Nobre de Cash Out (46' a 79' - Meio de Jogo)
                     gauge_pct = 60
                     faixa_cor = "cashout"
                     is_cashout_moment = True
+                    alerta_titulo = "⚡ JANELA NOBRE DE CASHOUT (A 1 Gol do Limite)"
+                    alerta_msg = f"{total_gols} gols marcados aos {elapsed}' (próximo a 80% do limite de {line_val} gols). Momento ideal de agir na Cloudbet para resgate de capital!"
+                else:
+                    gauge_pct = 65
+                    faixa_cor = "cashout"
+                    is_cashout_moment = (total_gols >= 2)
                     alerta_titulo = "⚡ MOMENTO DO CASHOUT"
                     alerta_msg = f"{total_gols} gols marcados aos {elapsed}'. Apenas 1 gol de margem de segurança. Avalie cashout preventivo!"
             else:
@@ -520,6 +528,8 @@ class GoalsSituationalEvaluator(SituationalEvaluatorInterface):
                 detalhe_tatico=detalhe_tatico
             )
         else:
+            progresso_over = (total_gols / line_val) if line_val > 0 else 0.0
+
             if is_line_integer and total_gols == int(line_val):
                 return SituationalResult(
                     gauge_pct=15,
@@ -568,12 +578,23 @@ class GoalsSituationalEvaluator(SituationalEvaluatorInterface):
             else:
                 if elapsed >= 70:
                     gauge_pct = 85
+                if 46 <= elapsed <= 79 and progresso_over < 0.75:
+                    # Janela Nobre de Cash Out (46' a 79' - Meio de Jogo)
+                    gauge_pct = 85 if elapsed >= 65 else 70
+                    faixa_cor = "vermelho" if elapsed >= 65 else "cashout"
+                    is_cashout_moment = True
+                    alerta_titulo = "⚡ JANELA NOBRE DE CASHOUT (Ritmo Lento)"
+                    alerta_msg = f"Apenas {total_gols} gol(s) aos {elapsed}' (abaixo de 75% do Over {line_val}). Momento ideal de agir na Cloudbet para resgate de capital com boas cotações!"
+                elif elapsed >= 80:
+                    gauge_pct = 90
                     faixa_cor = "vermelho"
                     is_cashout_moment = True
                     alerta_titulo = "⚡ MOMENTO DO CASHOUT (Ritmo Lento)"
+                    alerta_titulo = "⚡ MOMENTO DO CASHOUT (Reta Final)"
                     alerta_msg = f"Apenas {total_gols} gols aos {elapsed}'. Tempo escasseando para cobrir a linha Over {line_val}."
                 else:
                     gauge_pct = max(25, min(70, round(65 - (total_gols / line_val) * 40)))
+                    gauge_pct = max(25, min(70, round(65 - progresso_over * 40)))
                     faixa_cor = "amarelo" if gauge_pct >= 50 else "verde"
                     is_cashout_moment = False
                     alerta_titulo = "🟡 Buscando Gols" if gauge_pct >= 50 else "🟢 Jogo Aberto"

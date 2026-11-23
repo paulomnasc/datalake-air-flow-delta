@@ -48,9 +48,10 @@ class LiveSituationalBuilder
         $isLive = in_array($status, ['1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED']);
 
         // Compensação dinâmica contínua para eliminar lag entre ciclos de sincronização (com timezone America/Sao_Paulo)
-        if ($isLive && in_array($status, ['1H', '2H', 'LIVE']) && !empty($row->updated_at)) {
+        $refUpdated = !empty($row->fixture_updated_at) ? $row->fixture_updated_at : ($row->updated_at ?? null);
+        if ($isLive && in_array($status, ['1H', '2H', 'LIVE']) && !empty($refUpdated)) {
             try {
-                $lastSync = new \DateTime($row->updated_at, new \DateTimeZone('America/Sao_Paulo'));
+                $lastSync = new \DateTime($refUpdated, new \DateTimeZone('America/Sao_Paulo'));
                 $now = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
                 $diffSeconds = $now->getTimestamp() - $lastSync->getTimestamp();
                 if ($diffSeconds > 75 && $diffSeconds < 2700) {

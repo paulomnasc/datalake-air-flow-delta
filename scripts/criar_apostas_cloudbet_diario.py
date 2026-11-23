@@ -135,7 +135,13 @@ def place_and_commit_cloudbet_bet(
     )
 
     bet_id = order_res.get("betId")
-    if not bet_id or "error" in order_res or order_res.get("status") in ("REJECTED", "FAILED") or not order_res.get("success", True):
+    is_accepted = (
+        bool(bet_id) and
+        "error" not in order_res and
+        order_res.get("status") not in ("REJECTED", "FAILED") and
+        order_res.get("state") not in ("REJECTED", "FAILED")
+    )
+    if not is_accepted:
         conn.rollback()
         print(f"❌ [Cloudbet API Rejeitou Ordem] Bilhete não gerado pela Cloudbet: {order_res}. Rollback executado. Saldo preservado.")
         return False, False
@@ -198,6 +204,198 @@ def place_and_commit_cloudbet_bet(
         conn.rollback()
         print(f"🛑 [CONSTRAINT UNIQUE MySQL Barrou Duplicidade] {selected_palpite}: {e_dup}. Transação revertida com sucesso.")
         return False, True
+    except Exception as e_db:
+        conn.rollback()
+        print(f"🚨 [ERRO CRÍTICO NO MYSQL APÓS ORDEM CLOUDBET ACEITA #{bet_id}] Falha ao gravar localmente: {e_db}")
+        # Log fail-fast e alerta para auto-reconciliador recuperar
+        return False, False
+
+
+def reconcile_cloudbet_open_bets(client: CloudbetClient, conn, cursor, user_ids: List[int]) -> int:
+    """
+    Auto-reconciliador de segurança e idempotência:
+    Consulta as últimas apostas registradas na Cloudbet via API e verifica se alguma
+    aposta ativa/aceita não consta no banco de dados local. Caso positivo, efetua a recuperação
+    automática garantindo integridade e paridade com a banca real.
+    """
+    reconciled_cnt = 0
+    if not user_ids or client.dry_run:
+        return 0
+
+    try:
+        cloudbet_bets = client.list_bets(limit=30)
+    except Exception as e_api:
+        print(f"   ⚠️ [Reconciliação Cloudbet] Falha ao listar apostas da API: {e_api}")
+        return 0
+
+    primary_uid = user_ids[0]
+    for b in cloudbet_bets:
+        b_id = b.get("betId")
+        b_slip = b.get("betslipId")
+        b_state = b.get("state")
+        # Reconciliador de apostas ABERTAS: processa estritamente ordens ACCEPTED / PENDING
+        if not b_id or b_state not in ("ACCEPTED", "PENDING", "ACTIVE"):
+            continue
+
+        # Verifica se já existe por betId ou betslipId no resultado_detalhado
+        cursor.execute("""
+            SELECT id FROM apostas 
+            WHERE resultado_detalhado LIKE %s OR (%s IS NOT NULL AND resultado_detalhado LIKE %s)
+            LIMIT 1
+        """, (f"%{b_id}%", b_slip, f"%{b_slip}%" if b_slip else "%none%"))
+        ja_existe = cursor.fetchone()
+        if ja_existe:
+            continue
+
+        # Segunda barreira de desduplicação: checa extrato de conta_corrente
+        cursor.execute("""
+            SELECT id FROM conta_corrente 
+            WHERE descricao LIKE %s
+            LIMIT 1
+        """, (f"%{b_id}%",))
+        ja_existe_cc = cursor.fetchone()
+        if ja_existe_cc:
+            continue
+
+        # Ordem aceita pela Cloudbet ausente no MySQL! Reconciliar agora
+        sel = b.get("selection", {})
+        ev_id = sel.get("eventId")
+        m_url = sel.get("marketUrl", "")
+        price_val = float(b.get("price") or sel.get("price") or 1.0)
+        stake_val = float(b.get("stake") or 1.0)
+        potential_val = float(b.get("potentialReturnAmount") or (price_val * stake_val))
+        cur = b.get("currency") or client.currency
+
+        # Tenta enriquecer metadados do evento (Times e Fixture ID) via Cloudbet API e MySQL
+        home_nome = "Cloudbet Event"
+        away_nome = str(ev_id)
+        f_id_match = None
+        data_jogo = None
+
+        try:
+            ev_meta = client._request("GET", f"/pub/v2/odds/events/{ev_id}")
+            if ev_meta and not ev_meta.get("error"):
+                h_api = (ev_meta.get("home", {}) or {}).get("name", "")
+                a_api = (ev_meta.get("away", {}) or {}).get("name", "")
+                if h_api and a_api:
+                    home_nome = h_api
+                    away_nome = a_api
+
+                # Normalização ortográfica para busca tolerante em fixtures_trends
+                def _norm_t(s):
+                    return s.lower().replace("oe", "o").replace("ae", "a").replace("ø", "o").replace("å", "a").replace(" if", "").replace(" fc", "").replace(" fk", "").strip()[:5]
+
+                h_clean = _norm_t(home_nome)
+                a_clean = _norm_t(away_nome)
+
+                # Busca no fixtures_trends pelo nome do time mandante ou visitante
+                cursor.execute("""
+                    SELECT fixture_id, home_team, away_team, fixture_date 
+                    FROM fixtures_trends 
+                    WHERE (home_team LIKE %s OR away_team LIKE %s OR home_team LIKE %s OR away_team LIKE %s)
+                      AND fixture_date >= NOW() - INTERVAL 1 DAY
+                    ORDER BY id DESC LIMIT 1
+                """, (f"%{home_nome[:6]}%", f"%{away_nome[:6]}%", f"%{h_clean}%", f"%{a_clean}%"))
+                matched_fix = cursor.fetchone()
+                if matched_fix:
+                    f_id_match = matched_fix['fixture_id']
+                    home_nome = matched_fix['home_team']
+                    away_nome = matched_fix['away_team']
+                    data_jogo = matched_fix['fixture_date']
+        except Exception as e_ev:
+            print(f"   ⚠️ [Reconciliação Evento #{ev_id}] Detalhes não enriquecidos: {e_ev}")
+
+        # Mapeia mercado e palpite a partir da marketUrl de forma legível e humanizada
+        m_url_lower = m_url.lower()
+        if "draw_no_bet" in m_url_lower or "dnb" in m_url_lower:
+            m_nome = "Empate Anula a Aposta (DNB)"
+            if "away" in m_url_lower:
+                palpite_nome = f"{away_nome} (DNB)"
+            elif "home" in m_url_lower:
+                palpite_nome = f"{home_nome} (DNB)"
+            else:
+                palpite_nome = f"DNB {away_nome}"
+        elif "total_goals" in m_url_lower:
+            m_nome = "Gols Asiáticos (In-Play)" if ("in-play" in m_url_lower or "live" in m_url_lower) else "Total de Gols"
+            m_t = re.search(r'total=(\d+(?:\.\d+)?)', m_url)
+            tot_val = float(m_t.group(1)) if m_t else 2.5
+            is_ov = ("over" in m_url_lower or "mais" in m_url_lower)
+            palpite_nome = f"Mais de {tot_val:g} Gols Asiáticos" if is_ov else f"Menos de {tot_val:g} Gols Asiáticos"
+        elif "asian_handicap" in m_url_lower:
+            m_nome = "Handicap Asiático"
+            m_h = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', m_url)
+            h_val = float(m_h.group(1)) if m_h else 0.0
+            is_away = ("away" in m_url_lower)
+            t_cand = away_nome if is_away else home_nome
+            palpite_nome = f"{t_cand} {h_val:+.2f} AH" if h_val != 0.0 else f"{t_cand} 0.0 AH"
+        elif "cards" in m_url_lower or "booking" in m_url_lower:
+            m_nome = "Total de Cartões"
+            m_c = re.search(r'total=(\d+(?:\.\d+)?)', m_url)
+            tot_c = float(m_c.group(1)) if m_c else 5.5
+            if tot_c > 15.0:
+                tot_c = round(tot_c / 10.0, 1)
+            is_ov = ("over" in m_url_lower or "mais" in m_url_lower)
+            palpite_nome = f"Mais de {tot_c:g} Cartões" if is_ov else f"Menos de {tot_c:g} Cartões"
+        else:
+            m_nome = "Especiais Cloudbet"
+            palpite_nome = m_url
+
+        cloudbet_audit = f"|| CLOUDBET: {json.dumps({'bet_id': b_id, 'event_id': ev_id, 'market_url': m_url, 'is_simulated': False, 'currency': cur, 'reconciled': True})} || "
+        reasoning = (
+            f"Auto-Reconciliação Sistêmica: Ordem #{b_id} aceita na Cloudbet e sincronizada com sucesso "
+            f"para garantir idempotência e paridade com a banca real."
+        )
+        detalhado = f"{cloudbet_audit}|| EXPLICACAO: {reasoning} || MOTIVACAO: {reasoning} || STATUS GK: APROVADO\nSUGGESTION: {palpite_nome}\nREASON: {reasoning}"
+
+        try:
+            cursor.execute("""
+                INSERT INTO apostas (
+                    usuario_id, moeda_codigo, cotacao_brl_snapshot, fixture_id,
+                    time_casa, time_fora, mercado, casa_de_aposta, palpite,
+                    odd, odd_justa, probabilidade_poisson, ev_percentual,
+                    status_gatekeeper, gatekeeper_category, data_hora_jogo,
+                    valor_aposta, ganhos_potenciais, tipo, status,
+                    confirmada, destaque, resultado_detalhado, criado_em, updated_at
+                ) VALUES (
+                    %s, %s, 5.80, %s,
+                    %s, %s, %s, 'Cloudbet', %s,
+                    %s, %s, 50.00, 0.00,
+                    'APROVADO', %s, %s,
+                    %s, %s, 'Robô Cloudbet (Real)', 'Pendente',
+                    1, 1, %s, NOW(), NOW()
+                )
+            """, (
+                primary_uid, cur, f_id_match,
+                home_nome, away_nome, m_nome, palpite_nome,
+                price_val, price_val, m_nome,
+                data_jogo or datetime.now(),
+                stake_val, potential_val, detalhado
+            ))
+            rec_aposta_id = cursor.lastrowid
+
+            cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (primary_uid,))
+            u_r = cursor.fetchone()
+            s_a = float(u_r['saldo_conta_corrente'] or 0.0) if u_r else 0.0
+            s_p = round(s_a - stake_val, 8)
+            desc_rec = f"Débito Reconciliação Aposta #{rec_aposta_id} (Cloudbet {m_nome} - {b_id})"
+
+            cursor.execute("""
+                INSERT INTO conta_corrente (
+                    usuario_id, aposta_id, tipo, moeda_codigo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                ) VALUES (
+                    %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
+                )
+            """, (primary_uid, rec_aposta_id, cur, desc_rec, -stake_val, s_a, s_p))
+            cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_p, primary_uid))
+
+            conn.commit()
+            reconciled_cnt += 1
+            print(f"   🔄 [Auto-Reconciliação Cloudbet] Aposta #{b_id} recuperada e gravada com sucesso como #{rec_aposta_id}!")
+        except Exception as e_rec:
+            conn.rollback()
+            print(f"   ❌ [Falha ao Auto-Reconciliar #{b_id}]: {e_rec}")
+
+    return reconciled_cnt
 
 
 def run_cloudbet_bet_creator(
@@ -231,6 +429,11 @@ def run_cloudbet_bet_creator(
 
     user_ids = get_active_user_ids(cursor)
     print(f"👥 Usuários ativos para envio de ordens: {user_ids}")
+
+    # Reconciliação Automática Pré-Execução (Idempotência e Paridade com Banca Real)
+    rec_count = reconcile_cloudbet_open_bets(client, conn, cursor, user_ids)
+    if rec_count > 0:
+        print(f"🔄 [Idempotência Cloudbet] {rec_count} aposta(s) aberta(s) reconciliada(s) automaticamente no MySQL.")
 
     # Seleção de partidas no banco
     if fixture_id_filter:
@@ -484,18 +687,32 @@ def run_cloudbet_bet_creator(
             corners_tot = (fix.get('corners_home') or 0) + (fix.get('corners_away') or 0)
             xg_tot = float((fix.get('xg_home') or 0.0) + (fix.get('xg_away') or 0.0))
             
+            # Trava de Segurança Ofensiva: Exige volume mínimo de jogo (Anti-Truncado)
+            atividade_ofensiva = shots_tot + corners_tot
+            if elapsed_min >= 20 and atividade_ofensiva < 3:
+                print(f"   🛡️ [Sniper Gols Standby] Jogo aos {elapsed_min}' (0x0): Volume ofensivo insuficiente ({shots_tot} chutes, {corners_tot} cantos). Abstenção para proteção contra 0x0 monótono.")
+                continue
+
             # Expectativa Base de Gols
             lambda_base = xg_tot if xg_tot >= 1.20 else 2.40
             lambda_restante = lambda_base * tempo_restante_fator
-            if (shots_tot + corners_tot) >= 4:
+            if atividade_ofensiva >= 4:
                 lambda_restante *= 1.10  # Ritmo ofensivo ativo verificado em campo
                 
-            # Avaliação de Linhas de Over no Sweet Spot (1.60 a 2.15)
+            # Avaliação de Linhas de Over no Sweet Spot (1.65 a 2.15)
             inplay_cands = []
+            rejeicoes_sniper = []
             for t_val, outcomes in tg_markets.items():
                 if 'over' in outcomes:
                     price = float(outcomes['over']['price'])
-                    if 1.60 <= price <= 2.15 and t_val in (1.0, 1.25, 1.5, 1.75, 2.0):
+                    if t_val in (1.25, 1.5, 1.75, 2.0):
+                        if price < 1.65:
+                            rejeicoes_sniper.append(f"Over {t_val:g} @ {price:.2f} (abaixo do piso 1.65)")
+                            continue
+                        if price > 2.15:
+                            rejeicoes_sniper.append(f"Over {t_val:g} @ {price:.2f} (acima do teto 2.15)")
+                            continue
+                            
                         # Probabilidade de Poisson para minutos restantes
                         p0 = math.exp(-lambda_restante)
                         p1 = lambda_restante * p0
@@ -524,6 +741,8 @@ def run_cloudbet_bet_creator(
                                 'market_url': outcomes['over']['market_url'],
                                 'label': f"Mais de {t_val:g} Gols (In-Play)"
                             })
+                        else:
+                            rejeicoes_sniper.append(f"Over {t_val:g} @ {price:.2f} (Prob {prob_efetiva*100:.1f}%, EV {ev_perc:+.1f}%)")
                             
             if inplay_cands:
                 # Seleciona linha de maior probabilidade / win-rate
@@ -564,7 +783,8 @@ def run_cloudbet_bet_creator(
                     elif is_dup_g:
                         apostas_duplicadas += 1
             else:
-                print(f"   ℹ️ [Sniper Gols In-Play] Jogo aos {elapsed_min}' do 1T (0x0). Nenhuma linha de Over com +EV >= 5% e Sweet Spot (1.60-2.15) no momento.")
+                motivo_espera = ", ".join(rejeicoes_sniper[:2]) if rejeicoes_sniper else "Sem linhas cotadas no intervalo de valor"
+                print(f"   ℹ️ [Sniper Gols In-Play] Jogo aos {elapsed_min}' do 1T (0x0): {motivo_espera}. Aguardando decaimento temporal.")
         elif elapsed_min > 35:
             print(f"   🛡️ [Janela In-Play Encerrada] Partida aos {elapsed_min}' do 1T. Entradas em Gols no 0x0 restritas até os 35 minutos.")
         elif tg_markets:

@@ -303,6 +303,32 @@ def get_fixture_stats(fixture, cursor=None):
         'total_corners': corners_home + corners_away
     }
 
+def compose_settlement_resultado_detalhado(existing_text: Optional[str], settlement_detalhe: str) -> str:
+    """
+    Preserva blocos estruturados obrigatórios (Regras 15 e 16):
+    - || CLOUDBET: ... ||
+    - || U5J_DATA: ... ||
+    Anexando o resultado da liquidação sem destruição de metadados.
+    """
+    if not existing_text:
+        return settlement_detalhe
+    if settlement_detalhe in existing_text:
+        return existing_text
+
+    cloudbet_match = re.search(r'(\|\|\s*CLOUDBET:.*?\|\|)', existing_text, re.DOTALL)
+    u5j_match = re.search(r'(\|\|\s*U5J_DATA:.*?\|\|)', existing_text, re.DOTALL)
+
+    prefix_parts = []
+    if cloudbet_match:
+        prefix_parts.append(cloudbet_match.group(1).strip())
+    if u5j_match:
+        prefix_parts.append(u5j_match.group(1).strip())
+
+    if prefix_parts:
+        return f"{' '.join(prefix_parts)} {settlement_detalhe}"
+    return settlement_detalhe
+
+
 def evaluate_bet(aposta, stats):
     """
     Avalia se o palpite da aposta foi GANHO, PERDIDO ou ANULADO com base nas estatísticas finais da partida.
@@ -395,6 +421,11 @@ def evaluate_bet(aposta, stats):
 
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
         threshold = float(match_thresh.group(1)) if match_thresh else 5.5
+        # Normalização de Booking Points e linhas decimais da Cloudbet (ex: 55.5 -> 5.5, 5.55 -> 5.5, 65.5 -> 6.5, 6.55 -> 6.5)
+        if threshold > 15.0:
+            threshold = round(threshold / 10.0, 1)
+        elif threshold in (5.55, 6.55, 4.55, 7.55, 3.55):
+            threshold = round(threshold - 0.05, 1)
         
         # Regra Oficial: 1 Cartão Vermelho conta como 2 Cartões
         yh = stats.get('yellow_cards_home') or 0
@@ -588,6 +619,7 @@ def process_pending_bets():
                 detalhe = f"Partida adiada/cancelada oficialmente (status '{status_curr}') -> Aposta ANULADA (Reembolso de R$ {valor_computado:.2f})"
                 print(f"⏸️ {detalhe}. Liquidando aposta #{aposta_id}...")
                 
+                detalhe_salvar = compose_settlement_resultado_detalhado(aposta.get('resultado_detalhado'), detalhe)
                 cursor.execute("""
                     UPDATE apostas
                     SET status = %s,
@@ -596,7 +628,7 @@ def process_pending_bets():
                         processado_em = NOW(),
                         updated_at = NOW()
                     WHERE id = %s
-                """, (novo_status, detalhe, valor_computado, aposta_id))
+                """, (novo_status, detalhe_salvar, valor_computado, aposta_id))
 
                 is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
                 if is_confirmada:
@@ -622,6 +654,7 @@ def process_pending_bets():
             continue
 
         # Atualizar aposta no banco de dados
+        detalhe_salvar = compose_settlement_resultado_detalhado(aposta.get('resultado_detalhado'), detalhe)
         cursor.execute("""
             UPDATE apostas
             SET status = %s,
@@ -630,7 +663,7 @@ def process_pending_bets():
                 processado_em = NOW(),
                 updated_at = NOW()
             WHERE id = %s
-        """, (novo_status, detalhe, valor_computado, aposta_id))
+        """, (novo_status, detalhe_salvar, valor_computado, aposta_id))
 
         # Registra liquidação da aposta e marco de encerramento no log transversal da partida
         try:
@@ -759,6 +792,7 @@ def processar_apostas_fixture(fixture_id: int):
             if novo_status == 'Pendente':
                 continue
 
+            detalhe_salvar = compose_settlement_resultado_detalhado(aposta.get('resultado_detalhado'), detalhe)
             cursor.execute("""
                 UPDATE apostas
                 SET status = %s,
@@ -767,7 +801,7 @@ def processar_apostas_fixture(fixture_id: int):
                     processado_em = NOW(),
                     updated_at = NOW()
                 WHERE id = %s
-            """, (novo_status, detalhe, valor_computado, aposta_id))
+            """, (novo_status, detalhe_salvar, valor_computado, aposta_id))
 
             if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
                 is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
@@ -871,6 +905,10 @@ def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow
             return 'PENDING', "Aguardando consolidação das estatísticas oficiais de cartões da API"
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', linha)
         thresh = float(match_thresh.group(1)) if match_thresh else 4.5
+        if thresh > 15.0:
+            thresh = round(thresh / 10.0, 1)
+        elif thresh in (5.55, 6.55, 4.55, 7.55, 3.55):
+            thresh = round(thresh - 0.05, 1)
         is_under = ('menos' in linha_norm or 'under' in linha_norm)
         won = (tot_cards < thresh) if is_under else (tot_cards > thresh)
         st = 'GREEN' if won else 'RED'

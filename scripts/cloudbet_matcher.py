@@ -522,7 +522,7 @@ class CloudbetMatcher:
                         if m_b:
                             raw_val = float(m_b.group(1))
                             # Normalização: Booking Points (55.5 pts -> 5.5 cartões, 65.5 pts -> 6.5 cartões)
-                            line_cards = (raw_val / 10.0) if raw_val > 15.0 else raw_val
+                            line_cards = round(raw_val / 10.0, 1) if raw_val > 15.0 else raw_val
                             outcome = sel.get("outcome") # 'over' ou 'under'
                             
                             if line_cards not in parsed["cards"]:

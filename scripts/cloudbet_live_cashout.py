@@ -824,71 +824,44 @@ def evaluate_live_cashout_trigger(
                 return False, f"Aposta de Mais de {line_total} Gols já superada ({gh}x{ga}). Posição vencedora mantida sem hedge."
 
             deficit_gols = line_total - total_gols
+            progresso_over = (total_gols / line_total) if line_total > 0 else 0.0
 
-            # A) Janela dos 52' aos 73' (Janela de Ouro de Avaliação de Ritmo)
-            if 52 <= elapsed <= 73 and f_id:
-                window_bucket = "50_60" if elapsed < 60 else "60_73"
+            # A) Janela Nobre de Cash Out dos 46' aos 79' (Meio de Jogo - Resgate de capital com liquidez ativa)
+            if 46 <= elapsed <= 79 and f_id:
+                window_bucket = "46_60" if elapsed < 60 else "60_79"
                 audit_key = f"{f_id}_over_{window_bucket}"
 
-                # Subcenário A.1: Déficit de 2 ou mais gols (ex: 0x0 ou 0x1 em Mais de 2.5)
-                if deficit_gols >= 1.5:
-                    if tot_xg < 0.90 and tot_shots_all <= 6 and tot_corners <= 4:
-                        motivo_morno = (
-                            f"Temperatura do Jogo (Over com Déficit de 2+ Gols): Placar {gh}x{ga} aos {elapsed}' "
-                            f"(xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
-                            f"Ritmo insuficiente para produzir 2+ gols até o fim. Antecipando Hedge de Under para salvar a stake."
-                        )
-                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
-                            try:
-                                from lifecycle_logger import log_lifecycle_event
-                                log_lifecycle_event(
-                                    cursor=cursor,
-                                    fixture_id=f_id,
-                                    aposta_id=ap_id,
-                                    componente='LIVE_GAME_TEMPERATURE',
-                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
-                                    estado_anterior='Pendente',
-                                    estado_novo='Pendente',
-                                    minuto_jogo=elapsed,
-                                    fase_jogo='2H',
-                                    placar_momento=f"{gh}x{ga}",
-                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'MORNO', 'decisao': 'DISPARAR_HEDGE_ANTECIPADO'},
-                                    motivo=f"🌡️ {motivo_morno}"
-                                )
-                                conn.commit()
-                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
-                            except Exception:
-                                pass
-                        return True, motivo_morno
+                # Subcenário A.1: Placar abaixo de 75% da meta de Over (ex: 0x0 em Over 2.0 / 2.5 = 0%; 1 gol em Over 2.5 = 40%)
+                if progresso_over < 0.75:
+                    motivo_nobre = (
+                        f"Janela Nobre de Cash Out (46' a 79' - Ritmo Lento): Placar {gh}x{ga} aos {elapsed}' "
+                        f"(abaixo de 75% da meta Over {line_total} | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all} | Escanteios: {tot_corners}). "
+                        f"Momento ideal de agir na Cloudbet para resgate de capital e garantia de liquidez na ponta de Under."
+                    )
+                    if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
+                        try:
+                            from lifecycle_logger import log_lifecycle_event
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                aposta_id=ap_id,
+                                componente='LIVE_GAME_TEMPERATURE',
+                                tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
+                                estado_anterior='Pendente',
+                                estado_novo='Pendente',
+                                minuto_jogo=elapsed,
+                                fase_jogo='2H',
+                                placar_momento=f"{gh}x{ga}",
+                                delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'JANELA_NOBRE_CASHOUT', 'decisao': 'DISPARAR_HEDGE_ANTECIPADO'},
+                                motivo=f"⚡ {motivo_nobre}"
+                            )
+                            conn.commit()
+                            _LAST_TEMP_AUDIT_LOG[audit_key] = True
+                        except Exception:
+                            pass
+                    return True, motivo_nobre
 
-                    elif tot_xg >= 1.40 or tot_shots_all >= 8:
-                        motivo_quente = (
-                            f"Temperatura do Jogo: Pressão Ofensiva Ativa (Placar: {gh}x{ga} aos {elapsed}' | xG: {tot_xg:.2f} [{xg_source}] | Finalizações: {tot_shots_all}). "
-                            f"Volume ofensivo consistente na busca por gols. Posição mantida sem hedge antecipado."
-                        )
-                        if cursor and conn and not _LAST_TEMP_AUDIT_LOG.get(audit_key):
-                            try:
-                                from lifecycle_logger import log_lifecycle_event
-                                log_lifecycle_event(
-                                    cursor=cursor,
-                                    fixture_id=f_id,
-                                    aposta_id=ap_id,
-                                    componente='LIVE_GAME_TEMPERATURE',
-                                    tipo_evento='AUDITORIA_TEMPERATURA_JOGO',
-                                    estado_anterior='Pendente',
-                                    estado_novo='Pendente',
-                                    minuto_jogo=elapsed,
-                                    fase_jogo='2H',
-                                    placar_momento=f"{gh}x{ga}",
-                                    delta={'minuto': elapsed, 'fase': '2H', 'placar': f"{gh}x{ga}", 'xg_total': tot_xg, 'xg_source': xg_source, 'total_shots_all': tot_shots_all, 'total_corners': tot_corners, 'temperatura': 'QUENTE', 'decisao': 'MANTER_APOSTA'},
-                                    motivo=f"🌡️ {motivo_quente}"
-                                )
-                                conn.commit()
-                                _LAST_TEMP_AUDIT_LOG[audit_key] = True
-                            except Exception:
-                                pass
-
-                # Subcenário A.2: Faltando apenas 1 gol (ex: 0x2 em Mais de 2.5)
+                # Subcenário A.2: Faltando apenas 1 gol (progresso >= 75%, ex: 2 gols em Mais de 2.5)
                 elif deficit_gols == 0.5:
                     if tot_xg >= 1.20 or tot_shots_all >= 6 or tot_corners >= 4:
                         motivo_quente = (
@@ -1181,16 +1154,37 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         meta_event_id = str(cb_meta.get('event_id') or '')
         meta_market_url = str(cb_meta.get('market_url') or '')
 
-        event_id, opposite_market_url, hedge_price, min_stake, opp_palpite = find_cloudbet_opposite_market_and_quote(
-            client=client,
-            home=home,
-            away=away,
-            palpite=palpite,
-            market_url=meta_market_url,
-            event_id=meta_event_id,
-            fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
-            is_live=True
-        )
+        # Buffer de Liquidez In-Play: Micro-sondagens rápidas (até 4 tentativas a cada 4s)
+        # para capturar a reabertura imediata da linha após suspensões dinâmicas da corretora
+        event_id = None
+        opposite_market_url = None
+        hedge_price = 0.0
+        min_stake = 0.10
+        opp_palpite = None
+
+        max_inplay_probes = 4
+        probe_interval_sec = 4
+
+        for probe_num in range(1, max_inplay_probes + 1):
+            event_id, opposite_market_url, hedge_price, min_stake, opp_palpite = find_cloudbet_opposite_market_and_quote(
+                client=client,
+                home=home,
+                away=away,
+                palpite=palpite,
+                market_url=meta_market_url,
+                event_id=meta_event_id,
+                fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
+                is_live=True
+            )
+
+            if event_id and opposite_market_url and hedge_price > 0.0:
+                if probe_num > 1:
+                    print(f"   ⚡ [Buffer de Liquidez Cloudbet] Linha reaberta e capturada com sucesso na tentativa #{probe_num}!")
+                break
+
+            if probe_num < max_inplay_probes:
+                print(f"   ⏳ [Buffer de Liquidez Cloudbet] Linha temporariamente fechada/suspensa (tentativa {probe_num}/{max_inplay_probes}). Aguardando {probe_interval_sec}s para reabertura...")
+                time.sleep(probe_interval_sec)
 
         if not event_id or not opposite_market_url:
             is_gray = is_graylist_league(bet.get('league_id'))
@@ -1372,9 +1366,15 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             dry_run=client.dry_run
         )
 
-        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId")
+        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId") or res_co.get("betslipId")
         # Validação Estrita de Two-Phase Commit (API-First):
-        if not bet_id_hedge or "error" in res_co or res_co.get("status") in ("REJECTED", "FAILED") or not res_co.get("success", True):
+        is_accepted = (
+            bool(bet_id_hedge) and
+            "error" not in res_co and
+            res_co.get("status") not in ("REJECTED", "FAILED") and
+            res_co.get("state") not in ("REJECTED", "FAILED")
+        )
+        if not is_accepted:
             conn.rollback()
             print(f"   ❌ [Cloudbet API Rejeitou Ordem de Hedge] Bilhete não emitido pela Cloudbet: {res_co}. Rollback executado. Saldo preservado.")
             total_erros += 1
@@ -1683,9 +1683,15 @@ def executar_hedge_prejogo_cloudbet(
             dry_run=client.dry_run
         )
 
-        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId")
+        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId") or res_co.get("betslipId")
         # Validação Estrita de Two-Phase Commit (API-First):
-        if not bet_id_hedge or "error" in res_co or res_co.get("status") in ("REJECTED", "FAILED") or not res_co.get("success", True):
+        is_accepted = (
+            bool(bet_id_hedge) and
+            "error" not in res_co and
+            res_co.get("status") not in ("REJECTED", "FAILED") and
+            res_co.get("state") not in ("REJECTED", "FAILED")
+        )
+        if not is_accepted:
             if conn:
                 conn.rollback()
             print(f"   ❌ [Cloudbet API Rejeitou Ordem de Hedge Pré-Jogo] Bilhete não emitido pela Cloudbet: {res_co}. Rollback executado. Saldo preservado.")

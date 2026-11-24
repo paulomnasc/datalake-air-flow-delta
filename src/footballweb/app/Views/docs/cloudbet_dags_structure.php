@@ -24,6 +24,44 @@
         </div>
     </div>
 
+    <!-- INTRODUÇÃO: ARQUITETURA DE GOVERNANÇA EM 2 ESTÁGIOS (PRÉVIA MATEMÁTICA VS. SÚMULA OFICIAL) -->
+    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid rgba(56, 189, 248, 0.3) !important; border-left: 5px solid #38bdf8 !important; border-radius: 12px;">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="badge bg-info text-dark fw-bold px-2.5 py-1 text-uppercase" style="letter-spacing: 0.5px;">Governança Operacional</span>
+                <span class="text-white-50 small font-monospace">Decisão Algorítmica em 2 Estágios: Prévia Matemática vs. Trava de Súmula Oficial</span>
+            </div>
+            <h4 class="fw-bold text-white mb-2">
+                <i class="bi bi-shield-check text-info me-2"></i>Como Funciona a Avaliação de BET e NO-BET no Pipeline
+            </h4>
+            <p class="text-light mb-3" style="font-size: 0.92rem; line-height: 1.6;">
+                O sistema opera através de uma rigorosa <strong>arquitetura de decisão em dois estágios complementares</strong>, separando claramente a análise estatística preliminar da execução financeira definitiva na banca:
+            </p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: rgba(15, 23, 42, 0.6); border: 1px solid #334155;">
+                        <h6 class="fw-bold text-info mb-2 d-flex align-items-center gap-1.5">
+                            <i class="bi bi-calculator"></i> Estágio 1: Análise Prévia Matemática (Horas antes)
+                        </h6>
+                        <p class="text-secondary small mb-0" style="line-height: 1.55;">
+                            Ocorre no momento da ingestão da partida na esteira (véspera ou manhã do jogo). O motor de Poisson bivariado, as médias móveis U5J e o Gatekeeper analisam as probabilidades teóricas contra as cotações das bookmakers, atribuindo uma classificação preliminar de <strong>BET (Aprovado)</strong> ou <strong>NO-BET (Abstenção)</strong>. Partidas com anomalias de risco evidentes (ex: <em>Caldeirão da Degola</em>, <em>Mando Soberano</em> ou ausência de margem +EV) já são filtradas preventivamente nesta fase.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: rgba(15, 23, 42, 0.6); border: 1px solid #334155;">
+                        <h6 class="fw-bold text-success mb-2 d-flex align-items-center gap-1.5">
+                            <i class="bi bi-file-earmark-person-fill"></i> Estágio 2: Trava de Súmula Oficial (T-60m a T-45m)
+                        </h6>
+                        <p class="text-secondary small mb-0" style="line-height: 1.55;">
+                            <strong>A confirmação financeira real depende estritamente da Súmula Oficial (11 Titulares).</strong> Nenhuma ordem é enviada às cegas: no painel web, apostas Premium permanecem bloqueadas com o botão <span class="badge bg-secondary text-light">⏳ Aguardar Súmula</span>; no robô autônomo Cloudbet, o envio fica retido até que a escalação oficial seja confirmada em <code class="text-info">match_lineups_cache</code>. A <strong>IA Sentinela Gemini</strong> audita os titulares, podendo vetar apostas pré-aprovadas caso haja time misto (<span class="text-danger fw-bold">ALERTA_RISCO</span>) ou repescar partidas de NO-BET caso o adversário tenha poupado 5+ titulares (Reset Tático por Súmula).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- CARDS DE DESTAQUE QUANTITATIVO -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">

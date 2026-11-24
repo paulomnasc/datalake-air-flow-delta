@@ -372,6 +372,19 @@
                                 </span>
                             </div>
                         </li>
+                        <li class="d-flex align-items-start gap-3">
+                            <span class="badge bg-warning p-2 mt-1 text-dark"><i class="bi bi-stopwatch-fill"></i></span>
+                            <div>
+                                <strong class="text-white">Trading Live & Sniper In-Play no 1º Tempo (0' a 35'):</strong>
+                                <span class="d-block text-secondary small">
+                                    <code class="text-info">scripts/criar_apostas_cloudbet_diario.py</code> & <code class="text-info">scripts/cloudbet_live_cashout.py</code>: Durante o 1º tempo em <strong>0x0</strong>, opera rotinas dinâmicas:
+                                    <br>• <strong>Sniper de Gols (15' a 35' do 1T)</strong>: Captura o decaimento temporal de odds em <em>Mais de 1.5 / 2.0 Gols</em> no Sweet Spot (@ 1.65 ~ 2.15) com exigência de volume ofensivo (&ge; 3 chutes e cantos aos 20').
+                                    <br>• <strong>Handicap Asiático In-Play (0' a 35' do 1T)</strong>: Reavaliação de favoritismo territorial no 0x0 com linhas recuadas e odds infladas.
+                                    <br>• <strong>Cartões Under (0' a 10' do 1T)</strong>: Limite de segurança para entradas Under antes do aquecimento do atrito em campo.
+                                    <br>• <strong>Cross-Hedge Defensivo (Live Feed a cada 1-2 min)</strong>: Monitora desvios táticos e emite contra-ordens automáticas de proteção na Cloudbet.
+                                </span>
+                            </div>
+                        </li>
                     </ul>
                 </div>
             </div>

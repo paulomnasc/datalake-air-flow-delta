@@ -385,6 +385,19 @@
                                 </span>
                             </div>
                         </li>
+                        <li class="d-flex align-items-start gap-3">
+                            <span class="badge bg-info p-2 mt-1 text-dark"><i class="bi bi-person-x-fill"></i></span>
+                            <div>
+                                <strong class="text-white">Reset Tático por Súmula Oficial (IA Sentinela & Cloudbet):</strong>
+                                <span class="d-block text-secondary small">
+                                    <code class="text-info">scripts/gemini_sentinel.py</code> & <code class="text-info">scripts/criar_apostas_cloudbet_diario.py</code>: Governança em tempo real para reversão tática de desfalques:
+                                    <br>• <strong>Descoberta e Auditoria (T-45m a T-25m)</strong>: Ao receber a súmula oficial em <code>match_lineups_cache</code>, a IA Sentinela detecta desfalques críticos (goleiro reserva ou &ge; 5 titulares poupados).
+                                    <br>• <strong>Comunicação e Repescagem</strong>: O motor de Poisson recalibra o xG (penalização de 35% a 40% no time desfalcado) e converte o status de <strong>NO_BET para APROVADO</strong> com categoria <em>Reset Tático por Súmula</em> no Sweet Spot.
+                                    <br>• <strong>Persistência e Despacho Cripto</strong>: Registrado em <code>fixtures_trends</code> e despachado imediatamente para a Cloudbet; se o bookmaker congelar linhas no pré-jogo (<code>SELECTION_DISABLED</code>), a <code>criar_apostas_cloudbet_dag</code> assume o monitoramento in-play.
+                                    <br>• <strong>Carimbo Oficial de Validação</strong>: A aposta gerada é chancelada com <code>auditoria_ia_status = 'CONFIRMADO'</code>, categoria <em>Reset Tático por Súmula</em> e síntese auditável em linguagem natural no painel web.
+                                </span>
+                            </div>
+                        </li>
                     </ul>
                 </div>
             </div>

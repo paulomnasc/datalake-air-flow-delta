@@ -1483,6 +1483,18 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
 
             # 3. Atualização no Banco de Dados
             if is_confirmada:
+                # Se for Cloudbet, o bilhete já foi aceito pela bookmaker cripto com ID imutável.
+                # Não sobrescreve o palpite no banco para evitar descompasso com o bilhete real na Cloudbet;
+                # Em vez disso, sinaliza alerta de risco / salvaguarda para cash out ou hedge.
+                if item.get('casa_de_aposta') == 'Cloudbet':
+                    print(f"⚠️ [Cloudbet Bilhete Imutável] Aposta #{item['aposta_id']} na Cloudbet é imutável. Sinalizando salvaguarda para Hedge / Cash Out.")
+                    return {
+                        'bloquear_sinal_verde': True,
+                        'alerta_risco': True,
+                        'linha_recalibrada': False,
+                        'motivo_recalibragem': motivo_det_lf
+                    }
+
                 # Aposta já confirmada no bilhete com débito prévio:
                 # Troca dinamicamente o palpite e a cotação mantendo confirmada=1 e preservando o saldo
                 cursor.execute("""
@@ -1572,6 +1584,213 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     except Exception as e_gk:
         print(f"❌ [Sentinela Recalibragem] Falha durante recálculo do Gatekeeper: {e_gk}")
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
+
+
+
+def despachar_ordem_taticoreset_cloudbet(
+    cursor,
+    conn,
+    user_ids: list,
+    fixture_id: int,
+    home_team: str,
+    away_team: str,
+    fixture_date,
+    selected_palpite: str,
+    cand_odd: float,
+    cand_prob: float,
+    cand_ev: float,
+    best_cand: dict,
+    detalhe_calc: str,
+    cat_nome: str,
+    motivo_desfalque: str
+) -> dict:
+    """
+    Despacha ordem real/simulada na Trading API da Cloudbet para bancas com moeda USDT
+    quando a Sentinela identifica um Reset Tático por Súmula ou Sweet Spot.
+    Regra 8: inicialização prévia mandatória de variáveis numéricas locais.
+    Regra 12: apenas cotações reais da Cloudbet. Proibição estrita de odds sintéticas.
+    Regra 16: preservação obrigatória do bloco U5J estruturado.
+    """
+    total_ordens_executadas = 0
+    total_ordens_duplicadas = 0
+    total_ordens_sem_liquidez = 0
+
+    if not user_ids:
+        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': 0}
+
+    # 1. Identifica usuários com moeda USDT
+    cursor.execute("""
+        SELECT usuario_id, moeda_codigo, stake_padrao 
+        FROM metas_diarias_config 
+        WHERE usuario_id IN %s AND is_ativa = 1 AND moeda_codigo = 'USDT'
+    """, (tuple(user_ids),))
+    usdt_users = cursor.fetchall()
+
+    if not usdt_users:
+        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': 0}
+
+    print(f"\n🚀 [Sentinela Cloudbet] Identificado(s) {len(usdt_users)} usuário(s) USDT para despacho de Reset Tático (#{fixture_id} {home_team} vs {away_team}).")
+
+    try:
+        try:
+            from cloudbet_client import CloudbetClient
+            from cloudbet_matcher import CloudbetMatcher
+            from criar_apostas_cloudbet_diario import place_and_commit_cloudbet_bet
+        except ImportError:
+            from scripts.cloudbet_client import CloudbetClient
+            from scripts.cloudbet_matcher import CloudbetMatcher
+            from scripts.criar_apostas_cloudbet_diario import place_and_commit_cloudbet_bet
+        from asian_handicap_engine import (
+            fetch_all_cloudbet_ah_lines,
+            compose_compound_ah_reasoning,
+            BetTier
+        )
+    except Exception as e_imp:
+        print(f"❌ [Sentinela Cloudbet] Falha ao carregar dependências: {e_imp}")
+        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': 0}
+
+    # 2. Localização de linha e cotação REAL na Cloudbet (Regra 12)
+    market_url = None
+    event_id = None
+    odd_real = cand_odd
+
+    # Tentativa A: se best_cand já veio da Cloudbet e tem market_url
+    if best_cand and (best_cand.get('source') == 'Cloudbet' or best_cand.get('bookmaker') == 'Cloudbet') and best_cand.get('market_url'):
+        market_url = best_cand['market_url']
+        event_id = str(best_cand.get('cloudbet_event_id') or fixture_id)
+        odd_real = float(best_cand.get('odd') or cand_odd)
+        print(f"   🎯 [Cloudbet Candidato Nativo] Linha nativa Cloudbet identificada: {market_url} @ {odd_real:.2f}")
+    else:
+        # Tentativa B: busca linhas ativas de AH diretamente na Cloudbet
+        cb_lines = fetch_all_cloudbet_ah_lines(home_team, away_team, fixture_date=fixture_date)
+        is_away = away_team.lower() in selected_palpite.lower()
+        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', selected_palpite)
+        target_line = float(m_line.group(1)) if m_line else 0.0
+
+        for l in cb_lines:
+            if l.get('is_away') == is_away and abs(float(l.get('line', 999.0)) - target_line) < 0.01:
+                market_url = l.get('market_url')
+                odd_real = float(l.get('odd') or cand_odd)
+                event_id = str(l.get('cloudbet_event_id') or '')
+                print(f"   🎯 [Cloudbet Matcher AH] Linha compatível localizada: {l.get('palpite_str')} @ {odd_real:.2f} (URL: {market_url})")
+                break
+
+        # Tentativa C: consulta via get_event_markets para capturar equivalentes (DNB / Dupla Chance)
+        if not market_url:
+            client = CloudbetClient()
+            matcher = CloudbetMatcher(client=client)
+            ev_match = matcher.find_matching_event(home_team, away_team, fixture_date=fixture_date, is_live=False)
+            if ev_match and ev_match.get('event_id'):
+                event_id = str(ev_match['event_id'])
+                cb_mkts = matcher.get_event_markets(ev_match['event_id'], use_cache=False)
+                ah_mkts = cb_mkts.get('asian_handicap', {})
+                side_key = 'away' if is_away else 'home'
+                for hcap_key, outcomes in ah_mkts.items():
+                    if side_key in outcomes:
+                        c_line = float(hcap_key) if side_key == 'home' else float(-hcap_key)
+                        if abs(c_line - target_line) < 0.01:
+                            market_url = outcomes[side_key].get('market_url')
+                            odd_real = float(outcomes[side_key].get('price') or cand_odd)
+                            print(f"   🎯 [Cloudbet Equivalente] Linha {c_line:+} AH mapeada via mercado derivado: {market_url} @ {odd_real:.2f}")
+                            break
+
+    # Se não houver cotação real líquida na Cloudbet, decreta abstenção mandatória (Regra 12)
+    if not market_url or not event_id:
+        print(f"ℹ️ [Sentinela Cloudbet] #{fixture_id} {home_team} vs {away_team}: Linha '{selected_palpite}' não possui cotação real ativa na Cloudbet. Abstenção mandatória (Regra 12).")
+        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': len(usdt_users)}
+
+    # 3. Prepara reasoning preservando o bloco estruturado U5J (Regra 16)
+    fix_dict = {
+        'fixture_id': fixture_id,
+        'home_team': home_team,
+        'away_team': away_team,
+        'fixture_date': fixture_date
+    }
+    compound_reasoning = compose_compound_ah_reasoning(
+        cursor=cursor,
+        fixture_id=fixture_id,
+        main_calc=detalhe_calc,
+        suggestion=selected_palpite,
+        home_team=home_team,
+        away_team=away_team,
+        existing_reasoning=None
+    )
+
+    destaque_val = BetTier.PREMIUM.value if (cand_ev >= 10.0 or cand_prob >= 65.0) else BetTier.QUASE_PREMIUM.value
+    odd_justa = float(best_cand.get('eval', {}).get('odd_justa') or (100.0 / cand_prob if cand_prob > 0 else 1.50))
+    client = CloudbetClient()
+
+    # 4. Execução atômica para cada usuário USDT
+    for u_row in usdt_users:
+        uid = int(u_row['usuario_id'])
+        ok_order, is_dup = place_and_commit_cloudbet_bet(
+            client=client,
+            conn=conn,
+            cursor=cursor,
+            uid=uid,
+            fix=fix_dict,
+            event_id=str(event_id),
+            mercado='Handicap Asiático',
+            selected_palpite=selected_palpite,
+            odd_val=odd_real,
+            odd_justa=odd_justa,
+            prob_poisson=cand_prob,
+            ev_perc=cand_ev,
+            market_url=market_url,
+            cand_destaque=destaque_val,
+            gk_category=cat_nome,
+            reasoning_base=compound_reasoning
+        )
+
+        if ok_order:
+            total_ordens_executadas += 1
+            print(f"✅ [Sentinela Cloudbet] Ordem executada com SUCESSO para User #{uid}: {selected_palpite} @ {odd_real:.2f}")
+
+            # Busca ID da nova aposta gerada para a notificação
+            cursor.execute("""
+                SELECT id FROM apostas 
+                WHERE fixture_id = %s AND usuario_id = %s AND casa_de_aposta = 'Cloudbet'
+                ORDER BY id DESC LIMIT 1
+            """, (fixture_id, uid))
+            nova_aposta_row = cursor.fetchone()
+            nova_aposta_id = nova_aposta_row['id'] if nova_aposta_row else None
+
+            # Notificação Sininho In-App especializada
+            tit_exec = f"🎯 Ordem Cloudbet Executada [{cat_nome}]: {home_team} vs {away_team}"
+            msg_exec = (
+                f"{home_team} x {away_team} [{cat_nome}]: Entrada confirmada na Cloudbet! "
+                f"Palpite: {selected_palpite} @ {odd_real:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). "
+                f"{motivo_desfalque}"
+            )
+            try:
+                registrar_alerta_sininho(cursor, uid, aposta_id=nova_aposta_id, fixture_id=fixture_id, titulo=tit_exec, msg=msg_exec, tipo="ORDEM_CLOUDBET_RESET_SUMULA")
+                conn.commit()
+            except Exception as e_s:
+                print(f"⚠️ [Sininho Sentinela] Falha ao registrar alerta: {e_s}")
+
+            # Push Mobile via NTFY
+            try:
+                enviar_push_mobile(
+                    titulo=tit_exec,
+                    mensagem=msg_exec,
+                    fixture_id=fixture_id,
+                    prioridade=4,
+                    tags=["dart", "moneybag", "heavy_check_mark"]
+                )
+            except Exception as e_p:
+                print(f"⚠️ [Push Sentinela] Falha ao enviar push: {e_p}")
+
+        elif is_dup:
+            total_ordens_duplicadas += 1
+            print(f"ℹ️ [Sentinela Cloudbet] Bilhete já existente na Cloudbet para User #{uid} em #{fixture_id}.")
+        else:
+            print(f"❌ [Sentinela Cloudbet] Ordem rejeitada pela Cloudbet ou saldo insuficiente para User #{uid}.")
+
+    return {
+        'executadas': total_ordens_executadas,
+        'duplicadas': total_ordens_duplicadas,
+        'sem_liquidez': total_ordens_sem_liquidez
+    }
 
 
 
@@ -1750,21 +1969,41 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                     )
                     conn.commit()
 
-                    # Notificação Sininho In-App
-                    tit_notif = f"🔄 Reversão Tática [{cat_nome}]: {home} vs {away}"
-                    msg_notif = f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). {motivo_desfalque}"
-                    for uid in user_ids:
-                        registrar_alerta_sininho(cursor, uid, aposta_id=None, fixture_id=fid, titulo=tit_notif, msg=msg_notif, tipo="REVERSAO_TATICA_SUMULA")
-                    conn.commit()
-
-                    # Push Mobile via NTFY
-                    enviar_push_mobile(
-                        titulo=tit_notif,
-                        mensagem=msg_notif,
+                    # Despacho Especializado Cloudbet para Bancas Cripto (USDT)
+                    res_cb = despachar_ordem_taticoreset_cloudbet(
+                        cursor=cursor,
+                        conn=conn,
+                        user_ids=user_ids,
                         fixture_id=fid,
-                        prioridade=4,
-                        tags=["arrows_counterclockwise", "dart", "moneybag"]
+                        home_team=home,
+                        away_team=away,
+                        fixture_date=fdate,
+                        selected_palpite=palpite_sug,
+                        cand_odd=cand_odd,
+                        cand_prob=cand_prob,
+                        cand_ev=cand_ev,
+                        best_cand=best_cand,
+                        detalhe_calc=detalhe_calc,
+                        cat_nome=cat_nome,
+                        motivo_desfalque=motivo_desfalque
                     )
+
+                    # Notificação Sininho In-App e Push (apenas se não tiver ocorrido execução direta Cloudbet)
+                    if res_cb.get('executadas', 0) == 0:
+                        tit_notif = f"🔄 Reversão Tática [{cat_nome}]: {home} vs {away}"
+                        msg_notif = f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). {motivo_desfalque}"
+                        for uid in user_ids:
+                            registrar_alerta_sininho(cursor, uid, aposta_id=None, fixture_id=fid, titulo=tit_notif, msg=msg_notif, tipo="REVERSAO_TATICA_SUMULA")
+                        conn.commit()
+
+                        # Push Mobile via NTFY
+                        enviar_push_mobile(
+                            titulo=tit_notif,
+                            mensagem=msg_notif,
+                            fixture_id=fid,
+                            prioridade=4,
+                            tags=["arrows_counterclockwise", "dart", "moneybag"]
+                        )
             else:
                 print(f"ℹ️ [Sentinela Repescagem] #{fid} ({home} vs {away}) mantida em NO_BET após conferência de súmula.")
         except Exception as e_rev:

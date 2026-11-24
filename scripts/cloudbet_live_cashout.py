@@ -504,8 +504,18 @@ def find_cloudbet_opposite_market_and_quote(
     if event_id and opp_market_url:
         quote = get_live_opposite_quote(client, str(event_id), opp_market_url)
         if quote:
-            opposite_team = home if away.lower() in palpite.lower() else away
-            opp_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opp_market_url})"
+            if "cart" in palpite.lower() or "booking" in opp_market_url:
+                m_c = re.search(r'total=(\d+(?:\.\d+)?)', opp_market_url)
+                pts_val = float(m_c.group(1)) if m_c else 55.5
+                c_val = round(pts_val / 10.0, 1) if pts_val > 15.0 else pts_val
+                opp_palpite = f"Mais de {c_val:g} Cartões (Hedge)" if "/over" in opp_market_url else f"Menos de {c_val:g} Cartões (Hedge)"
+            elif "gol" in palpite.lower() or "total_goals" in opp_market_url:
+                m_g = re.search(r'total=(\d+(?:\.\d+)?)', opp_market_url)
+                g_val = float(m_g.group(1)) if m_g else 2.5
+                opp_palpite = f"Mais de {g_val:g} Gols (Hedge)" if "/over" in opp_market_url else f"Menos de {g_val:g} Gols (Hedge)"
+            else:
+                opposite_team = home if away.lower() in palpite.lower() else away
+                opp_palpite = f"{opposite_team} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opp_market_url})"
             return str(event_id), opp_market_url, float(quote['price']), float(quote['min_stake']), opp_palpite
 
     # 3. Hedge Dinâmico / Cruzado via CloudbetMatcher (procura o evento ao vivo e seleciona a melhor linha ativa)
@@ -603,14 +613,23 @@ def find_cloudbet_opposite_market_and_quote(
 
                 tb_dict = cb_markets.get("total_bookings", {})
                 sel_cand = None
+
+                # Prioridade 1: Linha exata do palpite original (se ainda estiver ativa)
                 if tot_cards in tb_dict and opp_cards_outcome in tb_dict[tot_cards]:
                     sel_cand = tb_dict[tot_cards][opp_cards_outcome]
-                elif tb_dict:
-                    for t_k, t_v in tb_dict.items():
-                        if opp_cards_outcome in t_v:
-                            sel_cand = t_v[opp_cards_outcome]
-                            tot_cards = t_k
-                            break
+
+                # Prioridade 2 (Modo Resgate): Se a linha original foi superada ou expirou,
+                # busca dinamicamente a menor linha viva de Over disponível que ainda seja viável
+                if not sel_cand and tb_dict:
+                    # Ordena as linhas disponíveis da menor para a maior
+                    sorted_lines = sorted(tb_dict.keys())
+                    for t_k in sorted_lines:
+                        if opp_cards_outcome in tb_dict[t_k]:
+                            p_cand = float(tb_dict[t_k][opp_cards_outcome].get("price") or 0.0)
+                            if p_cand > 1.0:
+                                sel_cand = tb_dict[t_k][opp_cards_outcome]
+                                tot_cards = t_k
+                                break
 
                 if not sel_cand and getattr(client, "dry_run", False):
                     opp_market_url = f"soccer.total_bookings/{opp_cards_outcome}?total={tot_cards}"
@@ -627,6 +646,7 @@ def find_cloudbet_opposite_market_and_quote(
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
             # Caso Total de Gols (Over / Under)
+            # Caso Total de Gols (Over / Under)
             elif "gol" in palpite.lower() or "over" in palpite.lower() or "under" in palpite.lower():
                 m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
                 tot_val = float(m_tot.group(1)) if m_tot else 2.5
@@ -635,21 +655,35 @@ def find_cloudbet_opposite_market_and_quote(
 
                 tg_dict = cb_markets.get("total_goals", {})
                 sel_cand = None
+                min_hedge_floor = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+
                 # Prioridade 1: Linha exata do total original
                 if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
                     sel_cand = tg_dict[tot_val][opp_tot_outcome]
-                # Prioridade 2: Linha ativa in-play mais equilibrada e líquida (odds >= 1.15)
-                elif tg_dict:
+                # Prioridade 2: Linha adaptativa in-play com liquidez segura (odds >= min_hedge_floor)
+                if not sel_cand and tg_dict:
                     best_diff = 999.0
                     for t_k, t_v in tg_dict.items():
                         if opp_tot_outcome in t_v:
                             cand = t_v[opp_tot_outcome]
-                            cand_price = cand.get("price", 0.0)
-                            diff = abs(cand_price - 1.80)
-                            if diff < best_diff and cand_price >= 1.15:
-                                best_diff = diff
-                                sel_cand = cand
-                                tot_val = t_k
+                            cand_price = float(cand.get("price", 0.0))
+                            if cand_price >= min_hedge_floor:
+                                diff = abs(cand_price - 1.90)
+                                if diff < best_diff:
+                                    best_diff = diff
+                                    sel_cand = cand
+                                    tot_val = t_k
+                    # Prioridade 3: Se nenhuma linha atingir o piso seguro, aceita a melhor linha in-play disponível com odd >= 1.25
+                    if not sel_cand:
+                        best_p = 0.0
+                        for t_k, t_v in tg_dict.items():
+                            if opp_tot_outcome in t_v:
+                                cand = t_v[opp_tot_outcome]
+                                cand_price = float(cand.get("price", 0.0))
+                                if cand_price > best_p and cand_price >= 1.25:
+                                    best_p = cand_price
+                                    sel_cand = cand
+                                    tot_val = t_k
 
                 if not sel_cand and getattr(client, "dry_run", False):
                     opp_market_url = f"soccer.total_goals/{opp_tot_outcome}?total={tot_val}"
@@ -664,10 +698,16 @@ def find_cloudbet_opposite_market_and_quote(
                     min_stake = float(sel_cand["min_stake"])
                     opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
+
+            # Se target_event_id foi localizado mas nenhuma linha tinha liquidez aberta,
+            # preserva target_event_id para evitar falso diagnóstico de evento não localizado
+            return target_event_id, None, 0.0, 0.10, None
+
     except Exception as e_m:
         print(f"⚠️ [Cross-Hedge Matcher Error] Falha ao resolver mercado oposto na Cloudbet: {e_m}")
 
-    return None, None, 0.0, 0.10, None
+    resolved_ev_id = target_event_id if ('target_event_id' in locals() and target_event_id) else (event_id or None)
+    return resolved_ev_id, None, 0.0, 0.10, None
 
 
 def evaluate_live_cashout_trigger(
@@ -1001,6 +1041,47 @@ def evaluate_live_cashout_trigger(
                     )
                     return True, motivo
 
+    # =========================================================================
+    # 3. CENÁRIOS DE TOTAL DE CARTÕES (UNDER CARTÕES)
+    # =========================================================================
+    elif 'cart' in mercado.lower() or 'cart' in palpite.lower() or 'booking' in str(bet_row.get('market_url') or '').lower():
+        is_under = 'menos' in palpite.lower() or 'under' in palpite.lower()
+        if is_under:
+            m_cards = re.search(r'(\d+(?:\.\d+)?)', palpite)
+            line_cards = float(m_cards.group(1)) if m_cards else 5.5
+
+            yc_h = int((stats_inplay.get('yellow_cards_home') if stats_inplay else None) or bet_row.get('yellow_cards_home') or 0)
+            yc_a = int((stats_inplay.get('yellow_cards_away') if stats_inplay else None) or bet_row.get('yellow_cards_away') or 0)
+            rc_h = int((stats_inplay.get('red_cards_home') if stats_inplay else None) or bet_row.get('red_cards_home') or 0)
+            rc_a = int((stats_inplay.get('red_cards_away') if stats_inplay else None) or bet_row.get('red_cards_away') or 0)
+
+            tot_cards_live = yc_h + yc_a + rc_h + rc_a
+
+            # Modo 'Morrer Tentando': Mesmo se a linha original foi superada,
+            # continua disparando o gatilho ininterruptamente até o apito final para buscar Over na linha viva superior!
+            if tot_cards_live >= line_cards:
+                motivo = (
+                    f"🚨 [Hedge de Resgate In-Play]: Linha Under {line_cards} atingida ({tot_cards_live} cartões aos {elapsed}'). "
+                    f"Buscando compra de Over na linha viva superior para recuperar a stake e reverter a perda até o apito final."
+                )
+                return True, motivo
+
+            # Gatilho 1: Acúmulo severo no 1º Tempo (ex: 3+ cartões no Under 5.5 ou 4+ no Under 6.5)
+            if elapsed <= 45 and tot_cards_live >= (line_cards - 2.5):
+                motivo = (
+                    f"Alerta de Risco Severo Cartões: {tot_cards_live} cartões já aplicados aos {elapsed}' do 1T. "
+                    f"Atrito disciplinar elevado ameaça a linha Under {line_cards}. Hedge para Over necessário."
+                )
+                return True, motivo
+
+            # Gatilho 2: Apenas 1 cartão restante para estourar a linha a partir dos 50'
+            if elapsed >= 50 and tot_cards_live >= (line_cards - 1.5):
+                motivo = (
+                    f"Atenção ao Under Cartões (Linha {line_cards}): {tot_cards_live} cartões aos {elapsed}'. "
+                    f"Apenas 1 cartão restante para a perda total em partida com alta tensão. Hedge para Over necessário."
+                )
+                return True, motivo
+
     return False, "Nenhum gatilho de risco acionado"
 
 
@@ -1028,6 +1109,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
     cursor.execute("""
         SELECT a.id, a.usuario_id, a.fixture_id, a.palpite, a.mercado, a.odd,
                a.valor_aposta, a.moeda_codigo, a.ganhos_potenciais, a.resultado_detalhado,
+               a.data_hora_jogo,
                a.casa_de_aposta,
                ft.status as fixture_status, ft.home_team as time_casa, ft.away_team as time_fora,
                ft.home_team_id, ft.away_team_id, ft.ah_reasoning,
@@ -1297,7 +1379,16 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 print(f"⚠️ [Erro Lifecycle Logger Mercado Suspenso]: {e_log}")
             continue
 
+        # Piso Mínimo de Cotação de Hedge (Resgate Patrimonial Inteligente):
+        # - Padrão regular: 1.65 (CLOUDBET_HEDGE_MIN_ODD) para garantir simetria matemática
+        # - Exceção de Emergência (Reta Crítica): quando a aposta de Cartões ou Gols está a 1 unidade do Red total,
+        #   o mercado derrete a odd de cobertura. Um piso de 1.25 permite resgatar parte substancial do capital
+        #   em vez de sofrer perda de 100% da stake por rigidez excessiva.
+        is_cards_hedge = any(k in mercado_str or k in palpite_str for k in ('cart', 'card', 'booking'))
         min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+        if is_cards_hedge or "Apenas 1" in motivo or "A 1 gol" in motivo:
+            min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_EMERGENCY_MIN_ODD", "1.25"))
+
         if hedge_price < min_hedge_odd and not client.dry_run:
             print(f"   🛑 [Hedge Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}). Abortando para evitar risco assimétrico prejudicial à banca.")
             tit_der = f"⚠️ Hedge Abortado (Odd Derretida): {home} vs {away}"
@@ -1333,10 +1424,10 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         # Idempotência Prévia Estrita: verifica se já existe hedge emitido para esta aposta
         cursor.execute("""
             SELECT id FROM apostas 
-            WHERE resultado_detalhado LIKE CONCAT('%HEDGE_ORIGEM: #', %s)
+            WHERE resultado_detalhado LIKE %s
               AND status NOT IN ('Cancelada', 'Não Confirmada')
             LIMIT 1
-        """, (aposta_id,))
+        """, (f"%HEDGE_ORIGEM: #{aposta_id}%",))
         hedge_existente = cursor.fetchone()
         if hedge_existente:
             print(f"   ℹ️ [Hedge Já Existe para Aposta #{aposta_id}] Hedge #{hedge_existente['id']} já emitido anteriormente. Duplicação de hedge bloqueada.")
@@ -1382,6 +1473,16 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         # Transação Atômica: Inserção do Hedge, Débito e Atualização da Aposta Original com Captura de IntegrityError
         try:
+            data_jogo_hedge = bet.get('data_hora_jogo') or bet.get('fixture_date') or datetime.now()
+            cb_payload = json.dumps({
+                "bet_id": bet_id_hedge,
+                "event_id": str(event_id) if event_id else '',
+                "market_url": opposite_market_url,
+                "is_simulated": bool(res_co.get("is_simulated", client.dry_run)),
+                "currency": cur
+            })
+            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de Hedge Real emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: Hedge Real In-Play acionado para recuperar stake e reverter perda até o apito final."
+
             cursor.execute("""
                 INSERT INTO apostas (
                     usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
@@ -1391,13 +1492,13 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s,
                     'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real In-Play',
-                    NOW(), %s, %s, 'Hedge Real', 'Pendente',
+                    %s, %s, %s, 'Hedge Real', 'Pendente',
                     %s, NOW(), NOW(), 1
                 )
             """, (
                 uid_bet, cur, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-                opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
-                f"Bilhete de Hedge Real emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge}"
+                opposite_palpite, hedge_price, hedge_price, data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2),
+                detalhado_hedge
             ))
             new_hedge_aposta_id = cursor.lastrowid
 
@@ -1651,10 +1752,10 @@ def executar_hedge_prejogo_cloudbet(
         # Idempotência Prévia Estrita: verifica se já existe hedge emitido para esta aposta
         cursor.execute("""
             SELECT id FROM apostas 
-            WHERE resultado_detalhado LIKE CONCAT('%HEDGE_ORIGEM: #', %s)
+            WHERE resultado_detalhado LIKE %s
               AND status NOT IN ('Cancelada', 'Não Confirmada')
             LIMIT 1
-        """, (aposta_id,))
+        """, (f"%HEDGE_ORIGEM: #{aposta_id}%",))
         hedge_existente = cursor.fetchone()
         if hedge_existente:
             print(f"   ℹ️ [Hedge Pré-Jogo Já Existe para Aposta #{aposta_id}] Hedge #{hedge_existente['id']} já emitido anteriormente. Duplicação de hedge bloqueada.")
@@ -1707,6 +1808,16 @@ def executar_hedge_prejogo_cloudbet(
 
         # Transação Atômica: Inserção do Hedge, Débito e Atualização da Aposta Original com Captura de IntegrityError
         try:
+            data_jogo_hedge = bet.get('data_hora_jogo') or bet.get('fixture_date') or datetime.now()
+            cb_payload = json.dumps({
+                "bet_id": bet_id_hedge,
+                "event_id": str(event_id) if event_id else '',
+                "market_url": opposite_market_url,
+                "is_simulated": bool(res_co.get("is_simulated", client.dry_run)),
+                "currency": client.currency
+            })
+            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de Hedge Real Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: Hedge Real Pré-Jogo emitido."
+
             cursor.execute("""
                 INSERT INTO apostas (
                     usuario_id, moeda_codigo, fixture_id, time_casa, time_fora, mercado,
@@ -1716,13 +1827,13 @@ def executar_hedge_prejogo_cloudbet(
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s,
                     'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real Pré-Jogo',
-                    NOW(), %s, %s, 'Hedge Real', 'Pendente',
+                    %s, %s, %s, 'Hedge Real', 'Pendente',
                     %s, NOW(), NOW(), 1
                 )
             """, (
                 usuario_id, client.currency, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-                opposite_palpite, hedge_price, hedge_price, hedge_stake, round(hedge_stake * hedge_price, 2),
-                f"Bilhete de Hedge Real Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge}"
+                opposite_palpite, hedge_price, hedge_price, data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2),
+                detalhado_hedge
             ))
             new_hedge_aposta_id = cursor.lastrowid
 

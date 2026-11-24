@@ -524,12 +524,35 @@ class ApostaController extends BaseController
             }
         }
 
-        // AVALIAÇÃO DE CARTÕES OVER (DESATIVADA - ESTRATÉGIA 100% EXCLUSIVA UNDER CARTÕES)
+        // AVALIAÇÃO DE CARTÕES OVER
         if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
-            $statusGatekeeper = 'AVISO_RISCO_OVER';
-            $gatekeeperCategory = 'Aviso de Risco Over';
-            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under Cartões): O mercado de cartões opera com foco restrito em Under Cartões para salvaguarda de banca e alta assertividade. Entradas em Over Cartões não são recomendadas pela esteira.";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+            // Exceção Autorizada: Mais de 4.5 Cartões em Cenário de Crise/Atrito Disciplinar U5J
+            preg_match('/(\d+\.\d+|\d+)/', $palpite, $mOverLine);
+            $lineOverVal = !empty($mOverLine[1]) ? (float)$mOverLine[1] : 4.5;
+            
+            $isCrisisMatch = false;
+            if ($fixture) {
+                $hZone = strtolower($fixture->home_zone ?? '');
+                $aZone = strtolower($fixture->away_zone ?? '');
+                $hRank = (int)($fixture->home_rank ?? 0);
+                $aRank = (int)($fixture->away_rank ?? 0);
+                $isCrisisMatch = (strpos($hZone, 'relegation') !== false || strpos($hZone, 'rebaixamento') !== false ||
+                                  strpos($aZone, 'relegation') !== false || strpos($aZone, 'rebaixamento') !== false ||
+                                  $hRank >= 17 || $aRank >= 17);
+            }
+
+            if (abs($lineOverVal - 4.5) < 0.01 && $isCrisisMatch) {
+                $statusGatekeeper = 'APROVADO';
+                $gatekeeperCategory = 'Atrito Disciplinar U5J (+EV Over 4.5)';
+                $gatekeeperMsg = "🎯 GATEKEEPER CARTÕES APROVADO: Partida em ambiente de crise aguda/tensão de tabela (Under Vetado -> Pivô Over 4.5 Aprovado).";
+                $destaque = 1;
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+            } else {
+                $statusGatekeeper = 'AVISO_RISCO_OVER';
+                $gatekeeperCategory = 'Aviso de Risco Over';
+                $gatekeeperMsg = "Alerta de Risco Gatekeeper: O mercado de cartões opera com foco em Under, autorizando Over estritamente na linha Mais de 4.5 em cenários de tensão de tabela/crise U5J.";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperCategory', 'gatekeeperMsg', 'destaque');
+            }
         }
 
         if ($fixture) {

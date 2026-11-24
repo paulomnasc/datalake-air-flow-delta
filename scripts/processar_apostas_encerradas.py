@@ -13,6 +13,7 @@ import hashlib
 import random
 import requests
 from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
 
 from db_config import get_db_connection
 

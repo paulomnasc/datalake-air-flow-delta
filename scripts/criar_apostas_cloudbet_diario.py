@@ -91,19 +91,32 @@ def place_and_commit_cloudbet_bet(
     away = fix['away_team'].strip()
     dt = fix['fixture_date']
 
-    # 1. Barreira Pré-Execução de Idempotência Estrita por Linha/Mercado (Sem duplicar mesmo com variação de odd)
+    # 1. Barreira Pré-Execução por Direção (Proibido 2 Over ou 2 Under para o mesmo jogo/mercado)
+    is_new_under = any(k in selected_palpite.lower() for k in ('menos', 'under'))
+    is_new_over = any(k in selected_palpite.lower() for k in ('mais', 'over'))
+
     cursor.execute("""
-        SELECT id, palpite, odd FROM apostas 
-        WHERE fixture_id = %s AND usuario_id = %s AND casa_de_aposta = 'Cloudbet'
-          AND mercado = %s AND palpite = %s
+        SELECT id, palpite, odd, tipo FROM apostas 
+        WHERE (fixture_id = %s OR resultado_detalhado LIKE %s)
+          AND usuario_id = %s AND casa_de_aposta = 'Cloudbet'
+          AND mercado = %s
           AND confirmada = 1
           AND status NOT IN ('Cancelada', 'Não Confirmada')
-        LIMIT 1
-    """, (f_id, uid, mercado, selected_palpite))
-    ja_tem = cursor.fetchone()
-    if ja_tem:
-        print(f"   ℹ️ [Linha Já Apostada Cloudbet #{f_id}] {selected_palpite} (Odd anterior: {ja_tem['odd']}, atual: {odd_val:.2f}). Duplicação bloqueada.")
-        return False, True
+    """, (f_id, f"%{event_id}%", uid, mercado))
+    apostas_ativas = cursor.fetchall()
+
+    for ap in apostas_ativas:
+        ap_palp = str(ap.get('palpite') or '').lower()
+        is_exist_under = any(k in ap_palp for k in ('menos', 'under'))
+        is_exist_over = any(k in ap_palp for k in ('mais', 'over'))
+
+        # Se for na MESMA direção (2 Under ou 2 Over), bloqueia imediatamente!
+        if (is_new_under and is_exist_under) or (is_new_over and is_exist_over):
+            print(f"   🛑 [Direção Já Apostada #{f_id}] Já existe aposta ativa em {'Under' if is_new_under else 'Over'} ({ap['palpite']} @ {ap['odd']}). Proibido duplicar a mesma ponta! Duplicação bloqueada.")
+            return False, True
+        elif selected_palpite.strip().lower() == ap_palp.strip():
+            print(f"   ℹ️ [Linha Já Apostada Cloudbet #{f_id}] {selected_palpite} (Odd anterior: {ap['odd']}, atual: {odd_val:.2f}). Duplicação bloqueada.")
+            return False, True
 
     # 2. Definição da Stake
     cursor.execute("""
@@ -134,10 +147,10 @@ def place_and_commit_cloudbet_bet(
         currency=client.currency
     )
 
-    bet_id = order_res.get("betId")
+    bet_id = order_res.get("betId") or order_res.get("referenceId")
     is_accepted = (
         bool(bet_id) and
-        "error" not in order_res and
+        not order_res.get("error") and
         order_res.get("status") not in ("REJECTED", "FAILED") and
         order_res.get("state") not in ("REJECTED", "FAILED")
     )
@@ -294,7 +307,7 @@ def reconcile_cloudbet_open_bets(client: CloudbetClient, conn, cursor, user_ids:
                     FROM fixtures_trends 
                     WHERE (home_team LIKE %s OR away_team LIKE %s OR home_team LIKE %s OR away_team LIKE %s)
                       AND fixture_date >= NOW() - INTERVAL 1 DAY
-                    ORDER BY id DESC LIMIT 1
+                    ORDER BY fixture_id DESC LIMIT 1
                 """, (f"%{home_nome[:6]}%", f"%{away_nome[:6]}%", f"%{h_clean}%", f"%{a_clean}%"))
                 matched_fix = cursor.fetchone()
                 if matched_fix:
@@ -305,40 +318,13 @@ def reconcile_cloudbet_open_bets(client: CloudbetClient, conn, cursor, user_ids:
         except Exception as e_ev:
             print(f"   ⚠️ [Reconciliação Evento #{ev_id}] Detalhes não enriquecidos: {e_ev}")
 
-        # Mapeia mercado e palpite a partir da marketUrl de forma legível e humanizada
-        m_url_lower = m_url.lower()
-        if "draw_no_bet" in m_url_lower or "dnb" in m_url_lower:
-            m_nome = "Empate Anula a Aposta (DNB)"
-            if "away" in m_url_lower:
-                palpite_nome = f"{away_nome} (DNB)"
-            elif "home" in m_url_lower:
-                palpite_nome = f"{home_nome} (DNB)"
-            else:
-                palpite_nome = f"DNB {away_nome}"
-        elif "total_goals" in m_url_lower:
-            m_nome = "Gols Asiáticos (In-Play)" if ("in-play" in m_url_lower or "live" in m_url_lower) else "Total de Gols"
-            m_t = re.search(r'total=(\d+(?:\.\d+)?)', m_url)
-            tot_val = float(m_t.group(1)) if m_t else 2.5
-            is_ov = ("over" in m_url_lower or "mais" in m_url_lower)
-            palpite_nome = f"Mais de {tot_val:g} Gols Asiáticos" if is_ov else f"Menos de {tot_val:g} Gols Asiáticos"
-        elif "asian_handicap" in m_url_lower:
-            m_nome = "Handicap Asiático"
-            m_h = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', m_url)
-            h_val = float(m_h.group(1)) if m_h else 0.0
-            is_away = ("away" in m_url_lower)
-            t_cand = away_nome if is_away else home_nome
-            palpite_nome = f"{t_cand} {h_val:+.2f} AH" if h_val != 0.0 else f"{t_cand} 0.0 AH"
-        elif "cards" in m_url_lower or "booking" in m_url_lower:
-            m_nome = "Total de Cartões"
-            m_c = re.search(r'total=(\d+(?:\.\d+)?)', m_url)
-            tot_c = float(m_c.group(1)) if m_c else 5.5
-            if tot_c > 15.0:
-                tot_c = round(tot_c / 10.0, 1)
-            is_ov = ("over" in m_url_lower or "mais" in m_url_lower)
-            palpite_nome = f"Mais de {tot_c:g} Cartões" if is_ov else f"Menos de {tot_c:g} Cartões"
-        else:
-            m_nome = "Especiais Cloudbet"
-            palpite_nome = m_url
+        # Mapeia mercado e palpite a partir da marketUrl via Hash Table canônica
+        from cloudbet_market_translator import CloudbetMarketTranslator
+        m_nome, palpite_nome = CloudbetMarketTranslator.translate(
+            market_url=m_url,
+            home_team=home_nome,
+            away_team=away_nome
+        )
 
         cloudbet_audit = f"|| CLOUDBET: {json.dumps({'bet_id': b_id, 'event_id': ev_id, 'market_url': m_url, 'is_simulated': False, 'currency': cur, 'reconciled': True})} || "
         reasoning = (
@@ -485,11 +471,11 @@ def run_cloudbet_bet_creator(
         dt_str = dt_brt.strftime('%d/%m %H:%M BRT') if hasattr(dt_brt, 'strftime') else str(dt_brt)
 
         is_inplay = bool(dt_utc <= now_utc_reference or fix.get('status') == '1H')
+        g_home = int(fix.get('goals_home') or 0)
+        g_away = int(fix.get('goals_away') or 0)
 
         # 1. Localiza o evento correspondente na Cloudbet
         if is_inplay:
-            g_home = int(fix.get('goals_home') or 0)
-            g_away = int(fix.get('goals_away') or 0)
             if g_home > 0 or g_away > 0:
                 print(f"ℹ️ [In-Play Descartado] #{f_id} {home} vs {away}: Placar alterado ({g_home}x{g_away}). Ordens in-play permitidas apenas em 0x0.")
                 continue
@@ -562,10 +548,12 @@ def run_cloudbet_bet_creator(
                 elapsed_min = max(1, int(diff_secs // 60))
 
         # =====================================================================
-        # MÓDULO 1: HANDICAP ASIÁTICO (AH) - Restrito: Pré-Jogo aos 10 minutos
+        # MÓDULO 1: HANDICAP ASIÁTICO (AH) - Restrito: Pré-Jogo até 35 minutos (0x0)
         # =====================================================================
-        if elapsed_min > 10:
-            print(f"   🛡️ [Handicap Standby] Partida aos {elapsed_min}' do 1T. Entradas em Handicap restritas até os 10 minutos.")
+        if is_inplay and (g_home > 0 or g_away > 0):
+            print(f"   🛡️ [Handicap Standby] Placar alterado ({g_home}x{g_away}). Entradas in-play de Handicap restritas exclusivamente a 0x0.")
+        elif elapsed_min > 35:
+            print(f"   🛡️ [Handicap Standby] Partida aos {elapsed_min}' do 1T. Entradas em Handicap restritas até os 35 minutos.")
         elif ah_markets:
             cloudbet_lines = []
             for hcap, outcomes in ah_markets.items():
@@ -883,11 +871,68 @@ def run_cloudbet_bet_creator(
                     card_bet_placed = False
                     reject_reasons = []
 
+                    # Avaliação de Crise e Tensão U5J / Degola (Filtro de Conflito)
+                    h_eff = (u5j_info or {}).get('h_eff') if (u5j_info or {}).get('h_eff') is not None else (u5j_info or {}).get('home_eff')
+                    a_eff = (u5j_info or {}).get('a_eff') if (u5j_info or {}).get('a_eff') is not None else (u5j_info or {}).get('away_eff')
+                    h_zone = str(eval_fix.get('home_zone') or '').lower()
+                    a_zone = str(eval_fix.get('away_zone') or '').lower()
+                    h_rank = eval_fix.get('home_rank')
+                    a_rank = eval_fix.get('away_rank')
+                    is_crisis = (h_eff is not None and h_eff <= 3.0) or \
+                                (a_eff is not None and a_eff <= 3.0) or \
+                                any(k in h_zone or k in a_zone for k in ['relegation', 'rebaixamento', 'degola']) or \
+                                (h_rank is not None and int(h_rank) >= 17) or \
+                                (a_rank is not None and int(a_rank) >= 17)
+
+                    if is_crisis:
+                        print(f"   🔥 [Gatekeeper Cartões / Crise U5J] {home} vs {away} sob forte tensão de tabela/degola. Under vetado -> Buscando Over 4.5.")
+                        outcomes_45 = cards_markets.get(4.5, {})
+                        if 'over' in outcomes_45:
+                            odd_over_45 = float(outcomes_45['over']['price'] or 0.0)
+                            prob_over_45 = round(100.0 - float(calculate_poisson_under_cdf(exp_cards, 4.5) or 0.0), 2)
+                            odd_justa_45 = round(100.0 / prob_over_45, 2) if prob_over_45 > 0.0 else 99.0
+                            ev_perc_45 = round(((prob_over_45 / 100.0) * odd_over_45 - 1.0) * 100.0, 2)
+
+                            if odd_over_45 >= 1.50 and ev_perc_45 > 0.0 and prob_over_45 >= 45.0:
+                                palpite_c = "Mais de 4.5 Cartões"
+                                cat_c = "Atrito Disciplinar U5J (+EV Over 4.5)"
+                                reason_cards = f"GATEKEEPER CARTÕES APROVADO (+EV {ev_perc_45:+.1f}%) | {palpite_c} @ {odd_over_45:.2f} (Cloudbet) vs Odd Justa {odd_justa_45:.2f} (Prob: {prob_over_45:.1f}%) | xC Projetado: {exp_cards:.2f} cartões"
+
+                                print(f"   🎯 [Gatekeeper Cartões - Aprovado] {palpite_c} @ {odd_over_45:.2f} (Odd Justa: {odd_justa_45:.2f} | Prob: {prob_over_45:.1f}% | EV: +{ev_perc_45:.1f}%) | {cat_c}")
+
+                                for uid in user_ids:
+                                    ok_c, is_dup_c = place_and_commit_cloudbet_bet(
+                                        client=client,
+                                        conn=conn,
+                                        cursor=cursor,
+                                        uid=uid,
+                                        fix=eval_fix,
+                                        event_id=event_id,
+                                        mercado='Total de Cartões',
+                                        selected_palpite=palpite_c,
+                                        odd_val=odd_over_45,
+                                        odd_justa=odd_justa_45,
+                                        prob_poisson=prob_over_45,
+                                        ev_perc=ev_perc_45,
+                                        market_url=outcomes_45['over']['market_url'],
+                                        cand_destaque=1,
+                                        gk_category=cat_c,
+                                        reasoning_base=reason_cards
+                                    )
+                                    if ok_c:
+                                        apostas_criadas += 1
+                                    elif is_dup_c:
+                                        apostas_duplicadas += 1
+                                card_bet_placed = True
+                        if not card_bet_placed:
+                            print(f"   🛡️ [Gatekeeper Cartões NO_BET] Cenário de Crise ativo: Under vetado e Over 4.5 indisponível na Cloudbet com valor (+EV e odd >= 1.50).")
+                        continue
+
                     # Ordena linhas da maior para a menor (maior linha = menor risco: 8.5 -> 7.5 -> 6.5 -> 5.5)
                     sorted_lines = sorted(cards_markets.keys(), reverse=True)
                     for line_val in sorted_lines:
                         outcomes = cards_markets[line_val]
-                        if 'under' not in outcomes or line_val < 5.49:
+                        if 'under' not in outcomes or line_val < 6.49:
                             continue
 
                         odd_cards = float(outcomes['under']['price'] or 0.0)

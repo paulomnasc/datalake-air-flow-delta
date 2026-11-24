@@ -359,27 +359,29 @@ class CloudbetMatcher:
             "cards": {}
         }
         
-        # 1. Handicap Asiático (FT) Puro
+        # 1. Handicap Asiático (FT / In-Play)
         ah_market = markets_raw.get("soccer.asian_handicap", {})
-        ah_sub = ah_market.get("submarkets", {}).get("period=ft", {})
-        for sel in ah_sub.get("selections", []):
-            if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
-                # Exemplo params: 'handicap=-0.25' ou 'handicap=1.5'
-                params = sel.get("params", "")
-                m = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', params)
-                if m:
-                    hcap_val = float(m.group(1))
-                    outcome = sel.get("outcome") # 'home' ou 'away'
-                    
-                    if hcap_val not in parsed["asian_handicap"]:
-                        parsed["asian_handicap"][hcap_val] = {}
+        for sub_k, sub_v in (ah_market.get("submarkets", {}) if isinstance(ah_market, dict) else {}).items():
+            if not isinstance(sub_v, dict):
+                continue
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    # Exemplo params: 'handicap=-0.25' ou 'handicap=1.5'
+                    params = sel.get("params", "")
+                    m = re.search(r'handicap=([+-]?\d+(?:\.\d+)?)', params)
+                    if m:
+                        hcap_val = float(m.group(1))
+                        outcome = sel.get("outcome") # 'home' ou 'away'
                         
-                    parsed["asian_handicap"][hcap_val][outcome] = {
-                        "price": float(sel.get("price")),
-                        "market_url": sel.get("marketUrl"),
-                        "min_stake": float(sel.get("minStake") or 0.1),
-                        "max_stake": float(sel.get("maxStake") or 0.0)
-                    }
+                        if hcap_val not in parsed["asian_handicap"]:
+                            parsed["asian_handicap"][hcap_val] = {}
+                            
+                        parsed["asian_handicap"][hcap_val][outcome] = {
+                            "price": float(sel.get("price")),
+                            "market_url": sel.get("marketUrl"),
+                            "min_stake": float(sel.get("minStake") or 0.1),
+                            "max_stake": float(sel.get("maxStake") or 0.0)
+                        }
 
         # 1.1 Contingência de Linhas Equivalentes de AH se soccer.asian_handicap estiver desativado/vazio
         if not parsed["asian_handicap"]:
@@ -448,44 +450,58 @@ class CloudbetMatcher:
                                 "max_stake": float(sel.get("maxStake") or 0.0)
                             }
                     
-        # 2. Total de Gols (Over / Under FT)
+        # 2. Total de Gols (Over / Under FT / In-Play)
         tg_market = markets_raw.get("soccer.total_goals", {})
-        tg_sub = tg_market.get("submarkets", {}).get("period=ft", {})
-        for sel in tg_sub.get("selections", []):
-            if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
-                params = sel.get("params", "")
-                m = re.search(r'total=(\d+(?:\.\d+)?)', params)
-                if m:
-                    total_val = float(m.group(1))
-                    outcome = sel.get("outcome") # 'over' ou 'under'
-                    
-                    if total_val not in parsed["total_goals"]:
-                        parsed["total_goals"][total_val] = {}
+        for sub_k, sub_v in (tg_market.get("submarkets", {}) if isinstance(tg_market, dict) else {}).items():
+            if not isinstance(sub_v, dict):
+                continue
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    params = sel.get("params", "")
+                    m = re.search(r'total=(\d+(?:\.\d+)?)', params)
+                    if m:
+                        total_val = float(m.group(1))
+                        outcome = sel.get("outcome") # 'over' ou 'under'
                         
-                    parsed["total_goals"][total_val][outcome] = {
+                        if total_val not in parsed["total_goals"]:
+                            parsed["total_goals"][total_val] = {}
+                            
+                        parsed["total_goals"][total_val][outcome] = {
+                            "price": float(sel.get("price")),
+                            "market_url": sel.get("marketUrl"),
+                            "min_stake": float(sel.get("minStake") or 0.1),
+                            "max_stake": float(sel.get("maxStake") or 0.0)
+                        }
+                    
+        # 3. 1X2 Match Odds (FT / In-Play)
+        mo_market = markets_raw.get("soccer.match_odds", {})
+        for sub_k, sub_v in (mo_market.get("submarkets", {}) if isinstance(mo_market, dict) else {}).items():
+            if not isinstance(sub_v, dict):
+                continue
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    outcome = sel.get("outcome") # 'home', 'draw', 'away'
+                    parsed["match_odds"][outcome] = {
                         "price": float(sel.get("price")),
                         "market_url": sel.get("marketUrl"),
                         "min_stake": float(sel.get("minStake") or 0.1),
                         "max_stake": float(sel.get("maxStake") or 0.0)
                     }
-                    
-        # 3. 1X2 Match Odds (FT)
-        mo_market = markets_raw.get("soccer.match_odds", {})
-        mo_sub = mo_market.get("submarkets", {}).get("period=ft", {})
-        for sel in mo_sub.get("selections", []):
-            if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
-                outcome = sel.get("outcome") # 'home', 'draw', 'away'
-                parsed["match_odds"][outcome] = {
-                    "price": float(sel.get("price")),
-                    "market_url": sel.get("marketUrl"),
-                    "min_stake": float(sel.get("minStake") or 0.1),
-                    "max_stake": float(sel.get("maxStake") or 0.0)
-                }
 
-        # 4. Draw No Bet (Empate Anula FT)
+        # 4. Draw No Bet (Empate Anula FT / In-Play)
         dnb_market = markets_raw.get("soccer.draw_no_bet", {})
-        dnb_sub = dnb_market.get("submarkets", {}).get("period=ft", {})
-        for sel in dnb_sub.get("selections", []):
+        for sub_k, sub_v in (dnb_market.get("submarkets", {}) if isinstance(dnb_market, dict) else {}).items():
+            if not isinstance(sub_v, dict):
+                continue
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    outcome = sel.get("outcome") # 'home' ou 'away'
+                    parsed["draw_no_bet"][outcome] = {
+                        "price": float(sel.get("price")),
+                        "market_url": sel.get("marketUrl"),
+                        "min_stake": float(sel.get("minStake") or 0.1),
+                        "max_stake": float(sel.get("maxStake") or 0.0)
+                    }
             if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
                 outcome = sel.get("outcome") # 'home', 'away'
                 parsed["draw_no_bet"][outcome] = {

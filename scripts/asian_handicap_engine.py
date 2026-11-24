@@ -3569,11 +3569,51 @@ def sync_fixture_and_bet_handicap(
             user_stake = 10.00
 
         # Idempotência e Proteção Estrita de Bancas Cripto (USDT - Princípio ACID):
-        # O motor Betano de Handicap Asiático avalia cotações da API-Sports/Betano.
         # Usuários em USDT operam exclusivamente via Trading API da Cloudbet.
         # É terminantemente proibido registrar palpites/apostas da Betano na tabela apostas para bancas USDT.
         if user_moeda == 'USDT':
-            print(f"ℹ️ [Ignorando User USDT #{uid}] Motor Betano não emite registros na tabela apostas para bancas USDT. Gestão delegada ao robô Cloudbet.")
+            if best_cand and (best_cand.get('source') == 'Cloudbet' or best_cand.get('bookmaker') == 'Cloudbet') and best_cand.get('market_url'):
+                try:
+                    try:
+                        from cloudbet_client import CloudbetClient
+                        from criar_apostas_cloudbet_diario import place_and_commit_cloudbet_bet
+                    except ImportError:
+                        from scripts.cloudbet_client import CloudbetClient
+                        from scripts.criar_apostas_cloudbet_diario import place_and_commit_cloudbet_bet
+                    cb_client = CloudbetClient()
+                    fix_d = {
+                        'fixture_id': fixture_id,
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'fixture_date': fixture_date
+                    }
+                    ev_id = str(best_cand.get('cloudbet_event_id') or fixture_id)
+                    ok_cb, dup_cb = place_and_commit_cloudbet_bet(
+                        client=cb_client,
+                        conn=cursor.connection,
+                        cursor=cursor,
+                        uid=uid,
+                        fix=fix_d,
+                        event_id=ev_id,
+                        mercado='Handicap Asiático',
+                        selected_palpite=selected_palpite,
+                        odd_val=odd_val,
+                        odd_justa=odd_justa,
+                        prob_poisson=prob_poisson,
+                        ev_perc=ev_perc,
+                        market_url=best_cand['market_url'],
+                        cand_destaque=destaque_val,
+                        gk_category=app_cat,
+                        reasoning_base=compound_r
+                    )
+                    if ok_cb:
+                        print(f"🚀 [Sync AH Engine] Ordem Cloudbet executada para User #{uid}: {selected_palpite} @ {odd_val:.2f}")
+                    elif dup_cb:
+                        print(f"ℹ️ [Sync AH Engine] Aposta Cloudbet já existente para User #{uid}.")
+                except Exception as e_cb_sync:
+                    print(f"❌ [Sync AH Engine] Falha ao despachar ordem Cloudbet em sync: {e_cb_sync}")
+            else:
+                print(f"ℹ️ [Ignorando User USDT #{uid}] Motor Betano não emite registros na tabela apostas para bancas USDT. Gestão delegada ao robô Cloudbet.")
             continue
 
         confirmada_user = confirmada_val

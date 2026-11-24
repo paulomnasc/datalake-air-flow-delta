@@ -237,6 +237,22 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   3. **Prioridade 3 (Proibida): Parsing de Texto Não Estruturado:**
      - Nunca inspecionar `resultado_detalhado`, `ah_reasoning`, `mensagem` ou logs em busca de tags ou termos para tomar decisões operacionais ou de renderização na interface.
 
+---
+
+## 22. Validação Obrigatória por Testes Simulados e Emissão de Relatório de Evidências
+- **Tolerância Zero a Alterações sem Teste Simulado:**
+  - Sempre que qualquer alteração, refatoração, correção de bug ou nova funcionalidade for implementada no código-fonte (`.py`, `.php`, `.sh`, motores de regras, Gatekeepers, sentinelas ou esteiras de hedge/cashout), o assistente/desenvolvedor **DEVE OBRIGATORIAMENTE executar uma bateria de testes simulados e unitários** antes de dar o procedimento como concluído.
+  - Não basta verificar apenas a sintaxe do arquivo (`py_compile` ou `php -l`). É mandatório simular cenários de negócio representativos (casos de borda, partidas normais, partidas sob atrito/crise e condições limítrofes).
+
+- **Emissão Obrigatória de Tabela/Relatório de Testes na Resposta ao Usuário:**
+  - Ao final de cada procedimento com modificação de código, o assistente **DEVE OBRIGATORIAMENTE apresentar na mensagem de resposta um Relatório de Testes Estruturado**, contendo:
+    1. **Identificação do Cenário / Caso de Teste**: Descrição do contexto, partida, minuto e parâmetros simulados;
+    2. **Comportamento Esperado**: O que a regra de negócio exige (ex: "Manter posição", "Disparar hedge", "Aprovar entrada", "Veto NO_BET");
+    3. **Resultado Efetivo / Decisão do Motor**: O retorno exato gerado pelo código em execução simulada;
+    4. **Diagnóstico Emitido**: A mensagem literal de log ou justificativa retornada pelo sistema;
+    5. **Status de Validação**: Indicação explícita de sucesso (Aprovado / 100% Validado).
+
+
 
 
 

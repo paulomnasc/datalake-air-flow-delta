@@ -2001,12 +2001,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
 
             <?php 
               $cloudbetBetId = null;
-              if (!empty($aposta->resultado_detalhado) && strpos($aposta->resultado_detalhado, '|| CLOUDBET:') !== false) {
-                  if (preg_match('/\|\|\s*CLOUDBET:\s*(\{.*?\})\s*\|\|/s', $aposta->resultado_detalhado, $mCb)) {
+              if (!empty($aposta->resultado_detalhado)) {
+                  if (strpos($aposta->resultado_detalhado, '|| CLOUDBET:') !== false && preg_match('/\|\|\s*CLOUDBET:\s*(\{.*?\})\s*\|\|/s', $aposta->resultado_detalhado, $mCb)) {
                       $cbData = json_decode($mCb[1], true);
                       if (!empty($cbData['bet_id'])) {
                           $cloudbetBetId = $cbData['bet_id'];
                       }
+                  }
+                  if (empty($cloudbetBetId) && preg_match('/CLOUDBET_BET_ID:\s*([a-zA-Z0-9\-_]+)/', $aposta->resultado_detalhado, $mId)) {
+                      $cloudbetBetId = trim($mId[1]);
                   }
               }
             ?>

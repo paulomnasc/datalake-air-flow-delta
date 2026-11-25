@@ -987,55 +987,16 @@ def evaluate_best_card_under_line(
                          is_blocked_under_all
     has_elevated_friction = is_severe_u5j_risk or (friction_mult >= 1.15 and exp_cards >= 4.50)
 
-    # 1. Trava Sistêmica Mandatória de Atrito Disciplinar U5J e Transição para Over 4.5:
+    # 1. Trava Sistêmica Mandatória de Atrito Disciplinar U5J (Abstenção Mandatória / Preservação de Capital):
     if has_elevated_friction:
         if not under_block_reason:
             h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
             under_block_reason = (
-                f"🛡️ [Gatekeeper Cartões / Crise U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> "
+                f"🛡️ [Gatekeeper Cartões NO_BET / Crise U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> "
                 f"Ambiente de desespero e atrito tático ({friction_desc}), elevando expectativa disciplinar para {exp_cards} cartões. "
-                f"Linhas Under vetadas por risco extremo de estouro."
+                f"Linhas Under vetadas por risco extremo de estouro. Abstenção mandatória (NO_BET)."
             )
-
-        # Transição Autônoma: Avaliação de Mais de 4.5 Cartões (+EV)
-        prob_over_45 = round(max(0.0, min(100.0, 100.0 - calculate_poisson_under_cdf(float(exp_cards), 4.5))), 2)
-        odd_justa_45 = round(100.0 / prob_over_45, 2) if prob_over_45 > 0.0 else 99.0
-
-        real_odd_45 = None
-        odd_source_45 = None
-        if allow_api and fixture_id:
-            real_odd_45, odd_source_45 = fetch_real_card_odds(fixture_id, "Mais de 4.5 Cartões", 4.5)
-
-        if real_odd_45 and real_odd_45 >= 1.50:
-            ev_calc_45 = round(((prob_over_45 / 100.0) * real_odd_45 - 1.0) * 100.0, 2)
-            if prob_over_45 >= 45.0 and ev_calc_45 > 0.0:
-                bookmaker_name = odd_source_45 if odd_source_45 and odd_source_45 != 'MODEL_FALLBACK' else 'Betano'
-                gk_reason_over = format_gatekeeper_result(
-                    'APROVADO',
-                    'Mais de 4.5 Cartões',
-                    f"🎯 GATEKEEPER CARTÕES APROVADO (+EV {ev_calc_45:+.1f}%) | "
-                    f"Cenário de Crise e Atrito Disciplinar U5J (Under Vetado -> Pivô Over 4.5) | "
-                    f"Linha Mais de 4.5 Cartões @ {real_odd_45:.2f} ({bookmaker_name}) vs Odd Justa {odd_justa_45:.2f} (Prob: {prob_over_45:.1f}%) | "
-                    f"xC Projetado: {exp_cards:.2f} cartões"
-                )
-                selected_cand = {
-                    'line_val': 4.5,
-                    'palpite_str': 'Mais de 4.5 Cartões',
-                    'label': 'Over 4.5',
-                    'prob': prob_over_45,
-                    'odd_justa': odd_justa_45,
-                    'real_odd': real_odd_45,
-                    'odd_source': odd_source_45,
-                    'bookmaker': bookmaker_name,
-                    'ev_calc': ev_calc_45,
-                    'exp_cards': exp_cards,
-                    'status_gk': 'APROVADO',
-                    'gatekeeper_category': 'Atrito Disciplinar U5J (+EV Over 4.5)',
-                    'gatekeeper_reason': gk_reason_over
-                }
-                pred_text_45 = f"🎯 Estratégia Over Cartões (Crise U5J - Expectativa: {exp_cards} cartões). Entrada recomendada: Mais de 4.5 Cartões ({prob_over_45}% | Odd Justa: {odd_justa_45}) @ {real_odd_45:.2f} ({bookmaker_name})."
-                return selected_cand, [selected_cand], pred_text_45, prob_over_45
 
     # 2. Trava Sistêmica de Mata-Mata Oitavas+ com Expectativa Elevada:
     if not under_block_reason and (is_knockout and exp_cards >= 4.50):

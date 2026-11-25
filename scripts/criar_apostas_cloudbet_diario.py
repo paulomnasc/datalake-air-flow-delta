@@ -901,47 +901,7 @@ def run_cloudbet_bet_creator(
                             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
                             crise_desc = f"{home} ({h_str}) vs {away} ({a_str}) em colapso técnico recente (U5J <= 3.0 pts)"
 
-                        print(f"   🔥 [Gatekeeper Cartões / {motivo_crise_lbl}] {crise_desc}. Under vetado -> Buscando Over 4.5.")
-                        outcomes_45 = cards_markets.get(4.5, {})
-                        if 'over' in outcomes_45:
-                            odd_over_45 = float(outcomes_45['over']['price'] or 0.0)
-                            prob_over_45 = round(100.0 - float(calculate_poisson_under_cdf(exp_cards, 4.5) or 0.0), 2)
-                            odd_justa_45 = round(100.0 / prob_over_45, 2) if prob_over_45 > 0.0 else 99.0
-                            ev_perc_45 = round(((prob_over_45 / 100.0) * odd_over_45 - 1.0) * 100.0, 2)
-
-                            if odd_over_45 >= 1.50 and ev_perc_45 > 0.0 and prob_over_45 >= 45.0:
-                                palpite_c = "Mais de 4.5 Cartões"
-                                cat_c = "Atrito Disciplinar U5J (+EV Over 4.5)"
-                                reason_cards = f"GATEKEEPER CARTÕES APROVADO (+EV {ev_perc_45:+.1f}%) | {palpite_c} @ {odd_over_45:.2f} (Cloudbet) vs Odd Justa {odd_justa_45:.2f} (Prob: {prob_over_45:.1f}%) | xC Projetado: {exp_cards:.2f} cartões"
-
-                                print(f"   🎯 [Gatekeeper Cartões - Aprovado] {palpite_c} @ {odd_over_45:.2f} (Odd Justa: {odd_justa_45:.2f} | Prob: {prob_over_45:.1f}% | EV: +{ev_perc_45:.1f}%) | {cat_c}")
-
-                                for uid in user_ids:
-                                    ok_c, is_dup_c = place_and_commit_cloudbet_bet(
-                                        client=client,
-                                        conn=conn,
-                                        cursor=cursor,
-                                        uid=uid,
-                                        fix=eval_fix,
-                                        event_id=event_id,
-                                        mercado='Total de Cartões',
-                                        selected_palpite=palpite_c,
-                                        odd_val=odd_over_45,
-                                        odd_justa=odd_justa_45,
-                                        prob_poisson=prob_over_45,
-                                        ev_perc=ev_perc_45,
-                                        market_url=outcomes_45['over']['market_url'],
-                                        cand_destaque=1,
-                                        gk_category=cat_c,
-                                        reasoning_base=reason_cards
-                                    )
-                                    if ok_c:
-                                        apostas_criadas += 1
-                                    elif is_dup_c:
-                                        apostas_duplicadas += 1
-                                card_bet_placed = True
-                        if not card_bet_placed:
-                            print(f"   🛡️ [Gatekeeper Cartões NO_BET] Cenário de {motivo_crise_lbl} ativo: Under vetado e Over 4.5 indisponível na Cloudbet com valor (+EV e odd >= 1.50).")
+                        print(f"   🛡️ [Gatekeeper Cartões NO_BET / {motivo_crise_lbl}] {crise_desc}. Risco de atrito disciplinar extremo: Under vetado e sem entradas em Over (Abstenção Mandatória).")
                         continue
 
                     # Ordena linhas da maior para a menor (maior linha = menor risco: 8.5 -> 7.5 -> 6.5 -> 5.5)

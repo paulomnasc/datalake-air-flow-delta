@@ -1488,10 +1488,10 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             (res_co.get("bet") or {}).get("id") or
             (res_co.get("bet") or {}).get("betId")
         )
-        # Validação Estrita de Aceite na Cloudbet
+        # Validação Estrita de Aceite na Cloudbet (suporta PENDING_ACCEPTANCE do in-play e trata 'error': '')
         is_accepted = (
             bool(bet_id_hedge) and
-            "error" not in res_co and
+            not res_co.get("error") and
             res_co.get("status") not in ("REJECTED", "FAILED", "REJECTED_SLIPPAGE") and
             res_co.get("state") not in ("REJECTED", "FAILED")
         )
@@ -1816,10 +1816,10 @@ def executar_hedge_prejogo_cloudbet(
         )
 
         bet_id_hedge = res_co.get("betId") or res_co.get("referenceId") or res_co.get("betslipId")
-        # Validação Estrita de Two-Phase Commit (API-First):
+        # Validação Estrita de Two-Phase Commit (API-First, suporta PENDING_ACCEPTANCE e trata 'error': ''):
         is_accepted = (
             bool(bet_id_hedge) and
-            "error" not in res_co and
+            not res_co.get("error") and
             res_co.get("status") not in ("REJECTED", "FAILED") and
             res_co.get("state") not in ("REJECTED", "FAILED")
         )

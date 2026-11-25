@@ -478,6 +478,41 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Avalia via Expressões Regulares se a equipe está sob ameaça de rebaixamento/degola.
+     * Sincronizado estritamente com is_team_in_relegation_threat() de asian_handicap_engine.py e cards_engine.py.
+     */
+    private function isTeamInRelegationThreat(?string $zoneStr, int $rankVal, float $ppgVal, string $leagueName): bool
+    {
+        $z = trim($zoneStr ?? '');
+        $l = trim($leagueName ?? '');
+
+        $reRelegation = '/\b(relegat\w*|play[\s-]?outs?|degraded|rebaixa\w*|degola\w*)\b/i';
+        $reSafeZone = '/\b(mid[\s-]?table|promotion|champions|libertadores|sudamericana|europa|conference|play[\s-]?offs?|knockout|placement|qualif\w*)\b/i';
+        $reContinentalCup = '/\b(champions|europa|conference|libertadores|sudamericana|copa|cup|pokal|coupe|trophy|nations|league\s+phase|tournament)\b/i';
+
+        if (!empty($z)) {
+            if (preg_match($reRelegation, $z) && stripos($z, 'promotion') !== 0) {
+                return true;
+            }
+            if (preg_match($reSafeZone, $z)) {
+                return false;
+            }
+        }
+        if (!empty($l) && preg_match($reContinentalCup, $l)) {
+            return false;
+        }
+        if ($rankVal > 0) {
+            if ($rankVal >= 17) {
+                return true;
+            }
+            if ($ppgVal > 0.0 && $rankVal >= 14 && $ppgVal <= 1.15) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson e Teto Dinâmico de Segurança)
      */
     private function evaluateGatekeeper(?int $fixtureId, string $timeCasa, string $timeFora, string $mercado, string $palpite, float $odd): array
@@ -532,13 +567,18 @@ class ApostaController extends BaseController
             
             $isCrisisMatch = false;
             if ($fixture) {
-                $hZone = strtolower($fixture->home_zone ?? '');
-                $aZone = strtolower($fixture->away_zone ?? '');
+                $hZone = $fixture->home_zone ?? '';
+                $aZone = $fixture->away_zone ?? '';
                 $hRank = (int)($fixture->home_rank ?? 0);
                 $aRank = (int)($fixture->away_rank ?? 0);
-                $isCrisisMatch = (strpos($hZone, 'relegation') !== false || strpos($hZone, 'rebaixamento') !== false ||
-                                  strpos($aZone, 'relegation') !== false || strpos($aZone, 'rebaixamento') !== false ||
-                                  $hRank >= 17 || $aRank >= 17);
+                $hPpg = isset($fixture->home_ppg) ? (float)$fixture->home_ppg : 0.0;
+                $aPpg = isset($fixture->away_ppg) ? (float)$fixture->away_ppg : 0.0;
+                $leagueName = $fixture->league_name ?? '';
+
+                $isHRelegation = $this->isTeamInRelegationThreat($hZone, $hRank, $hPpg, $leagueName);
+                $isARelegation = $this->isTeamInRelegationThreat($aZone, $aRank, $aPpg, $leagueName);
+
+                $isCrisisMatch = ($isHRelegation || $isARelegation);
             }
 
             if (abs($lineOverVal - 4.5) < 0.01 && $isCrisisMatch) {
@@ -724,19 +764,12 @@ class ApostaController extends BaseController
                 $ftOddA = (float)($ftRow['odd_away'] ?? 0.0);
                 $ftHRank = isset($ftRow['home_rank']) ? (int)$ftRow['home_rank'] : 0;
                 $ftARank = isset($ftRow['away_rank']) ? (int)$ftRow['away_rank'] : 0;
-                $ftHZone = strtolower($ftRow['home_zone'] ?? '');
+                $ftHZone = $ftRow['home_zone'] ?? '';
                 $ftHPpg = (float)($ftRow['home_ppg'] ?? 0.0);
                 $ftStandMot = (float)($ftRow['standings_motivation_score'] ?? 0.0);
+                $ftLeagueName = $ftRow['league_name'] ?? '';
 
-                $isHRel = (strpos($ftHZone, 'relegat') !== false || strpos($ftHZone, 'play out') !== false || strpos($ftHZone, 'rebaixamento') !== false);
-                $isHUnderThreat = (
-                    $isHRel ||
-                    ($ftHPpg > 0.0 && $ftHPpg <= 1.05) ||
-                    ($ftHRank >= 14 && $ftHPpg > 0.0 && $ftHPpg <= 1.15) ||
-                    ($ftHRank >= 12 && $ftHPpg > 0.0 && $ftHPpg <= 1.25) ||
-                    ($ftHRank >= 12 && $ftStandMot >= 3.0) ||
-                    ($ftHRank >= 12 && $ftARank > 0 && ($ftHRank - $ftARank >= 6 || $ftARank <= 6))
-                );
+                $isHUnderThreat = $this->isTeamInRelegationThreat($ftHZone, $ftHRank, $ftHPpg, $ftLeagueName);
 
                 // 1. Caldeirão da Degola / Sobrevivência (Veto condicionado a atrito real)
                 $isDisciplinaryCrisis = ($xc >= 4.20);

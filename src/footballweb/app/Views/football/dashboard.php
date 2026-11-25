@@ -1246,7 +1246,7 @@ if (!function_exists('getBetDecisionTree')) {
 }
 
 if (!function_exists('getTeamRankBadgeStyle')) {
-    function getTeamRankBadgeStyle($rank, $leagueId = null) {
+    function getTeamRankBadgeStyle($rank, $zone = null, $leagueId = null) {
         $rankInt = (int)$rank;
         if ($rankInt <= 0) {
             return [
@@ -1256,44 +1256,79 @@ if (!function_exists('getTeamRankBadgeStyle')) {
             ];
         }
 
-        $knownSizes = [
-            253 => 15, // MLS (conferência)
-            113 => 16, // Allsvenskan
-            103 => 16, // Eliteserien
-            265 => 16, // Chile
-            244 => 12, // Finlândia
-            292 => 12, // K League
-            479 => 8,  // CPL
-            78  => 18, // Bundesliga
-            61  => 18, // Ligue 1
-            88  => 18, // Eredivisie
-            94  => 18, // Portugal
-            128 => 15, // Argentina (zona)
-            307 => 18, // Saudi
-            262 => 18, // Liga MX
-        ];
+        // Se o 2º parâmetro for numérico (caso legado passando leagueId), ajusta
+        if (is_numeric($zone) && $leagueId === null) {
+            $leagueId = (int)$zone;
+            $zone = null;
+        }
 
-        $totalTeams = $knownSizes[(int)$leagueId] ?? 20;
-        $topThird = ceil($totalTeams / 3.0);
-        $midThird = ceil((2.0 * $totalTeams) / 3.0);
+        $zoneStr = trim((string)($zone ?? ''));
+        $zoneLower = strtolower($zoneStr);
 
-        if ($rankInt <= $topThird) {
+        // 1. Classificação Semântica Direta por Zona Oficial (home_zone / away_zone)
+        if (!empty($zoneStr)) {
+            // A. Zona de Rebaixamento / Degola
+            if (strpos($zoneLower, 'relegation') !== false || strpos($zoneLower, 'rebaixamento') !== false || strpos($zoneLower, 'degola') !== false) {
+                return [
+                    'css' => 'font-size: 0.68rem; background-color: rgba(239, 68, 68, 0.22); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: 700; margin-left: 6px;',
+                    'tier_label' => $zoneStr,
+                    'tier' => 'relegation'
+                ];
+            }
+
+            // B. Zona de Playoffs / 1/16-finals / Fase Preliminar Continental
+            if (strpos($zoneLower, 'play off') !== false || strpos($zoneLower, 'playoff') !== false || strpos($zoneLower, 'qualifying') !== false) {
+                return [
+                    'css' => 'font-size: 0.68rem; background-color: rgba(6, 182, 212, 0.22); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.55); font-weight: 700; margin-left: 6px;',
+                    'tier_label' => $zoneStr,
+                    'tier' => 'playoff'
+                ];
+            }
+
+            // C. Zona de Promoção / Vaga Direta Continental (Champions, Libertadores, Europa, Topo)
+            if (strpos($zoneLower, 'promotion') !== false || strpos($zoneLower, 'champions') !== false || strpos($zoneLower, 'libertadores') !== false || strpos($zoneLower, 'europa') !== false || strpos($zoneLower, 'sudamericana') !== false || strpos($zoneLower, 'conference') !== false) {
+                return [
+                    'css' => 'font-size: 0.68rem; background-color: rgba(16, 185, 129, 0.22); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.55); font-weight: 700; margin-left: 6px;',
+                    'tier_label' => $zoneStr,
+                    'tier' => 'promotion'
+                ];
+            }
+
+            // D. Meio de Tabela Oficial
+            if (strpos($zoneLower, 'mid-table') !== false || strpos($zoneLower, 'meio') !== false) {
+                return [
+                    'css' => 'font-size: 0.68rem; background-color: rgba(245, 158, 11, 0.20); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.55); font-weight: 700; margin-left: 6px;',
+                    'tier_label' => 'Meio de Tabela (Mid-Table)',
+                    'tier' => 'mid'
+                ];
+            }
+
+            // E. Outra zona textual explícita
+            return [
+                'css' => 'font-size: 0.68rem; background-color: rgba(148, 163, 184, 0.20); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.55); font-weight: 700; margin-left: 6px;',
+                'tier_label' => $zoneStr,
+                'tier' => 'custom'
+            ];
+        }
+
+        // 2. Fallback Secundário Genérico caso a zona oficial não venha preenchida
+        if ($rankInt <= 6) {
             return [
                 'css' => 'font-size: 0.68rem; background-color: rgba(16, 185, 129, 0.22); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.55); font-weight: 700; margin-left: 6px;',
-                'tier_label' => 'Terço Superior (Topo da Tabela)',
+                'tier_label' => 'Parte Superior da Tabela',
                 'tier' => 'top'
             ];
-        } elseif ($rankInt <= $midThird) {
+        } elseif ($rankInt <= 14) {
             return [
                 'css' => 'font-size: 0.68rem; background-color: rgba(245, 158, 11, 0.20); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.55); font-weight: 700; margin-left: 6px;',
-                'tier_label' => 'Terço Intermediário (Meio de Tabela)',
+                'tier_label' => 'Meio de Tabela',
                 'tier' => 'mid'
             ];
         } else {
             return [
-                'css' => 'font-size: 0.68rem; background-color: rgba(239, 68, 68, 0.22); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: 700; margin-left: 6px;',
-                'tier_label' => 'Terço Inferior (Parte Baixa da Tabela)',
-                'tier' => 'bottom'
+                'css' => 'font-size: 0.68rem; background-color: rgba(148, 163, 184, 0.20); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.40); font-weight: 700; margin-left: 6px;',
+                'tier_label' => 'Posição #' . $rankInt,
+                'tier' => 'neutral'
             ];
         }
     }
@@ -3529,7 +3564,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><?php $rStyleH = getTeamRankBadgeStyle($fix->home_rank, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleH['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) . ' • ' . $rStyleH['tier_label'] ?>">#<?= $fix->home_rank ?></span><?php endif; ?><?php if ($t1Info['is_home']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_home_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><?php $rStyleH = getTeamRankBadgeStyle($fix->home_rank, $fix->home_zone ?? null, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleH['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) . ' • ' . $rStyleH['tier_label'] ?>">#<?= $fix->home_rank ?></span><?php endif; ?><?php if ($t1Info['is_home']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_home_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
@@ -3742,7 +3777,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><?php $rStyleA = getTeamRankBadgeStyle($fix->away_rank, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleA['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) . ' • ' . $rStyleA['tier_label'] ?>">#<?= $fix->away_rank ?></span><?php endif; ?><?php if ($t1Info['is_away']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_away_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><?php $rStyleA = getTeamRankBadgeStyle($fix->away_rank, $fix->away_zone ?? null, $fix->league_id ?? null); ?><span class="badge" style="<?= $rStyleA['css'] ?>" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) . ' • ' . $rStyleA['tier_label'] ?>">#<?= $fix->away_rank ?></span><?php endif; ?><?php if ($t1Info['is_away']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_away_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>

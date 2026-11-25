@@ -604,29 +604,41 @@ def find_cloudbet_opposite_market_and_quote(
                     opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
-            # Caso Cartões (Under / Over)
+            # Caso Cartões (Under / Over) - Travas Matemáticas Canônicas Mandatórias
             elif "cart" in palpite.lower() or "cart" in str(palpite or "").lower():
                 m_cards = re.search(r'(\d+(?:\.\d+)?)', palpite)
                 tot_cards = float(m_cards.group(1)) if m_cards else 2.5
-                is_under = ("menos" in palpite.lower() or "under" in palpite.lower())
-                opp_cards_outcome = "over" if is_under else "under"
+                orig_line = tot_cards
+                is_under_orig = ("menos" in palpite.lower() or "under" in palpite.lower())
+                opp_cards_outcome = "over" if is_under_orig else "under"
 
                 tb_dict = cb_markets.get("total_bookings", {})
                 sel_cand = None
 
-                # Prioridade 1: Linha exata do palpite original (se ainda estiver ativa)
-                if tot_cards in tb_dict and opp_cards_outcome in tb_dict[tot_cards]:
-                    sel_cand = tb_dict[tot_cards][opp_cards_outcome]
+                # Prioridade 1: Linha espelho exata do palpite original (se ainda estiver ativa)
+                if orig_line in tb_dict and opp_cards_outcome in tb_dict[orig_line]:
+                    sel_cand = tb_dict[orig_line][opp_cards_outcome]
+                    tot_cards = orig_line
 
-                # Prioridade 2 (Modo Resgate): Se a linha original foi superada ou expirou,
-                # busca dinamicamente a menor linha viva de Over disponível que ainda seja viável
+                # Prioridade 2: Seleção estrita respeitando travas matemáticas para evitar buraco/red duplo:
+                # - Se aposta original for OVER (X) e hedge for UNDER (Y): Y DEVE SER >= X (Under igual ou maior)
+                # - Se aposta original for UNDER (X) e hedge for OVER (Y): Y DEVE SER <= X (Over igual ou menor)
                 if not sel_cand and tb_dict:
-                    # Ordena as linhas disponíveis da menor para a maior
-                    sorted_lines = sorted(tb_dict.keys())
-                    for t_k in sorted_lines:
-                        if opp_cards_outcome in tb_dict[t_k]:
+                    if opp_cards_outcome == "under":
+                        # Cobrindo OVER original -> busca menor linha de UNDER que seja >= orig_line
+                        cands = [k for k in sorted(tb_dict.keys()) if k >= orig_line and opp_cards_outcome in tb_dict[k]]
+                        for t_k in cands:
                             p_cand = float(tb_dict[t_k][opp_cards_outcome].get("price") or 0.0)
-                            if p_cand > 1.0:
+                            if p_cand >= 1.25:
+                                sel_cand = tb_dict[t_k][opp_cards_outcome]
+                                tot_cards = t_k
+                                break
+                    else:
+                        # Cobrindo UNDER original -> busca maior linha de OVER que seja <= orig_line
+                        cands = [k for k in sorted(tb_dict.keys(), reverse=True) if k <= orig_line and opp_cards_outcome in tb_dict[k]]
+                        for t_k in cands:
+                            p_cand = float(tb_dict[t_k][opp_cards_outcome].get("price") or 0.0)
+                            if p_cand >= 1.25:
                                 sel_cand = tb_dict[t_k][opp_cards_outcome]
                                 tot_cards = t_k
                                 break
@@ -1109,7 +1121,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
     cursor.execute("""
         SELECT a.id, a.usuario_id, a.fixture_id, a.palpite, a.mercado, a.odd,
                a.valor_aposta, a.moeda_codigo, a.ganhos_potenciais, a.resultado_detalhado,
-               a.data_hora_jogo,
+               a.data_hora_jogo, a.id_cross_edge_slip,
                a.casa_de_aposta,
                ft.status as fixture_status, ft.home_team as time_casa, ft.away_team as time_fora,
                ft.home_team_id, ft.away_team_id, ft.ah_reasoning,
@@ -1125,6 +1137,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         WHERE a.status = 'Pendente'
           AND a.confirmada = 1
           AND (a.tipo IS NULL OR a.tipo != 'Hedge Real')
+          AND (a.id_cross_edge_slip IS NULL OR a.id_cross_edge_slip = '')
           AND (a.resultado_detalhado IS NULL OR (a.resultado_detalhado NOT LIKE '%HEDGE_COBERTO_POR%' AND a.resultado_detalhado NOT LIKE '%HEDGE_EXECUTADO%'))
           AND a.casa_de_aposta IN ('Cloudbet', 'Betano', 'Stake', 'Pinnacle', '1xBet')
           AND ft.status IN ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY', 'PAUSED')
@@ -1447,6 +1460,15 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             print(f"   ℹ️ [Linha Oposta Já Apostada na Cloudbet #{f_id}] {opposite_palpite} (ID #{linha_oposta_existe['id']}). Duplicação de hedge bloqueada.")
             continue
 
+        # 🔒 ETAPA 1 DO TWO-PHASE COMMIT: Trava Atômica e Checagem de Idempotência no MySQL
+        cursor.execute("SELECT id_cross_edge_slip, resultado_detalhado FROM apostas WHERE id = %s FOR UPDATE", (aposta_id,))
+        lock_row = cursor.fetchone()
+        if lock_row and lock_row.get("id_cross_edge_slip"):
+            conn.rollback()
+            print(f"   🛡️ [Hedge Idempotência Ativa] Aposta #{aposta_id} já possui cross-edge gravado ({lock_row['id_cross_edge_slip']}). Abortando disparo duplicado.")
+            continue
+
+        # 🚀 ETAPA 2 DO TWO-PHASE COMMIT: Dispara ordem de Hedge na Cloudbet
         print(f"   🚀 [Disparando Hedge Real via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
@@ -1457,12 +1479,20 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             dry_run=client.dry_run
         )
 
-        bet_id_hedge = res_co.get("betId") or res_co.get("referenceId") or res_co.get("betslipId")
-        # Validação Estrita de Two-Phase Commit (API-First):
+        # Extração tolerante de identificador da ordem aceita (betId, betslipId, referenceId ou id aninhado)
+        bet_id_hedge = (
+            res_co.get("betId") or 
+            res_co.get("betslipId") or 
+            res_co.get("referenceId") or 
+            res_co.get("id") or 
+            (res_co.get("bet") or {}).get("id") or
+            (res_co.get("bet") or {}).get("betId")
+        )
+        # Validação Estrita de Aceite na Cloudbet
         is_accepted = (
             bool(bet_id_hedge) and
             "error" not in res_co and
-            res_co.get("status") not in ("REJECTED", "FAILED") and
+            res_co.get("status") not in ("REJECTED", "FAILED", "REJECTED_SLIPPAGE") and
             res_co.get("state") not in ("REJECTED", "FAILED")
         )
         if not is_accepted:
@@ -1516,13 +1546,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             """, (uid_bet, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, cur))
             cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid_bet))
 
-            # Atualiza a aposta original registrando a cobertura cruzada
+            # Atualiza a aposta original registrando a cobertura cruzada e a chave de idempotência id_cross_edge_slip
             cursor.execute("""
                 UPDATE apostas
-                SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
+                SET id_cross_edge_slip = %s,
+                    resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
                     updated_at = NOW()
                 WHERE id = %s
-            """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
+            """, (str(bet_id_hedge), f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id} || SLIP: {bet_id_hedge}", aposta_id))
 
             conn.commit()
             print(f"   💰 [Hedge Gravado com Sucesso] Aposta #{new_hedge_aposta_id} salva e -{hedge_stake:.2f} {cur} debitado. Novo saldo: {s_post:.4f} {cur}")
@@ -1851,13 +1882,14 @@ def executar_hedge_prejogo_cloudbet(
             """, (usuario_id, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real Pré-Jogo: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, client.currency))
             cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, usuario_id))
 
-            # Atualiza a aposta original registrando a cobertura cruzada
+            # Atualiza a aposta original registrando a cobertura cruzada e a chave de idempotência id_cross_edge_slip
             cursor.execute("""
                 UPDATE apostas
-                SET resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
+                SET id_cross_edge_slip = %s,
+                    resultado_detalhado = CONCAT(COALESCE(resultado_detalhado, ''), %s),
                     updated_at = NOW()
                 WHERE id = %s
-            """, (f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id}", aposta_id))
+            """, (str(bet_id_hedge), f" || HEDGE_COBERTO_POR: #{new_hedge_aposta_id} || SLIP: {bet_id_hedge}", aposta_id))
 
             if conn:
                 conn.commit()

@@ -36,6 +36,7 @@ from asian_handicap_engine import (
     calculate_unified_handicap_recommendation,
     compose_compound_ah_reasoning,
     determine_gatekeeper_category,
+    is_team_in_relegation_threat,
     BetTier
 )
 from asian_total_engine import (
@@ -851,10 +852,10 @@ def run_cloudbet_bet_creator(
             print(f"   ⏳ [Cloudbet Gols] Nenhuma linha de Over/Under Gols aberta no momento (seleções desativadas pela corretora).")
 
         # =====================================================================
-        # MÓDULO 3: TOTAL DE CARTÕES (UNDER CARTÕES) - Restrito: Pré-Jogo aos 10 minutos
+        # MÓDULO 3: TOTAL DE CARTÕES (UNDER CARTÕES) - Restrito: Exclusivamente Pré-Jogo (NS)
         # =====================================================================
-        if elapsed_min > 10:
-            print(f"   🛡️ [Cartões Standby] Partida aos {elapsed_min}' do 1T. Entradas em Cartões Under restritas até os 10 minutos.")
+        if is_inplay or elapsed_min > 0 or cur_status not in ('NS', 'TBD'):
+            print(f"   🛡️ [Cartões Standby] Partida em andamento ({cur_status} aos {elapsed_min}'). Entradas em Cartões Under restritas exclusivamente ao Pré-Jogo (NS) para blindagem contra advertências precoces.")
         elif cards_markets:
             sample_c_lines = ", ".join([f"Under {lv:g} @ {d['under']['price']:.2f}" for lv, d in cards_markets.items() if 'under' in d][:4])
             print(f"   📊 [Cloudbet Cartões] {len(cards_markets)} linha(s) cotada(s): {sample_c_lines}{'...' if len(cards_markets) > 4 else ''}")
@@ -871,21 +872,36 @@ def run_cloudbet_bet_creator(
                     card_bet_placed = False
                     reject_reasons = []
 
-                    # Avaliação de Crise e Tensão U5J / Degola (Filtro de Conflito)
+                    # Avaliação de Crise e Tensão U5J / Degola via Expressões Regulares
                     h_eff = (u5j_info or {}).get('h_eff') if (u5j_info or {}).get('h_eff') is not None else (u5j_info or {}).get('home_eff')
                     a_eff = (u5j_info or {}).get('a_eff') if (u5j_info or {}).get('a_eff') is not None else (u5j_info or {}).get('away_eff')
-                    h_zone = str(eval_fix.get('home_zone') or '').lower()
-                    a_zone = str(eval_fix.get('away_zone') or '').lower()
+                    h_zone = eval_fix.get('home_zone')
+                    a_zone = eval_fix.get('away_zone')
                     h_rank = eval_fix.get('home_rank')
                     a_rank = eval_fix.get('away_rank')
+                    h_ppg = eval_fix.get('home_ppg')
+                    a_ppg = eval_fix.get('away_ppg')
+                    league_name = eval_fix.get('league_name', '')
+
+                    is_h_relegation = is_team_in_relegation_threat(zone_str=h_zone, rank_val=h_rank, ppg_val=h_ppg, league_name=league_name)
+                    is_a_relegation = is_team_in_relegation_threat(zone_str=a_zone, rank_val=a_rank, ppg_val=a_ppg, league_name=league_name)
+
+                    is_relegation_threat = is_h_relegation or is_a_relegation
                     is_crisis = (h_eff is not None and h_eff <= 3.0) or \
                                 (a_eff is not None and a_eff <= 3.0) or \
-                                any(k in h_zone or k in a_zone for k in ['relegation', 'rebaixamento', 'degola']) or \
-                                (h_rank is not None and int(h_rank) >= 17) or \
-                                (a_rank is not None and int(a_rank) >= 17)
+                                is_relegation_threat
 
                     if is_crisis:
-                        print(f"   🔥 [Gatekeeper Cartões / Crise U5J] {home} vs {away} sob forte tensão de tabela/degola. Under vetado -> Buscando Over 4.5.")
+                        if is_relegation_threat:
+                            motivo_crise_lbl = "Degola"
+                            crise_desc = f"{home} vs {away} sob forte ameaça de rebaixamento/degola"
+                        else:
+                            motivo_crise_lbl = "Crise U5J"
+                            h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
+                            a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
+                            crise_desc = f"{home} ({h_str}) vs {away} ({a_str}) em colapso técnico recente (U5J <= 3.0 pts)"
+
+                        print(f"   🔥 [Gatekeeper Cartões / {motivo_crise_lbl}] {crise_desc}. Under vetado -> Buscando Over 4.5.")
                         outcomes_45 = cards_markets.get(4.5, {})
                         if 'over' in outcomes_45:
                             odd_over_45 = float(outcomes_45['over']['price'] or 0.0)
@@ -925,7 +941,7 @@ def run_cloudbet_bet_creator(
                                         apostas_duplicadas += 1
                                 card_bet_placed = True
                         if not card_bet_placed:
-                            print(f"   🛡️ [Gatekeeper Cartões NO_BET] Cenário de Crise ativo: Under vetado e Over 4.5 indisponível na Cloudbet com valor (+EV e odd >= 1.50).")
+                            print(f"   🛡️ [Gatekeeper Cartões NO_BET] Cenário de {motivo_crise_lbl} ativo: Under vetado e Over 4.5 indisponível na Cloudbet com valor (+EV e odd >= 1.50).")
                         continue
 
                     # Ordena linhas da maior para a menor (maior linha = menor risco: 8.5 -> 7.5 -> 6.5 -> 5.5)

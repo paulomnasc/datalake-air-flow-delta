@@ -63,6 +63,38 @@ except Exception:
         analyze_trend_and_momentum = None
 
 
+# =========================================================================
+# PADRONIZAÇÃO SISTÊMICA DE ZONAS E REBAIXAMENTO VIA EXPRESSÕES REGULARES
+# =========================================================================
+RE_RELEGATION = re.compile(r'\b(relegat\w*|play[\s-]?outs?|degraded|rebaixa\w*|degola\w*)\b', re.IGNORECASE)
+RE_SAFE_ZONE = re.compile(r'\b(mid[\s-]?table|promotion|champions|libertadores|sudamericana|europa|conference|play[\s-]?offs?|knockout|placement|qualif\w*)\b', re.IGNORECASE)
+RE_CONTINENTAL_CUP = re.compile(r'\b(champions|europa|conference|libertadores|sudamericana|copa|cup|pokal|coupe|trophy|nations|league\s+phase|tournament)\b', re.IGNORECASE)
+
+def is_team_in_relegation_threat(zone_str: str = None, rank_val: int = None, ppg_val: float = None, league_name: str = '') -> bool:
+    """
+    Avalia via Expressões Regulares com word boundaries se a equipe está genuinamente sob ameaça de rebaixamento/degola.
+    - Zonas oficiais 'Mid-Table', 'Promotion', 'Play Offs' etc. ou torneios continentais/copas NUNCA são rebaixamento.
+    - Zonas que iniciam com 'Promotion' nunca são rebaixamento.
+    - Apenas se a zona for nula em ligas nacionais de pontos corridos aplica rank >= 17 ou rank >= 14 com ppg <= 1.15.
+    """
+    z = str(zone_str or '').strip()
+    l = str(league_name or '').strip()
+    if z:
+        if RE_RELEGATION.search(z) and not z.lower().startswith('promotion'):
+            return True
+        if RE_SAFE_ZONE.search(z):
+            return False
+    if l and RE_CONTINENTAL_CUP.search(l):
+        return False
+    if rank_val is not None and int(rank_val) > 0:
+        r = int(rank_val)
+        if r >= 17:
+            return True
+        if ppg_val is not None and float(ppg_val) > 0.0 and r >= 14 and float(ppg_val) <= 1.15:
+            return True
+    return False
+
+
 def compute_team_u5j_efficiency(last5_dict: dict) -> float:
     """
     Calcula a pontuação de eficiência ponderada nos últimos 5 jogos (U5J) com Strength of Schedule (SOS)
@@ -861,7 +893,8 @@ def evaluate_and_select_best_ah_candidate(
     away_zone: str = None,
     standings_motivation_score: float = None,
     odd_draw: float = None,
-    desfalques_criticos: dict = None
+    desfalques_criticos: dict = None,
+    league_name: str = ''
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
@@ -968,13 +1001,11 @@ def evaluate_and_select_best_ah_candidate(
     except Exception:
         standings_mot_val = 0.0
 
-    h_zone_str = str(home_zone or '').lower()
-    is_home_in_relegation = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
-    is_home_under_threat = (
-        is_home_in_relegation or
-        (h_rank_val >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
-        (h_rank_val >= 12 and standings_mot_val >= 3.0) or
-        (h_rank_val >= 12 and a_rank_val > 0 and (h_rank_val - a_rank_val >= 6 or a_rank_val <= 6))
+    is_home_under_threat = is_team_in_relegation_threat(
+        zone_str=home_zone,
+        rank_val=h_rank_val,
+        ppg_val=h_ppg_val,
+        league_name=league_name
     )
 
     if (xg_home is None or xg_away is None) and poisson_matrix:
@@ -1139,9 +1170,7 @@ def evaluate_and_select_best_ah_candidate(
 
         if c_is_away and c_line <= 0.0 and not is_tier1_heavily_favored:
             if not is_cand_benefited_by_lineup:
-                if is_home_in_relegation:
-                    continue
-                if (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or (h_rank_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15):
+                if is_home_under_threat:
                     continue
 
         # =========================================================================
@@ -2201,7 +2230,8 @@ def calculate_unified_handicap_recommendation(
                     away_zone=fixture_dict.get('away_zone'),
                     standings_motivation_score=standings_mot_val,
                     odd_draw=odd_d,
-                    desfalques_criticos=drift_reversal_ctx
+                    desfalques_criticos=drift_reversal_ctx,
+                    league_name=fixture_dict.get('league_name', '')
                 )
 
                 if best_revert_cand and (best_revert_cand.get('is_away') != prior_is_away):
@@ -2241,7 +2271,8 @@ def calculate_unified_handicap_recommendation(
         away_zone=fixture_dict.get('away_zone'),
         standings_motivation_score=standings_mot_val,
         odd_draw=odd_d,
-        desfalques_criticos=desfalques_criticos
+        desfalques_criticos=desfalques_criticos,
+        league_name=fixture_dict.get('league_name', '')
     )
 
     # =========================================================================
@@ -2363,18 +2394,12 @@ def calculate_unified_handicap_recommendation(
         dog_pts = dog_l5.get('pts', 0) if (dog_l5 and isinstance(dog_l5, dict)) else 0
         fav_in_form = (fav_pts >= 12 or fav_eff >= 9.0) and ((fav_eff - dog_eff) >= 3.0 or (fav_pts - dog_pts) >= 4)
 
-        h_zone_str = str(fixture_dict.get('home_zone') or '').lower()
-        # 1. Identificação de Rebaixamento Direto via metadados da liga/tabela (ex: 'relegation', 'play-out', 'rebaixamento')
-        is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
-
-        # 2. Critério Estrutural de Ameaça Real de Degola do Mandante (Vetor Dinâmico da Tabela):
-        #    - Categorizado na zona de descenso oficial (is_h_rel), OU
-        #    - Aproveitamento crítico direto de rebaixado: PPG <= 1.05 (menos de 38 pontos em 38 rodadas), OU
-        #    - Ocupar o 14º lugar ou pior com PPG <= 1.15 (típica zona de perigo/Z-4 em ligas de 16 a 20 clubes).
-        is_h_under_threat = (
-            is_h_rel or
-            (h_ppg_val > 0.0 and h_ppg_val <= 1.05) or
-            (h_rk_val >= 14 and h_ppg_val > 0.0 and h_ppg_val <= 1.15)
+        # 1. Identificação Estrutural de Degola do Mandante via Função Canônica (Expressões Regulares)
+        is_h_under_threat = is_team_in_relegation_threat(
+            zone_str=fixture_dict.get('home_zone'),
+            rank_val=h_rk_val,
+            ppg_val=h_ppg_val,
+            league_name=fixture_dict.get('league_name', '')
         )
 
         is_crisis_clash = (

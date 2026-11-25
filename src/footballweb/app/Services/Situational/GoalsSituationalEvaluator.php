@@ -196,12 +196,22 @@ class GoalsSituationalEvaluator implements SituationalEvaluatorInterface
                     $isCashoutMoment = true;
                     $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Reta Final)';
                     $alertaMsg = "Apenas {$totalGols} gols aos {$elapsed}'. Tempo escasseando para cobrir a linha Over {$lineVal}.";
-                } else {
-                    $gaugePct = max(25, min(70, round(65 - $progressoOver * 40)));
+                } elseif ($elapsed >= 35) {
+                    // 35' a 45' do 1T
+                    $gaugePct = max(35, min(55, round(55 - $progressoOver * 30)));
                     $faixaCor = ($gaugePct >= 50) ? 'amarelo' : 'verde';
                     $isCashoutMoment = false;
-                    $alertaTitulo = ($gaugePct >= 50) ? '🟡 Buscando Gols' : '🟢 Jogo Aberto';
+                    $alertaTitulo = ($gaugePct >= 50) ? '🟡 Atenção ao Ritmo' : '🟢 Buscando Gols';
                     $alertaMsg = "Partida com {$totalGols} gols aos {$elapsed}'. Buscando meta Over {$lineVal}.";
+                } else {
+                    // Início da partida (0' a 34'): 0x0 ou ritmo inicial é comum
+                    $tempoFator = $elapsed / 35.0;
+                    $baseRisco = 15.0 + ($tempoFator * 15.0);
+                    $gaugePct = max(10, min(35, round($baseRisco - ($progressoOver * 20.0))));
+                    $faixaCor = 'verde';
+                    $isCashoutMoment = false;
+                    $alertaTitulo = ($totalGols == 0) ? '🟢 Início de Jogo' : '🟢 Gol Precoce';
+                    $alertaMsg = "Partida com {$totalGols} gols aos {$elapsed}'. Amplo tempo restante para buscar a meta Over {$lineVal}.";
                 }
             }
 

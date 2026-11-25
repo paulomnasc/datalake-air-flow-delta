@@ -389,17 +389,59 @@ class CardsSituationalEvaluator(SituationalEvaluatorInterface):
 
             faltam_cards = int(line_val + 0.5) - total_cards
             if elapsed >= 80:
-                gauge_pct = 80
-                faixa_cor = "vermelho"
+                gauge_pct = 90 if faltam_cards >= 2 else 70
+                faixa_cor = "vermelho" if faltam_cards >= 2 else "cashout"
                 is_cashout_moment = True
                 alerta_titulo = "⚡ MOMENTO DO CASHOUT (Falta de Cartões)"
                 alerta_msg = f"Reta final aos {elapsed}'. Faltam {faltam_cards} cartões para o green. Pouco tempo disponível."
-            else:
-                gauge_pct = max(20, min(65, round(60 - (total_cards / line_val) * 40)))
-                faixa_cor = "amarelo" if gauge_pct >= 50 else "verde"
+            elif 60 <= elapsed < 80:
+                # 2º tempo avançado: se ainda faltam muitos cartões (>= 3), atenção ou cashout
+                if faltam_cards >= 3:
+                    gauge_pct = 75 if elapsed >= 70 else 65
+                    faixa_cor = "vermelho" if elapsed >= 70 else "cashout"
+                    is_cashout_moment = True
+                    alerta_titulo = "⚡ MOMENTO DO CASHOUT (Ritmo Lento)"
+                    alerta_msg = f"Partida aos {elapsed}' com apenas {total_cards} cartões. Faltam {faltam_cards} cartões para a meta."
+                elif faltam_cards == 2:
+                    gauge_pct = 50
+                    faixa_cor = "amarelo"
+                    is_cashout_moment = False
+                    alerta_titulo = "🟡 Atenção ao Ritmo"
+                    alerta_msg = f"Partida aos {elapsed}' com {total_cards} cartões. Faltam 2 cartões para a meta."
+                else:
+                    gauge_pct = 30
+                    faixa_cor = "verde"
+                    is_cashout_moment = False
+                    alerta_titulo = "🟢 A 1 Cartão da Meta"
+                    alerta_msg = f"Partida com {total_cards} cartões aos {elapsed}'. Falta apenas 1 cartão para o green!"
+            elif 35 <= elapsed < 60:
+                # Final do 1º tempo até início do 2º tempo (35' a 59')
+                progresso = total_cards / line_val
+                if progresso >= 0.50:
+                    gauge_pct = 25
+                    faixa_cor = "verde"
+                    alerta_titulo = "🟢 Ritmo Disciplinar Ativo"
+                elif total_cards >= 1:
+                    gauge_pct = 38
+                    faixa_cor = "verde"
+                    alerta_titulo = "🟢 Buscando Cartões"
+                else:
+                    # 0 cartões perto do intervalo ou início do 2T
+                    gauge_pct = 48 if elapsed < 50 else 55
+                    faixa_cor = "verde" if gauge_pct < 50 else "amarelo"
+                    alerta_titulo = "🟡 Atenção ao Ritmo" if gauge_pct >= 50 else "🟢 Buscando Cartões"
                 is_cashout_moment = False
-                alerta_titulo = "🟡 Buscando Cartões" if gauge_pct >= 50 else "🟢 Ritmo Disciplinar Ativo"
                 alerta_msg = f"{total_cards} cartões aplicados aos {elapsed}'. Faltam {faltam_cards} para a meta."
+            else:
+                # Início da partida (0' a 34'): Ter poucos ou 0 cartões no início é normalíssimo no futebol
+                progresso = total_cards / line_val
+                tempo_fator = elapsed / 35.0
+                base_risco = 15.0 + (tempo_fator * 15.0)  # 15% aos 0' até 30% aos 34'
+                gauge_pct = max(10, min(35, round(base_risco - (progresso * 20.0))))
+                faixa_cor = "verde"
+                is_cashout_moment = False
+                alerta_titulo = "🟢 Início de Jogo (Ritmo Inicial)" if total_cards == 0 else "🟢 Cartão Precoce"
+                alerta_msg = f"{total_cards} cartões aplicados aos {elapsed}'. Faltam {faltam_cards} para a meta com amplo tempo restante."
 
             return SituationalResult(
                 gauge_pct=int(gauge_pct),
@@ -576,29 +618,35 @@ class GoalsSituationalEvaluator(SituationalEvaluatorInterface):
                     alerta_titulo = "⚡ MOMENTO DO CASHOUT"
                     alerta_msg = f"Reta final de jogo ({elapsed}'). Falta 1 gol para a meta. Avalie cashout para travar retorno parcial!"
             else:
-                if elapsed >= 70:
-                    gauge_pct = 85
-                if 46 <= elapsed <= 79 and progresso_over < 0.75:
+                if elapsed >= 80:
+                    gauge_pct = 90
+                    faixa_cor = "vermelho"
+                    is_cashout_moment = True
+                    alerta_titulo = "⚡ MOMENTO DO CASHOUT (Reta Final)"
+                    alerta_msg = f"Apenas {total_gols} gols aos {elapsed}'. Tempo escasseando para cobrir a linha Over {line_val}."
+                elif 46 <= elapsed <= 79 and progresso_over < 0.75:
                     # Janela Nobre de Cash Out (46' a 79' - Meio de Jogo)
                     gauge_pct = 85 if elapsed >= 65 else 70
                     faixa_cor = "vermelho" if elapsed >= 65 else "cashout"
                     is_cashout_moment = True
                     alerta_titulo = "⚡ JANELA NOBRE DE CASHOUT (Ritmo Lento)"
                     alerta_msg = f"Apenas {total_gols} gol(s) aos {elapsed}' (abaixo de 75% do Over {line_val}). Momento ideal de agir na Cloudbet para resgate de capital com boas cotações!"
-                elif elapsed >= 80:
-                    gauge_pct = 90
-                    faixa_cor = "vermelho"
-                    is_cashout_moment = True
-                    alerta_titulo = "⚡ MOMENTO DO CASHOUT (Ritmo Lento)"
-                    alerta_titulo = "⚡ MOMENTO DO CASHOUT (Reta Final)"
-                    alerta_msg = f"Apenas {total_gols} gols aos {elapsed}'. Tempo escasseando para cobrir a linha Over {line_val}."
-                else:
-                    gauge_pct = max(25, min(70, round(65 - (total_gols / line_val) * 40)))
-                    gauge_pct = max(25, min(70, round(65 - progresso_over * 40)))
+                elif elapsed >= 35:
+                    # 35' a 45' do 1T
+                    gauge_pct = max(35, min(55, round(55 - progresso_over * 30)))
                     faixa_cor = "amarelo" if gauge_pct >= 50 else "verde"
                     is_cashout_moment = False
-                    alerta_titulo = "🟡 Buscando Gols" if gauge_pct >= 50 else "🟢 Jogo Aberto"
+                    alerta_titulo = "🟡 Atenção ao Ritmo" if gauge_pct >= 50 else "🟢 Buscando Gols"
                     alerta_msg = f"Partida com {total_gols} gols aos {elapsed}'. Buscando meta Over {line_val}."
+                else:
+                    # Início da partida (0' a 34'): 0x0 ou ritmo inicial é comum
+                    tempo_fator = elapsed / 35.0
+                    base_risco = 15.0 + (tempo_fator * 15.0)
+                    gauge_pct = max(10, min(35, round(base_risco - (progresso_over * 20.0))))
+                    faixa_cor = "verde"
+                    is_cashout_moment = False
+                    alerta_titulo = "🟢 Início de Jogo" if total_gols == 0 else "🟢 Gol Precoce"
+                    alerta_msg = f"Partida com {total_gols} gols aos {elapsed}'. Amplo tempo restante para buscar a meta Over {line_val}."
 
             return SituationalResult(
                 gauge_pct=int(gauge_pct),

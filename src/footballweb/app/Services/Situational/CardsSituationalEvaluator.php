@@ -155,17 +155,61 @@ class CardsSituationalEvaluator implements SituationalEvaluatorInterface
 
             $faltamCards = ceil($lineVal) - $totalCards;
             if ($elapsed >= 80) {
-                $gaugePct = 80;
-                $faixaCor = 'vermelho';
+                $gaugePct = ($faltamCards >= 2) ? 90 : 70;
+                $faixaCor = ($faltamCards >= 2) ? 'vermelho' : 'cashout';
                 $isCashoutMoment = true;
                 $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Falta de Cartões)';
                 $alertaMsg = "Reta final aos {$elapsed}'. Faltam {$faltamCards} cartões para o green. Pouco tempo disponível.";
-            } else {
-                $gaugePct = max(20, min(65, round(60 - ($totalCards / $lineVal) * 40)));
-                $faixaCor = ($gaugePct >= 50) ? 'amarelo' : 'verde';
+            } elseif ($elapsed >= 60 && $elapsed < 80) {
+                // 2º tempo avançado: se ainda faltam muitos cartões (>= 3), atenção ou cashout
+                if ($faltamCards >= 3) {
+                    $gaugePct = ($elapsed >= 70) ? 75 : 65;
+                    $faixaCor = ($elapsed >= 70) ? 'vermelho' : 'cashout';
+                    $isCashoutMoment = true;
+                    $alertaTitulo = '⚡ MOMENTO DO CASHOUT (Ritmo Lento)';
+                    $alertaMsg = "Partida aos {$elapsed}' com apenas {$totalCards} cartões. Faltam {$faltamCards} cartões para a meta.";
+                } elseif ($faltamCards == 2) {
+                    $gaugePct = 50;
+                    $faixaCor = 'amarelo';
+                    $isCashoutMoment = false;
+                    $alertaTitulo = '🟡 Atenção ao Ritmo';
+                    $alertaMsg = "Partida aos {$elapsed}' com {$totalCards} cartões. Faltam 2 cartões para a meta.";
+                } else {
+                    $gaugePct = 30;
+                    $faixaCor = 'verde';
+                    $isCashoutMoment = false;
+                    $alertaTitulo = '🟢 A 1 Cartão da Meta';
+                    $alertaMsg = "Partida com {$totalCards} cartões aos {$elapsed}'. Falta apenas 1 cartão para o green!";
+                }
+            } elseif ($elapsed >= 35 && $elapsed < 60) {
+                // Final do 1º tempo até início do 2º tempo (35' a 59')
+                $progresso = $lineVal > 0 ? ($totalCards / $lineVal) : 0;
+                if ($progresso >= 0.50) {
+                    $gaugePct = 25;
+                    $faixaCor = 'verde';
+                    $alertaTitulo = '🟢 Ritmo Disciplinar Ativo';
+                } elseif ($totalCards >= 1) {
+                    $gaugePct = 38;
+                    $faixaCor = 'verde';
+                    $alertaTitulo = '🟢 Buscando Cartões';
+                } else {
+                    // 0 cartões perto do intervalo ou início do 2T
+                    $gaugePct = ($elapsed < 50) ? 48 : 55;
+                    $faixaCor = ($gaugePct < 50) ? 'verde' : 'amarelo';
+                    $alertaTitulo = ($gaugePct >= 50) ? '🟡 Atenção ao Ritmo' : '🟢 Buscando Cartões';
+                }
                 $isCashoutMoment = false;
-                $alertaTitulo = ($gaugePct >= 50) ? '🟡 Buscando Cartões' : '🟢 Ritmo Disciplinar Ativo';
                 $alertaMsg = "{$totalCards} cartões aplicados aos {$elapsed}'. Faltam {$faltamCards} para a meta.";
+            } else {
+                // Início da partida (0' a 34'): Ter poucos ou 0 cartões no início é normalíssimo no futebol
+                $progresso = $lineVal > 0 ? ($totalCards / $lineVal) : 0;
+                $tempoFator = $elapsed / 35.0;
+                $baseRisco = 15.0 + ($tempoFator * 15.0); // 15% aos 0' até 30% aos 34'
+                $gaugePct = max(10, min(35, round($baseRisco - ($progresso * 20.0))));
+                $faixaCor = 'verde';
+                $isCashoutMoment = false;
+                $alertaTitulo = ($totalCards == 0) ? '🟢 Início de Jogo (Ritmo Inicial)' : '🟢 Cartão Precoce';
+                $alertaMsg = "{$totalCards} cartões aplicados aos {$elapsed}'. Faltam {$faltamCards} para a meta com amplo tempo restante.";
             }
 
             return new SituationalResult(

@@ -28,6 +28,33 @@ _betano_cards_odds_cache = _cards_odds_cache
 _betano_cards_raw_fixture_cache = _cards_raw_fixture_cache
 _betano_cards_api_disabled = _cards_api_disabled
 
+try:
+    from scripts.asian_handicap_engine import is_team_in_relegation_threat
+except Exception:
+    try:
+        from asian_handicap_engine import is_team_in_relegation_threat
+    except Exception:
+        RE_RELEGATION = re.compile(r'\b(relegat\w*|play[\s-]?outs?|degraded|rebaixa\w*|degola\w*)\b', re.IGNORECASE)
+        RE_SAFE_ZONE = re.compile(r'\b(mid[\s-]?table|promotion|champions|libertadores|sudamericana|europa|conference|play[\s-]?offs?|knockout|placement|qualif\w*)\b', re.IGNORECASE)
+        RE_CONTINENTAL_CUP = re.compile(r'\b(champions|europa|conference|libertadores|sudamericana|copa|cup|pokal|coupe|trophy|nations|league\s+phase|tournament)\b', re.IGNORECASE)
+        def is_team_in_relegation_threat(zone_str: str = None, rank_val: int = None, ppg_val: float = None, league_name: str = '') -> bool:
+            z = str(zone_str or '').strip()
+            l = str(league_name or '').strip()
+            if z:
+                if RE_RELEGATION.search(z) and not z.lower().startswith('promotion'):
+                    return True
+                if RE_SAFE_ZONE.search(z):
+                    return False
+            if l and RE_CONTINENTAL_CUP.search(l):
+                return False
+            if rank_val is not None and int(rank_val) > 0:
+                r = int(rank_val)
+                if r >= 17:
+                    return True
+                if ppg_val is not None and float(ppg_val) > 0.0 and r >= 14 and float(ppg_val) <= 1.15:
+                    return True
+            return False
+
 # Ligas excluídas pelo Gatekeeper de Cartões por apresentarem taxa histórica de Reds > 10.0% ou falta de rigor competitivo
 CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS = {
     10,   # Friendlies (Amistosos de Seleções) - Proibido operar cartões por falta de intensidade competitiva
@@ -589,7 +616,8 @@ def evaluate_cards_conflict_scenario(
     home_zone: str = None,
     home_ppg: float = None,
     standings_mot: float = None,
-    league_id: int = None
+    league_id: int = None,
+    league_name: str = ''
 ) -> tuple:
     """
     Avalia os 4 cenários canônicos de partidas conflituosas (migrados do Gatekeeper de AH para Cartões):
@@ -638,13 +666,11 @@ def evaluate_cards_conflict_scenario(
     except Exception:
         standings_mot_val = 0.0
 
-    h_zone_str = str(home_zone or '').lower()
-    is_h_rel = ('relegat' in h_zone_str or 'play out' in h_zone_str or 'play-out' in h_zone_str or 'rebaixamento' in h_zone_str)
-    is_h_under_threat = (
-        is_h_rel or
-        (h_rk >= 12 and h_ppg_val > 0.0 and h_ppg_val <= 1.25) or
-        (h_rk >= 12 and standings_mot_val >= 3.0) or
-        (h_rk >= 12 and a_rk > 0 and (h_rk - a_rk >= 6 or a_rk <= 6))
+    is_h_under_threat = is_team_in_relegation_threat(
+        zone_str=home_zone,
+        rank_val=h_rk,
+        ppg_val=h_ppg_val,
+        league_name=league_name
     )
 
     # 1. Caldeirão da Degola / Sobrevivência do Mandante (Veto condicionado a atrito real)
@@ -915,6 +941,8 @@ def evaluate_best_card_under_line(
     home_ppg = ctx.get('home_ppg')
     standings_mot = ctx.get('standings_motivation_score')
 
+    league_name = str((fixture_dict or {}).get('league_name') or '')
+
     # Avaliação do catálogo de 4 cenários de partidas conflituosas (Regras AH -> Cartões)
     is_blocked_under_all, is_blocked_under_55, conflict_reason, conflict_badge = evaluate_cards_conflict_scenario(
         home_team=home_team,
@@ -928,7 +956,8 @@ def evaluate_best_card_under_line(
         home_zone=home_zone,
         home_ppg=home_ppg,
         standings_mot=standings_mot,
-        league_id=league_id
+        league_id=league_id,
+        league_name=league_name
     )
 
     under_block_reason = None
@@ -937,14 +966,18 @@ def evaluate_best_card_under_line(
     if is_blocked_under_all:
         under_block_reason = conflict_reason
 
-    # Verificação de rebaixamento / crise de tabela no fixture_dict
-    h_zone = str((fixture_dict or {}).get('home_zone') or '').lower()
-    a_zone = str((fixture_dict or {}).get('away_zone') or '').lower()
+    # Verificação estrutural de rebaixamento / crise de tabela via Expressões Regulares
+    h_zone = (fixture_dict or {}).get('home_zone')
+    a_zone = (fixture_dict or {}).get('away_zone')
     h_rank = (fixture_dict or {}).get('home_rank')
     a_rank = (fixture_dict or {}).get('away_rank')
-    is_relegation_threat = any(k in h_zone or k in a_zone for k in ['relegation', 'rebaixamento', 'degola']) or \
-                           (h_rank is not None and int(h_rank) >= 17) or \
-                           (a_rank is not None and int(a_rank) >= 17)
+    h_ppg = (fixture_dict or {}).get('home_ppg')
+    a_ppg = (fixture_dict or {}).get('away_ppg')
+
+    is_h_relegation = is_team_in_relegation_threat(zone_str=h_zone, rank_val=h_rank, ppg_val=h_ppg, league_name=league_name)
+    is_a_relegation = is_team_in_relegation_threat(zone_str=a_zone, rank_val=a_rank, ppg_val=a_ppg, league_name=league_name)
+
+    is_relegation_threat = is_h_relegation or is_a_relegation
 
     # Filtro de Tensão e Crise de Tabela (U5J): ativado se um (1) ou ambos estiverem em crise aguda ou degola
     is_severe_u5j_risk = (h_eff is not None and h_eff <= 3.0) or \

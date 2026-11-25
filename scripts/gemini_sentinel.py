@@ -95,6 +95,86 @@ def buscar_noticias_prejogo_web(home_team: str, away_team: str, league_name: str
     return "Estatísticas de elenco, histórico recente e boletins oficiais de escalações consolidados no banco de dados."
 
 
+def get_team_lineup_backbone_from_db(
+    cursor,
+    team_id: int,
+    team_name: str,
+    league_id: int = None,
+    current_fixture_id: int = None,
+    limit_matches: int = 5
+) -> dict:
+    """
+    Recupera a espinha dorsal recente da equipe no MySQL analisando os titulares frequentes
+    das partidas finalizadas recentes (U5J) em match_lineups_cache (Custo Zero de API - Regra 1).
+    Retorna os jogadores da base titular habitual e o goleiro titular mais utilizado.
+    """
+    start_xi_counts = {}
+    gk_counts = {}
+    total_matches_analyzed = 0
+
+    if not cursor or not team_id:
+        return {'total_matches': 0, 'backbone_players': [], 'most_used_gk': None}
+
+    try:
+        query = """
+            SELECT mlc.fixture_id, mlc.home_team_id, mlc.away_team_id, mlc.home_team, mlc.away_team,
+                   mlc.titulares_home, mlc.titulares_away, mlc.lineups_json
+            FROM match_lineups_cache mlc
+            JOIN fixtures_trends ft ON mlc.fixture_id = ft.fixture_id
+            WHERE (mlc.home_team_id = %s OR mlc.away_team_id = %s OR mlc.home_team LIKE %s OR mlc.away_team LIKE %s)
+              AND ft.status IN ('FT', 'AET', 'PEN')
+        """
+        params = [team_id, team_id, f'%{team_name[:6]}%', f'%{team_name[:6]}%']
+        if current_fixture_id:
+            query += ' AND mlc.fixture_id != %s'
+            params.append(current_fixture_id)
+        if league_id:
+            query += ' AND ft.league_id = %s'
+            params.append(league_id)
+        query += ' ORDER BY ft.fixture_date DESC LIMIT %s'
+        params.append(limit_matches)
+
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        total_matches_analyzed = len(rows)
+
+        for r in rows:
+            l_json_raw = r.get('lineups_json')
+            if l_json_raw:
+                try:
+                    l_data = json.loads(l_json_raw) if isinstance(l_json_raw, str) else l_json_raw
+                    for t_entry in l_data:
+                        t_info = t_entry.get('team') or {}
+                        t_ent_id = t_info.get('id')
+                        t_ent_name = t_info.get('name', '')
+                        match_this = (team_id and t_ent_id == team_id) or (team_name.lower() in t_ent_name.lower())
+                        if match_this:
+                            for p in t_entry.get('startXI', []):
+                                p_obj = p.get('player') or {}
+                                p_id = p_obj.get('id')
+                                p_name = p_obj.get('name', '')
+                                p_pos = p_obj.get('pos', '')
+                                if p_name:
+                                    key = (p_id, p_name, p_pos)
+                                    start_xi_counts[key] = start_xi_counts.get(key, 0) + 1
+                                    if p_pos == 'G':
+                                        gk_counts[p_name] = gk_counts.get(p_name, 0) + 1
+                except Exception:
+                    pass
+    except Exception as e_bb:
+        print(f"⚠️ [Sentinela Espinha Dorsal MySQL Erro]: {e_bb}")
+
+    sorted_players = sorted(start_xi_counts.items(), key=lambda x: x[1], reverse=True)
+    backbone = [item[0] for item in sorted_players if item[1] >= max(1, total_matches_analyzed // 2)]
+    most_used_gk = sorted(gk_counts.items(), key=lambda x: x[1], reverse=True)[0][0] if gk_counts else None
+
+    return {
+        'total_matches': total_matches_analyzed,
+        'backbone_players': backbone,
+        'most_used_gk': most_used_gk
+    }
+
+
 def coletar_sumula_e_desfalques_apisports(
     cursor,
     fixture_id: int,
@@ -127,7 +207,7 @@ def coletar_sumula_e_desfalques_apisports(
     desfalques_home_cnt = 0
     desfalques_away_cnt = 0
 
-    # 0. PROTOCOLO CACHE-FIRST MANDATÓRIO NO MYSQL (Regra de Ouro 1)
+    # 0. PROTOCOLO CACHE-FIRST MANDATÓRIO NO MYSQL COM AUDITORIA DE ELENCO (Regra 1 e 8)
     if cursor:
         try:
             cursor.execute("""
@@ -140,17 +220,45 @@ def coletar_sumula_e_desfalques_apisports(
                 print(f"⚡ [Cache-First MySQL] Súmula oficial de #{fixture_id} ({home_team} vs {away_team}) recuperada do cache local (Fonte: {cached_sumula.get('fonte')}). Consumo API = R$ 0,00.")
                 bloco_h = f"• {home_team} | 11 Titulares: {cached_sumula['titulares_home']}"
                 bloco_a = f"• {away_team} | 11 Titulares: {cached_sumula['titulares_away']}"
+
+                # Recomposição de auditoria de elenco e espinha dorsal a partir do cache e histórico
+                bb_h = get_team_lineup_backbone_from_db(cursor, home_team_id, home_team, league_id=league_id, current_fixture_id=fixture_id)
+                bb_a = get_team_lineup_backbone_from_db(cursor, away_team_id, away_team, league_id=league_id, current_fixture_id=fixture_id)
+
+                motivos_alerta_cache = []
+                txt_h = cached_sumula['titulares_home']
+                txt_a = cached_sumula['titulares_away']
+
+                # Verifica equipe mandante
+                if bb_h.get('backbone_players'):
+                    ausentes_h = [p[1] for p in bb_h['backbone_players'] if p[1] not in txt_h]
+                    rotacao_home_cnt = len(ausentes_h)
+                    if bb_h.get('most_used_gk') and bb_h['most_used_gk'] not in txt_h:
+                        motivos_alerta_cache.append(f"Goleiro titular habitual ausente em {home_team}: {bb_h['most_used_gk']} fora dos 11")
+                    if rotacao_home_cnt >= 4:
+                        motivos_alerta_cache.append(f"Time misto / rodízio em {home_team}: {rotacao_home_cnt} titulares habituais ausentes ({', '.join(ausentes_h[:5])})")
+
+                # Verifica equipe visitante
+                if bb_a.get('backbone_players'):
+                    ausentes_a = [p[1] for p in bb_a['backbone_players'] if p[1] not in txt_a]
+                    rotacao_away_cnt = len(ausentes_a)
+                    if bb_a.get('most_used_gk') and bb_a['most_used_gk'] not in txt_a:
+                        motivos_alerta_cache.append(f"Goleiro titular habitual ausente em {away_team}: {bb_a['most_used_gk']} fora dos 11")
+                    if rotacao_away_cnt >= 4:
+                        motivos_alerta_cache.append(f"Time misto / rodízio em {away_team}: {rotacao_away_cnt} titulares habituais ausentes ({', '.join(ausentes_a[:5])})")
+
+                tem_alerta_elenco_cache = len(motivos_alerta_cache) > 0
                 return {
                     "lineups_disponiveis": True,
                     "tem_sumula": True,
                     "texto_sumula": f"{bloco_h}\n{bloco_a}",
-                    "alerta_estrutural_elenco": False,
-                    "motivos_alerta_elenco": [],
-                    "rotacao_home_cnt": 0,
-                    "rotacao_away_cnt": 0,
+                    "alerta_estrutural_elenco": tem_alerta_elenco_cache,
+                    "motivos_alerta_elenco": motivos_alerta_cache,
+                    "rotacao_home_cnt": rotacao_home_cnt,
+                    "rotacao_away_cnt": rotacao_away_cnt,
                     "desfalques_home_cnt": 0,
                     "desfalques_away_cnt": 0,
-                    "resumo_curto": f"{home_team} e {away_team} com titulares confirmados no cache",
+                    "resumo_curto": f"{home_team} e {away_team} com titulares confirmados no cache" + (f" (Alerta: {'; '.join(motivos_alerta_cache)})" if tem_alerta_elenco_cache else ""),
                     "fonte": cached_sumula.get("fonte", "CACHE_MYSQL"),
                     "from_cache": True
                 }
@@ -941,7 +1049,9 @@ Analise o dossiê completo abaixo — incluindo a AVALIAÇÃO DE MERCADO E GEST�
 2. Defina com precisão o GRAU DE RISCO da partida considerando a REGRA SOBERANA DE PRECEDÊNCIA (Market-First):
    * REGRA DE PRECEDÊNCIA MÁXIMA: Risco Final = MAX(Risco_Base_Mercado, Risco_Externo_Notícias). Notícias calmas NUNCA podem rebaixar um risco intrínseco de mercado ou ausência de cotações viáveis.
    * REGRA DE FIDELIDADE DE POSIÇÕES: A posição de cada atleta (Goleiro, Defensor, Meio-campo, Atacante) está explicitada entre colchetes no dossiê. NUNCA confunda ou altere a posição de um jogador. Um atleta só pode ser considerado goleiro se explicitamente rotulado como [Goleiro].
-   * REGRA DE FORÇA MÁXIMA E COPAS: O comparativo de titulares é realizado estritamente com a liga principal. Se a equipe escalou seus titulares habituais de liga (mesmo tendo poupado atletas em copas anteriores), reconheça como Força Máxima de Liga preservada.
+   * REGRA DE FORÇA MÁXIMA E PROIBIÇÃO DE FORÇA MÁXIMA FALSA:
+     - Se a equipe escalou seus titulares habituais e espinha dorsal (goleiro titular, zagueiros principais, meias e atacantes de referência), reconheça como Força Máxima.
+     - PROIBIÇÃO DE FORÇA MÁXIMA FALSA: Se a equipe estiver em campo com 4 ou mais alterações em relação à base titular habitual, ou se o goleiro titular estiver ausente com garotos/reservas escalados, é TERMINANTEMENTE PROIBIDO rotular como 'Força Máxima'. Você DEVE classificar obrigatoriamente como 'Time Misto / Rodízio de Elenco' e avaliar o impacto de desentrosamento na tese da aposta.
    * REGRA DE HIERARQUIA E PESO TÁTICO DOS DESFALQUES (JOGADORES DECISIVOS VS COMPOSIÇÃO DE ELENCO):
      - Ao analisar os desfalques e ausências na súmula oficial e notícias:
        1) JOGADORES DECISIVOS / ESPINHA DORSAL (Alto Impacto / Sinistro Real): Artilheiro principal da equipe, armador/camisa 10, goleiro titular absoluto, ou capitão/líder técnico indispensável (ex: atacantes top decisivos como Gabigol, ou craques suspensos como Neymar). A ausência confirmada desses atletas desfigura a competitividade do time e justifica classificação de risco ALTO (Alerta de Sinistro).
@@ -2377,9 +2487,15 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         resumo = f"📋 Escalação Confirmada [Força Máxima / Observação de Mercado]: {resultado.get('resumo_escalacao', resumo)}"
                         titulo_alerta = f"📋 Escalação Confirmada [Força Máxima / ⚠️ Observação de Mercado]: {home_team} vs {away_team}"
                     elif not tem_alerta:
-                        st = 'CONFIRMADO'
-                        resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
-                        titulo_alerta = f"📋 Escalação Confirmada [🟢 Força Máxima]: {home_team} vs {away_team}"
+                        tem_rodizio_detectado = bool(sumula_oficial.get('alerta_estrutural_elenco') or (int(sumula_oficial.get('rotacao_home_cnt') or 0) >= 4) or (int(sumula_oficial.get('rotacao_away_cnt') or 0) >= 4))
+                        if tem_rodizio_detectado:
+                            st = 'CONFIRMADO'
+                            resumo = f"📋 Escalação Confirmada [Time Misto / Rodízio]: {sumula_oficial.get('resumo_curto', resumo)}"
+                            titulo_alerta = f"📋 Escalação Confirmada [🟡 Time Misto / Rodízio]: {home_team} vs {away_team}"
+                        else:
+                            st = 'CONFIRMADO'
+                            resumo = f"📋 Escalação Confirmada: Força máxima confirmada sem desfalques críticos ({resumo})"
+                            titulo_alerta = f"📋 Escalação Confirmada [🟢 Força Máxima]: {home_team} vs {away_team}"
                     else:
                         st = 'ALERTA_RISCO'
                         resumo = f"📋 Escalação Confirmada [Observação]: {resumo}"
@@ -2499,7 +2615,11 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             tag_color = "red_circle" if (grau_risco == "ALTO" or st == "ALERTA_RISCO") else ("yellow_circle" if veredito_grok == "ATENCAO" else "green_circle")
                             prioridade_push = 5 if recalib.get('alerta_risco') else 4
                             if analise_ia_txt:
-                                badge_ia = "🟢 Força Máxima" if veredito_grok == "MANTER_APOSTA" else "🟡 Atenção Tática"
+                                tem_rodizio_ia = bool(sumula_oficial.get('alerta_estrutural_elenco') or (int(sumula_oficial.get('rotacao_home_cnt') or 0) >= 4) or (int(sumula_oficial.get('rotacao_away_cnt') or 0) >= 4))
+                                if tem_rodizio_ia:
+                                    badge_ia = "🟡 Time Misto / Rodízio"
+                                else:
+                                    badge_ia = "🟢 Força Máxima" if veredito_grok == "MANTER_APOSTA" else "🟡 Atenção Tática"
                                 titulo_alerta = f"📋 Escalação Confirmada [{badge_ia}]: {home_team} vs {away_team}"
                                 parecer = (
                                     f"{home_team} x {away_team} [{badge_ia}]: 📋 Escalação Oficial Auditada pela IA!\n\n"

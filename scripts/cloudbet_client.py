@@ -220,11 +220,13 @@ class CloudbetClient:
         if "error" in res and res.get("status_code") in (404, 400):
             res = self._request("POST", "/pub/v4/bets/place", json=payload)
 
-        # Na Cloudbet v3/v4, o retorno de sucesso traz referenceId/betslipId e status="ACCEPTED"
-        # O betId pode ser populado diretamente com o referenceId se betId não vier explicitly
-        if res.get("status") == "ACCEPTED" or res.get("state") == "ACCEPTED":
+        # Na Cloudbet v3/v4, o retorno de sucesso traz referenceId/betslipId e status/state="ACCEPTED"
+        # Garante que betId e betslipId estejam sempre disponíveis
+        if res.get("status") == "ACCEPTED" or res.get("state") == "ACCEPTED" or res.get("betslipId") or res.get("referenceId"):
             if not res.get("betId"):
                 res["betId"] = res.get("referenceId") or res.get("betslipId") or ref_id
+            if not res.get("betslipId"):
+                res["betslipId"] = res.get("betId") or res.get("referenceId")
 
         return res
 

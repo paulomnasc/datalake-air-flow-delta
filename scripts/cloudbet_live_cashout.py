@@ -483,12 +483,15 @@ def find_cloudbet_opposite_market_and_quote(
     market_url: Optional[str] = None,
     event_id: Optional[str] = None,
     fixture_date: Optional[Any] = None,
-    is_live: bool = True
+    is_live: bool = True,
+    goals_home: Optional[int] = None,
+    goals_away: Optional[int] = None
 ) -> Tuple[Optional[str], Optional[str], float, float, Optional[str]]:
     """
     Localiza o evento e a seleção da ponta oposta com cotação e liquidez na Cloudbet.
     Suporta tanto apostas nativas da Cloudbet quanto Hedge Cruzado para apostas Betano/outras casas.
     Se is_live=True, prioriza o catálogo in-play (live=true) e bypassa cache de odds para obter dados em tempo real.
+    GARANTIA DE JOGO COMPLETO (FT): Rejeita estritamente mercados parciais ('which_team_wins', 'rest_of_the_match', '1st_half', etc.).
     Retorna: (event_id, opposite_market_url, price, min_stake, opposite_palpite)
     """
     opp_market_url = None
@@ -499,6 +502,9 @@ def find_cloudbet_opposite_market_and_quote(
     # 1. Se já temos market_url nativa Cloudbet, deriva a ponta oposta
     if market_url:
         opp_market_url = derive_opposite_market_url(market_url)
+        # Veto preventivo se a URL de origem pertencer a mercados proibidos
+        if opp_market_url and any(bad in opp_market_url.lower() for bad in ("which_team_wins", "rest_of_the_match", "1st_half", "2nd_half", "half_time")):
+            opp_market_url = None
 
     # 2. Se temos event_id e opp_market_url, tenta a cotação direta no book ao vivo
     if event_id and opp_market_url:
@@ -543,11 +549,18 @@ def find_cloudbet_opposite_market_and_quote(
                 hcap_val = float(m_hcap.group(1)) if m_hcap else 0.0
                 opp_hcap = -hcap_val
 
+                # Vantagem de gols do time adversário no momento (se placar disponível)
+                gh_live = int(goals_home if is_home_bet else goals_away) if (goals_home is not None and goals_away is not None) else 0
+                ga_live = int(goals_away if is_home_bet else goals_home) if (goals_home is not None and goals_away is not None) else 0
+                adv_lead = ga_live - gh_live  # Vantagem de gols do adversário (ex: 1 no 0x1)
+
                 ah_dict = cb_markets.get("asian_handicap", {})
                 dnb_dict = cb_markets.get("draw_no_bet", {})
+                mo_dict = cb_markets.get("match_odds", {})
+                dc_dict = cb_markets.get("double_chance", {})
                 sel_cand = None
 
-                # Prioridade 0: Se aposta for 0.0 DNB, verifica mercado dedicado soccer.draw_no_bet
+                # Prioridade 0: Se aposta for 0.0 DNB, verifica mercado dedicado soccer.draw_no_bet (FT)
                 if (abs(hcap_val) < 0.01 or "0.0" in palpite) and dnb_dict and opp_outcome in dnb_dict:
                     sel_cand = dnb_dict[opp_outcome]
                     opp_hcap = 0.0
@@ -556,11 +569,14 @@ def find_cloudbet_opposite_market_and_quote(
                 if not sel_cand and ah_dict:
                     for test_h in [opp_hcap, hcap_val]:
                         if test_h in ah_dict and opp_outcome in ah_dict[test_h]:
+                            # Trava de Cobertura: se adversário lidera por 1+, linha não pode exigir mais gols
+                            if adv_lead > 0 and test_h < -0.5:
+                                continue
                             sel_cand = ah_dict[test_h][opp_outcome]
                             opp_hcap = test_h
                             break
 
-                # Prioridade 2: Linha neutra 0.0 DNB no Draw No Bet ou Asian Handicap
+                # Prioridade 2: Linha neutra 0.0 DNB no Draw No Bet ou Asian Handicap (FT)
                 if not sel_cand:
                     if dnb_dict and opp_outcome in dnb_dict:
                         sel_cand = dnb_dict[opp_outcome]
@@ -569,11 +585,15 @@ def find_cloudbet_opposite_market_and_quote(
                         sel_cand = ah_dict[0.0][opp_outcome]
                         opp_hcap = 0.0
 
-                # Prioridade 3: Linha ativa in-play mais equilibrada (odds >= 1.15)
+                # Prioridade 3: Linha ativa in-play mais equilibrada (odds >= 1.15) COM TRAVA DE COBERTURA ESTREITA
+                # Se o adversário lidera por 1 gol (adv_lead >= 1), linhas como -1.0, -1.25, -1.5 são VETADAS!
+                # Somente linhas que cubram o placar atual (test_h >= -0.5) são aceitas!
                 if not sel_cand and ah_dict:
                     best_diff = 999.0
                     for h_k, h_v in ah_dict.items():
                         if opp_outcome in h_v:
+                            if adv_lead > 0 and h_k < -0.5:
+                                continue
                             cand = h_v[opp_outcome]
                             cand_price = cand.get("price", 0.0)
                             diff = abs(cand_price - 1.85)
@@ -582,14 +602,29 @@ def find_cloudbet_opposite_market_and_quote(
                                 sel_cand = cand
                                 opp_hcap = h_k
 
-                # Prioridade 4: Linha in-play ao vivo de vencedor do restante (Which Team Wins 0:0)
-                if not sel_cand and "which_team_wins" in cb_markets:
-                    wtw_dict = cb_markets.get("which_team_wins", {})
-                    if opp_outcome in wtw_dict:
-                        sel_cand = wtw_dict[opp_outcome]
-                        opp_hcap = 0.0
+                # Prioridade 4: Vitória Seca da partida inteira (Match Odds / 1X2 FT)
+                # Cobre perfeitamente o resultado final caso o placar atual se confirme.
+                # BANIMENTO PERMANENTE: soccer.which_team_wins_the_rest_of_the_match é terminantemente proibido.
+                if not sel_cand and mo_dict and opp_outcome in mo_dict:
+                    cand_mo = mo_dict[opp_outcome]
+                    cand_mo_price = float(cand_mo.get("price") or 0.0)
+                    if cand_mo_price >= 1.15:
+                        sel_cand = cand_mo
+                        opp_hcap = -0.5
+                        opp_palpite = f"{opp_team} Vence (1X2 FT)"
 
-                # Prioridade 5: Fallback de simulação em Dry-Run quando linhas da casa estão em transição
+                # Prioridade 5: Dupla Chance da partida inteira (Double Chance FT / +0.5 AH equivalente)
+                if not sel_cand and dc_dict:
+                    dc_outcome = 'draw_away' if opp_outcome == 'away' else 'home_draw'
+                    if dc_outcome in dc_dict:
+                        cand_dc = dc_dict[dc_outcome]
+                        cand_dc_price = float(cand_dc.get("price") or 0.0)
+                        if cand_dc_price >= 1.15:
+                            sel_cand = cand_dc
+                            opp_hcap = 0.5
+                            opp_palpite = f"{opp_team} ou Empate (Dupla Chance FT)"
+
+                # Prioridade 6: Fallback de simulação em Dry-Run estritamente com Draw No Bet FT
                 if not sel_cand and getattr(client, "dry_run", False):
                     opp_market_url = f"soccer.draw_no_bet/{opp_outcome}"
                     price = 2.65
@@ -597,12 +632,22 @@ def find_cloudbet_opposite_market_and_quote(
                     opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
+                # Validação Final de Segurança: Whitelist Estrita de Mercados de Jogo Completo (FT)
                 if sel_cand:
-                    opp_market_url = sel_cand["market_url"]
-                    price = float(sel_cand["price"])
-                    min_stake = float(sel_cand["min_stake"])
-                    opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
-                    return target_event_id, opp_market_url, price, min_stake, opp_palpite
+                    opp_cand_url = str(sel_cand.get("market_url") or "")
+                    is_prohibited = any(bad in opp_cand_url.lower() for bad in (
+                        "which_team_wins", "rest_of_the_match", "1st_half", "2nd_half", "half_time"
+                    ))
+                    if is_prohibited:
+                        print(f"   🛑 [Veto de Mercado Parcial Cloudbet]: Mercado {opp_cand_url} rejeitado por não ser cobertura de jogo completo.")
+                        sel_cand = None
+                    else:
+                        opp_market_url = opp_cand_url
+                        price = float(sel_cand["price"])
+                        min_stake = float(sel_cand["min_stake"])
+                        if not opp_palpite:
+                            opp_palpite = f"{opp_team} 0.0 AH" if opp_hcap == 0.0 else f"{opp_team} {opp_hcap:+.2f} AH"
+                        return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
             # Caso Cartões (Under / Over) - Travas Matemáticas Canônicas Mandatórias
             elif "cart" in palpite.lower() or "cart" in str(palpite or "").lower():
@@ -1269,7 +1314,9 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 market_url=meta_market_url,
                 event_id=meta_event_id,
                 fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
-                is_live=True
+                is_live=True,
+                goals_home=gh,
+                goals_away=ga
             )
 
             if event_id and opposite_market_url and hedge_price > 0.0:
@@ -1701,7 +1748,9 @@ def executar_hedge_prejogo_cloudbet(
             market_url=meta_market_url,
             event_id=meta_event_id,
             fixture_date=bet.get('fixture_date') or bet.get('data_hora_jogo'),
-            is_live=False
+            is_live=False,
+            goals_home=0,
+            goals_away=0
         )
 
         hedge_info = {}

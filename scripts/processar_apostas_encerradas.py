@@ -372,6 +372,23 @@ def evaluate_bet(aposta, stats):
         elif 'fora' in palpite_norm or ' 2 ' in palpite_norm:
             is_away_bet = True
 
+        team_bet = (time_fora or "Visitante") if is_away_bet else (time_casa or "Mandante")
+
+        # Suporte específico a 'Vence o Restante' (Rest of Match com placar base)
+        if 'vence o restante' in palpite_norm or 'resto da partida' in palpite_norm or 'rest of' in palpite_norm:
+            m_base = re.search(r'\((\d+)\s*[:xX-]\s*(\d+)\)', palpite_norm)
+            base_h = int(m_base.group(1)) if m_base else 0
+            base_a = int(m_base.group(2)) if m_base else 0
+            rest_h = max(0, goals_home - base_h)
+            rest_a = max(0, goals_away - base_a)
+            diff_rest = (rest_a - rest_h) if is_away_bet else (rest_h - rest_a)
+            if diff_rest > 0:
+                detalhe = f"FT | Placar Restante: {rest_h}x{rest_a} (Base {base_h}:{base_a}) | Palpite: {team_bet} Vence o Restante -> Aposta GANHA!"
+                return 'Ganha', detalhe, ganhos_reais
+            else:
+                detalhe = f"FT | Placar Restante: {rest_h}x{rest_a} (Base {base_h}:{base_a}) | Palpite: {team_bet} Vence o Restante -> Aposta PERDIDA"
+                return 'Perdida', detalhe, 0.0
+
         # Extrai o valor da linha de Handicap (ex: -0.25, +0.25, -0.75, +0.75, 0.0, -0.5, +0.5, -1.0)
         line = 0.0
         match_line = re.search(r'([+-]?\d+(?:[\.,]\d+)?)', palpite)
@@ -384,10 +401,8 @@ def evaluate_bet(aposta, stats):
         # Diferença de gols do time apostado
         if is_away_bet:
             diff_gols = goals_away - goals_home
-            team_bet = time_fora or "Visitante"
         else:
             diff_gols = goals_home - goals_away
-            team_bet = time_casa or "Mandante"
 
         # Saldo Ajustado do Handicap
         adj = diff_gols + line
@@ -884,6 +899,21 @@ def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow
             is_away_bet = True
         elif 'fora' in linha_norm or 'visitante' in linha_norm or ' 2 ' in linha_norm:
             is_away_bet = True
+
+        # Suporte específico a 'Vence o Restante' (Rest of Match com placar base)
+        if 'vence o restante' in linha_norm or 'resto da partida' in linha_norm or 'rest of' in linha_norm:
+            m_base = re.search(r'\((\d+)\s*[:xX-]\s*(\d+)\)', linha_norm)
+            base_h = int(m_base.group(1)) if m_base else 0
+            base_a = int(m_base.group(2)) if m_base else 0
+            rest_h = max(0, g_home - base_h)
+            rest_a = max(0, g_away - base_a)
+            diff_rest = (rest_a - rest_h) if is_away_bet else (rest_h - rest_a)
+            if diff_rest > 0:
+                return 'GREEN', f"FT {g_home}x{g_away} (Restante: {rest_h}x{rest_a}) -> Palpite GANHO ({linha})"
+            elif diff_rest == 0:
+                return 'RED', f"FT {g_home}x{g_away} (Restante empatou {rest_h}x{rest_a}) -> Palpite PERDIDO ({linha})"
+            else:
+                return 'RED', f"FT {g_home}x{g_away} (Restante: {rest_h}x{rest_a}) -> Palpite PERDIDO ({linha})"
 
         match_line = re.search(r'([+-]?\d+(?:[\.,]\d+)?)', linha)
         handicap_line = float(match_line.group(1).replace(',', '.')) if match_line else 0.0

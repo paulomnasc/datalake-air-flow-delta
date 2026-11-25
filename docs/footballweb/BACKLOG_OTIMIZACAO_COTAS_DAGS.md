@@ -139,3 +139,23 @@ A análise dos logs por hora revelou que **mais de 3.000 requisições (~40% da 
    * **Fase 2**: Ajustar o cron apenas da `football_teams_performance_dag` (das 03h para as 07h30 ou 08h00).
    * **Fase 3**: Monitorar o gráfico de consumo por 24 horas para verificar a folga obtida na cota.
    * **Fase 4**: Ajustar as demais DAGs de acordo com a necessidade residual.
+
+
+---
+
+### Item 6: Transição e Gestão do Modo Simulação (`CLOUDBET_DRY_RUN=true`) vs Produção Real
+
+* **Objetivo**: Permitir a transição segura entre o modo de produção financeira real e o modo de simulação (Paper Trading) nas DAGs autônomas da Cloudbet.
+* **Contexto e Parâmetros Envolvidos**:
+  * Variável de ambiente canônica: `CLOUDBET_DRY_RUN=true` (em `.env` e `src/footballweb/.env`).
+  * DAGs afetadas: `criar_apostas_cloudbet_dag` e `football_trends_live_dag` (`cloudbet_live_cashout.py`).
+* **Comportamento Mapeado para Implementação Futura**:
+  1. **Modo Simulação Ativado (`CLOUDBET_DRY_RUN=true`)**:
+     * A esteira continua lendo 100% das odds reais, mercado in-play e catalogação da Cloudbet via proxy suíço.
+     * O Gatekeeper (+EV, Poisson, liquidez) continua avaliando e aprovando palpites com rigor idêntico.
+     * As ordens são registradas na tabela `apostas` e no dashboard web com a tag de simulação (`sim_...`), sem debitar saldo real na carteira da Cloudbet.
+     * Os sentinelas in-play simulam gatilhos de hedge e registram auditoria no lifecycle logs.
+     * Liquidação automática ao término dos jogos para acompanhar métricas de ROI e assertividade sem risco patrimonial.
+  2. **Modo Real Ativado (`CLOUDBET_DRY_RUN=false`)**:
+     * Execução financeira direta na API com transação atômica e two-phase commit na carteira USDT.
+* **Status**: Registrado no Backlog para ativação/revisão em momento oportuno.

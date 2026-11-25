@@ -356,6 +356,7 @@ class CloudbetMatcher:
             "total_goals": {},
             "match_odds": {},
             "draw_no_bet": {},
+            "double_chance": {},
             "cards": {}
         }
         
@@ -502,14 +503,22 @@ class CloudbetMatcher:
                         "min_stake": float(sel.get("minStake") or 0.1),
                         "max_stake": float(sel.get("maxStake") or 0.0)
                     }
-            if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
-                outcome = sel.get("outcome") # 'home', 'away'
-                parsed["draw_no_bet"][outcome] = {
-                    "price": float(sel.get("price")),
-                    "market_url": sel.get("marketUrl"),
-                    "min_stake": float(sel.get("minStake") or 0.1),
-                    "max_stake": float(sel.get("maxStake") or 0.0)
-                }
+
+        # 4.1 Double Chance (Dupla Chance FT / In-Play)
+        parsed["double_chance"] = {}
+        dc_market = markets_raw.get("soccer.double_chance", {})
+        for sub_k, sub_v in (dc_market.get("submarkets", {}) if isinstance(dc_market, dict) else {}).items():
+            if not isinstance(sub_v, dict):
+                continue
+            for sel in sub_v.get("selections", []):
+                if sel.get("status") == "SELECTION_ENABLED" and float(sel.get("price") or 0) > 1.0:
+                    outcome_dc = sel.get("outcome") # 'home_draw', 'draw_away', 'home_away'
+                    parsed["double_chance"][outcome_dc] = {
+                        "price": float(sel.get("price")),
+                        "market_url": sel.get("marketUrl"),
+                        "min_stake": float(sel.get("minStake") or 0.1),
+                        "max_stake": float(sel.get("maxStake") or 0.0)
+                    }
 
         # 5. Which Team Wins the Rest of the Match (In-Play Live 1X2 / DNB Equivalent)
         parsed["which_team_wins"] = {}

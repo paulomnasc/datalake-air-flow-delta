@@ -702,57 +702,74 @@ def find_cloudbet_opposite_market_and_quote(
                     opp_palpite = f"{'Mais de' if opp_cards_outcome == 'over' else 'Menos de'} {tot_cards} Cartões (Hedge)"
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
-            # Caso Total de Gols (Over / Under)
-            # Caso Total de Gols (Over / Under)
+            # Caso Total de Gols (Over / Under) - Travas Matemáticas Anti-Buraco / Anti-Red Duplo
             elif "gol" in palpite.lower() or "over" in palpite.lower() or "under" in palpite.lower():
                 m_tot = re.search(r'(\d+(?:\.\d+)?)', palpite)
                 tot_val = float(m_tot.group(1)) if m_tot else 2.5
+                orig_line = tot_val
                 is_over = ("mais" in palpite.lower() or "over" in palpite.lower())
                 opp_tot_outcome = "under" if is_over else "over"
 
                 tg_dict = cb_markets.get("total_goals", {})
                 sel_cand = None
-                min_hedge_floor = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
 
-                # Prioridade 1: Linha exata do total original
-                if tot_val in tg_dict and opp_tot_outcome in tg_dict[tot_val]:
-                    sel_cand = tg_dict[tot_val][opp_tot_outcome]
-                # Prioridade 2: Linha adaptativa in-play com liquidez segura (odds >= min_hedge_floor)
+                # Prioridade 1: Linha exata do total original (se ainda estiver ativa)
+                if orig_line in tg_dict and opp_tot_outcome in tg_dict[orig_line]:
+                    cand = tg_dict[orig_line][opp_tot_outcome]
+                    p_exact = float(cand.get("price", 0.0))
+                    if p_exact >= 1.25:
+                        sel_cand = cand
+                        tot_val = orig_line
+
+                # Prioridade 2: Seleção estrita respeitando travas matemáticas para evitar buraco/red duplo:
+                # - Se aposta original for OVER (X) e hedge for UNDER (Y): Y DEVE SER >= X (Under igual ou maior!)
+                #   Ex: Over 2.5 coberto por Under 2.5, Under 3.0 ou Under 3.5.
+                #   Se comprar Under 1.5, o placar de 2 gols causaria RED DUPLO!
+                # - Se aposta original for UNDER (X) e hedge for OVER (Y): Y DEVE SER <= X (Over igual ou menor!)
+                #   Ex: Under 2.5 coberto por Over 2.5, Over 2.0 ou Over 1.5.
+                #   Se comprar Over 3.5, o placar de 3 gols causaria RED DUPLO!
                 if not sel_cand and tg_dict:
-                    best_diff = 999.0
-                    for t_k, t_v in tg_dict.items():
-                        if opp_tot_outcome in t_v:
-                            cand = t_v[opp_tot_outcome]
+                    if opp_tot_outcome == "under":
+                        # Cobrindo OVER original -> busca menor linha de UNDER que seja >= orig_line
+                        cands = [k for k in sorted(tg_dict.keys()) if k >= orig_line and opp_tot_outcome in tg_dict[k]]
+                        for t_k in cands:
+                            cand = tg_dict[t_k][opp_tot_outcome]
                             cand_price = float(cand.get("price", 0.0))
-                            if cand_price >= min_hedge_floor:
-                                diff = abs(cand_price - 1.90)
-                                if diff < best_diff:
-                                    best_diff = diff
-                                    sel_cand = cand
-                                    tot_val = t_k
-                    # Prioridade 3: Se nenhuma linha atingir o piso seguro, aceita a melhor linha in-play disponível com odd >= 1.25
-                    if not sel_cand:
-                        best_p = 0.0
-                        for t_k, t_v in tg_dict.items():
-                            if opp_tot_outcome in t_v:
-                                cand = t_v[opp_tot_outcome]
-                                cand_price = float(cand.get("price", 0.0))
-                                if cand_price > best_p and cand_price >= 1.25:
-                                    best_p = cand_price
-                                    sel_cand = cand
-                                    tot_val = t_k
+                            if cand_price >= 1.25:
+                                sel_cand = cand
+                                tot_val = t_k
+                                break
+                    else:
+                        # Cobrindo UNDER original -> busca maior linha de OVER que seja <= orig_line
+                        cands = [k for k in sorted(tg_dict.keys(), reverse=True) if k <= orig_line and opp_tot_outcome in tg_dict[k]]
+                        for t_k in cands:
+                            cand = tg_dict[t_k][opp_tot_outcome]
+                            cand_price = float(cand.get("price", 0.0))
+                            if cand_price >= 1.25:
+                                sel_cand = cand
+                                tot_val = t_k
+                                break
+
+                # Validação Final de Segurança: Whitelist de Jogo Completo
+                if sel_cand:
+                    opp_cand_url = str(sel_cand.get("market_url") or "")
+                    is_prohibited = any(bad in opp_cand_url.lower() for bad in (
+                        "which_team_wins", "rest_of_the_match", "1st_half", "2nd_half", "half_time"
+                    ))
+                    if is_prohibited:
+                        print(f"   🛑 [Veto de Mercado Parcial Gols Cloudbet]: Mercado {opp_cand_url} rejeitado.")
+                        sel_cand = None
+                    else:
+                        opp_market_url = opp_cand_url
+                        price = float(sel_cand["price"])
+                        min_stake = float(sel_cand["min_stake"])
+                        opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
+                        return target_event_id, opp_market_url, price, min_stake, opp_palpite
 
                 if not sel_cand and getattr(client, "dry_run", False):
                     opp_market_url = f"soccer.total_goals/{opp_tot_outcome}?total={tot_val}"
                     price = 1.85
                     min_stake = 0.10
-                    opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
-                    return target_event_id, opp_market_url, price, min_stake, opp_palpite
-
-                if sel_cand:
-                    opp_market_url = sel_cand["market_url"]
-                    price = float(sel_cand["price"])
-                    min_stake = float(sel_cand["min_stake"])
                     opp_palpite = f"Menos de {tot_val} Gols Asiáticos" if opp_tot_outcome == "under" else f"Mais de {tot_val} Gols Asiáticos"
                     return target_event_id, opp_market_url, price, min_stake, opp_palpite
 

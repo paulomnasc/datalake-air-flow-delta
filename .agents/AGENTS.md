@@ -239,16 +239,21 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
 
 ---
 
-## 22. Validação Obrigatória por Testes Simulados e Emissão de Relatório de Evidências
+## 22. Validação Obrigatória por Testes Simulados, Emissão de Relatório de Evidências e Camada de Regressão em `tests/`
 - **Tolerância Zero a Alterações sem Teste Simulado:**
   - Sempre que qualquer alteração, refatoração, correção de bug ou nova funcionalidade for implementada no código-fonte (`.py`, `.php`, `.sh`, motores de regras, Gatekeepers, sentinelas ou esteiras de hedge/cashout), o assistente/desenvolvedor **DEVE OBRIGATORIAMENTE executar uma bateria de testes simulados e unitários** antes de dar o procedimento como concluído.
   - Não basta verificar apenas a sintaxe do arquivo (`py_compile` ou `php -l`). É mandatório simular cenários de negócio representativos (casos de borda, partidas normais, partidas sob atrito/crise e condições limítrofes).
+
+- **Obrigatoriedade de Scripts de Teste na Pasta `tests/` (Suíte Oficial de Regressão):**
+  - Toda regra nova, filtro calibrado, caso de borda identificado ou anomalia corrigida **DEVE OBRIGATORIAMENTE ser acompanhada da criação ou atualização de um script de teste na pasta oficial `tests/`** (padrão de nomenclatura: `tests/test_<modulo_ou_funcionalidade>.py`).
+  - É terminantemente proibido criar scripts de teste temporários soltos na raiz do projeto; todos os testes devem residir em `tests/` e utilizar frameworks padronizados (`unittest` ou `pytest`).
+  - **Execução Contínua de Regressão Mandatória:** Antes de dar qualquer tarefa por concluída, o assistente **DEVE SEMPRE executar a suíte de testes de regressão** (`python3 -m unittest discover tests/`) para comprovar que as novas alterações não causaram efeito colateral nem quebraram travas e comportamentos previamente validados (regressão zero).
 
 - **Emissão Obrigatória de Tabela/Relatório de Testes na Resposta ao Usuário:**
   - Ao final de cada procedimento com modificação de código, o assistente **DEVE OBRIGATORIAMENTE apresentar na mensagem de resposta um Relatório de Testes Estruturado**, contendo:
     1. **Identificação do Cenário / Caso de Teste**: Descrição do contexto, partida, minuto e parâmetros simulados;
     2. **Comportamento Esperado**: O que a regra de negócio exige (ex: "Manter posição", "Disparar hedge", "Aprovar entrada", "Veto NO_BET");
-    3. **Resultado Efetivo / Decisão do Motor**: O retorno exato gerado pelo código em execução simulada;
+    3. **Resultado Efetivo / Decisão do Motor**: O retorno exato gerado pelo código em execução simulada (incluindo a linha específica aprovada, quando aplicável);
     4. **Diagnóstico Emitido**: A mensagem literal de log ou justificativa retornada pelo sistema;
     5. **Status de Validação**: Indicação explícita de sucesso (Aprovado / 100% Validado).
 

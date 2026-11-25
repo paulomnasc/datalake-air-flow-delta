@@ -35,7 +35,7 @@ Diretrizes e Regras do Repositório:
 import os
 import sys
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -133,6 +133,92 @@ def registrar_notificacao_sininho(cursor, usuario_id: int, fixture_id: int, apos
     except Exception as e_notif:
         print(f"⚠️ [Notificação Sininho Erro] {e_notif}")
         return False
+
+
+def check_antecipation_risk_goals(fix: dict, best_cand: dict) -> tuple:
+    """
+    Aplica a blindagem contextual para emissão de apostas em Gols Asiáticos com mais de 12 horas de antecedência.
+    Retorna: (is_approved: bool, reject_reason: str)
+    
+    Regras de Antecipação no Radar de Reversão:
+    1. Janela de Antecipação: aplica-se quando faltarem mais de 12 horas para o início da partida.
+    2. Trava de Linha Inteira (Segurança de Capital): apenas linhas inteiras (2.0 e 3.0 Gols com Push integral) são permitidas.
+    3. Trava de BetTier (Qualidade Máxima): apenas apostas PREMIUM (Win-Rate >= 68.0% e +EV >= 15.0%) são autorizadas em D+1.
+    4. Trava Anti-Descompromisso / Fim de Temporada (Caso Chapecoense x Palmeiras):
+       - Se rodada final (últimas 4 rodadas em pontos corridos ou rodadas >= 34) e houver time despromovido contra time garantido sem disputa de título.
+    5. Trava Anti-Goleada e Superfavorito Extremo (Caso Sabah Baku x Barcelona):
+       - Se odd 1X2 <= 1.20, veta Under sumariamente e veta Over sem escalação confirmada em T-40.
+    6. Trava de Mata-Mata Eliminatório:
+       - Fases de oitavas, quartas, semi ou final de copas eliminatórias requerem validação pré-jogo com chaveamento.
+    """
+    import re
+    diff_secs = 0.0
+    diff_hours = 0.0
+    cand_line = 0.0
+    round_num = 0
+    h_rank = 0
+    a_rank = 0
+    odd_h = 0.0
+    odd_a = 0.0
+    min_odd = 0.0
+
+    f_date = fix.get('fixture_date')
+    if not f_date:
+        return True, ""
+
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    diff_secs = (f_date - now_utc).total_seconds()
+    diff_hours = diff_secs / 3600.0
+
+    # Se faltarem 12 horas ou menos (D+0 / pré-jogo), segue o fluxo padrão sem restrição de D+1
+    if diff_hours <= 12.0:
+        return True, ""
+
+    cand_line = float(best_cand.get('line') or 0.0)
+    cand_type = str(best_cand.get('type') or 'Under')
+    cand_tier = best_cand.get('tier')
+
+    # 1. Trava de Linha Inteira (Segurança de Capital e Push integral)
+    if cand_line not in (2.0, 3.0):
+        return False, f"Linha fracionada ({cand_line}). Antecipação (>12h) autorizada exclusivamente para linhas inteiras de segurança (2.0 e 3.0 com Push integral)."
+
+    # 2. Trava de BetTier (Apenas PREMIUM na antecipação)
+    if cand_tier != BetTier.PREMIUM:
+        tier_nome = cand_tier.label if hasattr(cand_tier, 'label') else str(cand_tier)
+        return False, f"Classificação {tier_nome}. Antecipação (>12h) requer estritamente selo PREMIUM (+EV >= 15.0% e Probabilidade >= 68.0%)."
+
+    # 3. Trava Anti-Descompromisso / Fim de Temporada (Caso Chapecoense x Palmeiras)
+    l_round = str(fix.get('league_round') or '').lower()
+    h_zone = str(fix.get('home_zone') or '').lower()
+    a_zone = str(fix.get('away_zone') or '').lower()
+    h_rank = int(fix.get('home_rank') or 0)
+    a_rank = int(fix.get('away_rank') or 0)
+
+    m_round = re.search(r'(\d+)', l_round)
+    round_num = int(m_round.group(1)) if m_round else 0
+    if round_num >= 34 or any(k in l_round for k in ('35', '36', '37', '38')):
+        h_releg = any(k in h_zone for k in ('relegation', 'rebaixamento', 'serie b')) or h_rank >= 19
+        a_releg = any(k in a_zone for k in ('relegation', 'rebaixamento', 'serie b')) or a_rank >= 19
+        h_safe = any(k in h_zone for k in ('libertadores', 'champions', 'promotion')) or (1 <= h_rank <= 3)
+        a_safe = any(k in a_zone for k in ('libertadores', 'champions', 'promotion')) or (1 <= a_rank <= 3)
+        if (h_releg and a_safe) or (a_releg and h_safe):
+            return False, f"Reta final de campeonato (rodada {round_num or l_round}) entre time despromovido e time sem disputa direta de título. Risco crítico de elenco misto e descompromisso tático."
+
+    # 4. Trava Anti-Goleada e Superfavorito Extremo (Caso Sabah Baku x Barcelona)
+    odd_h = float(fix.get('odd_home') or 0.0)
+    odd_a = float(fix.get('odd_away') or 0.0)
+    min_odd = min(odd_h, odd_a) if (odd_h > 0 and odd_a > 0) else 0.0
+    if 0.0 < min_odd <= 1.20:
+        if cand_type.lower() == 'under':
+            return False, f"Superfavorito com cotação esmagada (@ {min_odd:.2f} <= 1.20). Trava Anti-Goleada proíbe Under na antecipação."
+        else:
+            return False, f"Superfavorito com cotação esmagada (@ {min_odd:.2f} <= 1.20). Entrada de Over antecipada vetada sem confirmação pré-jogo dos titulares (T-40)."
+
+    # 5. Trava de Mata-Mata Eliminatório
+    if any(k in l_round for k in ('round of 16', 'quarter', 'semi', 'final', 'oitavas', 'quartas', 'mata-mata')):
+        return False, f"Fase eliminatória de copa ({l_round}). Dinâmica atípica de jogo único/eliminatória requer validação pré-jogo."
+
+    return True, ""
 
 
 def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = False, allow_api: bool = False):
@@ -325,6 +411,12 @@ def executar_radar_reversao_sweetspot(target_date: str = None, dry_run: bool = F
 
                     # Validação estrita do Sweet Spot Oficial (1.60 a 1.95) e Probabilidade >= 60.0%
                     if 1.60 <= gols_odd <= 1.95 and gols_prob >= 60.0:
+                        # Blindagem Contextual de Antecipação (> 12h)
+                        is_ok_ant, motivo_veto = check_antecipation_risk_goals(fix, best_gols)
+                        if not is_ok_ant:
+                            print(f"   🛡️ [Antecipação Standby #{fid}] {home} vs {away}: {motivo_veto}")
+                            continue
+
                         total_reversoes_gols += 1
                         print(f"⚽ [REVERSÃO GOLS DETECTADA!] Partida #{fid} ({home} x {away})")
                         print(f"   ↳ Palpite: {palpite_gols} @ {gols_odd:.2f} (Prob {gols_prob:.1f}%, +EV {gols_ev:.1f}%)")

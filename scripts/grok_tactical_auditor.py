@@ -385,7 +385,17 @@ def auditar_escalacao_com_grok(
         prob_str = f"{float(prob_poisson):.1f}%" if prob_poisson is not None else "N/D"
         odds_1x2_str = f"Casa @ {float(odd_h):.2f} | Empate @ {float(odd_d):.2f} | Fora @ {float(odd_a):.2f}" if (odd_h and odd_d and odd_a) else "N/D"
 
+        st_fx = str(aposta_dict.get("fixture_status") or aposta_dict.get("status") or "NS").strip().upper()
+        g_h = aposta_dict.get("goals_home")
+        g_a = aposta_dict.get("goals_away")
+        elap = aposta_dict.get("elapsed")
+        if st_fx in ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY') or (g_h is not None and g_a is not None and (int(g_h or 0) > 0 or int(g_a or 0) > 0)):
+            situacao_str = f"Em Andamento ({st_fx} aos {elap or 0}' | Placar ao Vivo: {home_team} {g_h or 0} x {g_a or 0} {away_team})"
+        else:
+            situacao_str = "Pré-Jogo (Ainda não iniciada)"
+
         dados_aposta_str = (
+            f"• Situação da Partida: {situacao_str}\n"
             f"• Partida: {home_team} x {away_team}\n"
             f"• Mercado: {mercado}\n"
             f"• Palpite / Linha Selecionada: {palpite}\n"
@@ -403,7 +413,8 @@ def auditar_escalacao_com_grok(
             "Sua função é auditar a Súmula Oficial de Escalações e Desfalques Pré-Jogo confrontando-a DIRETAMENTE com a aposta realizada pelo usuário (especialmente Linhas de Handicap Asiático, Mercado, Cotações e Valor Esperado +EV).\n\n"
             "DIRETRIZ MANDATÓRIA DE FORÇA MÁXIMA VS TIME MISTO:\n"
             "- A presença de 11 jogadores sem cartões ou lesões no vestiário NÃO SIGNIFICA FORÇA MÁXIMA.\n"
-            "- Se uma equipe escalou reservas, garotos da base, goleiro reserva ou realizou 4 ou mais alterações em relação aos seus titulares habituais (ex: poupando suas estrelas para copas/descanso), você está TERMINANTEMENTE PROIBIDO de classificar como 'Força máxima'. Você DEVE classificar como 'Time Misto / Rodízio de Elenco' ou 'Time Reserva', destacando os titulares poupados.\n\n"
+            "- Se uma equipe escalou reservas, garotos da base, goleiro reserva ou realizou 4 ou mais alterações em relação aos seus titulares habituais (ex: poupando suas estrelas para copas/descanso), você está TERMINANTEMENTE PROIBIDO de classificar como 'Força máxima'. Você DEVE classificar como 'Time Misto / Rodízio de Elenco' ou 'Time Reserva', destacando os titulares poupados.\n"
+            "- SE A PARTIDA JÁ ESTIVER EM ANDAMENTO (Placar ao Vivo informado): leve em consideração o placar real de jogo. Se a equipe apoiada estiver vencendo ou cumprindo a linha com vantagem no placar, a aposta está em situação favorável de campo; NUNCA recomende cashout com frases como 'antes do apito inicial' para partidas já iniciadas.\n\n"
             "Estrutura da resposta (estritamente nestes tópicos de forma direta e concisa):\n"
             "1️⃣ Formação Tática e Titulares: se as equipes estão com força máxima real ou se há time reserva/rodízio/misto.\n"
             "2️⃣ Goleiro e Espinha Dorsal: se os goleiros titulares habituais e a espinha dorsal (zaga, criação, ataque) estão mantidos.\n"

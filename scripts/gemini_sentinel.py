@@ -2158,7 +2158,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away, ft.status as fixture_status, ft.elapsed,
                        ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
@@ -2176,7 +2176,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away, ft.status as fixture_status, ft.elapsed,
                        ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
@@ -2196,7 +2196,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away, ft.status as fixture_status, ft.elapsed,
                        ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
@@ -2221,7 +2221,7 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                        a.notificacao_escalacao_enviada,
                        (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito,
                        ft.league_id, ft.home_team_id, ft.away_team_id, ft.home_team, ft.away_team, ft.league_name, ft.fixture_date,
-                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away,
+                       ft.referee_name, ft.ah_reasoning, ft.goals_home, ft.goals_away, ft.status as fixture_status, ft.elapsed,
                        ft.odd_home, ft.odd_draw, ft.odd_away, ft.odd_home_open, ft.odd_draw_open, ft.odd_away_open, ft.xg_home, ft.xg_away, ft.gatekeeper_category,
                        ft.ah_suggestion, ft.prediction_text
                 FROM apostas a
@@ -2588,13 +2588,16 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                         analise_ia_txt = res_grok.get("analise_ia")
 
                         if is_cashout:
+                            is_robo = bool(item.get('casa_de_aposta') == 'Cloudbet' or 'Robô' in str(item.get('tipo') or ''))
                             tipo_notif = "ESCALACAO_CONFIRMADA_ALERTA_HEDGE"
-                            tag_color = "red_circle"
-                            prioridade_push = 5
-                            titulo_alerta = f"🚨 Alerta de Hedge Pré-Jogo [Desfalques Críticos]: {home_team} vs {away_team}"
+                            tag_color = "yellow_circle" if is_robo else "red_circle"
+                            prioridade_push = 4 if is_robo else 5
+                            titulo_alerta = f"🛡️ Auditoria Tática IA [Alerta de Elenco]: {home_team} vs {away_team}" if is_robo else f"🚨 Alerta de Hedge Pré-Jogo [Desfalques Críticos]: {home_team} vs {away_team}"
                             if analise_ia_txt:
+                                nota_gestao = "ℹ️ [Gestão Automática]: Aposta sob monitoramento autônomo do robô. O placar e xG ao vivo prevalecem sobre a análise de súmula pré-jogo.\n\n" if is_robo else ""
                                 parecer = (
-                                    f"🚨 [Sinistro Tático Detectado pela IA] {home_team} x {away_team}:\n\n"
+                                    f"📋 [Auditoria Tática da Súmula] {home_team} x {away_team}:\n\n"
+                                    f"{nota_gestao}"
                                     f"--- AUDITORIA TÁTICA DA IA (GROK / GEMINI) ---\n"
                                     f"{analise_ia_txt}\n\n"
                                     f"--- SÚMULA OFICIAL ---\n{sumula_txt}"
@@ -2934,7 +2937,7 @@ Retorne ESTRITAMENTE um objeto JSON válido no formato:
         "alerta_sinistro": False,
         "resumo_tatico": "Auditoria de IA não concluiu valor suficiente.",
         "titulo_card": "Abstenção",
-        "parecer_explicativo": "Nenhuma oportunidade assimétrica confirmada pela IA.",
+        "parecer_explicativo": "",
         "matched_cand": None
     }
 

@@ -960,7 +960,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
     .grok-preview-body {
-        color: #e2e8f0;
+        color: #ffffff !important;
         font-size: 0.90rem;
         line-height: 1.6;
     }
@@ -984,12 +984,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         border-spacing: 0;
         border-radius: 8px;
         overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(15, 23, 42, 0.85);
+        color: #ffffff !important;
     }
     .grok-preview-body th {
         background: #1e293b;
-        color: #38bdf8;
+        color: #38bdf8 !important;
         padding: 9px 12px;
         font-size: 0.82rem;
         text-transform: uppercase;
@@ -998,24 +999,38 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
     .grok-preview-body td {
         padding: 9px 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
         font-size: 0.86rem;
+        color: #ffffff !important;
     }
     .grok-preview-body tr:last-child td {
         border-bottom: none;
     }
     .grok-preview-body tr:hover td {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(255, 255, 255, 0.06);
+        color: #ffffff !important;
+    }
+    .grok-preview-body p,
+    .grok-preview-body span,
+    .grok-preview-body div,
+    .grok-preview-body li {
+        color: #ffffff !important;
     }
     .grok-preview-body ul, .grok-preview-body ol {
         padding-left: 1.3rem;
         margin-bottom: 0.8rem;
+        color: #ffffff !important;
     }
     .grok-preview-body li {
         margin-bottom: 0.35rem;
+        color: #ffffff !important;
     }
-    .grok-preview-body strong {
-        color: #f8fafc;
+    .grok-preview-body strong, .grok-preview-body b {
+        color: #ffffff !important;
+        font-weight: 700;
+    }
+    .grok-preview-body em, .grok-preview-body i {
+        color: #e2e8f0 !important;
     }
     .grok-preview-body hr {
         border-color: rgba(255, 255, 255, 0.15);
@@ -1074,7 +1089,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <!-- Painel 1: Visualização Formatada (HTML via Marked) -->
                         <div id="grok-pane-preview" class="grok-preview-body p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);"></div>
                         <!-- Painel 2: Texto Puro (Markdown Original) -->
-                        <div id="grok-pane-raw" class="p-3 rounded" style="display: none; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.1); font-size: 0.83rem; line-height: 1.6; white-space: pre-wrap; color: #e2e8f0; font-family: monospace;"></div>
+                        <div id="grok-pane-raw" class="p-3 rounded" style="display: none; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15); font-size: 0.83rem; line-height: 1.6; white-space: pre-wrap; color: #ffffff !important; font-family: monospace;"></div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary" style="background: #0f172a;">

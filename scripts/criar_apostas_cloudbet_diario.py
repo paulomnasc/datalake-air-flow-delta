@@ -449,9 +449,8 @@ def run_cloudbet_bet_creator(
               AND (
                   -- Em andamento: titulares já em campo
                   ft.status IN ('1H', 'LIVE', 'IN_PLAY')
-                  -- Pré-jogo: súmula confirmada ou reta final (T-45m)
-                  OR mlc.status = 'CONFIRMADA'
-                  OR ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
+                  -- Pré-jogo: súmula oficial OBRIGATORIAMENTE confirmada no banco
+                  OR (ft.status = 'NS' AND mlc.status = 'CONFIRMADA')
               )
               AND (ft.auditoria_ia_status IS NULL OR ft.auditoria_ia_status != 'ALERTA_RISCO')
             ORDER BY ft.fixture_date ASC

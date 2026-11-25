@@ -267,7 +267,49 @@
     margin-top: 16px;
     font-size: 0.88rem;
     line-height: 1.6;
-    color: #e2e8f0;
+    color: #ffffff !important;
+  }
+
+  .ai-response-box table {
+    width: 100%;
+    margin-top: 0.8rem;
+    margin-bottom: 1.2rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(15, 23, 42, 0.85);
+    color: #ffffff !important;
+  }
+
+  .ai-response-box th {
+    background: #1e293b;
+    color: #38bdf8 !important;
+    padding: 9px 12px;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid rgba(56, 189, 248, 0.4);
+  }
+
+  .ai-response-box td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.86rem;
+    color: #ffffff !important;
+  }
+
+  .ai-response-box tr:hover td {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff !important;
+  }
+
+  .ai-response-box p,
+  .ai-response-box span,
+  .ai-response-box li,
+  .ai-response-box div {
+    color: #ffffff !important;
   }
 
   .ai-response-box h1, .ai-response-box h2, .ai-response-box h3 {
@@ -281,10 +323,12 @@
   .ai-response-box ul, .ai-response-box ol {
     padding-left: 20px;
     margin-bottom: 10px;
+    color: #ffffff !important;
   }
 
-  .ai-response-box strong {
-    color: var(--bet-gold);
+  .ai-response-box strong, .ai-response-box b {
+    color: #ffffff !important;
+    font-weight: 700;
   }
 
   .btn-ai-analyze {

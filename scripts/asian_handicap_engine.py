@@ -2536,8 +2536,10 @@ def calculate_unified_handicap_recommendation(
     h_eff = compute_team_u5j_efficiency(h_l5)
     a_eff = compute_team_u5j_efficiency(a_l5)
     ia_audit_info = best_cand.get('ia_audit') or {}
-    ia_parecer_texto = ia_audit_info.get('parecer_explicativo') or ''
-    if ia_parecer_texto:
+    ia_parecer_texto = str(ia_audit_info.get('parecer_explicativo') or '').strip()
+    ia_decisao = str(ia_audit_info.get('decisao') or '').strip().upper()
+    is_ia_efetiva = bool(ia_parecer_texto and ia_decisao in ('APROVADO', 'BET') and "Nenhuma oportunidade" not in ia_parecer_texto)
+    if is_ia_efetiva:
         ts_agora = datetime.now().strftime('%d/%m/%Y %H:%M')
         raw_calc = (
             f"🎯 GATEKEEPER AH APROVADO POR AUDITORIA COGNITIVA DA IA (+EV {ev_perc:+.1f}%) | "

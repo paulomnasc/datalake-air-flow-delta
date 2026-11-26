@@ -15,6 +15,7 @@ class MetaDiariaModel extends Model
     protected $allowedFields    = [
         'usuario_id',
         'moeda_codigo',
+        'cloudbet_dry_run',
         'titulo',
         'stake_padrao',
         'total_apostas_alvo',

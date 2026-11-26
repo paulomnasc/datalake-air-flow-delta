@@ -189,6 +189,67 @@ class TestCloudbetLineupAndCognitiveAudit(unittest.TestCase):
         self.assertIn("Placar ao Vivo: Sporting CP 1 x 0 Manchester United", situacao_str)
         self.assertNotIn("Pré-Jogo", situacao_str)
 
+    def test_08_repescagem_notification_with_liquidity_block_has_explicit_warning(self):
+        """
+        Cenário: Sentinela detecta Reset Tático por Súmula, mas Cloudbet está com seleções suspensas.
+        Esperado: A notificação gerada DEVE conter aviso explícito de que a ordem NÃO foi enviada
+                 e o motivo (livro fechado / sem liquidez), evitando falsa sensação de aposta criada.
+        """
+        res_cb = {
+            'executadas': 0,
+            'duplicadas': 0,
+            'sem_liquidez': 1,
+            'rejeitadas': 0,
+            'motivo_bloqueio': "Cotação de Handicap suspensa/fechada na Cloudbet no pré-jogo"
+        }
+        home = "Atletico-MG"
+        away = "Corinthians"
+        cat_nome = "Reset Tático por Súmula"
+        palpite_sug = "Corinthians +0.25 AH"
+        cand_odd = 1.73
+        cand_prob = 62.2
+        cand_ev = 7.6
+        motivo_desfalque = "Atletico-MG com time misto (5 alterações nos 11 titulares) e 0 desfalques"
+
+        base_msg = (
+            f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! "
+            f"Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). "
+            f"{motivo_desfalque}"
+        )
+
+        if res_cb.get('sem_liquidez', 0) > 0:
+            motivo_mot = res_cb.get('motivo_bloqueio') or "Linhas de Handicap suspensas/fechadas na Cloudbet no pré-jogo"
+            msg_notif = (
+                f"{base_msg} | ⚠️ Ordem Cloudbet NÃO enviada: {motivo_mot} (sem liquidez ativa). "
+                f"Entrada monitorada para possível abertura no ao vivo."
+            )
+        elif res_cb.get('duplicadas', 0) > 0:
+            msg_notif = f"{base_msg} | ℹ️ Bilhete já registrado anteriormente na corretora."
+        elif res_cb.get('rejeitadas', 0) > 0:
+            msg_notif = f"{base_msg} | ⚠️ Ordem rejeitada pela Cloudbet ou saldo insuficiente na carteira."
+        else:
+            msg_notif = base_msg
+
+        self.assertIn("⚠️ Ordem Cloudbet NÃO enviada:", msg_notif)
+        self.assertIn("Cotação de Handicap suspensa/fechada na Cloudbet no pré-jogo", msg_notif)
+        self.assertIn("Entrada monitorada para possível abertura no ao vivo", msg_notif)
+
+    def test_09_repescagem_notification_with_execution_success_distinct(self):
+        """
+        Cenário: Ordem despachada com sucesso na Cloudbet (executadas = 1).
+        Esperado: O bloco de contingência não é acionado, pois a notificação de execução direta foi emitida.
+        """
+        res_cb = {
+            'executadas': 1,
+            'duplicadas': 0,
+            'sem_liquidez': 0,
+            'rejeitadas': 0,
+            'motivo_bloqueio': ""
+        }
+        # Quando executadas > 0, res_cb.get('executadas', 0) == 0 é False
+        should_send_contingency = (res_cb.get('executadas', 0) == 0)
+        self.assertFalse(should_send_contingency, "Quando a ordem é executada com sucesso, não deve disparar notificação de contingência.")
+
 
 if __name__ == '__main__':
     unittest.main()

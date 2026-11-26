@@ -394,7 +394,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         justify-content: space-between;
         padding: 0 24px;
         position: relative;
-        z-index: 1030; /* Fica acima da navbar sticky (z-index 1020) */
+        z-index: 1050; /* Fica acima da navbar sticky (1020) e do banner Sweet Spot (1039) */
+        overflow: visible !important;
     }
 
     #head-bar .logo-container {
@@ -431,9 +432,89 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     @media (max-width: 768px) {
+        #head-bar {
+            height: auto !important;
+            min-height: 56px !important;
+            padding: 6px 10px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            position: relative !important;
+            overflow: visible !important;
+            z-index: 1050 !important;
+        }
+        #head-bar .logo-container {
+            position: static !important;
+            transform: none !important;
+            text-align: left !important;
+            z-index: 2 !important;
+            flex-shrink: 0 !important;
+            margin-right: 6px !important;
+        }
         #head-bar .logo-container .subtitle {
-            font-size: 1.6rem;
-            letter-spacing: 1px;
+            font-size: 1.15rem !important;
+            letter-spacing: 0.5px !important;
+        }
+        .header-buttons {
+            position: static !important;
+            transform: none !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            flex-wrap: nowrap !important;
+            margin-left: auto !important;
+            z-index: 1051 !important;
+            overflow: visible !important;
+        }
+        .header-buttons .btn,
+        .header-buttons .dropdown button {
+            padding: 4px 6px !important;
+            font-size: 0.72rem !important;
+            white-space: nowrap !important;
+        }
+        .header-buttons .dropdown-menu {
+            z-index: 1060 !important;
+            position: absolute !important;
+            left: 0 !important;
+            right: auto !important;
+            top: 100% !important;
+            margin-top: 4px !important;
+        }
+        .header-buttons .me-2 {
+            margin-right: 0 !important;
+        }
+        .sweet-spot-banner-wrapper {
+            padding: 6px 8px !important;
+        }
+        .sweet-spot-blink-text {
+            font-size: 1.05rem !important;
+            letter-spacing: 0.3px !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        #head-bar {
+            padding: 4px 8px !important;
+        }
+        #head-bar .logo-container .subtitle {
+            font-size: 0.95rem !important;
+            letter-spacing: 0.2px !important;
+        }
+        /* No mobile estreito, compacta botões para evitar que estourem a margem direita */
+        .header-buttons #langDropdown span:last-child {
+            display: none !important; /* Exibe só a bandeira */
+        }
+        .header-buttons a[href*="moedas"] .badge {
+            display: none !important; /* Oculta cotação R$ e mantém apenas USDT para economizar espaço */
+        }
+        .header-buttons #openSidebarBtn span {
+            display: none !important; /* Oculta o primeiro nome, mantendo o ícone */
+        }
+        .header-buttons #openSidebarBtn {
+            padding: 4px 8px !important;
+        }
+        .sweet-spot-blink-text {
+            font-size: 0.90rem !important;
         }
     }
 
@@ -752,14 +833,56 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     <!-- button class="nav-button" onclick="toggleSidebar()">☰</button-->
 
+    <?php
+    // Resolução do Status Operacional Cloudbet para Header (Desktop + Mobile)
+    $cloudbetHeaderUserId = $_SESSION['id_usuario_logado'] ?? session()->get('id_usuario_logado') ?? 558;
+    $cloudbetDryRunState = 1;
+    try {
+        $dbHeader = \Config\Database::connect();
+        $metaHdrRow = $dbHeader->table('metas_diarias_config')
+                              ->select('cloudbet_dry_run')
+                              ->where('usuario_id', $cloudbetHeaderUserId)
+                              ->where('is_ativa', 1)
+                              ->orderBy('id', 'DESC')
+                              ->get(1)
+                              ->getRow();
+        if ($metaHdrRow && isset($metaHdrRow->cloudbet_dry_run)) {
+            $cloudbetDryRunState = (int)$metaHdrRow->cloudbet_dry_run;
+        } else {
+            $envDry = getenv('CLOUDBET_DRY_RUN') ?: 'true';
+            $cloudbetDryRunState = in_array(strtolower(trim($envDry)), ['true', '1', 'yes', 'on']) ? 1 : 0;
+        }
+    } catch (\Throwable $e_hdr) {
+        $cloudbetDryRunState = 1;
+    }
+    ?>
+
     <!-- CONTAINER STICKY UNIFICADO (NAVBAR + BANNER FIXADOS NO TOPO) -->
     <div class="sticky-top shadow p-0 header-sticky-wrapper" style="z-index: 1020; width: 100%;">
         <nav class="navbar navbar-expand-lg bg-white navbar-light p-0">
-        
-        <button type="button" class="navbar-toggler me-4" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarCollapse">
+            <div class="container-fluid px-2 px-lg-3 d-flex align-items-center justify-content-between flex-wrap">
+                <button type="button" class="navbar-toggler my-1 me-2" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Status Operacional Cloudbet Mobile (visível diretamente na navbar sem precisar abrir o menu!) -->
+                <div class="d-lg-none d-flex align-items-center my-1" id="cloudbet-dryrun-indicator-mobile">
+                    <?php if ($cloudbetDryRunState === 0): ?>
+                        <a href="<?= base_url('metas') ?>" class="badge text-decoration-none d-flex align-items-center gap-1 shadow-sm" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; padding: 4px 8px; border-radius: 6px; font-weight: 700;" title="Robô Cloudbet operando em Dinheiro Real (USDT). Clique para alterar em Metas.">
+                            <span style="width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #10b981;"></span>
+                            <span class="d-none d-sm-inline">CLOUDBET_DRY_RUN=false</span>
+                            <span class="badge bg-success" style="font-size: 0.65rem; padding: 2px 5px;">REAL</span>
+                        </a>
+                    <?php else: ?>
+                        <a href="<?= base_url('metas') ?>" class="badge text-decoration-none d-flex align-items-center gap-1 shadow-sm" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.72rem; padding: 4px 8px; border-radius: 6px; font-weight: 700;" title="Robô Cloudbet operando em Modo Simulação (Paper Trading). Clique para alterar em Metas.">
+                            <span style="width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #ef4444;"></span>
+                            <span class="d-none d-sm-inline">CLOUDBET_DRY_RUN=true</span>
+                            <span class="badge bg-danger" style="font-size: 0.65rem; padding: 2px 5px;">SIMULAÇÃO</span>
+                        </a>
+                    <?php endif; ?>
+                </div>
+
+                <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav">
                 <li class="nav-item visually-hidden">
                     <input type="hidden" id="perfil_usuario_logado" value="<?php echo isset($_SESSION['perfil_usuario_logado']) ? $_SESSION['perfil_usuario_logado'] : 'N/A'; ?>" readonly>
@@ -837,6 +960,25 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </ul>
                 </div>
 
+                <!-- Indicador de Status Operacional Cloudbet (Desktop) -->
+                <div class="nav-item me-2 d-none d-lg-flex align-items-center" id="cloudbet-dryrun-indicator-wrapper">
+                    <?php if ($cloudbetDryRunState === 0): ?>
+                        <!-- Modo Real: Sinal Verde 🟢 (Opção B: Operação Real Ativa) -->
+                        <a href="<?= base_url('metas') ?>" class="badge text-decoration-none d-flex align-items-center gap-1 shadow-sm" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.74rem; padding: 5px 9px; border-radius: 6px; font-weight: 700;" title="Robô Cloudbet operando em Dinheiro Real (USDT). Clique para alterar em Metas.">
+                            <span style="width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #10b981;"></span>
+                            <span>CLOUDBET_DRY_RUN=false</span>
+                            <span class="badge bg-success" style="font-size: 0.62rem; padding: 2px 4px;">REAL</span>
+                        </a>
+                    <?php else: ?>
+                        <!-- Modo Simulação: Sinal Vermelho 🔴 (Opção B: Operação Real Desativada) -->
+                        <a href="<?= base_url('metas') ?>" class="badge text-decoration-none d-flex align-items-center gap-1 shadow-sm" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.74rem; padding: 5px 9px; border-radius: 6px; font-weight: 700;" title="Robô Cloudbet operando em Modo Simulação (Paper Trading). Clique para alterar em Metas.">
+                            <span style="width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #ef4444;"></span>
+                            <span>CLOUDBET_DRY_RUN=true</span>
+                            <span class="badge bg-danger" style="font-size: 0.62rem; padding: 2px 4px;">SIMULAÇÃO</span>
+                        </a>
+                    <?php endif; ?>
+                </div>
+
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
                 <!-- Botão Gatilho da Sidebar de Notificações & Alertas -->
                 <div class="nav-item me-2 position-relative" id="dropdown-notificacoes-wrapper">
@@ -859,8 +1001,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <?php endif; ?>
             </div>
 
-        </div>
-    
+        </div><!-- fecha #navbarCollapse -->
+    </div><!-- fecha container-fluid da navbar -->
+
     </nav>
     <!-- fecha navbar -->
 

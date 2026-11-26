@@ -410,36 +410,62 @@
         </header>
 
         <!-- INTRODUÇÃO: ARQUITETURA DE GOVERNANÇA EM 2 ESTÁGIOS -->
-        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-cyan); border-radius: 12px; padding: 22px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);">
+        <div
+            style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-cyan); border-radius: 12px; padding: 22px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-                <span class="badge badge-primary" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.35);">
+                <span class="badge badge-primary"
+                    style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.35);">
                     <i class="bi bi-shield-check"></i> Governança Operacional
                 </span>
                 <span style="font-size: 0.82rem; color: var(--text-secondary); font-family: var(--font-code);">
                     Decisão Algorítmica em 2 Estágios: Prévia Matemática vs. Trava de Súmula Oficial
                 </span>
             </div>
-            <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-shield-lock" style="color: var(--accent-cyan);"></i> Como Funciona a Avaliação de BET e NO-BET no Pipeline
+            <h2
+                style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i class="bi bi-shield-lock" style="color: var(--accent-cyan);"></i> Como Funciona a Avaliação de BET e
+                NO-BET no Pipeline
             </h2>
             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
-                O sistema opera através de uma rigorosa <strong style="color: #fff;">arquitetura de decisão em dois estágios complementares</strong>, separando claramente a análise estatística preliminar da execução financeira definitiva na banca:
+                O sistema opera através de uma rigorosa <strong style="color: #fff;">arquitetura de decisão em dois
+                    estágios complementares</strong>, separando claramente a análise estatística preliminar da execução
+                financeira definitiva na banca:
             </p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
-                    <div style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                    <div
+                        style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
                         <i class="bi bi-calculator"></i> Estágio 1: Análise Prévia Matemática (Horas antes)
                     </div>
                     <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
-                        Ocorre no momento da ingestão da partida na esteira (véspera ou manhã do jogo). O motor de Poisson bivariado, as médias móveis U5J e o Gatekeeper analisam as probabilidades teóricas contra as cotações das bookmakers, atribuindo uma classificação preliminar de <strong style="color: #fff;">BET (Aprovado)</strong> ou <strong style="color: #fff;">NO-BET (Abstenção)</strong>. Partidas com anomalias de risco evidentes (ex: <em>Caldeirão da Degola</em>, <em>Mando Soberano</em> ou ausência de margem +EV) já são filtradas preventivamente nesta fase.
+                        Ocorre no momento da ingestão da partida na esteira (véspera ou manhã do jogo). O motor de
+                        Poisson bivariado, as médias móveis U5J e o Gatekeeper analisam as probabilidades teóricas
+                        contra as cotações das bookmakers, atribuindo uma classificação preliminar de <strong
+                            style="color: #fff;">BET (Aprovado)</strong> ou <strong style="color: #fff;">NO-BET
+                            (Abstenção)</strong>. Partidas com anomalias de risco evidentes (ex: <em>Caldeirão da
+                            Degola</em>, <em>Mando Soberano</em> ou ausência de margem +EV) já são filtradas
+                        preventivamente nesta fase.
                     </p>
                 </div>
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
-                    <div style="font-weight: 700; color: var(--accent-green); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
-                        <i class="bi bi-file-earmark-person-fill"></i> Estágio 2: Trava de Súmula Oficial (T-60m a T-45m)
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                    <div
+                        style="font-weight: 700; color: var(--accent-green); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+                        <i class="bi bi-file-earmark-person-fill"></i> Estágio 2: Trava de Súmula Oficial (T-60m a
+                        T-45m)
                     </div>
                     <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
-                        <strong style="color: #fff;">A confirmação financeira real depende estritamente da Súmula Oficial (11 Titulares).</strong> Nenhuma ordem é enviada às cegas: no painel web, apostas Premium permanecem bloqueadas com o botão <span class="badge" style="background: #334155; color: #cbd5e1; font-size: 0.72rem; padding: 2px 6px;">⏳ Aguardar Súmula</span>; no robô autônomo Cloudbet, o envio fica retido até que a escalação oficial seja confirmada em <code style="color: var(--accent-cyan);">match_lineups_cache</code>. A <strong style="color: #fff;">IA Sentinela Gemini</strong> audita os titulares, podendo vetar apostas pré-aprovadas caso haja time misto (<span style="color: var(--accent-red); font-weight: 700;">ALERTA_RISCO</span>) ou repescar partidas de NO-BET caso o adversário tenha poupado 5+ titulares (Reset Tático por Súmula).
+                        <strong style="color: #fff;">A confirmação financeira real depende estritamente da Súmula
+                            Oficial (11 Titulares).</strong> Nenhuma ordem é enviada às cegas: no painel web, apostas
+                        Premium permanecem bloqueadas com o botão <span class="badge"
+                            style="background: #334155; color: #cbd5e1; font-size: 0.72rem; padding: 2px 6px;">⏳
+                            Aguardar Súmula</span>; no robô autônomo Cloudbet, o envio fica retido até que a escalação
+                        oficial seja confirmada em <code style="color: var(--accent-cyan);">match_lineups_cache</code>.
+                        A <strong style="color: #fff;">IA Sentinela Gemini</strong> audita os titulares, podendo vetar
+                        apostas pré-aprovadas caso haja time misto (<span
+                            style="color: var(--accent-red); font-weight: 700;">ALERTA_RISCO</span>) ou repescar
+                        partidas de NO-BET caso o adversário tenha poupado 5+ titulares (Reset Tático por Súmula).
                     </p>
                 </div>
             </div>
@@ -775,23 +801,43 @@
                     <i class="bi bi-stopwatch-fill module-icon" style="color: var(--accent-amber);"></i>
                     <div class="module-content">
                         <h4 style="color: var(--accent-amber);">Trading Live: Sniper In-Play no 1º Tempo (0' a 35')</h4>
-                        <p>O robô não opera apenas no pré-jogo. Durante o primeiro tempo com placar em <strong>0x0</strong>, aciona rotinas dinâmicas de valor in-play:
-                            <br>&bull; <strong style="color: #fff;">Sniper de Gols (Janela Áurea 15' a 35' do 1T)</strong>: Captura o decaimento temporal de cotações em <em>Mais de 1.5 / 2.0 Gols</em> no Sweet Spot (@ 1.65 a 2.15) com exigência estrita de volume ofensivo (&ge; 3 chutes e cantos aos 20').
-                            <br>&bull; <strong style="color: #fff;">Handicap Asiático In-Play (0' a 35' do 1T)</strong>: Reavaliação de favoritismo territorial no 0x0 com linhas recuadas e odds infladas.
-                            <br>&bull; <strong style="color: #fff;">Cartões Under (100% Pré-Jogo - NS)</strong>: Blindagem estrita contra advertências precoces; entradas em Under são vetadas após o apito inicial.
-                            <br>&bull; <strong style="color: #fff;">Cross-Hedge Defensivo (Live Feed a cada 1-2 min)</strong>: Orquestrado por <code>cloudbet_live_cashout.py</code>, monitora desvios táticos e emite contra-ordens de proteção na Cloudbet.
+                        <p>O robô não opera apenas no pré-jogo. Durante o primeiro tempo com placar em
+                            <strong>0x0</strong>, aciona rotinas dinâmicas de valor in-play:
+                            <br>&bull; <strong style="color: #fff;">Sniper de Gols (Janela Áurea 15' a 35' do
+                                1T)</strong>: Captura o decaimento temporal de cotações em <em>Mais de 1.5 / 2.0
+                                Gols</em> no Sweet Spot (@ 1.65 a 2.15) com exigência estrita de volume ofensivo (&ge; 3
+                            chutes e cantos aos 20').
+                            <br>&bull; <strong style="color: #fff;">Handicap Asiático In-Play (0' a 35' do 1T)</strong>:
+                            Reavaliação de favoritismo territorial no 0x0 com linhas recuadas e odds infladas.
+                            <br>&bull; <strong style="color: #fff;">Cartões Under (100% Pré-Jogo - NS)</strong>:
+                            Blindagem estrita contra advertências precoces; entradas em Under são vetadas após o apito
+                            inicial.
+                            <br>&bull; <strong style="color: #fff;">Cross-Hedge Defensivo (Live Feed a cada 1-2
+                                min)</strong>: Orquestrado por <code>cloudbet_live_cashout.py</code>, monitora desvios
+                            táticos e emite contra-ordens de proteção na Cloudbet.
                         </p>
                     </div>
                 </div>
                 <div class="module-item" style="border-left: 3px solid var(--accent-cyan);">
                     <i class="bi bi-person-x-fill module-icon" style="color: var(--accent-cyan);"></i>
                     <div class="module-content">
-                        <h4 style="color: var(--accent-cyan);">Reset Tático por Súmula Oficial (IA Sentinela & Cloudbet)</h4>
+                        <h4 style="color: var(--accent-cyan);">Reset Tático por Súmula Oficial (IA Sentinela & Cloudbet)
+                        </h4>
                         <p>Governança preditiva e reversão de favoritismo orientada por escalações oficiais:
-                            <br>&bull; <strong style="color: #fff;">Descoberta e Auditoria (T-45m a T-25m)</strong>: Ao receber a súmula oficial em <code>match_lineups_cache</code>, a IA Sentinela investiga desfalques críticos (goleiro reserva ou &ge; 5 titulares poupados).
-                            <br>&bull; <strong style="color: #fff;">Comunicação e Repescagem</strong>: O motor de Poisson recalibra o xG (penalização de 35% a 40% no time desfalcado) e converte o status de <strong style="color: #fff;">NO_BET para APROVADO</strong> com categoria <em>Reset Tático por Súmula</em> no Sweet Spot.
-                            <br>&bull; <strong style="color: #fff;">Persistência e Despacho Cripto</strong>: O novo status é gravado em <code>fixtures_trends</code> e despachado imediatamente para a Cloudbet; caso a bookmaker congele mercados no pré-jogo (<code>SELECTION_DISABLED</code>), a <code>criar_apostas_cloudbet_dag</code> assume o monitoramento in-play.
-                            <br>&bull; <strong style="color: #fff;">Carimbo Oficial de Validação</strong>: A aposta gerada é chancelada com <code>auditoria_ia_status = 'CONFIRMADO'</code>, categoria <em>Reset Tático por Súmula</em> e síntese auditável em linguagem natural no painel web.
+                            <br>&bull; <strong style="color: #fff;">Descoberta e Auditoria (T-45m a T-25m)</strong>: Ao
+                            receber a súmula oficial em <code>match_lineups_cache</code>, a IA Sentinela investiga
+                            desfalques críticos (goleiro reserva ou &ge; 5 titulares poupados).
+                            <br>&bull; <strong style="color: #fff;">Comunicação e Repescagem</strong>: O motor de
+                            Poisson recalibra o xG (penalização de 35% a 40% no time desfalcado) e converte o status de
+                            <strong style="color: #fff;">NO_BET para APROVADO</strong> com categoria <em>Reset Tático
+                                por Súmula</em> no Sweet Spot.
+                            <br>&bull; <strong style="color: #fff;">Persistência e Despacho Cripto</strong>: O novo
+                            status é gravado em <code>fixtures_trends</code> e despachado imediatamente para a Cloudbet;
+                            caso a bookmaker congele mercados no pré-jogo (<code>SELECTION_DISABLED</code>), a
+                            <code>criar_apostas_cloudbet_dag</code> assume o monitoramento in-play.
+                            <br>&bull; <strong style="color: #fff;">Carimbo Oficial de Validação</strong>: A aposta
+                            gerada é chancelada com <code>auditoria_ia_status = 'CONFIRMADO'</code>, categoria <em>Reset
+                                Tático por Súmula</em> e síntese auditável em linguagem natural no painel web.
                         </p>
                     </div>
                 </div>
@@ -830,10 +876,88 @@
             </div>
         </div>
 
-        <!-- SEÇÃO 3: CICLO DE VIDA DA APOSTA -->
+        <!-- SEÇÃO 4: DINÂMICA DE LIQUIDEZ CLOUDBET & COBERTURA IN-PLAY -->
+        <div class="section-box" style="border-left: 4px solid var(--accent-cyan);">
+            <div class="section-header">
+                <h3><i class="bi bi-lightning-charge-fill" style="color: var(--accent-cyan);"></i> 4. Dinâmica de
+                    Liquidez da Cloudbet & Cobertura In-Play (0' a 35' em 0x0)</h3>
+                <span class="badge badge-cyan">Estratégia & Cobertura de Liquidez</span>
+            </div>
+            <div class="module-item" style="margin-bottom: 20px; border-left: 3px solid var(--accent-amber);">
+                <i class="bi bi-shield-shaded module-icon" style="color: var(--accent-amber);"></i>
+                <div class="module-content">
+                    <h4 style="color: var(--accent-amber);">Postura de Risco da Bookmaker: Por que ~80% dos Mercados
+                        Abrem Apenas In-Play?</h4>
+                    <p>
+                        Para mitigar riscos de arbitragem e proteger sua margem contra sindicatos profissionais antes da
+                        confirmação oficial das escalações, a Cloudbet frequentemente retém suas cotações e mantém as
+                        seleções em estado <code>SELECTION_DISABLED</code> (congeladas/fechadas) durante boa parte do
+                        pré-jogo.
+                        No exato instante do apito inicial (minuto 0'), as seleções são destravadas para o status ativo
+                        (<code>TRADING_LIVE</code>) e o livro de ofertas é aberto com cotações dinâmicas em tempo real.
+                    </p>
+                </div>
+            </div>
+
+            <div class="steps-grid" style="margin-bottom: 25px;">
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">1</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-cyan);">Esteira Dupla de
+                            Captura</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong><code>criar_apostas_cloudbet_dag</code> (a cada 5 min)</strong>: Varre partidas
+                        em andamento (<code>1H</code> / <code>LIVE</code>) com placar estritamente em
+                        <strong>0x0</strong> entre <strong>0' e 35'</strong>. Aciona <code>use_cache=False</code> para
+                        forçar consulta ao vivo na API da Cloudbet, dispondo de <strong>até 7 tentativas
+                            sucessivas</strong> para capturar a abertura das cotações.
+                        <br>&bull; <strong><code>football_trends_live_dag</code> (a cada 1 min)</strong>: Ingestão
+                        contínua de placares, tempo de bola rolando e volume estatístico (chutes e cantos) no
+                        <code>match_statistics_cache</code>.
+                    </div>
+                </div>
+
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">2</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-green);">Vantagem
+                            Matemática In-Play</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong>Titulares em Campo Confirmados</strong>: Elimina o risco de desfalques de última
+                        hora ou lesões em aquecimento.
+                        <br>&bull; <strong>Decaimento Temporal no Sweet Spot</strong>: Linhas de gols (ex: Mais de 1.5
+                        ou 2.0) com odds esmagadas no pré-jogo (@ 1.40) sobem naturalmente para <strong>1.65 a
+                            1.85</strong> aos 15'-20' em 0x0, entrando na faixa de alta rentabilidade.
+                        <br>&bull; <strong>Handicap com Linha Recuada</strong>: Um favorito -1.0 no pré-jogo recua para
+                        -0.75 ou -0.50 aos 20' no 0x0, oferecendo maior margem de segurança e odds superiores.
+                    </div>
+                </div>
+
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">3</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-red);">Travas Rigorosas de
+                            Segurança</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong>Veto por Alteração de Placar</strong>: Se sair gol antes dos 35' (placar
+                        diferente de 0x0), o robô cancela a entrada in-play para não precificar mercados sob choque e
+                        distorção inicial.
+                        <br>&bull; <strong>Teto Operacional de 35 Minutos</strong>: Operações in-play de handicap/gols
+                        encerram pontualmente aos 35' do 1º tempo.
+                        <br>&bull; <strong>Cartões Under 100% Pré-Jogo</strong>: Apostas disciplinares em Under são
+                        estritamente vetadas no ao vivo para blindar a banca contra cartões precoces.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEÇÃO 5: CICLO DE VIDA DA APOSTA -->
         <div class="section-box">
             <div class="section-header">
-                <h3><i class="bi bi-arrow-repeat" style="color: var(--accent-amber);"></i> 4. Ciclo de Vida da Aposta
+                <h3><i class="bi bi-arrow-repeat" style="color: var(--accent-amber);"></i> 5. Ciclo de Vida da Aposta
                     (Da Originação à Liquidação)</h3>
             </div>
             <div class="steps-grid">

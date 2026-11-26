@@ -31,20 +31,61 @@ from db_config import get_live_env_vars, get_db_connection
 BASE_URL = "https://sports-api.cloudbet.com"
 
 
+def resolve_cloudbet_dry_run(user_id: Optional[int] = 558, env_vars: Optional[dict] = None) -> bool:
+    """
+    Resolve o modo operacional da Cloudbet (Dry-Run vs Real).
+    Hierarquia Soberana:
+    1. Prioridade 1 (Soberana): Banco de Dados MySQL (metas_diarias_config.cloudbet_dry_run)
+    2. Prioridade 2 (Fallback Fail-Safe): .env (CLOUDBET_DRY_RUN)
+    Regra 8: inicialização prévia de variáveis locais.
+    Regra 15: tolerância zero a supressão oculta de falhas de banco.
+    """
+    uid = user_id if user_id is not None else 558
+    db_dry_run = None
+
+    try:
+        conn = get_db_connection(connect_timeout=3)
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT cloudbet_dry_run FROM metas_diarias_config WHERE usuario_id = %s AND is_ativa = 1 ORDER BY id DESC LIMIT 1",
+                (uid,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if row is not None:
+                val = row['cloudbet_dry_run'] if isinstance(row, dict) else row[0]
+                if val is not None:
+                    db_dry_run = bool(int(val) == 1)
+    except Exception as e_db:
+        print(f"⚠️ [CloudbetClient] Falha ao consultar cloudbet_dry_run no MySQL: {e_db}. Acionando fallback fail-safe do .env.")
+
+    if db_dry_run is not None:
+        return db_dry_run
+
+    ev = env_vars if env_vars is not None else get_live_env_vars()
+    env_dry = ev.get("CLOUDBET_DRY_RUN") if ev and "CLOUDBET_DRY_RUN" in ev else (os.environ.get("CLOUDBET_DRY_RUN") or "true")
+    return str(env_dry).strip().lower() in ("true", "1", "yes", "on")
+
+
 class CloudbetClient:
     """
     Cliente oficial para operação programática na Cloudbet via Trading API.
     """
 
-    def __init__(self, api_key: Optional[str] = None, proxy_url: Optional[str] = None, dry_run: Optional[bool] = None):
+    def __init__(self, api_key: Optional[str] = None, proxy_url: Optional[str] = None, dry_run: Optional[bool] = None, user_id: Optional[int] = 558):
         env_vars = get_live_env_vars()
 
         self.api_key = api_key or os.environ.get("CLOUDBET_API_KEY") or env_vars.get("CLOUDBET_API_KEY", "")
         self.proxy_url = proxy_url or os.environ.get("CLOUDBET_PROXY_URL") or env_vars.get("CLOUDBET_PROXY_URL", "")
         self.currency = os.environ.get("CLOUDBET_CURRENCY") or env_vars.get("CLOUDBET_CURRENCY", "USDT")
         
-        env_dry = os.environ.get("CLOUDBET_DRY_RUN") or env_vars.get("CLOUDBET_DRY_RUN", "true")
-        self.dry_run = dry_run if dry_run is not None else (str(env_dry).strip().lower() in ("true", "1", "yes", "on"))
+        if dry_run is not None:
+            self.dry_run = bool(dry_run)
+        else:
+            self.dry_run = resolve_cloudbet_dry_run(user_id=user_id, env_vars=env_vars)
 
         # Trava de Segurança Autônoma por Horário (100% independente da sessão de chat)
         real_start_str = os.environ.get("CLOUDBET_REAL_START_AT") or env_vars.get("CLOUDBET_REAL_START_AT", "")

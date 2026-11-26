@@ -1724,9 +1724,11 @@ def despachar_ordem_taticoreset_cloudbet(
     total_ordens_executadas = 0
     total_ordens_duplicadas = 0
     total_ordens_sem_liquidez = 0
+    total_ordens_rejeitadas = 0
+    motivo_bloqueio = ""
 
     if not user_ids:
-        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': 0}
+        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': 0, 'rejeitadas': 0, 'motivo_bloqueio': ''}
 
     # 1. Identifica usuários com moeda USDT
     cursor.execute("""
@@ -1806,8 +1808,16 @@ def despachar_ordem_taticoreset_cloudbet(
 
     # Se não houver cotação real líquida na Cloudbet, decreta abstenção mandatória (Regra 12)
     if not market_url or not event_id:
+        total_ordens_sem_liquidez = len(usdt_users)
+        motivo_bloqueio = "Cotação de Handicap suspensa/fechada na Cloudbet no pré-jogo" if event_id else "Evento não encontrado na Cloudbet"
         print(f"ℹ️ [Sentinela Cloudbet] #{fixture_id} {home_team} vs {away_team}: Linha '{selected_palpite}' não possui cotação real ativa na Cloudbet. Abstenção mandatória (Regra 12).")
-        return {'executadas': 0, 'duplicadas': 0, 'sem_liquidez': len(usdt_users)}
+        return {
+            'executadas': 0,
+            'duplicadas': 0,
+            'sem_liquidez': total_ordens_sem_liquidez,
+            'rejeitadas': 0,
+            'motivo_bloqueio': motivo_bloqueio
+        }
 
     # 3. Prepara reasoning preservando o bloco estruturado U5J (Regra 16)
     fix_dict = {
@@ -1894,12 +1904,15 @@ def despachar_ordem_taticoreset_cloudbet(
             total_ordens_duplicadas += 1
             print(f"ℹ️ [Sentinela Cloudbet] Bilhete já existente na Cloudbet para User #{uid} em #{fixture_id}.")
         else:
+            total_ordens_rejeitadas += 1
             print(f"❌ [Sentinela Cloudbet] Ordem rejeitada pela Cloudbet ou saldo insuficiente para User #{uid}.")
 
     return {
         'executadas': total_ordens_executadas,
         'duplicadas': total_ordens_duplicadas,
-        'sem_liquidez': total_ordens_sem_liquidez
+        'sem_liquidez': total_ordens_sem_liquidez,
+        'rejeitadas': total_ordens_rejeitadas,
+        'motivo_bloqueio': motivo_bloqueio
     }
 
 
@@ -2101,7 +2114,25 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                     # Notificação Sininho In-App e Push (apenas se não tiver ocorrido execução direta Cloudbet)
                     if res_cb.get('executadas', 0) == 0:
                         tit_notif = f"🔄 Reversão Tática [{cat_nome}]: {home} vs {away}"
-                        msg_notif = f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). {motivo_desfalque}"
+                        base_msg = (
+                            f"{home} x {away} [{cat_nome}]: A súmula oficial e o mercado geraram uma nova oportunidade de valor! "
+                            f"Entrada sugerida: {palpite_sug} @ {cand_odd:.2f} (Probabilidade: {cand_prob:.1f}%, EV: +{cand_ev:.1f}%). "
+                            f"{motivo_desfalque}"
+                        )
+
+                        if res_cb.get('sem_liquidez', 0) > 0:
+                            motivo_mot = res_cb.get('motivo_bloqueio') or "Linhas de Handicap suspensas/fechadas na Cloudbet no pré-jogo"
+                            msg_notif = (
+                                f"{base_msg} | ⚠️ Ordem Cloudbet NÃO enviada: {motivo_mot} (sem liquidez ativa). "
+                                f"Entrada monitorada para possível abertura no ao vivo."
+                            )
+                        elif res_cb.get('duplicadas', 0) > 0:
+                            msg_notif = f"{base_msg} | ℹ️ Bilhete já registrado anteriormente na corretora."
+                        elif res_cb.get('rejeitadas', 0) > 0:
+                            msg_notif = f"{base_msg} | ⚠️ Ordem rejeitada pela Cloudbet ou saldo insuficiente na carteira."
+                        else:
+                            msg_notif = base_msg
+
                         for uid in user_ids:
                             registrar_alerta_sininho(cursor, uid, aposta_id=None, fixture_id=fid, titulo=tit_notif, msg=msg_notif, tipo="REVERSAO_TATICA_SUMULA")
                         conn.commit()

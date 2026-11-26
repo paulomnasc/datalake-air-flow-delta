@@ -410,36 +410,62 @@
         </header>
 
         <!-- INTRODUÇÃO: ARQUITETURA DE GOVERNANÇA EM 2 ESTÁGIOS -->
-        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-cyan); border-radius: 12px; padding: 22px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);">
+        <div
+            style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-cyan); border-radius: 12px; padding: 22px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-                <span class="badge badge-primary" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.35);">
+                <span class="badge badge-primary"
+                    style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.35);">
                     <i class="bi bi-shield-check"></i> Governança Operacional
                 </span>
                 <span style="font-size: 0.82rem; color: var(--text-secondary); font-family: var(--font-code);">
                     Decisão Algorítmica em 2 Estágios: Prévia Matemática vs. Trava de Súmula Oficial
                 </span>
             </div>
-            <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-shield-lock" style="color: var(--accent-cyan);"></i> Como Funciona a Avaliação de BET e NO-BET no Pipeline
+            <h2
+                style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i class="bi bi-shield-lock" style="color: var(--accent-cyan);"></i> Como Funciona a Avaliação de BET e
+                NO-BET no Pipeline
             </h2>
             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
-                O sistema opera através de uma rigorosa <strong style="color: #fff;">arquitetura de decisão em dois estágios complementares</strong>, separando claramente a análise estatística preliminar da execução financeira definitiva na banca:
+                O sistema opera através de uma rigorosa <strong style="color: #fff;">arquitetura de decisão em dois
+                    estágios complementares</strong>, separando claramente a análise estatística preliminar da execução
+                financeira definitiva na banca:
             </p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
-                    <div style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                    <div
+                        style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
                         <i class="bi bi-calculator"></i> Estágio 1: Análise Prévia Matemática (Horas antes)
                     </div>
                     <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
-                        Ocorre no momento da ingestão da partida na esteira (véspera ou manhã do jogo). O motor de Poisson bivariado, as médias móveis U5J e o Gatekeeper analisam as probabilidades teóricas contra as cotações das bookmakers, atribuindo uma classificação preliminar de <strong style="color: #fff;">BET (Aprovado)</strong> ou <strong style="color: #fff;">NO-BET (Abstenção)</strong>. Partidas com anomalias de risco evidentes (ex: <em>Caldeirão da Degola</em>, <em>Mando Soberano</em> ou ausência de margem +EV) já são filtradas preventivamente nesta fase.
+                        Ocorre no momento da ingestão da partida na esteira (véspera ou manhã do jogo). O motor de
+                        Poisson bivariado, as médias móveis U5J e o Gatekeeper analisam as probabilidades teóricas
+                        contra as cotações das bookmakers, atribuindo uma classificação preliminar de <strong
+                            style="color: #fff;">BET (Aprovado)</strong> ou <strong style="color: #fff;">NO-BET
+                            (Abstenção)</strong>. Partidas com anomalias de risco evidentes (ex: <em>Caldeirão da
+                            Degola</em>, <em>Mando Soberano</em> ou ausência de margem +EV) já são filtradas
+                        preventivamente nesta fase.
                     </p>
                 </div>
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
-                    <div style="font-weight: 700; color: var(--accent-green); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
-                        <i class="bi bi-file-earmark-person-fill"></i> Estágio 2: Trava de Súmula Oficial (T-60m a T-45m)
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                    <div
+                        style="font-weight: 700; color: var(--accent-green); margin-bottom: 8px; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+                        <i class="bi bi-file-earmark-person-fill"></i> Estágio 2: Trava de Súmula Oficial (T-60m a
+                        T-45m)
                     </div>
                     <p style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
-                        <strong style="color: #fff;">A confirmação financeira real depende estritamente da Súmula Oficial (11 Titulares).</strong> Nenhuma ordem é enviada às cegas: no painel web, apostas Premium permanecem bloqueadas com o botão <span class="badge" style="background: #334155; color: #cbd5e1; font-size: 0.72rem; padding: 2px 6px;">⏳ Aguardar Súmula</span>; no robô autônomo Cloudbet, o envio fica retido até que a escalação oficial seja confirmada em <code style="color: var(--accent-cyan);">match_lineups_cache</code>. A <strong style="color: #fff;">IA Sentinela Gemini</strong> audita os titulares, podendo vetar apostas pré-aprovadas caso haja time misto (<span style="color: var(--accent-red); font-weight: 700;">ALERTA_RISCO</span>) ou repescar partidas de NO-BET caso o adversário tenha poupado 5+ titulares (Reset Tático por Súmula).
+                        <strong style="color: #fff;">A confirmação financeira real depende estritamente da Súmula
+                            Oficial (11 Titulares).</strong> Nenhuma ordem é enviada às cegas: no painel web, apostas
+                        Premium permanecem bloqueadas com o botão <span class="badge"
+                            style="background: #334155; color: #cbd5e1; font-size: 0.72rem; padding: 2px 6px;">⏳
+                            Aguardar Súmula</span>; no robô autônomo Cloudbet, o envio fica retido até que a escalação
+                        oficial seja confirmada em <code style="color: var(--accent-cyan);">match_lineups_cache</code>.
+                        A <strong style="color: #fff;">IA Sentinela Gemini</strong> audita os titulares, podendo vetar
+                        apostas pré-aprovadas caso haja time misto (<span
+                            style="color: var(--accent-red); font-weight: 700;">ALERTA_RISCO</span>) ou repescar
+                        partidas de NO-BET caso o adversário tenha poupado 5+ titulares (Reset Tático por Súmula).
                     </p>
                 </div>
             </div>
@@ -454,7 +480,8 @@
                 </div>
                 <div class="card-val">Autônoma API</div>
                 <div class="card-desc">Cotações em tempo real via Cloudbet API e execução robotizada via
-                    <code>place_bet</code> com micro-stakes de 0.10 USDT.</div>
+                    <code>place_bet</code> com micro-stakes de 0.10 USDT.
+                </div>
             </div>
             <div class="card">
                 <div class="card-title">
@@ -510,7 +537,10 @@
                             <td style="text-align: center;"><code>*/30 min</code></td>
                             <td><code>scripts/<br>criar_apostas_cloudbet_diario.py</code></td>
                             <td style="text-align: center;"><span class="badge badge-cyan">Handicap Asiático</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; display: inline-block;">0 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(0,0%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; display: inline-block;">0
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(0,0%)</span></span>
+                            </td>
                             <td>
                                 <strong>Robô Autônomo 100%:</strong> Consulta o catálogo Cloudbet via proxy suíço, roda
                                 o Gatekeeper e <span style="color: #fbbf24;">dispara a ordem real/simulada
@@ -519,18 +549,29 @@
                         </tr>
                         <tr>
                             <td>
-                                <span class="badge font-monospace" style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; text-decoration: line-through;">criar_apostas_gols_dag</span>
-                                <br><span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); margin-top: 4px; font-size: 0.75rem;"><i class="bi bi-pause-circle"></i> PARALISADA</span>
+                                <span class="badge font-monospace"
+                                    style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; text-decoration: line-through;">criar_apostas_gols_dag</span>
+                                <br><span class="badge"
+                                    style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); margin-top: 4px; font-size: 0.75rem;"><i
+                                        class="bi bi-pause-circle"></i> PARALISADA</span>
                             </td>
                             <td style="text-align: center;">
                                 <code style="text-decoration: line-through; opacity: 0.6;">A cada 3h</code>
-                                <br><span class="badge" style="background: #334155; color: #cbd5e1; font-size: 0.72rem; margin-top: 4px;">Pausada</span>
+                                <br><span class="badge"
+                                    style="background: #334155; color: #cbd5e1; font-size: 0.72rem; margin-top: 4px;">Pausada</span>
                             </td>
                             <td><code>scripts/<br>criar_apostas_gols_diario.py</code></td>
-                            <td style="text-align: center;"><span class="badge" style="background: #334155; color: #cbd5e1;">Gols Asiáticos</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; display: inline-block;">0 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: #334155; color: #cbd5e1;">Gols Asiáticos</span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; display: inline-block;">0
+                                    tokens/dia<br><span
+                                        style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</span></span></td>
                             <td>
-                                <strong style="color: #fbbf24;">⏸️ DAG Paralisada:</strong> Avaliação legada de gols pré-jogo. A emissão autônoma de palpites e ordens de Gols Asiáticos foi unificada diretamente na <code>criar_apostas_cloudbet_dag</code> (robô multimercado em USDT), prevenindo duplicidade de apostas e economizando cotas.
+                                <strong style="color: #fbbf24;">⏸️ DAG Paralisada:</strong> Avaliação legada de gols
+                                pré-jogo. A emissão autônoma de palpites e ordens de Gols Asiáticos foi unificada
+                                diretamente na <code>criar_apostas_cloudbet_dag</code> (robô multimercado em USDT),
+                                prevenindo duplicidade de apostas e economizando cotas.
                             </td>
                         </tr>
                         <tr>
@@ -538,27 +579,41 @@
                                     style="opacity: 0.85;">criar_apostas_handicap_dag</span></td>
                             <td style="text-align: center;"><code>A cada 3h</code></td>
                             <td><code>scripts/<br>criar_apostas_handicap_diario.py</code></td>
-                            <td style="text-align: center;"><span class="badge" style="background:#334155; color:#cbd5e1;">Handicap Asiático</span>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background:#334155; color:#cbd5e1;">Handicap Asiático</span>
                             </td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; display: inline-block;">~50 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(0,7%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(16, 185, 129, 0.15); color: #34d399; display: inline-block;">~50
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(0,7%)</span></span>
+                            </td>
                             <td>
                                 Esteira clássica de triagem de Handicap da grade diária com foco em portfólio pré-jogo.
                             </td>
                         </tr>
                         <tr>
                             <td>
-                                <span class="badge font-monospace" style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; text-decoration: line-through;">criar_apostas_cartoes_dag</span>
-                                <br><span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); margin-top: 4px; font-size: 0.75rem;"><i class="bi bi-pause-circle"></i> PARALISADA</span>
+                                <span class="badge font-monospace"
+                                    style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; text-decoration: line-through;">criar_apostas_cartoes_dag</span>
+                                <br><span class="badge"
+                                    style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); margin-top: 4px; font-size: 0.75rem;"><i
+                                        class="bi bi-pause-circle"></i> PARALISADA</span>
                             </td>
                             <td style="text-align: center;">
                                 <code style="text-decoration: line-through; opacity: 0.6;">A cada 1h</code>
-                                <br><span class="badge" style="background: #334155; color: #cbd5e1; font-size: 0.72rem; margin-top: 4px;">Pausada</span>
+                                <br><span class="badge"
+                                    style="background: #334155; color: #cbd5e1; font-size: 0.72rem; margin-top: 4px;">Pausada</span>
                             </td>
                             <td><code>scripts/<br>criar_apostas_cartoes_diario.py</code></td>
-                            <td style="text-align: center;"><span class="badge" style="background: #334155; color: #cbd5e1;">Cartões Under</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; display: inline-block;">0 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: #334155; color: #cbd5e1;">Cartões Under</span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; display: inline-block;">0
+                                    tokens/dia<br><span
+                                        style="font-size: 0.72rem; opacity: 0.85;">(Pausada)</span></span></td>
                             <td>
-                                <strong style="color: #fbbf24;">⏸️ DAG Paralisada:</strong> Esteira pré-jogo de cartões pausada para priorizar a liquidez e volume nas ordens autônomas da Cloudbet em USDT, economizando ~120 tokens/dia da API-Sports.
+                                <strong style="color: #fbbf24;">⏸️ DAG Paralisada:</strong> Esteira pré-jogo de cartões
+                                pausada para priorizar a liquidez e volume nas ordens autônomas da Cloudbet em USDT,
+                                economizando ~120 tokens/dia da API-Sports.
                             </td>
                         </tr>
                         <tr>
@@ -570,7 +625,10 @@
                             <td style="text-align: center;"><span class="badge"
                                     style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff;">Auditoria IA /
                                     Escalações</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; display: inline-block;">~350 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(4,7%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(168, 85, 247, 0.2); color: #c084fc; display: inline-block;">~350
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(4,7%)</span></span>
+                            </td>
                             <td>
                                 <strong>Sentinela em Dois Estágios:</strong> Fase 1 (Antecipação Matinal 24h via
                                 notícias web de desfalques) e Fase 2 (Repescagem de 11 titulares oficiais T-50m e
@@ -581,8 +639,12 @@
                             <td><span class="badge badge-danger font-monospace">football_trends_live_dag</span></td>
                             <td style="text-align: center;"><code>A cada 2 min</code></td>
                             <td><code>scripts/<br>cloudbet_live_cashout.py</code></td>
-                            <td style="text-align: center;"><span class="badge badge-danger">Ao Vivo / In-Play</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; display: inline-block;">~1.800 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(24,0%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge badge-danger">Ao Vivo / In-Play</span>
+                            </td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(239, 68, 68, 0.2); color: #f87171; display: inline-block;">~1.800
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(24,0%)</span></span>
+                            </td>
                             <td>
                                 Monitora os 90 minutos de jogo com o placar ao vivo. Se houver desvio tático ou gatilho
                                 de stop-loss, dispara contra-ordem (<strong
@@ -595,49 +657,68 @@
                             <td style="text-align: center;"><code>A cada 5 min</code></td>
                             <td><code>scripts/<br>processar_apostas_encerradas.py</code></td>
                             <td style="text-align: center;"><span class="badge badge-cyan">Pós-Jogo / FT</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; display: inline-block;">~280 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(3,7%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; display: inline-block;">~280
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(3,7%)</span></span>
+                            </td>
                             <td>
                                 Lê o placar e as súmulas oficiais de jogos encerrados, liquida o resultado e concilia
                                 créditos/débitos na conta corrente do usuário.
                             </td>
                         </tr>
                         <tr>
-                            <td><span class="badge font-monospace" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4);">football_trends_ingestion_dag</span>
+                            <td><span class="badge font-monospace"
+                                    style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4);">football_trends_ingestion_dag</span>
                             </td>
                             <td style="text-align: center;"><code>A cada 15 min</code></td>
                             <td><code>scripts/<br>football_ingest_trends.py</code></td>
-                            <td style="text-align: center;"><span class="badge" style="background: #334155; color: #cbd5e1;">Fixtures & Odds Globais</span></td>
-                            <td style="text-align: center;"><span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; display: inline-block;">~2.500 tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(33,3%)</span></span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: #334155; color: #cbd5e1;">Fixtures & Odds Globais</span></td>
+                            <td style="text-align: center;"><span class="badge"
+                                    style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; display: inline-block;">~2.500
+                                    tokens/dia<br><span style="font-size: 0.72rem; opacity: 0.85;">(33,3%)</span></span>
+                            </td>
                             <td>
-                                Descoberta contínua de partidas da grade, atualização de metadados de ligas e ingestão de odds 1X2 das casas de apostas.
+                                Descoberta contínua de partidas da grade, atualização de metadados de ligas e ingestão
+                                de odds 1X2 das casas de apostas.
                             </td>
                         </tr>
                     </tbody>
                     <tfoot style="background: rgba(15, 23, 42, 0.7); border-top: 2px solid var(--border);">
                         <tr style="font-weight: 700; color: #f8fafc;">
-                            <td colspan="4" style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                            <td colspan="4"
+                                style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-calculator"></i> Total Médio de Consumo Diário do Pipeline:
                             </td>
-                            <td style="color: #38bdf8; font-size: 1rem;"><span class="badge badge-cyan" style="font-size: 0.95rem; font-weight: 700;">4.980 tokens/dia</span></td>
-                            <td style="color: #94a3b8; font-size: 0.85rem;">Soma consolidada de todas as esteiras ativas</td>
+                            <td style="color: #38bdf8; font-size: 1rem;"><span class="badge badge-cyan"
+                                    style="font-size: 0.95rem; font-weight: 700;">4.980 tokens/dia</span></td>
+                            <td style="color: #94a3b8; font-size: 0.85rem;">Soma consolidada de todas as esteiras ativas
+                            </td>
                         </tr>
                         <tr style="font-weight: 700; color: #f8fafc;">
-                            <td colspan="4" style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                            <td colspan="4"
+                                style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-shield-check"></i> Cota Disponibilizada na API-Sports (Plano Pro):
                             </td>
-                            <td style="color: #34d399; font-size: 1rem;"><span class="badge badge-success" style="font-size: 0.95rem; font-weight: 700;">7.500 tokens/dia</span></td>
-                            <td style="color: #94a3b8; font-size: 0.85rem;">Limite oficial contratado (Plano Pro ativo)</td>
+                            <td style="color: #34d399; font-size: 1rem;"><span class="badge badge-success"
+                                    style="font-size: 0.95rem; font-weight: 700;">7.500 tokens/dia</span></td>
+                            <td style="color: #94a3b8; font-size: 0.85rem;">Limite oficial contratado (Plano Pro ativo)
+                            </td>
                         </tr>
                         <tr style="font-weight: 700; color: #f8fafc;">
-                            <td colspan="4" style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                            <td colspan="4"
+                                style="text-align: right; padding-right: 1.5rem; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 <i class="bi bi-pie-chart"></i> Balanço Calculado (Uso vs. Disponível):
                             </td>
                             <td>
-                                <span class="badge badge-primary" style="font-size: 0.9rem; font-weight: 700;">66,4% em Uso</span>
+                                <span class="badge badge-primary" style="font-size: 0.9rem; font-weight: 700;">66,4% em
+                                    Uso</span>
                             </td>
                             <td>
-                                <span class="badge badge-success" style="font-size: 0.9rem; font-weight: 700;">33,6% Disponível</span>
-                                <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 0.5rem;">(2.520 tokens livres como margem de contingência diária)</span>
+                                <span class="badge badge-success" style="font-size: 0.9rem; font-weight: 700;">33,6%
+                                    Disponível</span>
+                                <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 0.5rem;">(2.520 tokens
+                                    livres como margem de contingência diária)</span>
                             </td>
                         </tr>
                     </tfoot>
@@ -645,13 +726,19 @@
             </div>
 
             <!-- CARD VISUAL DE COTA & PERCENTUAIS -->
-            <div style="margin-top: 1.25rem; padding: 1rem 1.25rem; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid var(--border);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem;">
-                    <span style="color: #cbd5e1; font-weight: 600;"><i class="bi bi-speedometer2 text-primary"></i> Utilização da Cota API-Sports: <strong>4.980 / 7.500 requisições</strong></span>
-                    <span style="color: #34d399; font-weight: 700;"><i class="bi bi-shield-lock"></i> Margem de Segurança: 33,6% Livre</span>
+            <div
+                style="margin-top: 1.25rem; padding: 1rem 1.25rem; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid var(--border);">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <span style="color: #cbd5e1; font-weight: 600;"><i class="bi bi-speedometer2 text-primary"></i>
+                        Utilização da Cota API-Sports: <strong>4.980 / 7.500 requisições</strong></span>
+                    <span style="color: #34d399; font-weight: 700;"><i class="bi bi-shield-lock"></i> Margem de
+                        Segurança: 33,6% Livre</span>
                 </div>
-                <div style="width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; display: flex;">
-                    <div style="width: 66.4%; background: linear-gradient(90deg, #3b82f6, #06b6d4); height: 100%;" title="66,4% em Uso"></div>
+                <div
+                    style="width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; display: flex;">
+                    <div style="width: 66.4%; background: linear-gradient(90deg, #3b82f6, #06b6d4); height: 100%;"
+                        title="66,4% em Uso"></div>
                     <div style="width: 33.6%; background: #10b981; height: 100%;" title="33,6% Disponível"></div>
                 </div>
             </div>
@@ -677,7 +764,8 @@
                         <h4>Governança e Tiers de Risco</h4>
                         <p><code>scripts/bet_tier.py</code>: define a enumeração <code>BetTier</code>. O robô descarta
                             palpites Regulares, aprovando estritamente <strong>PREMIUM</strong> e
-                            <strong>QUASE_PREMIUM</strong>.</p>
+                            <strong>QUASE_PREMIUM</strong>.
+                        </p>
                     </div>
                 </div>
                 <div class="module-item">
@@ -705,30 +793,51 @@
                             <code>football_gemini_sentinel_dag</code> a cada 5 min. Opera a Fase 1 (Antecipação Matinal
                             24h via Google Grounding) e Fase 2 (Repescagem dos 11 titulares oficiais T-50m e vigilância
                             contra drift de odds). Se houver desfalque crítico de última hora, autoriza contra-ordem
-                            defensiva de hedge na Cloudbet.</p>
+                            defensiva de hedge na Cloudbet.
+                        </p>
                     </div>
                 </div>
                 <div class="module-item" style="border-left: 3px solid var(--accent-amber);">
                     <i class="bi bi-stopwatch-fill module-icon" style="color: var(--accent-amber);"></i>
                     <div class="module-content">
                         <h4 style="color: var(--accent-amber);">Trading Live: Sniper In-Play no 1º Tempo (0' a 35')</h4>
-                        <p>O robô não opera apenas no pré-jogo. Durante o primeiro tempo com placar em <strong>0x0</strong>, aciona rotinas dinâmicas de valor in-play:
-                            <br>&bull; <strong style="color: #fff;">Sniper de Gols (Janela Áurea 15' a 35' do 1T)</strong>: Captura o decaimento temporal de cotações em <em>Mais de 1.5 / 2.0 Gols</em> no Sweet Spot (@ 1.65 a 2.15) com exigência estrita de volume ofensivo (&ge; 3 chutes e cantos aos 20').
-                            <br>&bull; <strong style="color: #fff;">Handicap Asiático In-Play (0' a 35' do 1T)</strong>: Reavaliação de favoritismo territorial no 0x0 com linhas recuadas e odds infladas.
-                            <br>&bull; <strong style="color: #fff;">Cartões Under (100% Pré-Jogo - NS)</strong>: Blindagem estrita contra advertências precoces; entradas em Under são vetadas após o apito inicial.
-                            <br>&bull; <strong style="color: #fff;">Cross-Hedge Defensivo (Live Feed a cada 1-2 min)</strong>: Orquestrado por <code>cloudbet_live_cashout.py</code>, monitora desvios táticos e emite contra-ordens de proteção na Cloudbet.
+                        <p>O robô não opera apenas no pré-jogo. Durante o primeiro tempo com placar em
+                            <strong>0x0</strong>, aciona rotinas dinâmicas de valor in-play:
+                            <br>&bull; <strong style="color: #fff;">Sniper de Gols (Janela Áurea 15' a 35' do
+                                1T)</strong>: Captura o decaimento temporal de cotações em <em>Mais de 1.5 / 2.0
+                                Gols</em> no Sweet Spot (@ 1.65 a 2.15) com exigência estrita de volume ofensivo (&ge; 3
+                            chutes e cantos aos 20').
+                            <br>&bull; <strong style="color: #fff;">Handicap Asiático In-Play (0' a 35' do 1T)</strong>:
+                            Reavaliação de favoritismo territorial no 0x0 com linhas recuadas e odds infladas.
+                            <br>&bull; <strong style="color: #fff;">Cartões Under (100% Pré-Jogo - NS)</strong>:
+                            Blindagem estrita contra advertências precoces; entradas em Under são vetadas após o apito
+                            inicial.
+                            <br>&bull; <strong style="color: #fff;">Cross-Hedge Defensivo (Live Feed a cada 1-2
+                                min)</strong>: Orquestrado por <code>cloudbet_live_cashout.py</code>, monitora desvios
+                            táticos e emite contra-ordens de proteção na Cloudbet.
                         </p>
                     </div>
                 </div>
                 <div class="module-item" style="border-left: 3px solid var(--accent-cyan);">
                     <i class="bi bi-person-x-fill module-icon" style="color: var(--accent-cyan);"></i>
                     <div class="module-content">
-                        <h4 style="color: var(--accent-cyan);">Reset Tático por Súmula Oficial (IA Sentinela & Cloudbet)</h4>
+                        <h4 style="color: var(--accent-cyan);">Reset Tático por Súmula Oficial (IA Sentinela & Cloudbet)
+                        </h4>
                         <p>Governança preditiva e reversão de favoritismo orientada por escalações oficiais:
-                            <br>&bull; <strong style="color: #fff;">Descoberta e Auditoria (T-45m a T-25m)</strong>: Ao receber a súmula oficial em <code>match_lineups_cache</code>, a IA Sentinela investiga desfalques críticos (goleiro reserva ou &ge; 5 titulares poupados).
-                            <br>&bull; <strong style="color: #fff;">Comunicação e Repescagem</strong>: O motor de Poisson recalibra o xG (penalização de 35% a 40% no time desfalcado) e converte o status de <strong style="color: #fff;">NO_BET para APROVADO</strong> com categoria <em>Reset Tático por Súmula</em> no Sweet Spot.
-                            <br>&bull; <strong style="color: #fff;">Persistência e Despacho Cripto</strong>: O novo status é gravado em <code>fixtures_trends</code> e despachado imediatamente para a Cloudbet; caso a bookmaker congele mercados no pré-jogo (<code>SELECTION_DISABLED</code>), a <code>criar_apostas_cloudbet_dag</code> assume o monitoramento in-play.
-                            <br>&bull; <strong style="color: #fff;">Carimbo Oficial de Validação</strong>: A aposta gerada é chancelada com <code>auditoria_ia_status = 'CONFIRMADO'</code>, categoria <em>Reset Tático por Súmula</em> e síntese auditável em linguagem natural no painel web.
+                            <br>&bull; <strong style="color: #fff;">Descoberta e Auditoria (T-45m a T-25m)</strong>: Ao
+                            receber a súmula oficial em <code>match_lineups_cache</code>, a IA Sentinela investiga
+                            desfalques críticos (goleiro reserva ou &ge; 5 titulares poupados).
+                            <br>&bull; <strong style="color: #fff;">Comunicação e Repescagem</strong>: O motor de
+                            Poisson recalibra o xG (penalização de 35% a 40% no time desfalcado) e converte o status de
+                            <strong style="color: #fff;">NO_BET para APROVADO</strong> com categoria <em>Reset Tático
+                                por Súmula</em> no Sweet Spot.
+                            <br>&bull; <strong style="color: #fff;">Persistência e Despacho Cripto</strong>: O novo
+                            status é gravado em <code>fixtures_trends</code> e despachado imediatamente para a Cloudbet;
+                            caso a bookmaker congele mercados no pré-jogo (<code>SELECTION_DISABLED</code>), a
+                            <code>criar_apostas_cloudbet_dag</code> assume o monitoramento in-play.
+                            <br>&bull; <strong style="color: #fff;">Carimbo Oficial de Validação</strong>: A aposta
+                            gerada é chancelada com <code>auditoria_ia_status = 'CONFIRMADO'</code>, categoria <em>Reset
+                                Tático por Súmula</em> e síntese auditável em linguagem natural no painel web.
                         </p>
                     </div>
                 </div>
@@ -744,7 +853,8 @@
                         <h4 style="color: var(--accent-amber);">Regra de Ouro 11: Sincronização Web</h4>
                         <p>Qualquer calibração matemática no motor em Python possui método espelho obrigatório em
                             <code>ApostaController::evaluateGatekeeper</code> no PHP, assegurando paridade entre robô e
-                            interface web.</p>
+                            interface web.
+                        </p>
                     </div>
                 </div>
                 <div class="module-item" style="border-left: 3px solid var(--primary);">
@@ -766,10 +876,88 @@
             </div>
         </div>
 
-        <!-- SEÇÃO 3: CICLO DE VIDA DA APOSTA -->
+        <!-- SEÇÃO 4: DINÂMICA DE LIQUIDEZ CLOUDBET & COBERTURA IN-PLAY -->
+        <div class="section-box" style="border-left: 4px solid var(--accent-cyan);">
+            <div class="section-header">
+                <h3><i class="bi bi-lightning-charge-fill" style="color: var(--accent-cyan);"></i> 4. Dinâmica de
+                    Liquidez da Cloudbet & Cobertura In-Play (0' a 35' em 0x0)</h3>
+                <span class="badge badge-cyan">Estratégia & Cobertura de Liquidez</span>
+            </div>
+            <div class="module-item" style="margin-bottom: 20px; border-left: 3px solid var(--accent-amber);">
+                <i class="bi bi-shield-shaded module-icon" style="color: var(--accent-amber);"></i>
+                <div class="module-content">
+                    <h4 style="color: var(--accent-amber);">Postura de Risco da Bookmaker: Por que ~80% dos Mercados
+                        Abrem Apenas In-Play?</h4>
+                    <p>
+                        Para mitigar riscos de arbitragem e proteger sua margem contra sindicatos profissionais antes da
+                        confirmação oficial das escalações, a Cloudbet frequentemente retém suas cotações e mantém as
+                        seleções em estado <code>SELECTION_DISABLED</code> (congeladas/fechadas) durante boa parte do
+                        pré-jogo.
+                        No exato instante do apito inicial (minuto 0'), as seleções são destravadas para o status ativo
+                        (<code>TRADING_LIVE</code>) e o livro de ofertas é aberto com cotações dinâmicas em tempo real.
+                    </p>
+                </div>
+            </div>
+
+            <div class="steps-grid" style="margin-bottom: 25px;">
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">1</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-cyan);">Esteira Dupla de
+                            Captura</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong><code>criar_apostas_cloudbet_dag</code> (a cada 5 min)</strong>: Varre partidas
+                        em andamento (<code>1H</code> / <code>LIVE</code>) com placar estritamente em
+                        <strong>0x0</strong> entre <strong>0' e 35'</strong>. Aciona <code>use_cache=False</code> para
+                        forçar consulta ao vivo na API da Cloudbet, dispondo de <strong>até 7 tentativas
+                            sucessivas</strong> para capturar a abertura das cotações.
+                        <br>&bull; <strong><code>football_trends_live_dag</code> (a cada 1 min)</strong>: Ingestão
+                        contínua de placares, tempo de bola rolando e volume estatístico (chutes e cantos) no
+                        <code>match_statistics_cache</code>.
+                    </div>
+                </div>
+
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">2</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-green);">Vantagem
+                            Matemática In-Play</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong>Titulares em Campo Confirmados</strong>: Elimina o risco de desfalques de última
+                        hora ou lesões em aquecimento.
+                        <br>&bull; <strong>Decaimento Temporal no Sweet Spot</strong>: Linhas de gols (ex: Mais de 1.5
+                        ou 2.0) com odds esmagadas no pré-jogo (@ 1.40) sobem naturalmente para <strong>1.65 a
+                            1.85</strong> aos 15'-20' em 0x0, entrando na faixa de alta rentabilidade.
+                        <br>&bull; <strong>Handicap com Linha Recuada</strong>: Um favorito -1.0 no pré-jogo recua para
+                        -0.75 ou -0.50 aos 20' no 0x0, oferecendo maior margem de segurança e odds superiores.
+                    </div>
+                </div>
+
+                <div class="step-card" style="text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span class="step-number" style="margin-bottom: 0;">3</span>
+                        <div class="step-title" style="margin-bottom: 0; color: var(--accent-red);">Travas Rigorosas de
+                            Segurança</div>
+                    </div>
+                    <div class="step-desc">
+                        &bull; <strong>Veto por Alteração de Placar</strong>: Se sair gol antes dos 35' (placar
+                        diferente de 0x0), o robô cancela a entrada in-play para não precificar mercados sob choque e
+                        distorção inicial.
+                        <br>&bull; <strong>Teto Operacional de 35 Minutos</strong>: Operações in-play de handicap/gols
+                        encerram pontualmente aos 35' do 1º tempo.
+                        <br>&bull; <strong>Cartões Under 100% Pré-Jogo</strong>: Apostas disciplinares em Under são
+                        estritamente vetadas no ao vivo para blindar a banca contra cartões precoces.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEÇÃO 5: CICLO DE VIDA DA APOSTA -->
         <div class="section-box">
             <div class="section-header">
-                <h3><i class="bi bi-arrow-repeat" style="color: var(--accent-amber);"></i> 4. Ciclo de Vida da Aposta
+                <h3><i class="bi bi-arrow-repeat" style="color: var(--accent-amber);"></i> 5. Ciclo de Vida da Aposta
                     (Da Originação à Liquidação)</h3>
             </div>
             <div class="steps-grid">

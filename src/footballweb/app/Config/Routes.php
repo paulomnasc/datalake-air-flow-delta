@@ -120,6 +120,7 @@ $routes->get('/conta-corrente/aposta-detalhes/(:num)', 'ContaCorrenteController:
 $routes->get('/metas', 'MetaController::index', ['as' => 'metas.index']);
 $routes->post('/metas/salvar-config', 'MetaController::salvarConfig', ['as' => 'metas.salvar_config']);
 $routes->post('/metas/recalcular-dia', 'MetaController::recalcularDia', ['as' => 'metas.recalcular_dia']);
+$routes->post('/metas/toggle-dry-run', 'MetaController::toggleDryRun', ['as' => 'metas.toggle_dry_run']);
 
 // Rotas de Configuração de Moedas e Criptomoedas Operacionais
 $routes->get('/moedas', 'MoedaController::index', ['as' => 'moedas.index']);

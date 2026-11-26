@@ -227,6 +227,7 @@ class MetaController extends BaseController
         $dados = [
             'titulo'             => !empty($titulo) ? $titulo : 'Meta Diária - Ciclo 10 Apostas',
             'moeda_codigo'       => !empty($moedaCodigo) ? $moedaCodigo : ($metaAtual->moeda_codigo ?? 'BRL'),
+            'cloudbet_dry_run'   => ($this->request->getPost('cloudbet_dry_run') !== null) ? ((int)$this->request->getPost('cloudbet_dry_run') === 0 ? 0 : 1) : (int)($metaAtual->cloudbet_dry_run ?? 1),
             'stake_padrao'       => $stakePadrao,
             'total_apostas_alvo' => $totalApostasAlvo,
             'odd_media_alvo'     => $oddMediaAlvo > 0 ? $oddMediaAlvo : 1.75,
@@ -274,6 +275,47 @@ class MetaController extends BaseController
             'success' => true,
             'message' => 'Cache recalculado com sucesso!',
             'data'    => $cache
+        ]);
+    }
+
+    /**
+     * Alterna instantaneamente o modo operacional da Cloudbet (Dry-Run / Real) via AJAX
+     */
+    public function toggleDryRun()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Sessão expirada. Faça login novamente.'
+            ])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $metaAtual = $this->metaDiariaModel->getMetaAtiva($userId);
+
+        $postVal = $this->request->getPost('dry_run');
+        if ($postVal !== null && $postVal !== '') {
+            $novoDryRun = ((int)$postVal === 0) ? 0 : 1;
+        } else {
+            $atual = (int)($metaAtual->cloudbet_dry_run ?? 1);
+            $novoDryRun = ($atual === 1) ? 0 : 1;
+        }
+
+        $db = \Config\Database::connect();
+        $db->table('metas_diarias_config')
+           ->where('usuario_id', $userId)
+           ->where('is_ativa', 1)
+           ->update(['cloudbet_dry_run' => $novoDryRun, 'updated_at' => date('Y-m-d H:i:s')]);
+
+        return $this->response->setJSON([
+            'success'   => true,
+            'dry_run'   => $novoDryRun,
+            'is_real'   => ($novoDryRun === 0),
+            'label'     => ($novoDryRun === 0) ? 'Modo Real' : 'Simulação (Dry-Run)',
+            'badge_txt' => ($novoDryRun === 0) ? 'CLOUDBET_DRY_RUN=false' : 'CLOUDBET_DRY_RUN=true',
+            'color'     => ($novoDryRun === 0) ? 'green' : 'red',
+            'message'   => ($novoDryRun === 0) ? 'Modo Real ativado com sucesso! As ordens passarão a usar saldo real em USDT.' : 'Modo Simulação ativado com sucesso! As ordens operarão em Paper Trading.'
         ]);
     }
 }

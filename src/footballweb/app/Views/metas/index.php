@@ -621,6 +621,8 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .modal-overlay.active {
   display: flex;
@@ -632,9 +634,34 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
   border-radius: 1.25rem;
   width: 100%;
   max-width: 580px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 2rem;
   color: white;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  margin: auto;
+}
+
+@media (max-width: 576px) {
+  .modal-overlay {
+    padding: 0.5rem;
+    align-items: flex-start;
+  }
+  .modal-content {
+    padding: 1.25rem 1rem 1rem 1rem;
+    max-height: 94vh;
+    border-radius: 1rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .modal-footer-sticky {
+    bottom: -1rem !important;
+  }
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
 }
 
 .modal-header {
@@ -1525,6 +1552,28 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
         </small>
       </div>
 
+      <!-- SELETOR TOGGLE: MODO OPERACIONAL CLOUDBET (DRY-RUN / REAL) -->
+      <div id="containerCloudbetDryRun" style="background: rgba(15, 23, 42, 0.75); padding: 0.95rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12); margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="flex: 1; min-width: 200px;">
+            <label style="margin: 0; font-size: 0.88rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 0.4rem;">
+              <span>🤖 Robô Cloudbet: Modo Operacional</span>
+            </label>
+            <small style="font-size: 0.74rem; color: #94a3b8; display: block; margin-top: 0.2rem;">
+              Define se as ordens autônomas serão emitidas em Simulação (Paper Trading) ou com Dinheiro Real em USDT.
+            </small>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <?php $dryRunAtivo = (int)($meta->cloudbet_dry_run ?? 1); ?>
+            <input type="hidden" name="cloudbet_dry_run" id="inputCloudbetDryRun" value="<?= $dryRunAtivo ?>">
+            <button type="button" id="btnToggleCloudbetDryRun" class="btn btn-sm d-flex align-items-center gap-2 shadow-sm" onclick="toggleCloudbetDryRunModal()" style="font-weight: 700; font-size: 0.82rem; padding: 6px 16px; border-radius: 20px; border: 1px solid <?= $dryRunAtivo === 0 ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)' ?>; background: <?= $dryRunAtivo === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' ?>; color: <?= $dryRunAtivo === 0 ? '#10b981' : '#ef4444' ?>;">
+              <span id="dotToggleCloudbet" style="width: 10px; height: 10px; border-radius: 50%; background-color: <?= $dryRunAtivo === 0 ? '#10b981' : '#ef4444' ?>; display: inline-block;"></span>
+              <span id="textToggleCloudbet"><?= $dryRunAtivo === 0 ? '🟢 MODO REAL (CLOUDBET_DRY_RUN=false)' : '🔴 MODO SIMULAÇÃO (CLOUDBET_DRY_RUN=true)' ?></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="form-row-2">
         <div class="form-group">
           <label>Odd Média Alvo</label>
@@ -1558,9 +1607,9 @@ $fmtValorMeta = function($val, $showPlus = false) use ($codMoedaMeta, $isCryptoM
         </div>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+      <div class="modal-footer-sticky" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; position: sticky; bottom: -2rem; background: #1e293b; border-top: 1px solid rgba(255,255,255,0.08); z-index: 10; padding-bottom: 0.5rem;">
         <button type="button" class="btn-nav-date" onclick="fecharModalConfig()">Cancelar</button>
-        <button type="submit" class="btn-config" id="btnSalvarMeta">
+        <button type="submit" class="btn-config" id="btnSalvarMeta" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 700; padding: 10px 22px; border-radius: 8px;">
           <i class="fas fa-save"></i> Salvar Parâmetros
         </button>
       </div>
@@ -1744,6 +1793,40 @@ function recalcularCache(dataRef) {
     btn.innerHTML = originalHtml;
     btn.disabled = false;
   });
+}
+
+function toggleCloudbetDryRunModal() {
+  const input = document.getElementById('inputCloudbetDryRun');
+  const btn = document.getElementById('btnToggleCloudbetDryRun');
+  const dot = document.getElementById('dotToggleCloudbet');
+  const text = document.getElementById('textToggleCloudbet');
+  if (!input) return;
+
+  const atual = parseInt(input.value, 10);
+  const novo = atual === 1 ? 0 : 1; // 0 = Real, 1 = Simulação
+
+  if (novo === 0) {
+    if (!confirm("⚠️ ATENÇÃO: Deseja mudar para MODO REAL?\n\nO robô passará a realizar apostas reais com o saldo da sua carteira USDT na Cloudbet.\n\nClique em OK para confirmar.")) {
+      return;
+    }
+  }
+
+  input.value = novo;
+  if (novo === 0) {
+    // Modo Real: Verde (Opção B: Operação Real Ativa)
+    btn.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+    btn.style.background = 'rgba(16, 185, 129, 0.2)';
+    btn.style.color = '#10b981';
+    dot.style.backgroundColor = '#10b981';
+    text.innerText = '🟢 MODO REAL (CLOUDBET_DRY_RUN=false)';
+  } else {
+    // Modo Simulação: Vermelho (Opção B: Operação Real Desativada)
+    btn.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+    btn.style.background = 'rgba(239, 68, 68, 0.2)';
+    btn.style.color = '#ef4444';
+    dot.style.backgroundColor = '#ef4444';
+    text.innerText = '🔴 MODO SIMULAÇÃO (CLOUDBET_DRY_RUN=true)';
+  }
 }
 
 function salvarConfig(e) {

@@ -434,11 +434,73 @@
         </div>
     </div>
 
-    <!-- SEÇÃO 3: FLUXO DE CICLO DE VIDA DA APOSTA -->
+    <!-- SEÇÃO 4: DINÂMICA DE LIQUIDEZ CLOUDBET & COBERTURA IN-PLAY -->
+    <div class="card border-0 shadow-sm mb-4" style="background-color: #1e293b; border: 1px solid #334155 !important; border-left: 4px solid #06b6d4 !important; border-radius: 12px;">
+        <div class="card-header bg-transparent py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-color: #334155 !important;">
+            <h5 class="mb-0 fw-bold text-white d-flex align-items-center gap-2">
+                <i class="bi bi-lightning-charge-fill text-info"></i> 4. Dinâmica de Liquidez da Cloudbet & Cobertura In-Play (0' a 35' em 0x0)
+            </h5>
+            <span class="badge bg-info text-dark fw-bold">Estratégia & Cobertura de Liquidez</span>
+        </div>
+        <div class="card-body p-4">
+            <div class="alert alert-dark border-secondary p-3 mb-4" style="background-color: #0b1120; border-left: 3px solid #f59e0b !important;">
+                <div class="fw-bold text-warning mb-1 d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-shaded"></i> Postura de Risco da Bookmaker: Por que ~80% dos Mercados Abrem Apenas In-Play?
+                </div>
+                <p class="small text-secondary mb-0">
+                    Para mitigar riscos de arbitragem e proteger sua margem contra sindicatos profissionais antes da confirmação oficial das escalações, a Cloudbet frequentemente retém suas cotações e mantém as seleções em estado <code>SELECTION_DISABLED</code> (congeladas/fechadas) durante boa parte do pré-jogo. 
+                    No exato instante do apito inicial (minuto 0'), as seleções são destravadas para o status ativo (<code>TRADING_LIVE</code>) e o livro de ofertas é aberto com cotações dinâmicas em tempo real.
+                </p>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 text-start" style="background-color: #0b1120; border: 1px solid #334155;">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-info text-dark rounded-circle" style="width: 26px; height: 26px; line-height: 18px;">1</span>
+                            <strong class="text-info">Esteira Dupla de Captura</strong>
+                        </div>
+                        <p class="small text-secondary mb-0">
+                            • <strong><code>criar_apostas_cloudbet_dag</code> (a cada 5 min)</strong>: Varre partidas em andamento (<code>1H</code> / <code>LIVE</code>) com placar em <strong>0x0</strong> entre <strong>0' e 35'</strong>. Aciona <code>use_cache=False</code> para consulta viva na API Cloudbet, com <strong>até 7 tentativas sucessivas</strong> para capturar a abertura das odds.
+                            <br>• <strong><code>football_trends_live_dag</code> (a cada 1 min)</strong>: Ingestão contínua de placares, tempo e estatísticas (chutes e cantos) em <code>match_statistics_cache</code>.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 text-start" style="background-color: #0b1120; border: 1px solid #334155;">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-success text-white rounded-circle" style="width: 26px; height: 26px; line-height: 18px;">2</span>
+                            <strong class="text-success">Vantagem Matemática In-Play</strong>
+                        </div>
+                        <p class="small text-secondary mb-0">
+                            • <strong>Titulares Confirmados</strong>: Elimina o risco de desfalques de última hora ou lesões em aquecimento.
+                            <br>• <strong>Decaimento Temporal no Sweet Spot</strong>: Linhas de gols (ex: Mais de 1.5 ou 2.0) esmagadas no pré-jogo (@ 1.40) sobem naturalmente para <strong>1.65 a 1.85</strong> aos 15'-20' em 0x0.
+                            <br>• <strong>Handicap com Linha Recuada</strong>: Um favorito -1.0 no pré-jogo recua para -0.75 ou -0.50 aos 20' no 0x0 com cotações superiores.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 text-start" style="background-color: #0b1120; border: 1px solid #334155;">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-danger text-white rounded-circle" style="width: 26px; height: 26px; line-height: 18px;">3</span>
+                            <strong class="text-danger">Travas de Segurança</strong>
+                        </div>
+                        <p class="small text-secondary mb-0">
+                            • <strong>Veto por Alteração de Placar</strong>: Se sair gol antes dos 35' (placar diferente de 0x0), cancela a entrada in-play para não negociar em choque de mercado.
+                            <br>• <strong>Teto Operacional de 35 Minutos</strong>: Operações in-play encerram pontualmente aos 35' do 1º tempo.
+                            <br>• <strong>Cartões Under 100% Pré-Jogo</strong>: Apostas em Under de cartões são vetadas ao vivo contra advertências precoces.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEÇÃO 5: FLUXO DE CICLO DE VIDA DA APOSTA -->
     <div class="card border-0 shadow-sm" style="background-color: #1e293b; border: 1px solid #334155 !important; border-radius: 12px;">
         <div class="card-header bg-transparent py-3 border-bottom" style="border-color: #334155 !important;">
             <h5 class="mb-0 fw-bold text-white d-flex align-items-center gap-2">
-                <i class="bi bi-arrow-repeat text-warning"></i> 4. Ciclo de Vida da Aposta (Da Originação à Liquidação)
+                <i class="bi bi-arrow-repeat text-warning"></i> 5. Ciclo de Vida da Aposta (Da Originação à Liquidação)
             </h5>
         </div>
         <div class="card-body p-4">

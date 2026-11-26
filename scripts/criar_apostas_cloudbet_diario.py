@@ -21,6 +21,7 @@ import sys
 import json
 import math
 import argparse
+import re
 import pymysql
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
@@ -47,6 +48,47 @@ from cards_engine import (
     calculate_poisson_under_cdf,
     CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS
 )
+
+def get_tactical_reset_context_for_fixture(cursor, fixture_id: int, home_team: str, away_team: str) -> dict:
+    """
+    Recupera contexto de Reset Tático por Súmula ou Drift previamente homologado pela Sentinela
+    para evitar amnésia de contexto entre a esteira pré-jogo e a esteira in-play.
+    """
+    if not cursor or not fixture_id:
+        return None
+    try:
+        cursor.execute("""
+            SELECT tipo_evento, motivo_detalhado, criado_em 
+            FROM pipeline_lifecycle_logs 
+            WHERE fixture_id = %s 
+              AND tipo_evento IN ('REVERSAO_TATICA_SUMULA', 'REVERSAO_TATICA_DRIFT')
+            ORDER BY id DESC LIMIT 1
+        """, (fixture_id,))
+        row = cursor.fetchone()
+        if row and row.get('motivo_detalhado'):
+            motivo = row['motivo_detalhado']
+            time_desfalcado = None
+            if home_team.lower() in motivo.lower() and ('desfalque' in motivo.lower() or 'time misto' in motivo.lower() or 'descartado' in motivo.lower()):
+                m_h = re.search(re.escape(home_team) + r'[^\.]*?(?:time misto|\d+\s*desfalque)', motivo, re.IGNORECASE)
+                if m_h:
+                    time_desfalcado = home_team
+            if not time_desfalcado and away_team.lower() in motivo.lower():
+                m_a = re.search(re.escape(away_team) + r'[^\.]*?(?:time misto|\d+\s*desfalque)', motivo, re.IGNORECASE)
+                if m_a:
+                    time_desfalcado = away_team
+            
+            if not time_desfalcado:
+                if f"{home_team} com time misto" in motivo or f"Descaracterização estrutural de {home_team}" in motivo or f"descartou {home_team}" in motivo:
+                    time_desfalcado = home_team
+                elif f"{away_team} com time misto" in motivo or f"Descaracterização estrutural de {away_team}" in motivo or f"descartou {away_team}" in motivo:
+                    time_desfalcado = away_team
+            
+            if time_desfalcado:
+                tipo = 'DRIFT_MERCADO' if row['tipo_evento'] == 'REVERSAO_TATICA_DRIFT' else 'SUMULA'
+                return {'time_desfalcado': time_desfalcado, 'tipo': tipo, 'motivo': motivo}
+    except Exception as e_ctx:
+        print(f"Aviso ao consultar contexto de reset tático: {e_ctx}")
+    return None
 
 
 def get_active_user_ids(cursor) -> List[int]:
@@ -445,6 +487,14 @@ def run_cloudbet_bet_creator(
               AND (
                   ft.status = 'NS'
                   OR (ft.status IN ('1H', 'LIVE', 'IN_PLAY') AND COALESCE(ft.goals_home, 0) = 0 AND COALESCE(ft.goals_away, 0) = 0)
+                  OR (
+                      ft.status IN ('1H', 'LIVE', 'IN_PLAY') 
+                      AND EXISTS (
+                          SELECT 1 FROM pipeline_lifecycle_logs pll 
+                          WHERE pll.fixture_id = ft.fixture_id 
+                            AND pll.tipo_evento IN ('REVERSAO_TATICA_SUMULA', 'REVERSAO_TATICA_DRIFT')
+                      )
+                  )
               )
               AND (
                   -- Em andamento: titulares já em campo
@@ -474,11 +524,24 @@ def run_cloudbet_bet_creator(
         g_home = int(fix.get('goals_home') or 0)
         g_away = int(fix.get('goals_away') or 0)
 
+        # 0. Herança de Contexto Cognitivo (Reset Tático por Súmula ou Drift)
+        tactical_ctx = get_tactical_reset_context_for_fixture(cursor, f_id, home, away)
+        has_tactical_reset = bool(tactical_ctx and tactical_ctx.get('time_desfalcado'))
+
         # 1. Localiza o evento correspondente na Cloudbet
         if is_inplay:
+            # Protocolo de Gol Prematuro Contra o Fluxo (Resiliência In-Play para Reset Tático):
+            # Se houver Reset Tático confirmado e o jogo estiver no 1º tempo (<= 45m), o placar circunstancial
+            # não descarta a partida, estendendo a janela de oportunidade até os 45 minutos do 1º tempo.
             if g_home > 0 or g_away > 0:
-                print(f"ℹ️ [In-Play Descartado] #{f_id} {home} vs {away}: Placar alterado ({g_home}x{g_away}). Ordens in-play permitidas apenas em 0x0.")
-                continue
+                elapsed_min = int((now_utc_reference - dt_utc).total_seconds() / 60) if isinstance(dt_utc, datetime) else 0
+                if has_tactical_reset and (fix.get('status') == '1H' or elapsed_min <= 45):
+                    desf_team = tactical_ctx.get('time_desfalcado')
+                    print(f"⚡ [In-Play Reset Tático - Gol Prematuro Contra o Fluxo] #{f_id} {home} vs {away} ({g_home}x{g_away} aos {elapsed_min}'):")
+                    print(f"   ↳ Placar circunstancial no 1º tempo contra a equipe esfacelada ({desf_team}). Janela estendida até 45' para captura de +EV!")
+                else:
+                    print(f"ℹ️ [In-Play Descartado] #{f_id} {home} vs {away}: Placar alterado ({g_home}x{g_away}). Ordens in-play regulares permitidas apenas em 0x0.")
+                    continue
             # Busca prioritária no feed TRADING_LIVE da Cloudbet
             match = matcher.find_matching_event(home, away, dt_utc, is_live=True)
             if not match:
@@ -594,7 +657,7 @@ def run_cloudbet_bet_creator(
             print(f"   📊 [Cloudbet AH] {len(cloudbet_lines)} linha(s) cotada(s): {sample_lines}{'...' if len(cloudbet_lines) > 4 else ''}")
 
             status_gk, selected_palpite, conf_val, detalhe_calculo, best_cand, approved_cands = calculate_unified_handicap_recommendation(
-                eval_fix, betano_lines=cloudbet_lines, allow_api_fetch=False, cursor=cursor
+                eval_fix, betano_lines=cloudbet_lines, allow_api_fetch=False, cursor=cursor, desfalques_criticos=tactical_ctx
             )
 
             if status_gk == 'NO_BET' or not best_cand:

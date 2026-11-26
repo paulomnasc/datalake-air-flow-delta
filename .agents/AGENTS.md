@@ -257,6 +257,10 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
     4. **Diagnóstico Emitido**: A mensagem literal de log ou justificativa retornada pelo sistema;
     5. **Status de Validação**: Indicação explícita de sucesso (Aprovado / 100% Validado).
 
+- **Proibição Absoluta de Despejo de Logs Brutos de Terminal (Raw CLI Logs):**
+  - É terminantemente proibido despejar blocos de texto com logs crus diretamente do terminal/shell (tais como saídas verbosas `test_... ok`, stdout poluído ou sequências de terminal).
+  - Todo relatório de testes apresentado ao usuário deve ser **estritamente em formato executivo, tabulado, limpo e de leitura imediata**, estruturado em tabelas Markdown com agrupamento temático por módulo/esteira, permitindo ao usuário bater o olho e validar instantaneamente a saúde do sistema sem poluição visual.
+
 
 
 

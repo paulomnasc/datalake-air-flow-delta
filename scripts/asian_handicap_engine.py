@@ -1555,8 +1555,10 @@ def evaluate_and_select_best_ah_candidate(
             continue
 
         # Faixa de odd segura operacional: piso mínimo de 1.45/1.50 e teto conservador de 1.95 (Alta Assertividade)
+        # Exceção Estrutural: quando há benefício por desfalques críticos/súmula e a linha é de cobertura positiva (+0.25 ou +0.50 AH),
+        # o teto operacional é totalmente liberado (sem limite superior), pois a cobertura ganha no empate e captura odds infladas com alto +EV.
         min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.55)
-        max_op_odd = 1.95
+        max_op_odd = float('inf') if (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)) else 1.95
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 
@@ -2463,8 +2465,12 @@ def calculate_unified_handicap_recommendation(
         #    - not is_tier1_heavily_favored: O visitante não é um Tier 1 com odd esmagadora.
         #    - away_has_better_metrics: O visitante tem métricas recentes superiores (melhor tabela ou U5J),
         #      mas as casas de apostas mantêm o mandante como favorito.
+        #    - Exceção Estrutural: desconsidera este veto se houver desfalques críticos comprovados no mandante
+        #      (pois o favoritismo nas odds do mandante decorre de inércia/lag da casa de aposta antes do ajuste da súmula).
         #    (Removido 'has_away_cand', que causava falso positivo apenas pela existência de linhas da Betano).
-        elif fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) and away_has_better_metrics:
+        elif (fav_is_home and not is_tier1_heavily_favored and (odd_h > 0 and odd_a > 0 and (odd_a - odd_h) >= 0.15) 
+              and away_has_better_metrics 
+              and not (desfalques_criticos and str(desfalques_criticos.get('time_desfalcado') or '').lower() in home_team.lower())):
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Mando de Campo Soberano - Divergência de Mercado] Partida {home_team} vs {away_team} -> "
                 f"O visitante ({away_team}) está melhor ranqueado na tabela ou possui melhor sequência recente, mas as casas de apostas alertam "

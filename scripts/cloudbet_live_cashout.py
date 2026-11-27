@@ -1387,7 +1387,6 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             last_min = None
             if last_log and last_log.get('delta_json'):
                 try:
-                    import json
                     last_min = json.loads(last_log['delta_json']).get('minuto')
                 except Exception:
                     pass

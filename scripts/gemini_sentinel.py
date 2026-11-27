@@ -1957,6 +1957,7 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
         FROM fixtures_trends ft
         WHERE ft.fixture_date BETWEEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
                                   AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE)
+          AND (ft.auditoria_ia_status IS NULL OR ft.auditoria_ia_status = 'EM_OBSERVACAO')
           AND (ft.ah_suggestion IS NULL 
                OR ft.ah_suggestion LIKE '%%Absten%%' 
                OR ft.ah_suggestion LIKE '%%NO_BET%%' 
@@ -1968,7 +1969,7 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                 AND a.status IN ('Pendente', 'Não Confirmada', 'Aprovado')
           )
         ORDER BY ft.fixture_date ASC
-        LIMIT 10
+        LIMIT 25
     """
     cursor.execute(query_nobet, (window_minutes,))
     nobet_matches = cursor.fetchall()
@@ -2153,6 +2154,29 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                         )
             else:
                 print(f"ℹ️ [Sentinela Repescagem] #{fid} ({home} vs {away}) mantida em NO_BET após conferência de súmula.")
+                # Enriquecimento Estrutural do Card (Elimina 'Card Morto' em NO_BET com Súmula Confirmada)
+                try:
+                    resumo_nobet = "Titulares Confirmados (Força Máxima)" if not time_desfalcado else f"Súmula Oficial: {motivo_desfalque}"
+                    parecer_nobet = (
+                        f"📋 [Súmula Oficial Confirmada] {home} x {away}:\n"
+                        f"Ambas as equipes com suas espinhas dorsais confirmadas. "
+                        f"Recomendação de NO_BET mantida pelos critérios de volatilidade e equilíbrio de mercado."
+                    ) if not time_desfalcado else (
+                        f"📋 [Súmula Oficial Confirmada] {home} x {away}:\n"
+                        f"Desfalques identificados ({motivo_desfalque}), porém as cotações de mercado atuais não oferecem valor esperado (+EV) suficiente. "
+                        f"Mantida abstenção de aposta por prudência da banca."
+                    )
+                    cursor.execute("""
+                        UPDATE fixtures_trends
+                        SET auditoria_ia_status = 'CONFIRMADO',
+                            auditoria_ia_resumo = %s,
+                            auditoria_ia_parecer = %s,
+                            auditoria_ia_checked_at = NOW()
+                        WHERE fixture_id = %s
+                    """, (resumo_nobet, parecer_nobet, fid))
+                    conn.commit()
+                except Exception as e_card_up:
+                    print(f"⚠️ [Sentinela Repescagem] Falha ao atualizar card de NO_BET #{fid}: {e_card_up}")
         except Exception as e_rev:
             total_erros_repescagem += 1
             conn.rollback()

@@ -153,6 +153,10 @@ class ApostaController extends BaseController
             $apostas = $db->query("
                 SELECT 
                     a.*,
+                    COALESCE(a.auditoria_ia_status, f.auditoria_ia_status) as auditoria_ia_status,
+                    COALESCE(a.auditoria_ia_resumo, f.auditoria_ia_resumo) as auditoria_ia_resumo,
+                    COALESCE(a.auditoria_ia_parecer, f.auditoria_ia_parecer) as auditoria_ia_parecer,
+                    COALESCE(a.auditoria_ia_checked_at, f.auditoria_ia_checked_at) as auditoria_ia_checked_at,
                     f.goals_home,
                     f.goals_away,
                     f.status as fixture_status,

@@ -1115,6 +1115,18 @@ def evaluate_live_cashout_trigger(
                     )
                     return True, motivo
 
+            # Cenário 3: 🟢 [GREEN-HEDGE ESTRUTURADO - GOLS UNDER]
+            # Janela Nobre dos 55' aos 75': Jogo em Green com margem confortável (ex: 0x0 ou 1x0 em Under 2.5/3.0)
+            # A odd da ponta contrária (Over) atinge cotações altas (>= 2.50).
+            # Dispara compra de cobertura proporcional para travar lucro garantido com risco zero até o apito final.
+            if (55 <= elapsed <= 75) and total_gols <= (line_total - 1.5):
+                motivo_green = (
+                    f"🟢 [GREEN-HEDGE ATIVADO - GOLS]: Posição vencedora aos {elapsed}' ({gh}x{ga} em {palpite}). "
+                    f"Margem de segurança sólida ({total_gols} gols vs limite {line_total}). "
+                    f"Disparando trava de Green-Hedge para capturar Over inflado com stake reduzida e eliminar risco terminal."
+                )
+                return True, motivo_green
+
     # =========================================================================
     # 3. CENÁRIOS DE TOTAL DE CARTÕES (UNDER CARTÕES)
     # =========================================================================
@@ -1155,6 +1167,18 @@ def evaluate_live_cashout_trigger(
                     f"Apenas 1 cartão restante para a perda total em partida com alta tensão. Hedge para Over necessário."
                 )
                 return True, motivo
+
+            # Gatilho 3: 🟢 [GREEN-HEDGE ESTRUTURADO - CARTÕES UNDER]
+            # Janela Nobre dos 60' aos 75': Jogo disciplinarmente calmo (ex: <= 2 cartões em linha Under 5.5 ou 6.5)
+            # A odd do Over de cartões explode para 3.00 a 5.00+.
+            # Aciona compra de proteção barata para blindar a banca caso o árbitro se descontrole nos acréscimos.
+            if (60 <= elapsed <= 75) and tot_cards_live <= (line_cards - 2.5):
+                motivo_green_cards = (
+                    f"🟢 [GREEN-HEDGE ATIVADO - CARTÕES]: Partida disciplinarmente sob controle aos {elapsed}' "
+                    f"({tot_cards_live} cartões vs linha {line_cards}). "
+                    f"Disparando trava de Green-Hedge para capturar Over inflado com stake reduzida e blindar a banca."
+                )
+                return True, motivo_green_cards
 
     return False, "Nenhum gatilho de risco acionado"
 
@@ -1456,19 +1480,26 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             continue
 
         # Piso Mínimo de Cotação de Hedge (Resgate Patrimonial Inteligente):
-        # - Padrão regular: 1.65 (CLOUDBET_HEDGE_MIN_ODD) para garantir simetria matemática
+        # - Green-Hedge: Exige odd inflada >= 2.50 (CLOUDBET_GREEN_HEDGE_MIN_ODD) para garantir lucro matemático
+        # - Padrão regular (Red-Hedge): 1.65 (CLOUDBET_HEDGE_MIN_ODD) para garantir simetria matemática
         # - Exceção de Emergência (Reta Crítica): quando a aposta de Cartões ou Gols está a 1 unidade do Red total,
         #   o mercado derrete a odd de cobertura. Um piso de 1.25 permite resgatar parte substancial do capital
         #   em vez de sofrer perda de 100% da stake por rigidez excessiva.
+        is_green_hedge = "GREEN-HEDGE" in motivo
         is_cards_hedge = any(k in mercado_str or k in palpite_str for k in ('cart', 'card', 'booking'))
-        min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
-        if is_cards_hedge or "Apenas 1" in motivo or "A 1 gol" in motivo:
-            min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_EMERGENCY_MIN_ODD", "1.25"))
+
+        if is_green_hedge:
+            min_hedge_odd = float(os.environ.get("CLOUDBET_GREEN_HEDGE_MIN_ODD", "2.50"))
+        else:
+            min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
+            if is_cards_hedge or "Apenas 1" in motivo or "A 1 gol" in motivo:
+                min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_EMERGENCY_MIN_ODD", "1.25"))
 
         if hedge_price < min_hedge_odd:
-            print(f"   🛑 [Hedge Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}). Abortando para evitar risco assimétrico prejudicial à banca.")
-            tit_der = f"⚠️ Hedge Abortado (Odd Derretida): {home} vs {away}"
-            msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger o patrimônio da banca."
+            tipo_abort = "Green-Hedge Abortado (Odd Não Inflada)" if is_green_hedge else "Hedge Abortado (Odd Derretida)"
+            print(f"   🛑 [{tipo_abort}] Cotação oposta de {hedge_price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}). Abortando para evitar risco assimétrico prejudicial à banca.")
+            tit_der = f"⚠️ {tipo_abort}: {home} vs {away}"
+            msg_der = f"A cotação de cobertura de {hedge_price:.2f} não atingiu o piso de {min_hedge_odd:.2f}. Ordem suspensa para proteger o patrimônio da banca."
             enviar_push_cashout(tit_der, msg_der, fixture_id=f_id, aposta_id=aposta_id, prioridade=4)
             try:
                 from lifecycle_logger import log_lifecycle_event
@@ -1478,14 +1509,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                     fixture_id=f_id,
                     aposta_id=aposta_id,
                     componente='CLOUDBET_LIVE_HEDGE',
-                    tipo_evento='HEDGE_ABORTADO_ODD_DERRETIDA',
+                    tipo_evento='GREEN_HEDGE_ABORTADO_ODD_BAIXA' if is_green_hedge else 'HEDGE_ABORTADO_ODD_DERRETIDA',
                     estado_anterior='Pendente',
                     estado_novo='Pendente',
                     minuto_jogo=elapsed,
                     fase_jogo=fase_calc,
                     placar_momento=f"{gh}x{ga}",
-                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'hedge_price': hedge_price, 'min_odd': min_hedge_odd},
-                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Cotação de cobertura derreteu para @ {hedge_price:.2f} (abaixo do piso seguro de {min_hedge_odd:.2f})."
+                    delta={'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'hedge_price': hedge_price, 'min_odd': min_hedge_odd, 'is_green_hedge': is_green_hedge},
+                    motivo=f"Gatilho de Hedge acionado aos {elapsed}' ({gh}x{ga}), mas abortado: Cotação de cobertura @ {hedge_price:.2f} não atingiu o piso seguro de {min_hedge_odd:.2f}."
                 )
                 conn.commit()
             except Exception as e_log:
@@ -1494,7 +1525,19 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
 
         if hedge_price <= 1.0:
             hedge_price = 1.90
-        hedge_stake = max(min_stake, stake)
+
+        # Dimensionamento Científico da Stake:
+        # No Green-Hedge: calcula a stake de imunização proporcional: stake_hedge = stake / (hedge_price - 1.0)
+        # permitindo neutralizar 100% da perda com apenas uma fração do capital.
+        if is_green_hedge and hedge_price > 1.0:
+            calc_stake = round(stake / (hedge_price - 1.0), 2)
+            hedge_stake = max(min_stake, calc_stake)
+            # Trava de prudência: a stake de green-hedge jamais deve superar a stake original
+            if hedge_stake > stake:
+                hedge_stake = stake
+        else:
+            hedge_stake = max(min_stake, stake)
+
         opposite_palpite = opp_palpite or (f"{home if away.lower() in palpite.lower() else away} 0.0 AH" if "0.0" in palpite else f"Hedge oposto ({opposite_market_url})")
 
         # Idempotência Prévia Estrita: verifica se já existe hedge emitido para esta aposta
@@ -1574,7 +1617,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 "is_simulated": bool(res_co.get("is_simulated", client.dry_run)),
                 "currency": cur
             })
-            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de Hedge Real emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: Hedge Real In-Play acionado para recuperar stake e reverter perda até o apito final."
+            tag_categoria = "Green-Hedge In-Play" if is_green_hedge else "Hedge Real In-Play"
+            tipo_aposta_nome = "Green-Hedge" if is_green_hedge else "Hedge Real"
+            reason_txt = (
+                "Green-Hedge In-Play acionado para travar lucro e eliminar risco terminal aproveitando cotação inflada da ponta oposta."
+                if is_green_hedge else
+                "Hedge Real In-Play acionado para recuperar stake e reverter perda até o apito final."
+            )
+            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de {tipo_aposta_nome} emitido pelo robô para neutralizar a aposta #{aposta_id}. || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: {reason_txt}"
 
             cursor.execute("""
                 INSERT INTO apostas (
@@ -1584,13 +1634,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                     resultado_detalhado, criado_em, updated_at, confirmada
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s,
-                    'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real In-Play',
-                    %s, %s, %s, 'Hedge Real', 'Pendente',
+                    'Cloudbet', %s, %s, %s, 'APROVADO', %s,
+                    %s, %s, %s, %s, 'Pendente',
                     %s, NOW(), NOW(), 1
                 )
             """, (
                 uid_bet, cur, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-                opposite_palpite, hedge_price, hedge_price, data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2),
+                opposite_palpite, hedge_price, hedge_price, tag_categoria,
+                data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2), tipo_aposta_nome,
                 detalhado_hedge
             ))
             new_hedge_aposta_id = cursor.lastrowid
@@ -1606,7 +1657,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 ) VALUES (
                     %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, %s, NOW()
                 )
-            """, (uid_bet, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} (Hedge Real: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, cur))
+            """, (uid_bet, new_hedge_aposta_id, f"Débito Aposta #{new_hedge_aposta_id} ({tipo_aposta_nome}: {home} x {away} - {opposite_palpite})", -hedge_stake, s_ant, s_post, cur))
             cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid_bet))
 
             # Atualiza a aposta original registrando a cobertura cruzada e a chave de idempotência id_cross_edge_slip
@@ -1631,7 +1682,8 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             continue
 
         total_cashouts_executados += 1
-        tit = f"⚡ Hedge Real Executado (Cloudbet): {home} vs {away}"
+        tit_prefix = "🟢 Green-Hedge Executado" if is_green_hedge else "⚡ Hedge Real Executado"
+        tit = f"{tit_prefix} (Cloudbet): {home} vs {away}"
         msg = f"Aposta de cobertura #{new_hedge_aposta_id} comprada na linha oposta ({opposite_palpite} @ {hedge_price:.2f}) para travar a aposta #{aposta_id}!"
         enviar_push_cashout(tit, msg, fixture_id=f_id, aposta_id=new_hedge_aposta_id, prioridade=5)
 
@@ -1639,6 +1691,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         try:
             from lifecycle_logger import log_lifecycle_event
             fase_calc = '2H' if elapsed > 45 else '1H'
+            tipo_ev_exec = 'GREEN_HEDGE_ORDEM_EXECUTADA' if is_green_hedge else 'HEDGE_ORDEM_REAL_EXECUTADA'
             log_lifecycle_event(
                 cursor=cursor,
                 fixture_id=f_id,
@@ -1646,14 +1699,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 notificacao_id=None,
                 notificacao_criada_em=None,
                 componente='CLOUDBET_LIVE_HEDGE',
-                tipo_evento='HEDGE_ORDEM_REAL_EXECUTADA',
+                tipo_evento=tipo_ev_exec,
                 estado_anterior='Pendente',
                 estado_novo='Pendente',
                 minuto_jogo=elapsed,
                 fase_jogo=fase_calc,
                 placar_momento=f"{gh}x{ga}",
-                delta={'bet_id': bet_id, 'hedge_aposta_id': new_hedge_aposta_id, 'stake': hedge_stake, 'price': hedge_price, 'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}"},
-                motivo=f"Hedge executado aos {elapsed}' ({gh}x{ga}): {motivo}"
+                delta={'bet_id': bet_id, 'hedge_aposta_id': new_hedge_aposta_id, 'stake': hedge_stake, 'price': hedge_price, 'elapsed': elapsed, 'minuto': elapsed, 'fase': fase_calc, 'placar': f"{gh}x{ga}", 'is_green_hedge': is_green_hedge},
+                motivo=f"{tipo_aposta_nome} executado aos {elapsed}' ({gh}x{ga}): {motivo}"
             )
             conn.commit()
         except Exception as e_lf:

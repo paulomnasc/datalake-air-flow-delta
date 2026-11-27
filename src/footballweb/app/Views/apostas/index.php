@@ -1886,14 +1886,57 @@ if (!function_exists('fmtTopValorWithBrl')) {
             <?php endif; ?>
 
             <?php 
-              if (!empty($detalhadoExibir)) {
-                $detalhadoExibir = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $detalhadoExibir);
-                $detalhadoExibir = rtrim(trim($detalhadoExibir), '| ');
-              }
-            ?>
+              // 1. Extração da Chancela Oficial da IA (Auditoria de Súmula e Escalação)
+              $iaParecer = !empty($aposta->auditoria_ia_parecer) ? trim($aposta->auditoria_ia_parecer) : '';
+              $iaStatus = !empty($aposta->auditoria_ia_status) ? trim($aposta->auditoria_ia_status) : '';
+              $iaResumo = !empty($aposta->auditoria_ia_resumo) ? trim($aposta->auditoria_ia_resumo) : '';
+              $iaCheckedAt = !empty($aposta->auditoria_ia_checked_at) ? $aposta->auditoria_ia_checked_at : null;
 
-            <?php 
-              $hasGkDetail = $isAbstencaoBloqueada || !empty($detalhadoExibir);
+              // 2. Extração da Validação do Gatekeeper / Raciocínio Tático (+EV)
+              $rawGkReasoning = !empty($aposta->ah_reasoning) ? $aposta->ah_reasoning : (!empty($aposta->resultado_detalhado) ? $aposta->resultado_detalhado : '');
+              
+              // Higienização Estrita (Regra 17 do .agents/AGENTS.md):
+              // Proibição Absoluta de Vazamento de Payloads Técnicos, JSONs e Memória de Cálculo
+              $cleanGkReasoning = $rawGkReasoning;
+              $cleanGkReasoning = preg_replace('/\|\|\s*CLOUDBET:\s*\{.*?\}\s*\|\|/isu', '', $cleanGkReasoning);
+              $cleanGkReasoning = preg_replace('/\|\|\s*U5J_DATA:\s*\{.*?\}\s*(?:\|\||$)/isu', '', $cleanGkReasoning);
+              $cleanGkReasoning = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $cleanGkReasoning);
+              $cleanGkReasoning = preg_replace('/\s*\|\|\s*PROBABILIDADES_1X2:.*$/isu', '', $cleanGkReasoning);
+              $cleanGkReasoning = trim($cleanGkReasoning, " | \n\r\t");
+
+              // Extrair síntese em linguagem natural da IA (REASON / MOTIVACAO)
+              $gkReason = '';
+              if (preg_match('/REASON:\s*(.+?)(?=\n\n🎯|\n\n\|\||\|\||$)/su', $cleanGkReasoning, $mR)) {
+                  $gkReason = trim($mR[1]);
+              }
+              $gkApprovedLine = '';
+              if (preg_match('/(🎯\s*GATEKEEPER[^\n\|]+)/u', $cleanGkReasoning, $mA)) {
+                  $gkApprovedLine = trim($mA[1]);
+              }
+              $gkMotivacao = '';
+              if (preg_match('/\|\|\s*MOTIVACAO:\s*(.+?)(?=\s*\|\|\s*MEM[ÓO]RIA|\s*\|\|\s*U5J|$)/su', $rawGkReasoning, $mM)) {
+                  $gkMotivacao = trim($mM[1]);
+              }
+
+              // 3. Extração da Liquidação / Desfecho Final (se partida finalizada)
+              $desfechoFinal = '';
+              if (preg_match('/(FT\s*\|\s*Placar:[^\|]+(?:\|\s*Palpite:[^\|]+)?\s*->\s*Aposta\s*[^\|\n\r]+)/iu', $aposta->resultado_detalhado ?? '', $mDesf)) {
+                  $desfechoFinal = trim($mDesf[1]);
+              } elseif (!empty($placarExibir) && $isSettledStatus) {
+                  $desfechoFinal = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
+              }
+
+              // Categoria do Gatekeeper
+              $gkCategoryDisplay = !empty($aposta->gatekeeper_category) ? trim($aposta->gatekeeper_category) : '';
+              if (empty($gkCategoryDisplay) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', $cleanGkReasoning, $mCatGk)) {
+                  $gkCategoryDisplay = trim($mCatGk[1]);
+              }
+
+              // Timestamp canônico para o card
+              $tsParecerAposta = !empty($iaCheckedAt) ? $iaCheckedAt : (!empty($aposta->criado_em) ? $aposta->criado_em : (!empty($aposta->updated_at) ? $aposta->updated_at : null));
+              $parecerApostaFmt = !empty($tsParecerAposta) ? date('d/m/Y H:i', strtotime($tsParecerAposta)) : '';
+
+              $hasGkDetail = $isAbstencaoBloqueada || !empty($iaParecer) || !empty($cleanGkReasoning) || !empty($desfechoFinal);
             ?>
             <?php if ($hasGkDetail): ?>
               <?php
@@ -1906,15 +1949,15 @@ if (!function_exists('fmtTopValorWithBrl')) {
                   $gkBadgeColor = 'red';
                   $gkBadgeIcon = 'bi-shield-x';
                   $gkBadgeText = '🚫 Abstenção IA / Gatekeeper NO_BET';
-                } elseif (($aposta->status_gatekeeper ?? '') === 'APROVADO' || stripos($detalhadoExibir, 'STATUS GK: APROVADO') !== false) {
+                } elseif (($aposta->status_gatekeeper ?? '') === 'APROVADO' || stripos($cleanGkReasoning, 'STATUS GK: APROVADO') !== false || $iaStatus === 'CONFIRMADO') {
                   $gkBadgeColor = 'green';
-                  $gkBadgeIcon = 'bi-shield-check';
-                  $gkBadgeText = '🛡️ STATUS GK: APROVADO';
-                } elseif (($aposta->status_gatekeeper ?? '') === 'NO_BET' || stripos($detalhadoExibir, 'STATUS GK: NO_BET') !== false) {
+                  $gkBadgeIcon = 'bi-patch-check-fill';
+                  $gkBadgeText = '🛡️ Chancela de IA & STATUS GK: APROVADO';
+                } elseif (($aposta->status_gatekeeper ?? '') === 'NO_BET' || stripos($cleanGkReasoning, 'STATUS GK: NO_BET') !== false) {
                   $gkBadgeColor = 'red';
                   $gkBadgeIcon = 'bi-shield-x';
                   $gkBadgeText = '🚫 STATUS GK: NO_BET';
-                } elseif (!empty($detalhadoExibir)) {
+                } elseif (!empty($iaParecer) || !empty($cleanGkReasoning)) {
                   $gkBadgeColor = 'blue';
                   $gkBadgeIcon = 'bi-info-circle';
                   $gkBadgeText = 'ℹ️ Detalhes da Aposta';
@@ -1927,21 +1970,17 @@ if (!function_exists('fmtTopValorWithBrl')) {
                         id="btn-gk-<?= $aposta->id ?>" 
                         class="bet-toggle-badge <?= $gkBadgeColor ?>" 
                         onclick="toggleApostaGk(<?= $aposta->id ?>)"
-                        title="Clique para expandir/retrair a auditoria detalhada do Gatekeeper">
+                        title="Clique para expandir/retrair a auditoria detalhada da IA e do Gatekeeper">
                   <i class="bi <?= $gkBadgeIcon ?> me-1"></i> <?= $gkBadgeText ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                 </button>
-                <?php 
-                  $tsParecerAposta = !empty($aposta->criado_em) ? $aposta->criado_em : (!empty($aposta->auditoria_ia_checked_at) ? $aposta->auditoria_ia_checked_at : (!empty($aposta->updated_at) ? $aposta->updated_at : null));
-                  if (!empty($tsParecerAposta)):
-                    $parecerApostaFmt = date('d/m/Y H:i', strtotime($tsParecerAposta));
-                ?>
-                  <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
+                <?php if (!empty($tsParecerAposta)): ?>
+                  <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação da auditoria da IA">
                     <i class="bi bi-clock-history"></i> Parecer IA: <?= $parecerApostaFmt ?>
                   </span>
                 <?php endif; ?>
               </div>
 
-              <!-- Seção Retrátil do STATUS GK (carregada oculta com display: none por padrão) -->
+              <!-- Seção Retrátil da Chancela de IA e STATUS GK (carregada oculta com display: none por padrão) -->
               <div id="sec-gk-<?= $aposta->id ?>" class="bet-card-section" style="display: none;">
                 <?php if ($isAbstencaoBloqueada): ?>
                   <div class="asian-handicap-widget-box mb-2" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
@@ -1965,15 +2004,12 @@ if (!function_exists('fmtTopValorWithBrl')) {
                           if (in_array($apGkCat, $approvedGkCats, true)) {
                               $apGkCat = '';
                           }
-                          if (empty($apGkCat) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', (string)($detalhadoExibir ?? ''), $mCatA)) {
-                              $apGkCat = trim($mCatA[1]);
-                              if (in_array($apGkCat, $approvedGkCats, true)) {
-                                  $apGkCat = '';
-                              }
+                          if (empty($apGkCat) && !empty($gkCategoryDisplay) && !in_array($gkCategoryDisplay, $approvedGkCats, true)) {
+                              $apGkCat = $gkCategoryDisplay;
                           }
                         ?>
                         <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
-                          <i class="bi bi-shield-lock-fill"></i> <?= !empty($apGkCat) ? htmlspecialchars($apGkCat) : ((stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic')) ?>
+                          <i class="bi bi-shield-lock-fill"></i> <?= !empty($apGkCat) ? htmlspecialchars($apGkCat) : ((stripos($cleanGkReasoning, 'STATUS GK:') !== false || stripos($cleanGkReasoning, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic')) ?>
                         </span>
                       </div>
                       <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
@@ -1981,19 +2017,90 @@ if (!function_exists('fmtTopValorWithBrl')) {
                       </div>
                     </div>
                   </div>
-                <?php elseif (!empty($detalhadoExibir)): ?>
-                  <div class="bet-card-detail-box mb-2" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 12px; font-size: 0.78rem; color: #e2e8f0; width: 100%;">
-                    <?php if (!empty($tsParecerAposta)): ?>
-                      <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
-                        <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora de gravação do parecer da IA">
-                          <i class="bi bi-clock-history"></i> Parecer gravado em: <?= $parecerApostaFmt ?>
-                        </span>
+                <?php endif; ?>
+
+                <!-- BLOCO 1: CHANCELA OFICIAL DA IA (Súmula & Titulares) -->
+                <?php if (!empty($iaParecer)): ?>
+                  <div class="ia-chancela-box mb-2" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.4); border-left: 4px solid #10b981; border-radius: 8px; padding: 12px 14px; font-size: 0.78rem; color: #ffffff;">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                      <span style="font-weight: 800; color: #34d399; display: flex; align-items: center; gap: 6px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                        <i class="bi bi-patch-check-fill"></i> 📋 Chancela de IA: Auditoria de Súmula Oficial
+                      </span>
+                      <div class="d-flex align-items-center gap-2">
+                        <?php if ($iaStatus === 'CONFIRMADO'): ?>
+                          <span class="badge" style="background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; color: #34d399; font-weight: 700; font-size: 0.72rem; padding: 3px 8px; border-radius: 5px;">
+                            <i class="bi bi-shield-check"></i> CONFIRMADO
+                          </span>
+                        <?php elseif ($iaStatus === 'ALERTA_RISCO'): ?>
+                          <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.72rem; padding: 3px 8px; border-radius: 5px;">
+                            <i class="bi bi-exclamation-triangle-fill"></i> ALERTA DE RISCO
+                          </span>
+                        <?php endif; ?>
+                        <?php if (!empty($iaCheckedAt)): ?>
+                          <span class="badge" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #7dd3fc; font-weight: 600; font-size: 0.70rem; padding: 2px 7px; border-radius: 4px;" title="Horário da auditoria de súmula">
+                            <i class="bi bi-clock-history"></i> Auditado em: <?= date('d/m/Y H:i', strtotime($iaCheckedAt)) ?>
+                          </span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                    <?php if (!empty($iaResumo)): ?>
+                      <div class="mb-2" style="font-weight: 700; color: #a7f3d0; font-size: 0.76rem;">
+                        <i class="bi bi-person-check-fill me-1"></i> Resumo do Elenco: <?= htmlspecialchars($iaResumo) ?>
                       </div>
                     <?php endif; ?>
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                      <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
-                      <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
+                    <div style="white-space: pre-line; font-size: 0.76rem; color: #f1f5f9; line-height: 1.45; background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+                      <?= htmlspecialchars($iaParecer) ?>
                     </div>
+                  </div>
+                <?php endif; ?>
+
+                <!-- BLOCO 2: AUDITORIA COGNITIVA & RACIOCÍNIO TÁTICO DO GATEKEEPER (+EV) -->
+                <?php if (!empty($gkReason) || !empty($gkApprovedLine) || !empty($gkMotivacao) || (!empty($cleanGkReasoning) && empty($desfechoFinal))): ?>
+                  <div class="gatekeeper-reasoning-box mb-2" style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-left: 4px solid #38bdf8; border-radius: 8px; padding: 12px 14px; font-size: 0.78rem; color: #ffffff;">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                      <span style="font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                        <i class="bi bi-shield-shaded"></i> 🛡️ Raciocínio Tático & Validação Gatekeeper
+                      </span>
+                      <?php if (!empty($gkCategoryDisplay)): ?>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #7dd3fc; font-weight: 700; font-size: 0.72rem; padding: 3px 8px; border-radius: 5px;">
+                          <i class="bi bi-tag-fill"></i> <?= htmlspecialchars($gkCategoryDisplay) ?>
+                        </span>
+                      <?php endif; ?>
+                    </div>
+
+                    <?php if (!empty($gkReason)): ?>
+                      <div class="mb-2" style="white-space: pre-line; font-size: 0.76rem; color: #f8fafc; line-height: 1.45;">
+                        <?= htmlspecialchars($gkReason) ?>
+                      </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($gkApprovedLine)): ?>
+                      <div class="mb-2 p-2" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 6px; font-size: 0.74rem; color: #34d399; font-weight: 700;">
+                        <?= htmlspecialchars($gkApprovedLine) ?>
+                      </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($gkMotivacao)): ?>
+                      <div class="p-2" style="background: rgba(255, 255, 255, 0.04); border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); font-size: 0.73rem; color: #cbd5e1; line-height: 1.4;">
+                        <span style="font-weight: 700; color: #94a3b8;"><i class="bi bi-chat-left-dots-fill me-1"></i> Contexto & Fundamentos:</span> <?= htmlspecialchars($gkMotivacao) ?>
+                      </div>
+                    <?php elseif (empty($gkReason) && !empty($cleanGkReasoning)): ?>
+                      <div style="white-space: pre-line; font-size: 0.76rem; color: #f1f5f9; line-height: 1.45;">
+                        <?= htmlspecialchars($cleanGkReasoning) ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php endif; ?>
+
+                <!-- BLOCO 3: DESFECHO & LIQUIDAÇÃO FINAL DA PARTIDA -->
+                <?php if (!empty($desfechoFinal)): ?>
+                  <div class="match-settlement-box mb-2" style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.18); border-radius: 6px; padding: 8px 12px; font-size: 0.74rem; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 5px;">
+                      <i class="bi bi-flag-fill text-warning"></i> 🏁 Apuração do Resultado:
+                    </span>
+                    <span class="font-monospace" style="color: #f1f5f9; font-weight: 600;">
+                      <?= htmlspecialchars($desfechoFinal) ?>
+                    </span>
                   </div>
                 <?php endif; ?>
               </div>

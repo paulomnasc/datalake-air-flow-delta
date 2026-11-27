@@ -418,10 +418,18 @@ if ($prob === null) {
 
 $class = ($prob >= 65.0) ? 'high' : (($prob >= 55.0) ? 'safe' : 'risky');
 
-// Extração de U5J
+// Extração de U5J Robusta e Canônica (Regra 16)
 $u5j_data = null;
-if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fix->ah_reasoning, $mU5)) {
-    $u5j_data = json_decode($mU5[1], true);
+if (!empty($fix->ah_reasoning) && strpos($fix->ah_reasoning, '|| U5J_DATA:') !== false) {
+    $uParts = explode('|| U5J_DATA:', $fix->ah_reasoning);
+    foreach (array_reverse($uParts) as $candidatePart) {
+        $jsonChunk = trim(explode('||', $candidatePart)[0]);
+        $decoded = json_decode($jsonChunk, true);
+        if (is_array($decoded) && (!empty($decoded['home']) || !empty($decoded['away']))) {
+            $u5j_data = $decoded;
+            break;
+        }
+    }
 }
 
 // Cálculo de xG Previsto via U5J (Cruzamento Real de Ataque x Defesa)

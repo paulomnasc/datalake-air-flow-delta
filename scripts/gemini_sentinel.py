@@ -235,7 +235,7 @@ def coletar_sumula_e_desfalques_apisports(
                     rotacao_home_cnt = len(ausentes_h)
                     if bb_h.get('most_used_gk') and bb_h['most_used_gk'] not in txt_h:
                         motivos_alerta_cache.append(f"Goleiro titular habitual ausente em {home_team}: {bb_h['most_used_gk']} fora dos 11")
-                    if rotacao_home_cnt >= 4:
+                    if rotacao_home_cnt >= 6:
                         motivos_alerta_cache.append(f"Time misto / rodízio em {home_team}: {rotacao_home_cnt} titulares habituais ausentes ({', '.join(ausentes_h[:5])})")
 
                 # Verifica equipe visitante
@@ -244,8 +244,16 @@ def coletar_sumula_e_desfalques_apisports(
                     rotacao_away_cnt = len(ausentes_a)
                     if bb_a.get('most_used_gk') and bb_a['most_used_gk'] not in txt_a:
                         motivos_alerta_cache.append(f"Goleiro titular habitual ausente em {away_team}: {bb_a['most_used_gk']} fora dos 11")
-                    if rotacao_away_cnt >= 4:
+                    if rotacao_away_cnt >= 6:
                         motivos_alerta_cache.append(f"Time misto / rodízio em {away_team}: {rotacao_away_cnt} titulares habituais ausentes ({', '.join(ausentes_a[:5])})")
+
+                cached_lineups_raw = []
+                if cached_sumula.get("lineups_json"):
+                    try:
+                        raw_val = cached_sumula["lineups_json"]
+                        cached_lineups_raw = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
+                    except Exception:
+                        cached_lineups_raw = []
 
                 tem_alerta_elenco_cache = len(motivos_alerta_cache) > 0
                 return {
@@ -260,7 +268,8 @@ def coletar_sumula_e_desfalques_apisports(
                     "desfalques_away_cnt": 0,
                     "resumo_curto": f"{home_team} e {away_team} com titulares confirmados no cache" + (f" (Alerta: {'; '.join(motivos_alerta_cache)})" if tem_alerta_elenco_cache else ""),
                     "fonte": cached_sumula.get("fonte", "CACHE_MYSQL"),
-                    "from_cache": True
+                    "from_cache": True,
+                    "lineups_raw": cached_lineups_raw
                 }
         except Exception as e_cache:
             print(f"⚠️ [Cache Súmula] Erro na leitura de match_lineups_cache: {e_cache}")
@@ -479,14 +488,9 @@ def coletar_sumula_e_desfalques_apisports(
                 motivos_alerta.append(
                     f"Goleiro titular ausente em {t_name}: {gk_atual_nome} escalado na vaga de {gk_anterior_nome}"
                 )
-            if mudancas_titulares >= 5:
+            if mudancas_titulares >= 6:
                 motivos_alerta.append(
                     f"Rodízio pesado / time misto detectado em {t_name}: {mudancas_titulares} alterações nos 11 titulares ({', '.join(titulares_ausentes_hoje[:5])} fora do XI inicial)"
-                )
-            inj_list_team = inj_home_list if is_home_entry else inj_away_list
-            if len(inj_list_team) >= 4:
-                motivos_alerta.append(
-                    f"{t_name} com {len(inj_list_team)} baixas/desfalques oficiais ({', '.join(inj_list_team[:5])})"
                 )
 
         resumos_equipes.append(
@@ -547,7 +551,8 @@ def coletar_sumula_e_desfalques_apisports(
         "rotacao_away_cnt": rotacao_away_cnt,
         "desfalques_home_cnt": desfalques_home_cnt,
         "desfalques_away_cnt": desfalques_away_cnt,
-        "resumo_curto": " | ".join(resumos_equipes)
+        "resumo_curto": " | ".join(resumos_equipes),
+        "lineups_raw": lineups_data
     }
 
 
@@ -1456,10 +1461,15 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
     if abs(target_line) < 0.01 and odd_abertura < 1.85 and opp_odd > 1.0 and opp_odd < curr_odd and curr_odd >= 1.90:
         houve_distorcao = True
         motivo_distorcao = f"Inversão de favoritismo na linha 0.0: odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} enquanto {opp_team} virou favorito a {opp_odd:.2f}."
-    # Cenário B: Movimentação reversa expressiva de mercado (Steam Move / Drift anômalo contra o time apoiado: >= 12% e >= 0.20)
+    # Cenário B: Movimentação reversa expressiva de mercado (Drift anômalo: >= 12% e >= 0.20)
     elif (curr_odd - odd_abertura) >= 0.20 and (((curr_odd - odd_abertura) / odd_abertura) * 100.0) >= 12.0 and curr_odd > 1.0:
-        houve_distorcao = True
-        motivo_distorcao = f"Movimentação reversa de mercado (Drift anômalo): odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} (+{((curr_odd - odd_abertura) / odd_abertura) * 100.0:.1f}%, pressão vendedora contra a tese)."
+        # Se a Súmula Oficial já confirmou o time titular em campo sem sinistros estruturais,
+        # a subida da odd representa ganho de valor (+EV), NÃO distorção prejudicial. A posição é mantida!
+        if sumula_oficial and not sumula_oficial.get('alerta_estrutural_elenco'):
+            print(f"ℹ️ [Sentinela - Valor Confirmado por Súmula] {supported_team} teve subida de odd (@ {curr_odd:.2f}), mas escalação titular oficial foi confirmada em campo. Posição mantida sem reversão.")
+        else:
+            houve_distorcao = True
+            motivo_distorcao = f"Movimentação reversa de mercado (Drift anômalo): odd de {supported_team} subiu de {odd_abertura:.2f} para {curr_odd:.2f} (+{((curr_odd - odd_abertura) / odd_abertura) * 100.0:.1f}%, pressão vendedora contra a tese)."
     # Cenário C: Derretimento abaixo do piso viável
     elif 1.0 < curr_odd < 1.45:
         houve_distorcao = True
@@ -1487,13 +1497,16 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         drop_opp_pct = ((drop_opp_pts / open_1x2_opp) * 100.0) if open_1x2_opp > 1.0 else 0.0
 
         if (drift_1x2_pts >= 0.25 and drift_1x2_pct >= 12.0) or (drop_opp_pts >= 0.25 and drop_opp_pct >= 15.0):
-            houve_distorcao = True
-            motivo_distorcao = (
-                f"Movimentação Global de Mercado (Drift de Abertura): Cotação de {supported_team} disparou de "
-                f"{open_1x2_supp:.2f} para {curr_1x2_supp:.2f} (+{drift_1x2_pct:.1f}%) desde a abertura global "
-                f"(adversário {opp_team} caiu de {open_1x2_opp:.2f} para {curr_1x2_opp:.2f}). "
-                f"Pressão vendedora massiva / fluxo institucional contrário à seleção."
-            )
+            if sumula_oficial and not sumula_oficial.get('alerta_estrutural_elenco'):
+                print(f"ℹ️ [Sentinela - Valor Confirmado por Súmula] {supported_team} oscilou 1x2 global, mas escalação titular oficial foi confirmada em campo. Posição mantida sem reversão.")
+            else:
+                houve_distorcao = True
+                motivo_distorcao = (
+                    f"Movimentação Global de Mercado (Drift de Abertura): Cotação de {supported_team} disparou de "
+                    f"{open_1x2_supp:.2f} para {curr_1x2_supp:.2f} (+{drift_1x2_pct:.1f}%) desde a abertura global "
+                    f"(adversário {opp_team} caiu de {open_1x2_opp:.2f} para {curr_1x2_opp:.2f}). "
+                    f"Pressão vendedora massiva / fluxo institucional contrário à seleção."
+                )
 
     if not houve_distorcao:
         return {'bloquear_sinal_verde': False, 'alerta_risco': False, 'linha_recalibrada': False}
@@ -1516,8 +1529,18 @@ def auditar_e_recalibrar_linha_handicap(cursor, item: dict, user_ids: list, sumu
         if sumula_oficial and sumula_oficial.get('alerta_estrutural_elenco'):
             desf_info = {'time_desfalcado': supported_team, 'motivos': motivos_elenco, 'tipo': 'SUMULA'}
         elif houve_distorcao:
-            desf_info = {'time_desfalcado': supported_team, 'motivos': [motivo_distorcao], 'tipo': 'DRIFT_MERCADO'}
-            is_drift_reversal = True
+            # REGRA 12 / GESTÃO DE RISCO: Drift de mercado isolado NÃO autoriza reversão artificial de tese.
+            # Sem sinistro comprovado em súmula oficial, veta novas entradas (NO_BET preventivo) sem criar apostas no azarão.
+            print(f"🛑 [Sentinela - Veto por Drift de Mercado] {home_team} vs {away_team}: {motivo_distorcao}. Reversão artificial barrada. Abstenção mandatória.")
+            tit_alerta = f"⚠️ Alerta de Risco: Drift de Mercado em {home_team} vs {away_team}"
+            par_alerta = f"{home_team} x {away_team}: {motivo_distorcao} Por segurança matemática e gestão de risco, novas entradas foram bloqueadas (NO_BET)."
+            return {
+                'bloquear_sinal_verde': True,
+                'alerta_risco': True,
+                'titulo_alerta': tit_alerta,
+                'parecer_alerta': par_alerta,
+                'linha_recalibrada': False
+            }
         else:
             desf_info = None
 
@@ -2032,14 +2055,53 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                     motivo_desfalque = f"Goleiro reserva escalado no {away}"
                     break
 
-        # 2. Rodízio de elenco (>= 5 alterações nos titulares) ou surto de lesões
+        # 2. Avaliação de Solidez da Escalação baseada em Notas de Rendimento dos Jogadores (Cache-First)
+        lineups_raw = sumula.get("lineups_raw") or []
+        season_year = fdate.year if fdate and hasattr(fdate, 'year') else datetime.now().year
+        strength_h = None
+        strength_a = None
+
+        if lineups_raw and cursor:
+            try:
+                from scripts.player_ratings_manager import get_players_ratings_map, calculate_lineup_strength
+                for t_entry in lineups_raw:
+                    t_info = t_entry.get("team") or {}
+                    t_id_entry = t_info.get("id")
+                    start_xi = t_entry.get("startXI") or []
+                    p_ids = [((p.get("player") or {}).get("id")) for p in start_xi if (p.get("player") or {}).get("id")]
+                    if p_ids:
+                        ratings_map = get_players_ratings_map(cursor, p_ids, season_year)
+                        str_calc = calculate_lineup_strength(start_xi, ratings_map)
+                        if t_id_entry == home_id or (home and home.lower() in (t_info.get("name") or "").lower()):
+                            strength_h = str_calc
+                        elif t_id_entry == away_id or (away and away.lower() in (t_info.get("name") or "").lower()):
+                            strength_a = str_calc
+            except Exception as e_str:
+                print(f"⚠️ [Sentinela Player Ratings] #{fid}: Falha ao calcular solidez do elenco: {e_str}")
+
+        # 3. Análise Qualitativa vs Determinística guiada pela força real do XI em campo (Regra de Ouro):
         if not time_desfalcado:
-            if rot_h >= 5 or desf_h >= 4:
+            if strength_h and strength_h.get("is_queda_estrutural"):
                 time_desfalcado = home
-                motivo_desfalque = f"{home} com time misto ({rot_h} alterações nos 11 titulares) e {desf_h} desfalques"
-            elif rot_a >= 5 or desf_a >= 4:
+                motivo_desfalque = (
+                    f"{home} com queda estrutural de rendimento comprovada por súmula "
+                    f"(Nota Média XI: {strength_h.get('rating_medio_xi'):.2f}, "
+                    f"{len(strength_h.get('estreantes_vulneraveis') or [])} jogadores vulneráveis/sem rodagem)"
+                )
+            elif strength_a and strength_a.get("is_queda_estrutural"):
                 time_desfalcado = away
-                motivo_desfalque = f"{away} com time misto ({rot_a} alterações nos 11 titulares) e {desf_a} desfalques"
+                motivo_desfalque = (
+                    f"{away} com queda estrutural de rendimento comprovada por súmula "
+                    f"(Nota Média XI: {strength_a.get('rating_medio_xi'):.2f}, "
+                    f"{len(strength_a.get('estreantes_vulneraveis') or [])} jogadores vulneráveis/sem rodagem)"
+                )
+            # Rodízio massivo (>= 6 titulares poupados) APENAS se o time não demonstrar força máxima/elenco estável
+            elif rot_h >= 6 and not (strength_h and (strength_h.get("is_forca_maxima") or not strength_h.get("is_queda_estrutural"))):
+                time_desfalcado = home
+                motivo_desfalque = f"{home} com rodízio massivo ({rot_h} alterações nos 11 titulares)"
+            elif rot_a >= 6 and not (strength_a and (strength_a.get("is_forca_maxima") or not strength_a.get("is_queda_estrutural"))):
+                time_desfalcado = away
+                motivo_desfalque = f"{away} com rodízio massivo ({rot_a} alterações nos 11 titulares)"
 
         desfalques_ctx = None
         if time_desfalcado:

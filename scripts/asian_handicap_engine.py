@@ -1631,7 +1631,7 @@ def evaluate_and_select_best_ah_candidate(
             if is_cand_benefited_by_lineup:
                 cand_copy['destaque'] = BetTier.QUASE_PREMIUM.value
                 cand_copy['tier'] = BetTier.QUASE_PREMIUM
-                cand_copy['gatekeeper_category'] = 'Reset Tático por Drift de Mercado' if is_drift_reversal else 'Reset Tático por Súmula'
+                cand_copy['gatekeeper_category'] = 'Reset Tático por Súmula'
                 cand_copy['is_momentum_surge'] = True
             elif is_super_dominant_tier1 and c_line in (-0.5, -0.75, -1.0):
                 cand_copy['destaque'] = BetTier.PREMIUM.value
@@ -1981,51 +1981,23 @@ def calculate_unified_handicap_recommendation(
         if ratio_recalc:
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
 
-    # Detecção de Movimentação Global de Mercado 1X2 (Drift de Abertura Global)
-    if not desfalques_criticos and fixture_dict:
-        open_h_val = float(fixture_dict.get('odd_home_open') or 0.0)
-        open_a_val = float(fixture_dict.get('odd_away_open') or 0.0)
-        if open_h_val > 1.0 and open_a_val > 1.0 and odd_h > 1.0 and odd_a > 1.0:
-            drift_h_pts = odd_h - open_h_val
-            drift_h_pct = (drift_h_pts / open_h_val) * 100.0 if open_h_val > 0 else 0.0
-            drop_a_pts = open_a_val - odd_a
-            drop_a_pct = (drop_a_pts / open_a_val) * 100.0 if open_a_val > 0 else 0.0
-
-            drift_a_pts = odd_a - open_a_val
-            drift_a_pct = (drift_a_pts / open_a_val) * 100.0 if open_a_val > 0 else 0.0
-            drop_h_pts = open_h_val - odd_h
-            drop_h_pct = (drop_h_pts / open_h_val) * 100.0 if open_h_val > 0 else 0.0
-
-            if (drift_h_pts >= 0.25 and drift_h_pct >= 12.0) or (drop_a_pts >= 0.25 and drop_a_pct >= 15.0):
-                desfalques_criticos = {
-                    'time_desfalcado': home_team,
-                    'motivos': [f'Drift Global 1X2: {home_team} subiu de {open_h_val:.2f} para {odd_h:.2f} (+{drift_h_pct:.1f}%), {away_team} derreteu para {odd_a:.2f}'],
-                    'tipo': 'DRIFT_MERCADO'
-                }
-            elif (drift_a_pts >= 0.25 and drift_a_pct >= 12.0) or (drop_h_pts >= 0.25 and drop_h_pct >= 15.0):
-                desfalques_criticos = {
-                    'time_desfalcado': away_team,
-                    'motivos': [f'Drift Global 1X2: {away_team} subiu de {open_a_val:.2f} para {odd_a:.2f} (+{drift_a_pct:.1f}%), {home_team} derreteu para {odd_h:.2f}'],
-                    'tipo': 'DRIFT_MERCADO'
-                }
-
-    # Injeção de Penalizador de Desfalques Críticos ou Drift de Mercado (Reset Tático)
-    if desfalques_criticos and isinstance(desfalques_criticos, dict):
+    # Injeção de Penalizador de Desfalques Críticos comprovados em Súmula Oficial (Reset Tático por Súmula)
+    # REGRA 12 (.agents/AGENTS.md): Proibição Absoluta de Geração de Dados Sintéticos e Multiplicadores Artificiais de xG por oscilação de odds.
+    if desfalques_criticos and isinstance(desfalques_criticos, dict) and str(desfalques_criticos.get('tipo', '')).upper() != 'DRIFT_MERCADO':
         team_penalizado = str(desfalques_criticos.get('time_desfalcado', '')).lower()
-        is_drift_reversal = (str(desfalques_criticos.get('tipo', '')).upper() == 'DRIFT_MERCADO')
-        penal_factor = 0.65 if is_drift_reversal else 0.60
-        boost_factor = 1.30 if is_drift_reversal else 1.35
-        tag_log = "Reset Tático Drift de Mercado" if is_drift_reversal else "Reset Tático Súmula"
+        penal_factor = 0.60
+        boost_factor = 1.35
+        tag_log = "Reset Tático Súmula"
         if team_penalizado and team_penalizado in home_team.lower():
             xg_h = round(xg_h * penal_factor, 2)
             xg_a = round(xg_a * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}", file=sys.stderr)
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por desfalques críticos na súmula em {home_team}: xG {xg_h:.2f} x {xg_a:.2f} {away_team}", file=sys.stderr)
         elif team_penalizado and team_penalizado in away_team.lower():
             xg_a = round(xg_a * penal_factor, 2)
             xg_h = round(xg_h * boost_factor, 2)
             poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
-            print(f"⚠️ [{tag_log} Poisson] xG reajustado por descarte de mercado em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}", file=sys.stderr)
+            print(f"⚠️ [{tag_log} Poisson] xG reajustado por desfalques críticos na súmula em {away_team}: xG {home_team} {xg_h:.2f} x {xg_a:.2f}", file=sys.stderr)
 
     # 3. Obtenção de linhas ativas na Cloudbet / Betano / API-Sports:
     if betano_lines is None:
@@ -2200,60 +2172,18 @@ def calculate_unified_handicap_recommendation(
 
             # Critério rigoroso de Drift anômalo: subida percentual >= 12% E nominal >= 0.20 E rompendo a margem justa
             if pct_drift >= 12.0 and diff_drift >= 0.20 and not odd_esta_na_margem_justa:
-                # O time apoiado previamente inflou e foi descartado pelo mercado.
-                # Dualidade do Drift: Em vez de abortar cegamente com NO_BET sem avaliar a reversão tática,
-                # aciona o Reset Tático por Drift de Mercado para o adversário beneficiado!
                 prior_is_away = (away_team.lower() in prior_palpite_db.lower())
                 time_descartado = away_team if prior_is_away else home_team
                 time_beneficiado = home_team if prior_is_away else away_team
 
-                drift_reversal_ctx = {
-                    'time_desfalcado': time_descartado,
-                    'motivos': [f'Pressão Vendedora / Drift anômalo no mercado (+{pct_drift:.1f}%, +{diff_drift:.2f})'],
-                    'tipo': 'DRIFT_MERCADO'
-                }
-
-                # Recalibra Poisson com o descarte do time que inflou
-                xg_h_drift = round(xg_h * 0.65, 2) if time_descartado == home_team else round(xg_h * 1.30, 2)
-                xg_a_drift = round(xg_a * 0.65, 2) if time_descartado == away_team else round(xg_a * 1.30, 2)
-                poisson_drift = calculate_bivariate_poisson_matrix(xg_h_drift, xg_a_drift)
-
-                best_revert_cand, approved_revert = evaluate_and_select_best_ah_candidate(
-                    poisson_drift, betano_lines, home_team, away_team, odd_h, odd_a,
-                    min_ev=5.0, min_prob=50.0,
-                    home_team_id=h_tid, away_team_id=a_tid,
-                    home_last5=h_l5, away_last5=a_l5,
-                    xg_home=xg_h_drift, xg_away=xg_a_drift,
-                    home_rank=h_rk_val,
-                    away_rank=a_rk_val,
-                    home_ppg=h_ppg_val,
-                    away_ppg=a_ppg_val,
-                    home_zone=fixture_dict.get('home_zone'),
-                    away_zone=fixture_dict.get('away_zone'),
-                    standings_motivation_score=standings_mot_val,
-                    odd_draw=odd_d,
-                    desfalques_criticos=drift_reversal_ctx,
-                    league_name=fixture_dict.get('league_name', '')
-                )
-
-                if best_revert_cand and (best_revert_cand.get('is_away') != prior_is_away):
-                    rev_palpite = best_revert_cand.get('palpite_str') or best_revert_cand.get('palpite')
-                    rev_odd = float(best_revert_cand.get('odd') or 0.0)
-                    rev_ev = float((best_revert_cand.get('eval') or {}).get('ev_percent') or best_revert_cand.get('ev') or 5.0)
-                    reason_revert = (
-                        f"🔄 [Gatekeeper AH / Reset Tático por Drift de Mercado] A seleção prévia '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
-                        f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}). O mercado institucional descartou {time_descartado}. "
-                        f"Reversão Tática executada com sucesso para o adversário {time_beneficiado} na linha {rev_palpite} @ {rev_odd:.2f} (EV +{rev_ev:.1f}%)."
-                    )
-                    clean_gk = format_gatekeeper_result('APROVADO', rev_palpite, reason_revert, category='Reset Tático por Drift de Mercado', best_cand=best_revert_cand)
-                    compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, rev_palpite, home_team, away_team, h_tid, a_tid, reasoning)
-                    return 'APROVADO', rev_palpite, 75.0, compound_r, best_revert_cand, approved_revert
-
+                # REGRA 12 (.agents/AGENTS.md): Proibição Absoluta de Dados Sintéticos e Multiplicadores Artificiais de xG.
+                # Elevação anômala de cotação sem sinistro em súmula oficial decreta abstenção preventiva (NO_BET),
+                # sendo terminantemente proibido fabricar apostas no adversário/azarão.
                 reason_drift = (
                     f"🚨 [Gatekeeper AH NO_BET / Armadilha da Odd Inflada] A seleção '{prior_palpite_db}' inflou {pct_drift:+.1f}% "
                     f"(de @ {prior_odd_db:.2f} para @ {live_cand_odd:.2f}, variação de +{diff_drift:.2f}) no mercado da Betano, rompendo a cotação justa. "
-                    f"No mercado esportivo, uma elevação expressiva acima de 12% (+0.20) sinaliza desconfiança ou descarte da equipe pelo fluxo profissional. "
-                    f"Tentativa de reversão tática para {time_beneficiado} avaliada, mas nenhuma linha ao vivo atingiu valor esperado seguro (+EV). Abstenção preventiva."
+                    f"No mercado esportivo, uma elevação expressiva acima de 12% (+0.20) sinaliza descarte da equipe pelo fluxo profissional. "
+                    f"Entrada cancelada e bloqueada por gestão de risco (NO_BET preventivo)."
                 )
                 clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção - Odd Inflada)', reason_drift, category='Armadilha da Odd Inflada')
                 compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção - Odd Inflada)', home_team, away_team, h_tid, a_tid, reasoning)

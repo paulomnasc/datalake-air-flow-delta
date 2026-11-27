@@ -3920,9 +3920,6 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                     if (isset($sub_parts2[1])) {
                                                         $sub_parts3 = explode('|| U5J_DATA:', $sub_parts2[1]);
                                                         $calc_details = trim($sub_parts3[0]);
-                                                        if (isset($sub_parts3[1])) {
-                                                            $u5j_data = json_decode(trim($sub_parts3[1]), true);
-                                                        }
                                                     }
                                                 }
                                             } else {
@@ -3930,9 +3927,18 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 $main_analysis = trim($ah_parts[0]);
                                                 $motivation = $main_analysis;
                                                 $calc_details = isset($ah_parts[1]) ? trim($ah_parts[1]) : '';
-                                                if (strpos($raw_reasoning, '|| U5J_DATA:') !== false) {
-                                                    $u_parts = explode('|| U5J_DATA:', $raw_reasoning);
-                                                    $u5j_data = json_decode(trim($u_parts[1]), true);
+                                            }
+
+                                            // Extração Robusta e Canônica do Payload U5J (Regra 16: imune a anexos de liquidação FT)
+                                            if (strpos($raw_reasoning, '|| U5J_DATA:') !== false) {
+                                                $uParts = explode('|| U5J_DATA:', $raw_reasoning);
+                                                foreach (array_reverse($uParts) as $candidatePart) {
+                                                    $jsonChunk = trim(explode('||', $candidatePart)[0]);
+                                                    $decoded = json_decode($jsonChunk, true);
+                                                    if (is_array($decoded) && (!empty($decoded['home']) || !empty($decoded['away']))) {
+                                                        $u5j_data = $decoded;
+                                                        break;
+                                                    }
                                                 }
                                             }
                                         }
@@ -4233,12 +4239,26 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 || stripos($ahSugClean, 'indisponivel') !== false;
                                         ?>
                                         <?php if ($isAhBlocked): ?>
+                                            <?php
+                                                // Extrai a categoria específica da abstenção para compor o título dinâmico da badge
+                                                $catAbstencao = !empty($fix->gatekeeper_category) ? trim($fix->gatekeeper_category) : '';
+                                                if (empty($catAbstencao) && !empty($ah_block_badge)) {
+                                                    $catAbstencao = trim($ah_block_badge);
+                                                }
+                                                if (empty($catAbstencao) && preg_match('/CATEGORIA:\s*([^\|\n\r]+)/u', ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? ''), $mCat)) {
+                                                    $catAbstencao = trim($mCat[1]);
+                                                }
+                                                // Limpa possíveis prefixos redundantes
+                                                $catLimpa = trim(preg_replace('/^(?:AH\s*)?(?:NO[_\s-]BET|Abstenção|Bloqueado)?[:\s-]*/iu', '', $catAbstencao));
+                                                $ahBadgeBlockedLabel = !empty($catLimpa) ? ('AH NO-BET: ' . $catLimpa) : 'AH NO-BET: Abstenção da IA';
+                                            ?>
                                             <button type="button" 
                                                     id="btn-ah-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge red" 
                                                     style="background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;"
-                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
-                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 <?= lang('App.ah_blocked_ai_abstain') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')"
+                                                    title="<?= htmlspecialchars($ahBadgeBlockedLabel, ENT_QUOTES) ?>">
+                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 <?= htmlspecialchars($ahBadgeBlockedLabel) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php elseif (!empty($fix->ah_suggestion)): ?>
                                             <button type="button" 
@@ -6149,9 +6169,12 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                     const ahBadgeSug = $('.badge-ah-sug-' + fixtureId);
 
                     if (isBlocked) {
+                        const rawCat = (ah.category || ah.gatekeeper_category || '').replace(/^(?:AH\s*)?(?:NO[_\s-]BET|Abstenção|Bloqueado)?[:\s-]*/i, '').trim();
+                        const blockedTitle = rawCat ? ('AH NO-BET: ' + rawCat) : 'AH NO-BET: Abstenção da IA';
                         ahBtn.removeClass('blue').addClass('red')
                              .attr('style', 'background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;')
-                             .html('<i class="bi bi-slash-circle-fill me-1"></i> 🚫 <?= lang('App.ah_blocked_ai_abstain') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
+                             .attr('title', blockedTitle)
+                             .html('<i class="bi bi-slash-circle-fill me-1"></i> 🚫 ' + blockedTitle + ' <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
                         ahBadgeSug.text('🎯 ' + ah.suggestion + ' (' + Number(ah.confidence).toFixed(1) + '%)');
                     } else {
                         ahBtn.removeClass('red').addClass('blue')

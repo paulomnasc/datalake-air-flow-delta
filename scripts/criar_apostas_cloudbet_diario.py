@@ -209,6 +209,11 @@ def place_and_commit_cloudbet_bet(
     final_resultado_detalhado = cloudbet_audit_block + reasoning_base
 
     # 4. Gravação Atômica no MySQL com Proteção da CONSTRAINT UNIQUE
+    ia_status = fix.get('auditoria_ia_status')
+    ia_resumo = fix.get('auditoria_ia_resumo')
+    ia_parecer = fix.get('auditoria_ia_parecer')
+    ia_checked_at = fix.get('auditoria_ia_checked_at')
+
     try:
         cursor.execute("""
             INSERT INTO apostas (
@@ -217,14 +222,18 @@ def place_and_commit_cloudbet_bet(
                 odd, odd_justa, probabilidade_poisson, ev_percentual,
                 status_gatekeeper, gatekeeper_category, data_hora_jogo,
                 valor_aposta, ganhos_potenciais, tipo, status,
-                confirmada, destaque, resultado_detalhado, criado_em, updated_at
+                confirmada, destaque, resultado_detalhado,
+                auditoria_ia_status, auditoria_ia_resumo, auditoria_ia_parecer, auditoria_ia_checked_at,
+                criado_em, updated_at
             ) VALUES (
                 %s, %s, %s, %s,
                 %s, %s, %s, 'Cloudbet', %s,
                 %s, %s, %s, %s,
                 'APROVADO', %s, %s,
                 %s, %s, %s, 'Pendente',
-                1, %s, %s, NOW(), NOW()
+                1, %s, %s,
+                %s, %s, %s, %s,
+                NOW(), NOW()
             )
         """, (
             uid, client.currency, 5.80, f_id,
@@ -233,7 +242,8 @@ def place_and_commit_cloudbet_bet(
             gk_category, dt,
             valor_aposta, ganhos_potenciais,
             'Robô Cloudbet (Simulação)' if is_simulated else 'Robô Cloudbet (Real)',
-            cand_destaque, final_resultado_detalhado
+            cand_destaque, final_resultado_detalhado,
+            ia_status, ia_resumo, ia_parecer, ia_checked_at
         ))
         new_aposta_id = cursor.lastrowid
 

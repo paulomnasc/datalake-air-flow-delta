@@ -3013,9 +3013,9 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                         <?= !empty($showPostponed) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.35);" title="Exibir apenas partidas com apostas aprovadas pelo modelo (Sinal Verde em Handicap ou Cartões)">
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.35);" title="Exibir apenas partidas com aposta ou palpite real aprovado pelo modelo">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #10b981; font-weight: 700;">
-                                        🟢 Sinal Verde
+                                        🟢 Apenas BET
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlySinalVerdeToggle" name="only_sinal_verde" value="1" onchange="toggleSinalVerdeFilter(this)">
@@ -3379,10 +3379,17 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                              }
                              $t1Info = getTier1DominanceInfo($fix, $u5j_data_pre, $destaqueFixtureIds ?? []);
 
-                             // Avaliação de Sinal Verde (Aposta Aprovada pelo Modelo em Handicap ou Cartões)
-                             $isCardAhApproved = !empty($fix->ah_suggestion) && !preg_match('/(absten|sem entrada|bloquead|no_bet)/i', $fix->ah_suggestion);
-                             $isCardUnderApproved = (($class === 'safe' || $class === 'high') && !empty($fix->prediction_text) && strpos($fix->prediction_text, 'NO_BET') === false && !preg_match('/(não recomendada|absten)/i', $fix->prediction_text));
-                             $hasSinalVerde = ($isCardAhApproved || $isCardUnderApproved);
+                             // Avaliação de Aposta Aprovada (BET): Palpite de Handicap líquido e aprovado OU aposta real cadastrada na banca
+                             $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
+                             $isCardAhApproved = !empty($ahSugClean) 
+                                 && stripos($ahSugClean, 'sem entrada') === false 
+                                 && stripos($ahSugClean, 'abstenção') === false 
+                                 && stripos($ahSugClean, 'abstencao') === false 
+                                 && stripos($ahSugClean, 'bloquead') === false 
+                                 && stripos($ahSugClean, 'indisponível') === false 
+                                 && stripos($ahSugClean, 'indisponivel') === false
+                                 && stripos($ahSugClean, 'no_bet') === false;
+                             $hasSinalVerde = ($isCardAhApproved || $hasAposta);
                              ?>
                              <div class="bet-card <?= $t1Info['is_dominant'] ? 'bet-card-destaque' : '' ?>" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-has-sinal-verde="<?= $hasSinalVerde ? '1' : '0' ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-destaque="<?= $t1Info['is_dominant'] ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">

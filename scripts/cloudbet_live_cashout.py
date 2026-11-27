@@ -1465,7 +1465,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         if is_cards_hedge or "Apenas 1" in motivo or "A 1 gol" in motivo:
             min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_EMERGENCY_MIN_ODD", "1.25"))
 
-        if hedge_price < min_hedge_odd and not client.dry_run:
+        if hedge_price < min_hedge_odd:
             print(f"   🛑 [Hedge Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}). Abortando para evitar risco assimétrico prejudicial à banca.")
             tit_der = f"⚠️ Hedge Abortado (Odd Derretida): {home} vs {away}"
             msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger o patrimônio da banca."

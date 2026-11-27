@@ -289,7 +289,7 @@ class CloudbetClient:
         is_simulated = self.dry_run if dry_run is None else dry_run
 
         min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
-        if price is not None and price < min_hedge_odd and not is_simulated:
+        if price is not None and price < min_hedge_odd:
             print(f"🛑 [Cloudbet SLIPPAGE LOCK] Ordem rejeitada: odd {price:.2f} inferior ao piso de segurança ({min_hedge_odd:.2f}).")
             return {
                 "success": False,

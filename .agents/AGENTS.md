@@ -270,6 +270,16 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - É expressamente proibido utilizar classes ou estilos que gerem texto cinza-escuro, cinza opaco ou apagado sobre fundos escuros (tais como `text-muted` puro sem clareamento, cinza intermediário `#64748b` ou `#6c757d` em textos essenciais, ou textos pretos herdados).
   - Textos de suporte, cabeçalhos de tabela (`<th>`) e metadados secundários em fundos escuros devem utilizar no mínimo cinza-claro de alta luminosidade (ex: `rgba(255, 255, 255, 0.85)` ou `rgba(241, 245, 249, 0.85)`), garantindo leitura nítida, confortável e acessível em qualquer dispositivo e ambiente de iluminação.
 
+---
+
+## 24. Distinção Obrigatória e Demarcação Separada entre Texto Determinístico e Parecer Cognitivo da IA
+- **Transparência e Rastreabilidade Analítica:** Toda notificação, parecer de auditoria pré-jogo, card ou relatório analítico deve obrigatoriamente delimitar de forma clara e separada o que é dado oficial determinístico do que é parecer cognitivo gerado por IA.
+- **Estrutura Padrão Mandatória:**
+  1. `📊 [AUDITORIA DETERMINÍSTICA DE ESCALAÇÃO & NOTAS]`: Contém fatos oficiais irrefutáveis (11 titulares divididos por time e setor, números de camisa, notas médias do XI, notas individuais de rendimento e status do goleiro titular extraídos do banco de dados).
+  2. `🤖 [PARECER COGNITIVO DA IA SENTINELA]`: Contém o diagnóstico tático, interpretação esportiva e justificativa qualitativa do modelo de IA fundamentando por que houve ou não desfalque estrutural ou oportunidade de valor.
+- **Proibição de Agrupamentos Confusos:** É expressamente proibido misturar jogadores de equipes opostas em frases corridas genéricas sem identificar seus times e setores ou fundir dados numéricos do banco de dados com opiniões da IA sem a devida demarcação dos blocos.
+
+
 
 
 

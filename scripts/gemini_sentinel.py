@@ -1205,16 +1205,17 @@ Retorne ESTRITAMENTE um objeto JSON no seguinte formato:
                 resumo_txt = "Força máxima confirmada sem desfalques críticos"
 
             parecer_sumula = (
-                f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Confirmada!\n\n"
-                f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
+                f"{h_t} x {a_t} [{badge_emerg}]: 📋 Escalação Oficial Auditada!\n\n"
+                f"📊 [AUDITORIA DETERMINÍSTICA DE ESCALAÇÃO & NOTAS]:\n"
                 f"{texto_sumula}\n\n"
-                f"--- DIAGNÓSTICO PRÉ-JOGO ---\n"
-                f"• Status do Elenco: {motivos_str}.\n"
+                f"────────────────────────────────────────────\n\n"
+                f"🤖 [PARECER COGNITIVO DA IA SENTINELA]:\n"
+                f"• Diagnóstico do Elenco: {motivos_str}.\n"
             )
             if tem_alerta_dados and aud_dados.get("motivos_risco"):
                 motivos_mkt = "; ".join(aud_dados["motivos_risco"])
                 parecer_sumula += f"• Observação de Mercado/Cotações: ⚠️ {motivos_mkt}\n"
-            parecer_sumula += f"• Veredito: {veredito_txt}"
+            parecer_sumula += f"• Veredito Final: {veredito_txt}"
 
             return {
                 "status": "ALERTA_RISCO" if tem_alerta_elenco else ("CONFIRMADO" if not tem_alerta_dados else "ALERTA_RISCO"),
@@ -2748,11 +2749,12 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                                     badge_ia = "🟢 Força Máxima" if veredito_grok == "MANTER_APOSTA" else "🟡 Atenção Tática"
                                 titulo_alerta = f"📋 Escalação Confirmada [{badge_ia}]: {home_team} vs {away_team}"
                                 parecer = (
-                                    f"{home_team} x {away_team} [{badge_ia}]: 📋 Escalação Oficial Auditada pela IA!\n\n"
-                                    f"--- PARECER TÁTICO DA IA (GROK / GEMINI) ---\n"
-                                    f"{analise_ia_txt}\n\n"
-                                    f"--- SÚMULA E ESCALAÇÕES OFICIAIS ---\n"
-                                    f"{sumula_txt}"
+                                    f"{home_team} x {away_team} [{badge_ia}]: 📋 Escalação Oficial Auditada!\n\n"
+                                    f"📊 [AUDITORIA DETERMINÍSTICA DE ESCALAÇÃO & NOTAS]:\n"
+                                    f"{sumula_txt}\n\n"
+                                    f"────────────────────────────────────────────\n\n"
+                                    f"🤖 [PARECER COGNITIVO DA IA SENTINELA]:\n"
+                                    f"{analise_ia_txt}"
                                 )
                             print(f"🟢 [Grok IA Arbitrator: {veredito_grok}] Elenco validado taticamente diante da linha. Preservando a odd no topo!")
 

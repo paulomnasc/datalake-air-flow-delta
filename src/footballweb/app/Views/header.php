@@ -905,41 +905,36 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span class="badge bg-danger rounded-pill pulse-live-indicator" style="font-size: 0.58rem; padding: 2px 5px; letter-spacing: 0.5px;">LIVE</span>
                     </a>
                 </li>
-                <?php 
-                $userNameHeader = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
-                if (\App\Helpers\SessionHelper::isPauloNascimento($userNameHeader)): 
-                ?>
-                <li class="nav-item">
-                    <a href="<?= base_url('apostas/extrato') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-warning d-flex align-items-center gap-1" title="Extrato & Conta Corrente">
-                        <i class="bi bi-wallet2" style="font-size: 19px;"></i>
-                        <span>Extrato & Conta Corrente</span>
+
+                <!-- MENU DROPDOWN UNIFICADO: PAINÉIS & GESTÃO (DESAFOGA E ORGANIZA A NAVBAR) -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1 text-primary" href="#" id="navbarDropdownPaineis" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Painéis Analíticos, Gestão de Banca e Operação">
+                        <i class="bi bi-grid-1x2-fill" style="font-size: 18px;"></i>
+                        <span>Painéis & Gestão</span>
                     </a>
+                    <ul class="dropdown-menu dropdown-menu-dark shadow-lg border-0 py-2" aria-labelledby="navbarDropdownPaineis" style="min-width: 290px; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 10px;">
+                        <?php 
+                        $userNameHeader = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
+                        if (\App\Helpers\SessionHelper::isPauloNascimento($userNameHeader)): 
+                        ?>
+                        <li class="dropdown-header text-uppercase fw-bold text-muted" style="font-size: 0.68rem; letter-spacing: 0.8px;">💰 Gestão Financeira & Banca</li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-warning fw-semibold" href="<?= base_url('apostas/extrato') ?>"><i class="bi bi-wallet2"></i> Extrato & Conta Corrente</a></li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-info fw-semibold" href="<?= base_url('metas') ?>"><i class="bi bi-bullseye"></i> Metas Diárias & Ciclos</a></li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-warning fw-semibold" href="<?= base_url('moedas') ?>"><i class="bi bi-coin"></i> Criptomoedas & Taxas</a></li>
+                        <li><hr class="dropdown-divider my-2" style="border-color: rgba(255, 255, 255, 0.08);"></li>
+                        <?php endif; ?>
+                        
+                        <li class="dropdown-header text-uppercase fw-bold text-muted" style="font-size: 0.68rem; letter-spacing: 0.8px;">📈 Desempenho & Inteligência</li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-light" href="<?= base_url('apostas/analise-desempenho') ?>"><i class="bi bi-speedometer"></i> Análise de Desempenho</a></li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-info" href="<?= base_url('apostas/relatorio-eficiencia') ?>"><i class="bi bi-graph-up-arrow"></i> Eficiência dos Palpites (+EV)</a></li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" href="<?= base_url('apostas/relatorio-abstencoes') ?>"><i class="bi bi-shield-slash"></i> Auditoria de Abstenções (NO_BET)</a></li>
+                        <li><hr class="dropdown-divider my-2" style="border-color: rgba(255, 255, 255, 0.08);"></li>
+                        
+                        <li class="dropdown-header text-uppercase fw-bold text-muted" style="font-size: 0.68rem; letter-spacing: 0.8px;">🤖 Operação & Liquidez</li>
+                        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-success fw-bold" href="<?= base_url('apostas/relatorio-liquidez-cloudbet') ?>"><i class="bi bi-lightning-charge-fill"></i> Taxa de Hit & Liquidez Cloudbet</a></li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a href="<?= base_url('metas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #38bdf8;" title="Metas Diárias & Ciclos Rotativos">
-                        <i class="bi bi-bullseye" style="font-size: 19px;"></i>
-                        <span>Metas Diárias</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="<?= base_url('moedas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold d-flex align-items-center gap-1" style="color: #f59e0b;" title="Configuração de Criptomoedas & Taxas Operacionais">
-                        <i class="bi bi-coin" style="font-size: 19px;"></i>
-                        <span>Criptomoedas</span>
-                    </a>
-                </li>
-                <?php endif; ?>
-                <li class="nav-item">
-                    <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">
-                        <i class="bi bi-graph-up-arrow" style="font-size: 18px;"></i>
-                        <span><?= lang('App.tips_efficiency') ?></span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="<?= base_url('apostas/relatorio-abstencoes') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-danger d-flex align-items-center gap-1" title="Auditoria de Abstenções (NO_BET)">
-                        <i class="bi bi-shield-slash" style="font-size: 18px;"></i>
-                        <span>Abstenções (NO_BET)</span>
-                    </a>
-                </li>
+
                 <li class="nav-item">
                     <a href="<?= base_url('docs') ?>?v=<?= time() ?>" class="nav-link px-2 px-lg-2 font-weight-bold d-flex align-items-center" style="color: #0284c7;" title="Documentação do Pipeline & DAGs Cloudbet">
                         <i class="bi bi-question-circle-fill" style="font-size: 21px;"></i>

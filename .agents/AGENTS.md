@@ -261,6 +261,16 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - É terminantemente proibido despejar blocos de texto com logs crus diretamente do terminal/shell (tais como saídas verbosas `test_... ok`, stdout poluído ou sequências de terminal).
   - Todo relatório de testes apresentado ao usuário deve ser **estritamente em formato executivo, tabulado, limpo e de leitura imediata**, estruturado em tabelas Markdown com agrupamento temático por módulo/esteira, permitindo ao usuário bater o olho e validar instantaneamente a saúde do sistema sem poluição visual.
 
+---
+
+## 23. Contraste e Acessibilidade Obrigatórios na UX: Tipografia Branca em Fundos Escuros
+- **Legibilidade Absoluta em Temas Escuros (Dark Mode):**
+  - Em qualquer componente, card, container, tabela ou painel com fundo escuro (ex: `#0b1120`, `#0f172a`, `#1e293b`, `bg-dark`, gradientes escuros), **TODOS os textos de conteúdo, rótulos, subtítulos, células de tabela e diagnósticos DEVEM OBRIGATORIAMENTE utilizar cor de fonte branca ou de altíssimo contraste claro** (ex: `text-white`, `#ffffff`, `#f8fafc`, `#f1f5f9`).
+- **Proibição Estrita de Cores com Baixo Contraste em Fundos Escuros:**
+  - É expressamente proibido utilizar classes ou estilos que gerem texto cinza-escuro, cinza opaco ou apagado sobre fundos escuros (tais como `text-muted` puro sem clareamento, cinza intermediário `#64748b` ou `#6c757d` em textos essenciais, ou textos pretos herdados).
+  - Textos de suporte, cabeçalhos de tabela (`<th>`) e metadados secundários em fundos escuros devem utilizar no mínimo cinza-claro de alta luminosidade (ex: `rgba(255, 255, 255, 0.85)` ou `rgba(241, 245, 249, 0.85)`), garantindo leitura nítida, confortável e acessível em qualquer dispositivo e ambiente de iluminação.
+
+
 
 
 

@@ -82,6 +82,7 @@ $routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficien
 $routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho', ['as' => 'apostas.analise_desempenho']);
 $routes->get('/apostas/relatorio-abstencoes', 'ApostaController::relatorioAbstencoes', ['as' => 'apostas.relatorio_abstencoes']);
 $routes->get('/apostas/relatorioAbstencoes', 'ApostaController::relatorioAbstencoes');
+$routes->get('/apostas/relatorio-liquidez-cloudbet', 'ApostaController::relatorioLiquidezCloudbet', ['as' => 'apostas.relatorio_liquidez_cloudbet']);
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);

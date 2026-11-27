@@ -5711,6 +5711,191 @@ class ApostaController extends BaseController
             ->withBetRow($row)
             ->build();
     }
+
+    /**
+     * Painel de Auditoria de Liquidez e Taxa de Hit da Cloudbet
+     * Rota: /apostas/relatorio-liquidez-cloudbet
+     */
+    public function relatorioLiquidezCloudbet()
+    {
+        ini_set('memory_limit', '512M');
+        $access = $this->checkAccess();
+        $db = \Config\Database::connect();
+
+        // 1. Métricas de Assertividade Esportiva por Esteira na Cloudbet
+        $queryEsteiras = "
+            SELECT 
+                CASE 
+                    WHEN tipo LIKE '%Handicap%' OR mercado LIKE '%Handicap%' OR mercado LIKE '%Empate Anula%' THEN 'Handicap Asiático / DNB'
+                    WHEN tipo LIKE '%Gol%' OR mercado LIKE '%Gol%' THEN 'Gols Asiáticos (Over/Under)'
+                    WHEN tipo LIKE '%Cart%' OR mercado LIKE '%Cart%' THEN 'Total de Cartões'
+                    ELSE 'Outros Mercados'
+                END AS esteira,
+                COUNT(*) as total_geral,
+                SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as green,
+                SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as red,
+                SUM(CASE WHEN status = 'Reembolsada' THEN 1 ELSE 0 END) as push,
+                SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendente,
+                SUM(CASE WHEN status IN ('Ganha', 'Perdida', 'Reembolsada', 'Meio Ganha', 'Meio Perdida') THEN valor_aposta ELSE 0 END) as total_apostado,
+                SUM(CASE 
+                    WHEN status = 'Ganha' THEN valor_aposta * odd
+                    WHEN status = 'Meio Ganha' THEN (valor_aposta / 2.0 * odd) + (valor_aposta / 2.0)
+                    WHEN status = 'Reembolsada' THEN valor_aposta
+                    WHEN status = 'Meio Perdida' THEN (valor_aposta / 2.0)
+                    ELSE 0 
+                END) as total_retorno
+            FROM apostas
+            WHERE casa_de_aposta = 'Cloudbet' OR tipo LIKE '%Cloudbet%' OR tipo LIKE '%Robô%'
+            GROUP BY esteira
+            ORDER BY total_geral DESC
+        ";
+        $esteirasRaw = $db->query($queryEsteiras)->getResultArray();
+
+        $esteiras = [];
+        $totalApostasFinalizadas = 0;
+        $totalHits = 0;
+        $totalFails = 0;
+        $totalPushes = 0;
+        $totalApostadoGeral = 0.0;
+        $totalRetornoGeral = 0.0;
+
+        foreach ($esteirasRaw as $row) {
+            $green = (int)$row['green'];
+            $red = (int)$row['red'];
+            $push = (int)$row['push'];
+            $finalizadas = $green + $red + $push;
+            $apostado = (float)$row['total_apostado'];
+            $retorno = (float)$row['total_retorno'];
+            $lucro = $retorno - $apostado;
+            $roi = ($apostado > 0) ? ($lucro / $apostado * 100.0) : 0.0;
+            $hitRate = ($finalizadas > 0) ? ($green / $finalizadas * 100.0) : 0.0;
+            $failRate = ($finalizadas > 0) ? ($red / $finalizadas * 100.0) : 0.0;
+
+            $esteiras[] = [
+                'nome' => $row['esteira'],
+                'total_geral' => (int)$row['total_geral'],
+                'finalizadas' => $finalizadas,
+                'green' => $green,
+                'red' => $red,
+                'push' => $push,
+                'pendente' => (int)$row['pendente'],
+                'hit_rate' => $hitRate,
+                'fail_rate' => $failRate,
+                'apostado' => $apostado,
+                'retorno' => $retorno,
+                'lucro' => $lucro,
+                'roi' => $roi
+            ];
+
+            $totalApostasFinalizadas += $finalizadas;
+            $totalHits += $green;
+            $totalFails += $red;
+            $totalPushes += $push;
+            $totalApostadoGeral += $apostado;
+            $totalRetornoGeral += $retorno;
+        }
+
+        $lucroGeral = $totalRetornoGeral - $totalApostadoGeral;
+        $roiGeral = ($totalApostadoGeral > 0) ? ($lucroGeral / $totalApostadoGeral * 100.0) : 0.0;
+        $taxaAcertoGeral = ($totalApostasFinalizadas > 0) ? ($totalHits / $totalApostasFinalizadas * 100.0) : 0.0;
+
+        // 2. Métricas de Liquidez e Bloqueio de Ordens (pipeline_lifecycle_logs)
+        $queryLogsResumo = "
+            SELECT 
+                tipo_evento,
+                COUNT(*) as cnt
+            FROM pipeline_lifecycle_logs
+            WHERE tipo_evento IN (
+                'APOSTA_CRIADA', 'HEDGE_ORDEM_REAL_EXECUTADA', 'ORDEM_CLOUDBET_RESET_SUMULA',
+                'HEDGE_ABORTADO_SEM_LIQUIDEZ', 'HEDGE_PREJOGO_ABORTADO_SEM_MERCADO', 'HEDGE_ABORTADO_MERCADO_SUSPENSO',
+                'HEDGE_ABORTADO_ODD_DERRETIDA', 'HEDGE_AGUARDANDO_REABERTURA', 'HEDGE_RETENTATIVA_SEM_LIQUIDEZ'
+            )
+            GROUP BY tipo_evento
+        ";
+        $logsResumoRaw = $db->query($queryLogsResumo)->getResultArray();
+        $eventosMap = [];
+        foreach ($logsResumoRaw as $lr) {
+            $eventosMap[$lr['tipo_evento']] = (int)$lr['cnt'];
+        }
+
+        $ordensCompradas = ($eventosMap['APOSTA_CRIADA'] ?? 0) + ($eventosMap['HEDGE_ORDEM_REAL_EXECUTADA'] ?? 0) + ($eventosMap['ORDEM_CLOUDBET_RESET_SUMULA'] ?? 0);
+        $ordensSuspensas = ($eventosMap['HEDGE_ABORTADO_SEM_LIQUIDEZ'] ?? 0) + ($eventosMap['HEDGE_PREJOGO_ABORTADO_SEM_MERCADO'] ?? 0) + ($eventosMap['HEDGE_ABORTADO_MERCADO_SUSPENSO'] ?? 0);
+        $ordensOddDerretida = $eventosMap['HEDGE_ABORTADO_ODD_DERRETIDA'] ?? 0;
+        $tentativasEmFila = ($eventosMap['HEDGE_AGUARDANDO_REABERTURA'] ?? 0) + ($eventosMap['HEDGE_RETENTATIVA_SEM_LIQUIDEZ'] ?? 0);
+
+        $totalTentativasDiretas = $ordensCompradas + $ordensSuspensas + $ordensOddDerretida;
+        $taxaHitLiquidez = ($totalTentativasDiretas > 0) ? ($ordensCompradas / $totalTentativasDiretas * 100.0) : 0.0;
+        $taxaFailSuspensao = ($totalTentativasDiretas > 0) ? ($ordensSuspensas / $totalTentativasDiretas * 100.0) : 0.0;
+        $taxaFailDerretida = ($totalTentativasDiretas > 0) ? ($ordensOddDerretida / $totalTentativasDiretas * 100.0) : 0.0;
+
+        // 3. Tabela de Auditoria de Eventos Recentes de Liquidez (Últimos 100 eventos)
+        $queryLogsDetalhe = "
+            SELECT 
+                l.id,
+                l.criado_em,
+                l.fixture_id,
+                l.aposta_id,
+                l.tipo_evento,
+                l.delta_json,
+                l.motivo_detalhado as motivo,
+                ft.home_team,
+                ft.away_team,
+                ft.league_name,
+                a.palpite,
+                a.odd,
+                a.valor_aposta
+            FROM pipeline_lifecycle_logs l
+            LEFT JOIN fixtures_trends ft ON l.fixture_id = ft.fixture_id
+            LEFT JOIN apostas a ON l.aposta_id = a.id
+            WHERE l.tipo_evento IN (
+                'APOSTA_CRIADA', 'HEDGE_ORDEM_REAL_EXECUTADA', 'ORDEM_CLOUDBET_RESET_SUMULA',
+                'HEDGE_ABORTADO_SEM_LIQUIDEZ', 'HEDGE_PREJOGO_ABORTADO_SEM_MERCADO', 'HEDGE_ABORTADO_MERCADO_SUSPENSO',
+                'HEDGE_ABORTADO_ODD_DERRETIDA', 'HEDGE_PREJOGO_EXECUTADO', 'CASHOUT_EXECUTADO'
+            )
+            ORDER BY l.id DESC
+            LIMIT 100
+        ";
+        $logsDetalheRaw = $db->query($queryLogsDetalhe)->getResultArray();
+        $logsDetalhe = [];
+        foreach ($logsDetalheRaw as $ld) {
+            $minuto = '';
+            $placar = '';
+            if (!empty($ld['delta_json'])) {
+                $dj = json_decode($ld['delta_json'], true);
+                if (is_array($dj)) {
+                    $minuto = $dj['minuto'] ?? $dj['elapsed'] ?? '';
+                    $placar = $dj['placar'] ?? '';
+                }
+            }
+            $ld['minuto_jogo'] = $minuto;
+            $ld['placar_momento'] = $placar;
+            $logsDetalhe[] = $ld;
+        }
+
+        $data = [
+            'title'                 => 'Taxa de Hit & Auditoria de Liquidez Cloudbet',
+            'esteiras'              => $esteiras,
+            'kpis'                  => [
+                'total_tentativas'    => $totalTentativasDiretas,
+                'ordens_compradas'    => $ordensCompradas,
+                'ordens_suspensas'    => $ordensSuspensas,
+                'ordens_derretidas'   => $ordensOddDerretida,
+                'tentativas_fila'     => $tentativasEmFila,
+                'taxa_hit_liquidez'   => $taxaHitLiquidez,
+                'taxa_fail_suspensao' => $taxaFailSuspensao,
+                'taxa_fail_derretida' => $taxaFailDerretida,
+                'total_apostas'       => $totalApostasFinalizadas,
+                'taxa_acerto_geral'   => $taxaAcertoGeral,
+                'lucro_geral'         => $lucroGeral,
+                'roi_geral'           => $roiGeral,
+            ],
+            'logs_detalhe'          => $logsDetalhe
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_liquidez_cloudbet', $data)
+             . view('footer', $data);
+    }
 }
 
 

@@ -14,6 +14,7 @@ Implementa a metodologia estatística, precificação e ciclo de apostas para o 
    proteção estrita e imutabilidade de apostas confirmadas (com débito em conta corrente).
 """
 
+import sys
 import os
 import re
 import math

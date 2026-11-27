@@ -90,6 +90,33 @@ class TestTacticalResetResilience(unittest.TestCase):
         self.assertEqual(best.get('gatekeeper_category'), 'Reset Tático por Súmula')
         self.assertGreater(best['eval']['ev_percent'], 80.0)
 
+    def test_dnb_zero_ah_no_ceiling_with_severe_desfalques(self):
+        # Linha 0.0 AH (DNB) com odd inflada acima de 1.95 (ex: @ 2.30)
+        # deve ser aceita sem bloqueio de teto quando houver desfalques severos na súmula
+        poisson = calculate_bivariate_poisson_matrix(0.39, 0.57)
+
+        lines = [
+            {'line': 0.0, 'odd': 2.30, 'is_away': True, 'palpite_str': 'AZ Alkmaar 0.0 AH', 'target_team': 'AZ Alkmaar', 'market_url': 'test_url_dnb'},
+        ]
+
+        tactical_ctx = {'time_desfalcado': 'Sparta Praha', 'tipo': 'SUMULA', 'motivo': 'Sparta com 9 desfalques'}
+        u5j_h = {'v': 2, 'e': 1, 'd': 2, 'pts': 7, 'matches': [{'result': 'V'}, {'result': 'E'}, {'result': 'D'}, {'result': 'D'}, {'result': 'V'}]}
+        u5j_a = {'v': 3, 'e': 1, 'd': 1, 'pts': 10, 'matches': [{'result': 'V'}, {'result': 'V'}, {'result': 'E'}, {'result': 'D'}, {'result': 'V'}]}
+
+        best, approved = evaluate_and_select_best_ah_candidate(
+            poisson, lines, 'Sparta Praha', 'AZ Alkmaar', 1.70, 4.55,
+            min_ev=5.0, min_prob=50.0,
+            home_last5=u5j_h,
+            away_last5=u5j_a,
+            desfalques_criticos=tactical_ctx
+        )
+
+        self.assertIsNotNone(best)
+        self.assertEqual(best['palpite_str'], 'AZ Alkmaar 0.0 AH')
+        self.assertEqual(best['odd'], 2.30)
+        self.assertEqual(best.get('gatekeeper_category'), 'Reset Tático por Súmula')
+        self.assertGreater(best['eval']['ev_percent'], 40.0)
+
     def test_standard_match_preserves_195_ceiling(self):
         # Partida comum sem desfalques críticos deve manter teto de 1.95 para evitar apostas esticadas
         poisson = calculate_bivariate_poisson_matrix(1.5, 1.2)

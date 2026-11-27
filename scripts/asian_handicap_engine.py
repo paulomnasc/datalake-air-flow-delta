@@ -1297,7 +1297,7 @@ def evaluate_and_select_best_ah_candidate(
         )
 
         # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor de zebra fraca em caldeirão
-        if is_strong_home_fav and c_is_away:
+        if is_strong_home_fav and c_is_away and not is_cand_benefited_by_lineup:
             # Se o visitante for a equipe com MELHOR PERFORMANCE (Soberania U5J),
             # permite linhas de proteção (+0.5 AH, +1.0 AH) para punir a distorção da banca!
             if (cand_is_better_performance or is_away_momentum_surge) and c_line in (0.5, 1.0):
@@ -1555,10 +1555,10 @@ def evaluate_and_select_best_ah_candidate(
             continue
 
         # Faixa de odd segura operacional: piso mínimo de 1.45/1.50 e teto conservador de 1.95 (Alta Assertividade)
-        # Exceção Estrutural: quando há benefício por desfalques críticos/súmula e a linha é de cobertura positiva (+0.25 ou +0.50 AH),
-        # o teto operacional é totalmente liberado (sem limite superior), pois a cobertura ganha no empate e captura odds infladas com alto +EV.
+        # Exceção Estrutural: quando há benefício por desfalques críticos/súmula e a linha é de cobertura/proteção (0.0 AH / DNB, +0.25 ou +0.50 AH),
+        # o teto operacional é totalmente liberado (sem limite superior), pois a proteção contra empate captura odds infladas com alto +EV.
         min_op_odd = 1.45 if is_cand_benefited_by_lineup else (1.50 if (is_super_dominant_tier1 or is_cand_false_dog_dominant) else 1.55)
-        max_op_odd = float('inf') if (is_cand_benefited_by_lineup and c_line in (0.25, 0.50)) else 1.95
+        max_op_odd = float('inf') if (is_cand_benefited_by_lineup and c_line in (0.0, 0.25, 0.50)) else 1.95
         if c_odd < min_op_odd or c_odd > max_op_odd:
             continue
 

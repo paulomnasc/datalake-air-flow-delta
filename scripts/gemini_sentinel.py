@@ -2064,7 +2064,13 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
                 cand_ev = float(best_cand.get('eval', {}).get('ev_percent') or 0.0)
 
                 # Critério estrito de Alta Assertividade: Sweet Spot 1.60 a 1.95 e Prob >= 60%
-                if 1.60 <= cand_odd <= 1.95 and cand_prob >= 60.0:
+                # Exceção Estrutural: Para linhas com proteção contra empate (0.0 AH / DNB, +0.25 AH e +0.50 AH)
+                # com desfalques severos na súmula oficial, o teto operacional é liberado para capturar odds infladas com alto +EV.
+                cand_line = float(best_cand.get('line', 0.0))
+                is_protective_line = (cand_line in (0.0, 0.25, 0.50)) and bool(time_desfalcado)
+                max_odd_sentinel = float('inf') if is_protective_line else 1.95
+
+                if cand_odd >= 1.60 and cand_odd <= max_odd_sentinel and cand_prob >= 60.0:
                     total_reversoes_aprovadas += 1
                     cat_nome = "Reset Tático por Súmula" if time_desfalcado else "Reversão de Odds no Sweet Spot"
                     best_cand['gatekeeper_category'] = cat_nome

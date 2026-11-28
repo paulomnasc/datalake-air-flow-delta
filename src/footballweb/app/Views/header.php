@@ -1638,6 +1638,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     .radar-feed-item.cashout {
         border-left-color: #8b5cf6;
     }
+    .radar-feed-item.match-encontrado {
+        border-left-color: #38bdf8;
+    }
+    .radar-feed-item.odds-1x2 {
+        border-left-color: #0ea5e9;
+    }
+    .radar-feed-item.ah-card {
+        border-left-color: #f59e0b;
+    }
+    .radar-feed-item.gols-card {
+        border-left-color: #eab308;
+    }
+    .radar-feed-item.cartoes-card {
+        border-left-color: #94a3b8;
+    }
     </style>
 
     <script>
@@ -1718,7 +1733,32 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     let badgeLabel = 'INFO';
                     let badgeBg = 'background: rgba(56, 189, 248, 0.2); color: #38bdf8;';
 
-                    if (tipo === 'LINHAS_FECHADAS') {
+                    if (tipo === 'MATCH_ENCONTRADO') {
+                        itemClass += ' match-encontrado';
+                        iconHtml = '<i class="bi bi-search text-info"></i>';
+                        badgeLabel = 'MATCH LOCALIZADO';
+                        badgeBg = 'background: rgba(56, 189, 248, 0.2); color: #38bdf8;';
+                    } else if (tipo === 'ODDS_1X2') {
+                        itemClass += ' odds-1x2';
+                        iconHtml = '<i class="bi bi-arrow-repeat text-info"></i>';
+                        badgeLabel = 'ODDS 1X2';
+                        badgeBg = 'background: rgba(14, 165, 233, 0.2); color: #38bdf8;';
+                    } else if (tipo === 'AH_REPROVADO' || tipo === 'AH_STANDBY') {
+                        itemClass += ' ah-card';
+                        iconHtml = (tipo === 'AH_REPROVADO') ? '<i class="bi bi-x-circle text-danger"></i>' : '<i class="bi bi-hourglass-split text-warning"></i>';
+                        badgeLabel = (tipo === 'AH_REPROVADO') ? 'HANDICAP REPROVADO' : 'HANDICAP STANDBY';
+                        badgeBg = (tipo === 'AH_REPROVADO') ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(245, 158, 11, 0.2); color: #fbbf24;';
+                    } else if (tipo === 'GOLS_REPROVADO' || tipo === 'GOLS_STANDBY') {
+                        itemClass += ' gols-card';
+                        iconHtml = (tipo === 'GOLS_REPROVADO') ? '<i class="bi bi-x-circle text-danger"></i>' : '<i class="bi bi-clock-history text-warning"></i>';
+                        badgeLabel = (tipo === 'GOLS_REPROVADO') ? 'GOLS REPROVADO' : 'GOLS STANDBY';
+                        badgeBg = (tipo === 'GOLS_REPROVADO') ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(234, 179, 8, 0.2); color: #facc15;';
+                    } else if (tipo === 'CARTOES_REPROVADO' || tipo === 'CARTOES_STANDBY') {
+                        itemClass += ' cartoes-card';
+                        iconHtml = (tipo === 'CARTOES_REPROVADO') ? '<i class="bi bi-x-circle text-danger"></i>' : '<i class="bi bi-shield-slash text-secondary"></i>';
+                        badgeLabel = (tipo === 'CARTOES_REPROVADO') ? 'CARTÕES REPROVADO' : 'CARTÕES STANDBY';
+                        badgeBg = (tipo === 'CARTOES_REPROVADO') ? 'background: rgba(239, 68, 68, 0.2); color: #f87171;' : 'background: rgba(148, 163, 184, 0.2); color: #cbd5e1;';
+                    } else if (tipo === 'LINHAS_FECHADAS') {
                         itemClass += ' linhas-fechadas';
                         iconHtml = '<i class="bi bi-hourglass-split text-warning"></i>';
                         badgeLabel = 'LINHAS FECHADAS';

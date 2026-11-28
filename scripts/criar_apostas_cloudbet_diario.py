@@ -631,34 +631,13 @@ def run_cloudbet_bet_creator(
 
         print(f"\n🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} ('{match['event_name']}')")
         try:
-            partes_detalhe = []
-            if not ah_markets:
-                partes_detalhe.append("AH suspenso")
-            else:
-                partes_detalhe.append(f"{len(ah_markets)} linhas AH")
-
-            if not tg_markets:
-                partes_detalhe.append("Gols suspenso")
-            else:
-                partes_detalhe.append(f"{len(tg_markets)} linhas Gols")
-
-            if cards_markets:
-                if is_inplay or (fix.get('status') and fix.get('status') not in ('NS', 'TBD')):
-                    partes_detalhe.append(f"{len(cards_markets)} linhas Cartões (ignoradas: jogo em andamento, Under restrito ao pré-jogo)")
-                else:
-                    partes_detalhe.append(f"{len(cards_markets)} linhas Cartões abertas")
-            else:
-                partes_detalhe.append("Cartões suspenso")
-
-            resumo_linhas_str = "; ".join(partes_detalhe)
-            motivo_match = f"🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id}: {resumo_linhas_str}."
-
+            motivo_match = f"🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} ('{match['event_name']}')."
             log_lifecycle_event(
                 cursor=cursor,
                 fixture_id=f_id,
                 componente='CLOUDBET_RADAR',
-                tipo_evento='LINHAS_ATIVAS',
-                estado_novo='LINHAS_RECEBIDAS',
+                tipo_evento='MATCH_ENCONTRADO',
+                estado_novo='MATCH_LOCALIZADO',
                 estado_anterior=None,
                 motivo=motivo_match,
                 fase_jogo=fix.get('status') or 'NS',
@@ -680,18 +659,21 @@ def run_cloudbet_bet_creator(
         old_h = 0.0
         old_a = 0.0
 
+        odds_1x2_msg = None
         if mo_live.get('home') and mo_live.get('away'):
             eval_fix['odd_home'] = float(mo_live['home']['price'])
             eval_fix['odd_away'] = float(mo_live['away']['price'])
             if mo_live.get('draw'):
                 eval_fix['odd_draw'] = float(mo_live['draw']['price'])
-            print(f"   🔄 [Odds 1X2 Cloudbet Ao Vivo] {home} @ {eval_fix['odd_home']:.2f} | Empate @ {eval_fix.get('odd_draw', 0.0):.2f} | {away} @ {eval_fix['odd_away']:.2f}")
+            odds_1x2_msg = f"🔄 [Odds 1X2 Cloudbet Ao Vivo] #{f_id} {home} vs {away} ➔ {home} @ {eval_fix['odd_home']:.2f} | Empate @ {eval_fix.get('odd_draw', 0.0):.2f} | {away} @ {eval_fix['odd_away']:.2f}"
+            print(f"   {odds_1x2_msg}")
         elif wtw_live.get('home') and wtw_live.get('away'):
             eval_fix['odd_home'] = float(wtw_live['home']['price'])
             eval_fix['odd_away'] = float(wtw_live['away']['price'])
             if wtw_live.get('draw'):
                 eval_fix['odd_draw'] = float(wtw_live['draw']['price'])
-            print(f"   🔄 [Odds 1X2 In-Play Cloudbet] {home} @ {eval_fix['odd_home']:.2f} | {away} @ {eval_fix['odd_away']:.2f} (Rest of Match)")
+            odds_1x2_msg = f"🔄 [Odds 1X2 In-Play Cloudbet] #{f_id} {home} vs {away} ➔ {home} @ {eval_fix['odd_home']:.2f} | {away} @ {eval_fix['odd_away']:.2f} (Rest of Match)"
+            print(f"   {odds_1x2_msg}")
         elif dnb_live.get('home') and dnb_live.get('away'):
             dnb_h = float(dnb_live['home']['price'])
             dnb_a = float(dnb_live['away']['price'])
@@ -701,6 +683,26 @@ def run_cloudbet_bet_creator(
                 print(f"   ⚡ [Inversão de Favoritismo no DNB Cloudbet] {home} DNB @ {dnb_h:.2f} vs {away} DNB @ {dnb_a:.2f}. Calibrando consenso 1X2 ao vivo.")
                 eval_fix['odd_home'] = dnb_h
                 eval_fix['odd_away'] = dnb_a
+            odds_1x2_msg = f"🔄 [Odds DNB Cloudbet] #{f_id} {home} vs {away} ➔ {home} DNB @ {dnb_h:.2f} | {away} DNB @ {dnb_a:.2f}"
+
+        if odds_1x2_msg:
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='ODDS_1X2',
+                    estado_novo='ODDS_SINCRONIZADAS',
+                    estado_anterior=None,
+                    motivo=odds_1x2_msg,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=int(fix.get('elapsed') or 0),
+                    placar_momento=f"{g_home}x{g_away}",
+                    delta={'odd_home': eval_fix.get('odd_home'), 'odd_away': eval_fix.get('odd_away'), 'odd_draw': eval_fix.get('odd_draw', 0.0)}
+                )
+                conn.commit()
+            except Exception:
+                pass
 
         # Inicialização Prévia de Variáveis de Tempo de Jogo (Regra de Ouro 8)
         elapsed_min = 0
@@ -716,9 +718,43 @@ def run_cloudbet_bet_creator(
         # MÓDULO 1: HANDICAP ASIÁTICO (AH) - Restrito: Pré-Jogo até 35 minutos (0x0)
         # =====================================================================
         if is_inplay and (g_home > 0 or g_away > 0):
-            print(f"   🛡️ [Handicap Standby] Placar alterado ({g_home}x{g_away}). Entradas in-play de Handicap restritas exclusivamente a 0x0.")
+            motivo_ah_standby = f"🛡️ [Handicap Standby] #{f_id} {home} vs {away}: Placar alterado ({g_home}x{g_away}). Entradas in-play de Handicap restritas exclusivamente a 0x0."
+            print(f"   {motivo_ah_standby}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='AH_STANDBY',
+                    estado_novo='STANDBY_PLACAR',
+                    estado_anterior=None,
+                    motivo=motivo_ah_standby,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
         elif elapsed_min > 35:
-            print(f"   🛡️ [Handicap Standby] Partida aos {elapsed_min}' do 1T. Entradas em Handicap restritas até os 35 minutos.")
+            motivo_ah_standby = f"🛡️ [Handicap Standby] #{f_id} {home} vs {away}: Partida aos {elapsed_min}' do 1T. Entradas em Handicap restritas até os 35 minutos."
+            print(f"   {motivo_ah_standby}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='AH_STANDBY',
+                    estado_novo='STANDBY_TEMPO',
+                    estado_anterior=None,
+                    motivo=motivo_ah_standby,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
         elif ah_markets:
             cloudbet_lines = []
             for hcap, outcomes in ah_markets.items():
@@ -769,7 +805,25 @@ def run_cloudbet_bet_creator(
                     m_reason = re.search(r'REASON:\s*(.+)', detalhe_calculo)
                     if m_reason:
                         motivo = m_reason.group(1).strip()
+                motivo_ah_rep = f"📊 [Cloudbet AH] #{f_id} {home} vs {away} ({len(cloudbet_lines)} linha(s): {sample_lines}) ➔ ❌ [Gatekeeper AH - Reprovado] NO_BET | Motivo: {motivo}"
                 print(f"   ❌ [Gatekeeper AH - Reprovado] {home} vs {away}: NO_BET | Motivo: {motivo}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='AH_REPROVADO',
+                        estado_novo='REPROVADO_GATEKEEPER',
+                        estado_anterior=None,
+                        motivo=motivo_ah_rep,
+                        fase_jogo=fix.get('status') or 'NS',
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}",
+                        delta={'linhas_avaliadas': len(cloudbet_lines), 'motivo': motivo}
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
                 apostas_rejeitadas_ev += 1
             else:
                 cand_destaque = int(best_cand.get('destaque', 0))
@@ -781,7 +835,24 @@ def run_cloudbet_bet_creator(
                 market_url = best_cand.get('market_url', '')
 
                 if cand_destaque not in (BetTier.PREMIUM.value, BetTier.QUASE_PREMIUM.value):
-                    print(f"   ℹ️ [Filtro AH] {selected_palpite} @ {odd_val:.2f} classificada como Regular (destaque={cand_destaque}). Apenas PREMIUM e QUASE PREMIUM são emitidas.")
+                    motivo_ah_reg = f"ℹ️ [Filtro AH] #{f_id} {home} vs {away}: {selected_palpite} @ {odd_val:.2f} classificada como Regular (destaque={cand_destaque}). Apenas PREMIUM e QUASE PREMIUM são emitidas."
+                    print(f"   {motivo_ah_reg}")
+                    try:
+                        log_lifecycle_event(
+                            cursor=cursor,
+                            fixture_id=f_id,
+                            componente='CLOUDBET_RADAR',
+                            tipo_evento='AH_STANDBY',
+                            estado_novo='FILTRO_REGULAR',
+                            estado_anterior=None,
+                            motivo=motivo_ah_reg,
+                            fase_jogo=fix.get('status') or 'NS',
+                            minuto_jogo=elapsed_min,
+                            placar_momento=f"{g_home}x{g_away}"
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
                     apostas_puladas += 1
                 else:
                     cat_nome = best_cand.get('gatekeeper_category', 'Quase Premium (+EV)')
@@ -823,13 +894,47 @@ def run_cloudbet_bet_creator(
                         elif is_dup:
                             apostas_duplicadas += 1
         else:
-            print(f"   ⏳ [Cloudbet AH] Nenhuma linha ativa de Handicap Asiático aberta no momento (livro fechado pela corretora).")
+            motivo_ah_fechado = f"⏳ [Cloudbet AH] #{f_id} {home} vs {away}: Nenhuma linha ativa de Handicap Asiático aberta no momento (livro fechado pela corretora)."
+            print(f"   {motivo_ah_fechado}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='AH_STANDBY',
+                    estado_novo='LINHAS_FECHADAS',
+                    estado_anterior=None,
+                    motivo=motivo_ah_fechado,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
 
         # =====================================================================
         # MÓDULO 2: GOLS ASIÁTICOS (TOTAL GOALS) - Pré-Jogo (0-10m) & In-Play (15-35m)
         # =====================================================================
         if 10 < elapsed_min < 15:
-            print(f"   ⏳ [Gols In-Play Standby] Partida aos {elapsed_min}' do 1T (0x0). Aguardando consolidação da Janela Áurea In-Play (15' a 35').")
+            motivo_gols_std = f"⏳ [Gols In-Play Standby] #{f_id} {home} vs {away}: Partida aos {elapsed_min}' do 1T (0x0). Aguardando consolidação da Janela Áurea In-Play (15' a 35')."
+            print(f"   {motivo_gols_std}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='GOLS_STANDBY',
+                    estado_novo='STANDBY_JANELA',
+                    estado_anterior=None,
+                    motivo=motivo_gols_std,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
         elif 15 <= elapsed_min <= 35 and tg_markets:
             # Submódulo Sniper In-Play de Gols Asiáticos (0x0 aos 15'-35' do 1T)
             minutos_restantes = max(10, 90 - elapsed_min)
@@ -843,7 +948,24 @@ def run_cloudbet_bet_creator(
             # Trava de Segurança Ofensiva: Exige volume mínimo de jogo (Anti-Truncado)
             atividade_ofensiva = shots_tot + corners_tot
             if elapsed_min >= 20 and atividade_ofensiva < 3:
-                print(f"   🛡️ [Sniper Gols Standby] Jogo aos {elapsed_min}' (0x0): Volume ofensivo insuficiente ({shots_tot} chutes, {corners_tot} cantos). Abstenção para proteção contra 0x0 monótono.")
+                motivo_gols_atv = f"🛡️ [Sniper Gols Standby] #{f_id} {home} vs {away}: Jogo aos {elapsed_min}' (0x0). Volume ofensivo insuficiente ({shots_tot} chutes, {corners_tot} cantos). Abstenção para proteção contra 0x0 monótono."
+                print(f"   {motivo_gols_atv}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='GOLS_STANDBY',
+                        estado_novo='STANDBY_OFENSIVO',
+                        estado_anterior=None,
+                        motivo=motivo_gols_atv,
+                        fase_jogo=fix.get('status') or 'NS',
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}"
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
                 continue
 
             # Expectativa Base de Gols
@@ -937,9 +1059,43 @@ def run_cloudbet_bet_creator(
                         apostas_duplicadas += 1
             else:
                 motivo_espera = ", ".join(rejeicoes_sniper[:2]) if rejeicoes_sniper else "Sem linhas cotadas no intervalo de valor"
-                print(f"   ℹ️ [Sniper Gols In-Play] Jogo aos {elapsed_min}' do 1T (0x0): {motivo_espera}. Aguardando decaimento temporal.")
+                motivo_gols_val = f"ℹ️ [Sniper Gols In-Play] #{f_id} {home} vs {away}: Jogo aos {elapsed_min}' do 1T (0x0): {motivo_espera}. Aguardando decaimento temporal."
+                print(f"   {motivo_gols_val}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='GOLS_STANDBY',
+                        estado_novo='AGUARDANDO_VALOR',
+                        estado_anterior=None,
+                        motivo=motivo_gols_val,
+                        fase_jogo=fix.get('status') or 'NS',
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}"
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
         elif elapsed_min > 35:
-            print(f"   🛡️ [Janela In-Play Encerrada] Partida aos {elapsed_min}' do 1T. Entradas em Gols no 0x0 restritas até os 35 minutos.")
+            motivo_gols_enc = f"🛡️ [Janela In-Play Encerrada] #{f_id} {home} vs {away}: Partida aos {elapsed_min}' do 1T. Entradas em Gols no 0x0 restritas até os 35 minutos."
+            print(f"   {motivo_gols_enc}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='GOLS_STANDBY',
+                    estado_novo='ENCERRADA_35M',
+                    estado_anterior=None,
+                    motivo=motivo_gols_enc,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
         elif tg_markets:
             cloudbet_goals_lines = []
             for t_val, outcomes in tg_markets.items():
@@ -1011,26 +1167,111 @@ def run_cloudbet_bet_creator(
                     elif is_dup_g:
                         apostas_duplicadas += 1
             else:
-                print(f"   ❌ [Gatekeeper Gols - Reprovado] {home} vs {away}: NO_BET | Motivo: {reason_g}")
+                motivo_gols_rep = f"❌ [Gatekeeper Gols - Reprovado] #{f_id} {home} vs {away}: NO_BET | Motivo: {reason_g}"
+                print(f"   {motivo_gols_rep}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='GOLS_REPROVADO',
+                        estado_novo='REPROVADO_GATEKEEPER',
+                        estado_anterior=None,
+                        motivo=motivo_gols_rep,
+                        fase_jogo=fix.get('status') or 'NS',
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}"
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
         else:
-            print(f"   ⏳ [Cloudbet Gols] Nenhuma linha de Over/Under Gols aberta no momento (seleções desativadas pela corretora).")
+            motivo_gols_fechado = f"⏳ [Cloudbet Gols] #{f_id} {home} vs {away}: Nenhuma linha de Over/Under Gols aberta no momento (seleções desativadas pela corretora)."
+            print(f"   {motivo_gols_fechado}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='GOLS_STANDBY',
+                    estado_novo='LINHAS_FECHADAS',
+                    estado_anterior=None,
+                    motivo=motivo_gols_fechado,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
 
         # =====================================================================
         # MÓDULO 3: TOTAL DE CARTÕES (UNDER CARTÕES) - Restrito: Exclusivamente Pré-Jogo (NS)
         # =====================================================================
         if is_inplay or elapsed_min > 0 or cur_status not in ('NS', 'TBD'):
-            print(f"   🛡️ [Cartões Standby] Partida em andamento ({cur_status} aos {elapsed_min}'). Entradas em Cartões Under restritas exclusivamente ao Pré-Jogo (NS) para blindagem contra advertências precoces.")
+            motivo_cards_std = f"🛡️ [Cartões Standby] #{f_id} {home} vs {away}: Partida em andamento ({cur_status} aos {elapsed_min}'). Entradas em Cartões Under restritas exclusivamente ao Pré-Jogo (NS) para blindagem contra advertências precoces."
+            print(f"   {motivo_cards_std}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='CARTOES_STANDBY',
+                    estado_novo='STANDBY_INPLAY',
+                    estado_anterior=None,
+                    motivo=motivo_cards_std,
+                    fase_jogo=cur_status,
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
         elif cards_markets:
             sample_c_lines = ", ".join([f"Under {lv:g} @ {d['under']['price']:.2f}" for lv, d in cards_markets.items() if 'under' in d][:4])
             print(f"   📊 [Cloudbet Cartões] {len(cards_markets)} linha(s) cotada(s): {sample_c_lines}{'...' if len(cards_markets) > 4 else ''}")
 
             league_id = eval_fix.get('league_id')
             if league_id and int(league_id) in CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS:
-                print(f"   🛡️ [Gatekeeper Cartões NO_BET] Liga excluída por taxa de Reds > 10% (ID #{league_id}).")
+                motivo_c_exc = f"🛡️ [Gatekeeper Cartões NO_BET] #{f_id} {home} vs {away}: Liga excluída por taxa de Reds > 10% (ID #{league_id})."
+                print(f"   {motivo_c_exc}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='CARTOES_REPROVADO',
+                        estado_novo='REPROVADO_LIGA',
+                        estado_anterior=None,
+                        motivo=motivo_c_exc,
+                        fase_jogo=cur_status,
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}"
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
             else:
                 calc_cards = compute_fixture_expected_cards(cursor, eval_fix)
                 if not calc_cards or calc_cards[0] is None:
-                    print(f"   ℹ️ [Gatekeeper Cartões] Dados estatísticos de cartões insuficientes no banco para {home} vs {away}.")
+                    motivo_c_insuf = f"ℹ️ [Gatekeeper Cartões] #{f_id} {home} vs {away}: Dados estatísticos de cartões insuficientes no banco."
+                    print(f"   {motivo_c_insuf}")
+                    try:
+                        log_lifecycle_event(
+                            cursor=cursor,
+                            fixture_id=f_id,
+                            componente='CLOUDBET_RADAR',
+                            tipo_evento='CARTOES_STANDBY',
+                            estado_novo='DADOS_INSUFICIENTES',
+                            estado_anterior=None,
+                            motivo=motivo_c_insuf,
+                            fase_jogo=cur_status,
+                            minuto_jogo=elapsed_min,
+                            placar_momento=f"{g_home}x{g_away}"
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
                 else:
                     exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, _ = calc_cards
                     card_bet_placed = False
@@ -1065,7 +1306,24 @@ def run_cloudbet_bet_creator(
                             a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
                             crise_desc = f"{home} ({h_str}) vs {away} ({a_str}) em colapso técnico recente (U5J <= 3.0 pts)"
 
-                        print(f"   🛡️ [Gatekeeper Cartões NO_BET / {motivo_crise_lbl}] {crise_desc}. Risco de atrito disciplinar extremo: Under vetado e sem entradas em Over (Abstenção Mandatória).")
+                        motivo_c_crise = f"🛡️ [Gatekeeper Cartões NO_BET / {motivo_crise_lbl}] #{f_id} {crise_desc}. Risco de atrito disciplinar extremo: Under vetado e sem entradas em Over (Abstenção Mandatória)."
+                        print(f"   {motivo_c_crise}")
+                        try:
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                componente='CLOUDBET_RADAR',
+                                tipo_evento='CARTOES_REPROVADO',
+                                estado_novo='REPROVADO_CRISE',
+                                estado_anterior=None,
+                                motivo=motivo_c_crise,
+                                fase_jogo=cur_status,
+                                minuto_jogo=elapsed_min,
+                                placar_momento=f"{g_home}x{g_away}"
+                            )
+                            conn.commit()
+                        except Exception:
+                            pass
                         continue
 
                     # Ordena linhas da maior para a menor (maior linha = menor risco: 8.5 -> 7.5 -> 6.5 -> 5.5)
@@ -1140,9 +1398,43 @@ def run_cloudbet_bet_creator(
 
                     if not card_bet_placed:
                         resumo_reprov = reject_reasons[0] if reject_reasons else "Cotações ou margens insuficientes para Under Cartões."
-                        print(f"   ❌ [Gatekeeper Cartões - Reprovado] {home} vs {away}: NO_BET | Motivo: {resumo_reprov}")
+                        motivo_c_rep = f"❌ [Gatekeeper Cartões - Reprovado] #{f_id} {home} vs {away}: NO_BET | Motivo: {resumo_reprov}"
+                        print(f"   {motivo_c_rep}")
+                        try:
+                            log_lifecycle_event(
+                                cursor=cursor,
+                                fixture_id=f_id,
+                                componente='CLOUDBET_RADAR',
+                                tipo_evento='CARTOES_REPROVADO',
+                                estado_novo='REPROVADO_GATEKEEPER',
+                                estado_anterior=None,
+                                motivo=motivo_c_rep,
+                                fase_jogo=cur_status,
+                                minuto_jogo=elapsed_min,
+                                placar_momento=f"{g_home}x{g_away}"
+                            )
+                            conn.commit()
+                        except Exception:
+                            pass
         else:
-            print(f"   ⏳ [Cloudbet Cartões] Nenhuma linha de Cartões aberta no momento (seleções desativadas pela corretora).")
+            motivo_c_fechado = f"⏳ [Cloudbet Cartões] #{f_id} {home} vs {away}: Nenhuma linha de Cartões aberta no momento (seleções desativadas pela corretora)."
+            print(f"   {motivo_c_fechado}")
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='CARTOES_STANDBY',
+                    estado_novo='LINHAS_FECHADAS',
+                    estado_anterior=None,
+                    motivo=motivo_c_fechado,
+                    fase_jogo=cur_status,
+                    minuto_jogo=elapsed_min,
+                    placar_momento=f"{g_home}x{g_away}"
+                )
+                conn.commit()
+            except Exception:
+                pass
 
     cursor.close()
     conn.close()

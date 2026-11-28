@@ -30,7 +30,11 @@ class TestRadarLiveFeed(unittest.TestCase):
         self.assertIn("CLOUDBET_RADAR", content, "Componente CLOUDBET_RADAR ausente no script Cloudbet")
         self.assertIn("VARREDURA_INPLAY", content, "Evento VARREDURA_INPLAY ausente no script Cloudbet")
         self.assertIn("LINHAS_FECHADAS", content, "Evento LINHAS_FECHADAS ausente no script Cloudbet")
-        self.assertIn("LINHAS_ATIVAS", content, "Evento LINHAS_ATIVAS ausente no script Cloudbet")
+        self.assertIn("MATCH_ENCONTRADO", content, "Evento MATCH_ENCONTRADO ausente no script Cloudbet")
+        self.assertIn("ODDS_1X2", content, "Evento ODDS_1X2 ausente no script Cloudbet")
+        self.assertIn("AH_REPROVADO", content, "Evento AH_REPROVADO ausente no script Cloudbet")
+        self.assertIn("GOLS_STANDBY", content, "Evento GOLS_STANDBY ausente no script Cloudbet")
+        self.assertIn("CARTOES_STANDBY", content, "Evento CARTOES_STANDBY ausente no script Cloudbet")
         self.assertIn("ORDEM_EMITIDA", content, "Evento ORDEM_EMITIDA ausente no script Cloudbet")
 
     def test_routes_contains_radar_feed(self):

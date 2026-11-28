@@ -131,7 +131,9 @@ def log_match_milestone(
     marco: str,
     placar: Optional[str] = None,
     minuto: Optional[int] = None,
-    detalhes: str = ""
+    detalhes: str = "",
+    home_team: Optional[str] = None,
+    away_team: Optional[str] = None
 ) -> Optional[int]:
     """
     Registra os 4 marcos cronológicos essenciais da partida:
@@ -140,6 +142,21 @@ def log_match_milestone(
       - 'INTERVALO_RETORNO' (45' - Início do 2º Tempo / Retorno do Intervalo)
       - 'FIM_DE_JOGO' (90'+ - Apito Final / Encerramento FT)
     """
+    h_name = (home_team or "").strip()
+    a_name = (away_team or "").strip()
+    if not h_name or not a_name:
+        try:
+            cursor.execute("SELECT home_team, away_team FROM fixtures_trends WHERE fixture_id = %s LIMIT 1", (fixture_id,))
+            f_row = cursor.fetchone()
+            if f_row:
+                h_name = (f_row.get('home_team') or '').strip() if isinstance(f_row, dict) else (f_row[0] or '').strip()
+                a_name = (f_row.get('away_team') or '').strip() if isinstance(f_row, dict) else (f_row[1] or '').strip()
+        except Exception:
+            pass
+
+    match_prefix = f" #{fixture_id} {h_name} vs {a_name}:" if (h_name and a_name) else (f" #{fixture_id}:" if fixture_id else "")
+    match_tag = f" #{fixture_id} {h_name} vs {a_name}" if (h_name and a_name) else (f" #{fixture_id}" if fixture_id else "")
+
     mapa_marcos = {
         "APITO_INICIAL": {
             "componente": "LIVE_MATCH_CLOCK",
@@ -147,7 +164,7 @@ def log_match_milestone(
             "minuto": 0,
             "estado_ant": "NS",
             "estado_novo": "1H",
-            "desc": "⏱️ Bola rolando! Apito inicial da partida."
+            "desc": f"⏱️ Bola rolando!{match_prefix} Apito inicial da partida."
         },
         "INTERVALO_INICIO": {
             "componente": "LIVE_MATCH_CLOCK",
@@ -155,7 +172,7 @@ def log_match_milestone(
             "minuto": 45,
             "estado_ant": "1H",
             "estado_novo": "HT",
-            "desc": "⏸️ Fim do 1º tempo. Equipes no vestiário (Intervalo)."
+            "desc": f"⏸️ Fim do 1º tempo para{match_tag}. Equipes no vestiário (Intervalo)."
         },
         "INTERVALO_RETORNO": {
             "componente": "LIVE_MATCH_CLOCK",
@@ -163,7 +180,7 @@ def log_match_milestone(
             "minuto": 45,
             "estado_ant": "HT",
             "estado_novo": "2H",
-            "desc": "▶️ Bola rolando para a etapa final! Retorno do intervalo."
+            "desc": f"▶️ Bola rolando para a etapa final de{match_tag}! Retorno do intervalo."
         },
         "FIM_DE_JOGO": {
             "componente": "LIVE_MATCH_CLOCK",
@@ -171,7 +188,7 @@ def log_match_milestone(
             "minuto": 90,
             "estado_ant": "2H",
             "estado_novo": "FT",
-            "desc": "🏁 Apito final! Partida encerrada."
+            "desc": f"🏁 Apito final!{match_prefix} Partida encerrada."
         }
     }
 

@@ -77,6 +77,37 @@ class TestRadarLiveFeed(unittest.TestCase):
         self.assertIn("loadRadarFeed", content, "Função loadRadarFeed ausente no script do header")
         self.assertIn("pulse-radar-dot", content, "Classe visual pulse-radar-dot ausente")
 
+    def test_match_milestone_contains_team_names(self):
+        """Verifica se log_match_milestone inclui o nome dos times no motivo_detalhado."""
+        import sys
+        sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
+        from lifecycle_logger import log_match_milestone
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None  # sem duplicatas
+        mock_cursor.lastrowid = 1234
+
+        log_id = log_match_milestone(
+            cursor=mock_cursor,
+            fixture_id=1649500,
+            marco="APITO_INICIAL",
+            placar="0x0",
+            minuto=0,
+            home_team="Columbus Crew",
+            away_team="Inter Miami"
+        )
+
+        self.assertEqual(log_id, 1234)
+        mock_cursor.execute.assert_called()
+        # Verificar se a query de INSERT continha os nomes dos times
+        insert_args = [call_args for call_args in mock_cursor.execute.call_args_list if "INSERT INTO" in str(call_args)]
+        self.assertTrue(len(insert_args) > 0, "INSERT INTO pipeline_lifecycle_logs não foi chamado")
+        params = insert_args[0][0][1]
+        motivo_gravado = params[9]  # motivo_detalhado
+        self.assertIn("Columbus Crew", motivo_gravado)
+        self.assertIn("Inter Miami", motivo_gravado)
+        self.assertIn("#1649500", motivo_gravado)
+
 
 if __name__ == '__main__':
     unittest.main()

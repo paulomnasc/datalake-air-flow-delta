@@ -821,13 +821,13 @@ def main():
         placar_str = f"{gh}x{ga}"
 
         if old_status in ('NS', 'TBD', 'PRE') and live_status in ('1H', 'LIVE'):
-            log_match_milestone(cursor, fid, 'APITO_INICIAL', placar=placar_str, minuto=elapsed or 0)
+            log_match_milestone(cursor, fid, 'APITO_INICIAL', placar=placar_str, minuto=elapsed or 0, home_team=h_team, away_team=a_team)
         elif old_status == '1H' and live_status == 'HT':
-            log_match_milestone(cursor, fid, 'INTERVALO_INICIO', placar=placar_str, minuto=45)
+            log_match_milestone(cursor, fid, 'INTERVALO_INICIO', placar=placar_str, minuto=45, home_team=h_team, away_team=a_team)
         elif old_status == 'HT' and live_status == '2H':
-            log_match_milestone(cursor, fid, 'INTERVALO_RETORNO', placar=placar_str, minuto=45)
+            log_match_milestone(cursor, fid, 'INTERVALO_RETORNO', placar=placar_str, minuto=45, home_team=h_team, away_team=a_team)
         elif old_status in ('1H', '2H', 'HT', 'LIVE') and live_status in ('FT', 'FINISHED'):
-            log_match_milestone(cursor, fid, 'FIM_DE_JOGO', placar=placar_str, minuto=elapsed or 90)
+            log_match_milestone(cursor, fid, 'FIM_DE_JOGO', placar=placar_str, minuto=elapsed or 90, home_team=h_team, away_team=a_team)
 
         # Captura cartões (API-Sports ou Fallback ESPN)
         yc_h = matched_ev.get('yellow_cards_home')

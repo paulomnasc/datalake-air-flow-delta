@@ -1098,6 +1098,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
         </div>
 
+        <!-- Caixa de Pesquisa do Radar In-Play em Tempo Real -->
+        <div class="sidebar-notif-search px-3 py-2" id="search-radar" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08); display: none;">
+            <div class="position-relative">
+                <i class="bi bi-search position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; pointer-events: none;"></i>
+                <input type="text" id="input-busca-radar" class="form-control form-control-sm text-light ps-4 pe-4" placeholder="Buscar no Radar por time, evento, linha..." style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; font-size: 0.8rem;" autocomplete="off">
+                <button type="button" id="btn-limpar-busca-radar" class="btn btn-link position-absolute text-secondary p-0" style="right: 8px; top: 50%; transform: translateY(-50%); display: none; text-decoration: none;" title="Limpar busca">
+                    <i class="bi bi-x-circle-fill" style="font-size: 0.85rem;"></i>
+                </button>
+            </div>
+            <div id="busca-radar-feedback" class="mt-1 d-flex justify-content-between align-items-center text-muted" style="font-size: 0.70rem; display: none !important;">
+                <span id="busca-radar-contador"></span>
+                <span class="text-secondary opacity-75">ESC limpa</span>
+            </div>
+        </div>
+
         <!-- Container da Aba Notificações -->
         <div id="lista-notificacoes-container" class="sidebar-notif-body flex-grow-1" style="overflow-y: auto;">
             <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
@@ -1678,6 +1693,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             const toolNotif = document.getElementById('toolbar-notificacoes');
             const toolRadar = document.getElementById('toolbar-radar');
             const searchNotif = document.getElementById('search-notificacoes');
+            const searchRadar = document.getElementById('search-radar');
             const titleEl = document.getElementById('header-sidebar-title');
             const iconEl = document.getElementById('header-sidebar-icon');
 
@@ -1689,6 +1705,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 if (toolNotif) toolNotif.style.display = 'none';
                 if (toolRadar) toolRadar.style.display = 'flex';
                 if (searchNotif) searchNotif.style.display = 'none';
+                if (searchRadar) searchRadar.style.display = 'block';
                 if (titleEl) titleEl.innerText = 'Radar In-Play (DAG)';
                 if (iconEl) iconEl.className = 'bi bi-broadcast text-info fs-5';
                 loadRadarFeed(false);
@@ -1699,6 +1716,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 if (contNotif) contNotif.style.display = 'block';
                 if (toolRadar) toolRadar.style.display = 'none';
                 if (toolNotif) toolNotif.style.display = 'flex';
+                if (searchRadar) searchRadar.style.display = 'none';
                 if (searchNotif) searchNotif.style.display = 'block';
                 if (titleEl) titleEl.innerText = 'Central & Notificações';
                 if (iconEl) iconEl.className = 'bi bi-bell-fill text-warning fs-5';
@@ -1813,6 +1831,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 });
 
                 container.innerHTML = html;
+                aplicarFiltroBuscaRadar();
             })
             .catch(err => {
                 console.warn('[Radar In-Play] Erro ao carregar feed:', err);
@@ -2068,6 +2087,71 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 emptyDiv.innerHTML = `
                     <i class="bi bi-search fs-4 d-block mb-2 text-secondary opacity-50"></i>
                     Nenhum alerta encontrado para "<strong>${escapeHtmlNotif(rawQuery)}</strong>".
+                `;
+                container.appendChild(emptyDiv);
+            }
+        }
+
+        function aplicarFiltroBuscaRadar() {
+            const input = document.getElementById('input-busca-radar');
+            const clearBtn = document.getElementById('btn-limpar-busca-radar');
+            const feedbackEl = document.getElementById('busca-radar-feedback');
+            const contadorEl = document.getElementById('busca-radar-contador');
+            const container = document.getElementById('lista-radar-container');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.radar-feed-item');
+            const emptyInitial = container.querySelector('#radar-empty-state');
+
+            // Remove empty state de busca anterior
+            const prevSearchEmpty = container.querySelector('.radar-search-empty-state');
+            if (prevSearchEmpty) prevSearchEmpty.remove();
+
+            if (!items.length) {
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (clearBtn) clearBtn.style.display = 'none';
+                return;
+            }
+
+            const rawQuery = input ? input.value.trim() : '';
+            const queryNorm = rawQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+            if (clearBtn) {
+                clearBtn.style.display = rawQuery ? 'inline-block' : 'none';
+            }
+
+            if (!queryNorm) {
+                items.forEach(el => el.style.display = '');
+                if (feedbackEl) feedbackEl.style.setProperty('display', 'none', 'important');
+                if (emptyInitial) emptyInitial.style.display = 'none';
+                return;
+            }
+
+            let matchesCount = 0;
+            items.forEach(el => {
+                const textNorm = (el.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                if (textNorm.includes(queryNorm)) {
+                    el.style.display = '';
+                    matchesCount++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (feedbackEl && contadorEl) {
+                feedbackEl.style.setProperty('display', 'flex', 'important');
+                contadorEl.textContent = matchesCount === 1 
+                    ? '1 evento encontrado' 
+                    : `${matchesCount} de ${items.length} eventos encontrados`;
+            }
+
+            if (matchesCount === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'text-center text-muted p-4 radar-search-empty-state';
+                emptyDiv.style.fontSize = '0.84rem';
+                emptyDiv.innerHTML = `
+                    <i class="bi bi-search fs-4 d-block mb-2 text-info opacity-50"></i>
+                    Nenhum evento do radar encontrado para "<strong>${escapeHtmlNotif(rawQuery)}</strong>".
                 `;
                 container.appendChild(emptyDiv);
             }
@@ -2883,6 +2967,35 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         searchInput.focus();
                     }
                     aplicarFiltroBuscaNotificacoes();
+                });
+            }
+
+            // Eventos da Caixa de Pesquisa do Radar In-Play em Tempo Real
+            const searchRadarInput = document.getElementById('input-busca-radar');
+            const clearSearchRadarBtn = document.getElementById('btn-limpar-busca-radar');
+
+            if (searchRadarInput) {
+                searchRadarInput.addEventListener('input', function() {
+                    aplicarFiltroBuscaRadar();
+                });
+                searchRadarInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && this.value.trim() !== '') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.value = '';
+                        aplicarFiltroBuscaRadar();
+                    }
+                });
+            }
+
+            if (clearSearchRadarBtn) {
+                clearSearchRadarBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (searchRadarInput) {
+                        searchRadarInput.value = '';
+                        searchRadarInput.focus();
+                    }
+                    aplicarFiltroBuscaRadar();
                 });
             }
 

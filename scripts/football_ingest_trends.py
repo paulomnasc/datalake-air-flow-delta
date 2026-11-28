@@ -2934,6 +2934,14 @@ def sync_pending_past_fixtures(conn, headers):
                             WHERE fixture_id = %s
                         """, (yc_h, yc_a, rc_h, rc_a, ck_h, ck_a, fid))
                         stats_synced += 1
+
+                        # Enriquecimento Pós-Jogo (FT): Alimenta player_ratings_cache com as notas reais da partida terminada
+                        try:
+                            from player_ratings_manager import enrich_fixture_player_ratings_from_api
+                            enrich_fixture_player_ratings_from_api(cursor, conn, fid)
+                        except Exception as ex_ratings:
+                            print(f"⚠️ [PlayerRatings] Aviso ao enriquecer notas da partida #{fid}: {ex_ratings}")
+
                         time.sleep(0.3)
                 except Exception as ex_st:
                     print(f"Aviso ao coletar cartões da fixture #{fid}: {ex_st}")

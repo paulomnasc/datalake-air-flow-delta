@@ -3918,12 +3918,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                              
                                              $hPlayers = [];
                                              $hTotalScore = 0.0;
+                                             $hRatedCount = 0;
                                              foreach ($hStartXI as $p) {
                                                  $pId = (int)($p['player']['id'] ?? 0);
                                                  $pName = $p['player']['name'] ?? 'Jogador';
                                                  $pPos = $p['player']['pos'] ?? 'M';
                                                  $pNum = $p['player']['number'] ?? '';
-                                                 $rating = isset($playerRatingsMap[$pId]) ? (float)$playerRatingsMap[$pId] : 6.5;
+                                                 $rating = isset($playerRatingsMap[$pId]) && $playerRatingsMap[$pId] !== null ? (float)$playerRatingsMap[$pId] : null;
                                                  $hPlayers[] = [
                                                      'id' => $pId,
                                                      'name' => $pName,
@@ -3931,20 +3932,27 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                      'num' => $pNum,
                                                      'rating' => $rating
                                                  ];
-                                                 $hTotalScore += $rating;
+                                                 if ($rating !== null) {
+                                                     $hTotalScore += $rating;
+                                                     $hRatedCount++;
+                                                 }
                                              }
                                              usort($hPlayers, function($a, $b) {
+                                                 if ($a['rating'] === null && $b['rating'] === null) return 0;
+                                                 if ($a['rating'] === null) return 1;
+                                                 if ($b['rating'] === null) return -1;
                                                  return $b['rating'] <=> $a['rating'];
                                              });
 
                                              $aPlayers = [];
                                              $aTotalScore = 0.0;
+                                             $aRatedCount = 0;
                                              foreach ($aStartXI as $p) {
                                                  $pId = (int)($p['player']['id'] ?? 0);
                                                  $pName = $p['player']['name'] ?? 'Jogador';
                                                  $pPos = $p['player']['pos'] ?? 'M';
                                                  $pNum = $p['player']['number'] ?? '';
-                                                 $rating = isset($playerRatingsMap[$pId]) ? (float)$playerRatingsMap[$pId] : 6.5;
+                                                 $rating = isset($playerRatingsMap[$pId]) && $playerRatingsMap[$pId] !== null ? (float)$playerRatingsMap[$pId] : null;
                                                  $aPlayers[] = [
                                                      'id' => $pId,
                                                      'name' => $pName,
@@ -3952,9 +3960,15 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                      'num' => $pNum,
                                                      'rating' => $rating
                                                  ];
-                                                 $aTotalScore += $rating;
+                                                 if ($rating !== null) {
+                                                     $aTotalScore += $rating;
+                                                     $aRatedCount++;
+                                                 }
                                              }
                                              usort($aPlayers, function($a, $b) {
+                                                 if ($a['rating'] === null && $b['rating'] === null) return 0;
+                                                 if ($a['rating'] === null) return 1;
+                                                 if ($b['rating'] === null) return -1;
                                                  return $b['rating'] <=> $a['rating'];
                                              });
 
@@ -3962,15 +3976,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                              $aTotalScore = round($aTotalScore, 1);
                                              $hCount = count($hPlayers);
                                              $aCount = count($aPlayers);
-                                             $hAvgScore = $hCount > 0 ? round($hTotalScore / $hCount, 2) : 0;
-                                             $aAvgScore = $aCount > 0 ? round($aTotalScore / $aCount, 2) : 0;
+                                             $hAvgScore = $hRatedCount > 0 ? round($hTotalScore / $hRatedCount, 2) : 0;
+                                             $aAvgScore = $aRatedCount > 0 ? round($aTotalScore / $aRatedCount, 2) : 0;
 
                                              $sumBoth = $hTotalScore + $aTotalScore;
                                              $hPct = $sumBoth > 0 ? round(($hTotalScore / $sumBoth) * 100, 1) : 50;
                                              $aPct = 100 - $hPct;
 
-                                             $isHomeLeader = ($hTotalScore > $aTotalScore);
-                                             $isAwayLeader = ($aTotalScore > $hTotalScore);
+                                             $hasEnoughRatings = ($hRatedCount >= 5 && $aRatedCount >= 5);
+                                             $isHomeLeader = ($hasEnoughRatings && $hTotalScore > $aTotalScore);
+                                             $isAwayLeader = ($hasEnoughRatings && $aTotalScore > $hTotalScore);
                                              $collapseId = "lineupRanking_" . (int)$fix->fixture_id;
                                      ?>
                                      <div class="lineup-ratings-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
@@ -3994,8 +4009,12 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                      <?php endif; ?>
                                                  </div>
                                                  <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
-                                                     <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isHomeLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($hTotalScore, 1) ?> pts</span>
-                                                     <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($hAvgScore, 2) ?> avg)</span>
+                                                     <?php if ($hRatedCount >= 5): ?>
+                                                         <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isHomeLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($hTotalScore, 1) ?> pts</span>
+                                                         <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($hAvgScore, 2) ?> avg)</span>
+                                                     <?php else: ?>
+                                                         <span style="font-size: 0.80rem; font-weight: 600; color: #94a3b8;">Notas N/D (<?= $hRatedCount ?>/11)</span>
+                                                     <?php endif; ?>
                                                  </div>
                                              </div>
                                              <!-- Visitante -->
@@ -4007,8 +4026,12 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                      <span><?= htmlspecialchars($fix->away_team) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin-top: 2px;">
-                                                     <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($aAvgScore, 2) ?> avg)</span>
-                                                     <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isAwayLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($aTotalScore, 1) ?> pts</span>
+                                                     <?php if ($aRatedCount >= 5): ?>
+                                                         <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($aAvgScore, 2) ?> avg)</span>
+                                                         <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isAwayLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($aTotalScore, 1) ?> pts</span>
+                                                     <?php else: ?>
+                                                         <span style="font-size: 0.80rem; font-weight: 600; color: #94a3b8;">Notas N/D (<?= $aRatedCount ?>/11)</span>
+                                                     <?php endif; ?>
                                                  </div>
                                              </div>
                                          </div>
@@ -4026,10 +4049,10 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                  <div>
                                                      <div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between;">
                                                          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
-                                                         <span><?= number_format($hTotalScore, 1) ?> pts <?= $isHomeLeader ? '⭐' : '' ?></span>
+                                                         <span><?= $hRatedCount >= 5 ? number_format($hTotalScore, 1) . ' pts ' . ($isHomeLeader ? '⭐' : '') : 'Amostragem N/D' ?></span>
                                                      </div>
                                                      <?php foreach ($hPlayers as $idx => $p): 
-                                                         $hasStar = ($p['rating'] >= 7.0);
+                                                         $hasStar = ($p['rating'] !== null && $p['rating'] >= 7.0);
                                                      ?>
                                                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 4px; font-size: 0.72rem; border-radius: 3px; background: <?= ($idx % 2 === 0) ? 'rgba(255,255,255,0.03)' : 'transparent' ?>;">
                                                              <span style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="<?= htmlspecialchars($p['name']) ?>">
@@ -4037,8 +4060,8 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                                  <?= htmlspecialchars($p['name']) ?>
                                                                  <span style="color: #64748b; font-size: 0.65rem;">(<?= htmlspecialchars($p['pos']) ?>)</span>
                                                              </span>
-                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : '#ffffff' ?>; display: inline-flex; align-items: center; gap: 2px;">
-                                                                 <?= number_format($p['rating'], 1) ?>
+                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : ($p['rating'] !== null ? '#ffffff' : '#64748b') ?>; display: inline-flex; align-items: center; gap: 2px;">
+                                                                 <?= $p['rating'] !== null ? number_format($p['rating'], 1) : '—' ?>
                                                                  <?php if ($hasStar): ?>
                                                                      <span style="color: #facc15; font-size: 0.75rem;" title="Nota de Excelência (>= 7.0)">⭐</span>
                                                                  <?php endif; ?>
@@ -4050,10 +4073,10 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                  <div>
                                                      <div style="font-size: 0.72rem; font-weight: 700; color: #818cf8; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between;">
                                                          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;"><?= htmlspecialchars($fix->away_team) ?></span>
-                                                         <span><?= number_format($aTotalScore, 1) ?> pts <?= $isAwayLeader ? '⭐' : '' ?></span>
+                                                         <span><?= $aRatedCount >= 5 ? number_format($aTotalScore, 1) . ' pts ' . ($isAwayLeader ? '⭐' : '') : 'Amostragem N/D' ?></span>
                                                      </div>
                                                      <?php foreach ($aPlayers as $idx => $p): 
-                                                         $hasStar = ($p['rating'] >= 7.0);
+                                                         $hasStar = ($p['rating'] !== null && $p['rating'] >= 7.0);
                                                      ?>
                                                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 4px; font-size: 0.72rem; border-radius: 3px; background: <?= ($idx % 2 === 0) ? 'rgba(255,255,255,0.03)' : 'transparent' ?>;">
                                                              <span style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="<?= htmlspecialchars($p['name']) ?>">
@@ -4061,8 +4084,8 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                                  <?= htmlspecialchars($p['name']) ?>
                                                                  <span style="color: #64748b; font-size: 0.65rem;">(<?= htmlspecialchars($p['pos']) ?>)</span>
                                                              </span>
-                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : '#ffffff' ?>; display: inline-flex; align-items: center; gap: 2px;">
-                                                                 <?= number_format($p['rating'], 1) ?>
+                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : ($p['rating'] !== null ? '#ffffff' : '#64748b') ?>; display: inline-flex; align-items: center; gap: 2px;">
+                                                                 <?= $p['rating'] !== null ? number_format($p['rating'], 1) : '—' ?>
                                                                  <?php if ($hasStar): ?>
                                                                      <span style="color: #facc15; font-size: 0.75rem;" title="Nota de Excelência (>= 7.0)">⭐</span>
                                                                  <?php endif; ?>

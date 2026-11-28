@@ -3145,8 +3145,20 @@ def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: 
         ratings_map = {}
         if pids:
             try:
-                from player_ratings_manager import get_players_ratings_map
+                from player_ratings_manager import get_players_ratings_map, enrich_team_player_ratings_from_api
                 ratings_map = get_players_ratings_map(cursor, pids)
+                
+                # Se menos da metade dos titulares tiverem notas no banco local,
+                # efetua enriquecimento automático via API-Sports (Regra 3 - Dados Fidedignos)
+                if len(ratings_map) < (len(pids) * 0.5):
+                    h_tid = lineups[0].get("team", {}).get("id")
+                    a_tid = lineups[1].get("team", {}).get("id")
+                    if h_tid:
+                        enrich_team_player_ratings_from_api(cursor, cursor.connection, int(h_tid))
+                    if a_tid:
+                        enrich_team_player_ratings_from_api(cursor, cursor.connection, int(a_tid))
+                    # Recarrega o mapa após enriquecimento
+                    ratings_map = get_players_ratings_map(cursor, pids)
             except Exception:
                 pass
 
@@ -3154,46 +3166,56 @@ def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: 
         a_xi = lineups[1].get("startXI", [])
 
         h_total = 0.0
+        h_rated_cnt = 0
         for p in h_xi:
             pid = int((p.get("player") or {}).get("id") or 0)
-            rating = (ratings_map.get(pid) or {}).get("rating_media", 6.5)
-            h_total += float(rating)
+            cached_p = ratings_map.get(pid)
+            if cached_p and cached_p.get("rating_media") is not None:
+                h_total += float(cached_p["rating_media"])
+                h_rated_cnt += 1
 
         a_total = 0.0
+        a_rated_cnt = 0
         for p in a_xi:
             pid = int((p.get("player") or {}).get("id") or 0)
-            rating = (ratings_map.get(pid) or {}).get("rating_media", 6.5)
-            a_total += float(rating)
-
-        h_cnt = max(1, len(h_xi))
-        a_cnt = max(1, len(a_xi))
+            cached_p = ratings_map.get(pid)
+            if cached_p and cached_p.get("rating_media") is not None:
+                a_total += float(cached_p["rating_media"])
+                a_rated_cnt += 1
 
         summary["has_lineup"] = True
         summary["home_total"] = round(h_total, 1)
         summary["away_total"] = round(a_total, 1)
-        summary["home_avg"] = round(h_total / h_cnt, 2)
-        summary["away_avg"] = round(a_total / a_cnt, 2)
+        summary["home_avg"] = round(h_total / max(1, h_rated_cnt), 2) if h_rated_cnt > 0 else 0.0
+        summary["away_avg"] = round(a_total / max(1, a_rated_cnt), 2) if a_rated_cnt > 0 else 0.0
         diff = round(abs(h_total - a_total), 1)
         summary["diff_pts"] = diff
 
-        if abs(h_total - a_total) < 0.8:
-            summary["is_equal"] = True
-            summary["fav_lineup_team"] = None
-            summary["text_verdict"] = (
-                f"Súmula Oficial: Equilíbrio técnico perfeito entre os 11 titulares "
-                f"({home_team} {summary['home_total']:.1f} pts vs {away_team} {summary['away_total']:.1f} pts)."
-            )
-        elif h_total > a_total:
-            summary["fav_lineup_team"] = home_team
-            summary["text_verdict"] = (
-                f"Súmula Oficial: Favoritismo técnico do {home_team} por força dos titulares "
-                f"({summary['home_total']:.1f} pts ⭐ vs {summary['away_total']:.1f} pts do {away_team}, vantagem de +{diff:.1f} pts)."
-            )
+        # Se ambas as equipes têm pelo menos 6 titulares com notas reais
+        if h_rated_cnt >= 6 and a_rated_cnt >= 6:
+            if abs(h_total - a_total) < 0.8:
+                summary["is_equal"] = True
+                summary["fav_lineup_team"] = None
+                summary["text_verdict"] = (
+                    f"Súmula Oficial: Equilíbrio técnico perfeito entre os titulares "
+                    f"({home_team} {summary['home_total']:.1f} pts vs {away_team} {summary['away_total']:.1f} pts)."
+                )
+            elif h_total > a_total:
+                summary["fav_lineup_team"] = home_team
+                summary["text_verdict"] = (
+                    f"Súmula Oficial: Favoritismo técnico do {home_team} por força dos titulares "
+                    f"({summary['home_total']:.1f} pts ⭐ vs {summary['away_total']:.1f} pts do {away_team}, vantagem de +{diff:.1f} pts)."
+                )
+            else:
+                summary["fav_lineup_team"] = away_team
+                summary["text_verdict"] = (
+                    f"Súmula Oficial: Favoritismo técnico do {away_team} por força dos titulares "
+                    f"({summary['away_total']:.1f} pts ⭐ vs {summary['home_total']:.1f} pts do {home_team}, vantagem de +{diff:.1f} pts)."
+                )
         else:
-            summary["fav_lineup_team"] = away_team
             summary["text_verdict"] = (
-                f"Súmula Oficial: Favoritismo técnico do {away_team} por força dos titulares "
-                f"({summary['away_total']:.1f} pts ⭐ vs {summary['home_total']:.1f} pts do {home_team}, vantagem de +{diff:.1f} pts)."
+                f"Súmula Oficial: Amostragem histórica de notas individuais em consolidação na federação "
+                f"({h_rated_cnt}/11 do {home_team} e {a_rated_cnt}/11 do {away_team} com notas computadas)."
             )
     except Exception as e:
         pass

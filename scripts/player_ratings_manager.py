@@ -61,6 +61,109 @@ def is_apisports_quota_safe(max_usage_pct: float = 0.80) -> bool:
     return True
 
 
+def enrich_team_player_ratings_from_api(cursor, conn, team_id: int, season: int = None, force: bool = False) -> int:
+    """
+    Enriquece a tabela player_ratings_cache com as notas reais e estatísticas de todos os atletas de um time na temporada.
+    Consulta a API-Sports (/players?team=X&season=Y) quando os atletas do time ainda não possuem notas registradas.
+    Respeita estritamente a salvaguarda de cota da API (Regra 3, item 1).
+    """
+    if not team_id:
+        return 0
+    if not force and not is_apisports_quota_safe(0.80):
+        return 0
+
+    api_key = get_apisports_key()
+    if not api_key:
+        return 0
+
+    if not season:
+        season = datetime.now().year
+
+    total_inserted = 0
+    url = f"https://v3.football.api-sports.io/players?team={team_id}&season={season}"
+    headers = {"x-apisports-key": api_key}
+
+    try:
+        r = requests.get(url, headers=headers, timeout=12)
+        if r.status_code != 200:
+            return 0
+        data = r.json()
+        players_list = data.get("response") or []
+        if not players_list:
+            # Fallback de temporada anterior se a temporada atual ainda não tiver jogos
+            if season == datetime.now().year:
+                r_prev = requests.get(f"https://v3.football.api-sports.io/players?team={team_id}&season={season - 1}", headers=headers, timeout=12)
+                if r_prev.status_code == 200:
+                    players_list = r_prev.json().get("response") or []
+                    season = season - 1
+
+        for item in players_list:
+            p_obj = item.get("player") or {}
+            p_id = int(p_obj.get("id") or 0)
+            p_name = p_obj.get("name") or "Atleta"
+            
+            stats_list = item.get("statistics") or []
+            if not stats_list:
+                continue
+
+            for stats in stats_list:
+                games = stats.get("games") or {}
+                raw_rating = games.get("rating")
+                if not raw_rating:
+                    continue
+
+                try:
+                    match_rating = round(float(raw_rating), 2)
+                except (ValueError, TypeError):
+                    continue
+
+                league_id = int((stats.get("league") or {}).get("id") or 0)
+                minutes = int(games.get("minutes") or 0)
+                lineups_cnt = int(games.get("lineups") or 0)
+                apps_cnt = int(games.get("appearences") or 0)
+                subs_cnt = max(0, apps_cnt - lineups_cnt)
+                pos = str(games.get("position") or "M")[:1].upper()
+                if pos not in ("G", "D", "M", "F"):
+                    pos = "M"
+
+                goals = int((stats.get("goals") or {}).get("total") or 0)
+                assists = int((stats.get("goals") or {}).get("assists") or 0)
+
+                cursor.execute("""
+                    INSERT INTO player_ratings_cache (
+                        player_id, team_id, league_id, season, player_name, position,
+                        rating_media, rating_ultimos5, minutos_jogados, jogos_titular, jogos_reserva,
+                        gols, assistencias, is_estreante_base, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s,
+                        %s, %s, 0, NOW()
+                    )
+                    ON DUPLICATE KEY UPDATE
+                        rating_ultimos5 = VALUES(rating_media),
+                        rating_media = VALUES(rating_media),
+                        minutos_jogados = VALUES(minutos_jogados),
+                        jogos_titular = VALUES(jogos_titular),
+                        jogos_reserva = VALUES(jogos_reserva),
+                        gols = VALUES(gols),
+                        assistencias = VALUES(assistencias),
+                        updated_at = NOW()
+                """, (
+                    p_id, team_id, league_id, season, p_name, pos,
+                    match_rating, match_rating, minutes, lineups_cnt, subs_cnt,
+                    goals, assists
+                ))
+                total_inserted += 1
+
+        if conn and total_inserted > 0:
+            conn.commit()
+
+        return total_inserted
+    except Exception as e:
+        print(f"⚠️ [EnrichTeamPlayerRatings Erro Time #{team_id}]: {e}")
+        return 0
+
+
 def get_players_ratings_map(cursor, player_ids: List[int], season: int = None) -> Dict[int, dict]:
     """
     Consulta 100% local no MySQL (Cache-First) para obter as notas de rendimento dos atletas.
@@ -161,15 +264,14 @@ def calculate_lineup_strength(start_xi_players: List[dict], ratings_map: Dict[in
             rating = cached["rating_media"]
             minutos = cached["minutos_jogados"]
             is_untested = (minutos == 0 and cached.get("jogos_titular", 0) == 0 and cached.get("jogos_reserva", 0) == 0)
+            total_rating += rating
+            cnt += 1
         else:
             # Atleta sem histórico prévio no banco local:
-            # Atribui nota padrão de jogador competitivo (6.50)
-            rating = 6.50
+            # Regra 9 e Regra 12: NÃO atribuir nota sintética ou mágica (sem fallback 6.50)!
+            rating = None
             minutos = 0
             is_untested = True
-
-        total_rating += rating
-        cnt += 1
 
         p_info = {
             "id": p_id,
@@ -180,24 +282,27 @@ def calculate_lineup_strength(start_xi_players: List[dict], ratings_map: Dict[in
             "is_untested": is_untested
         }
 
-        if p_pos == "G":
-            goleiro_info = p_info
-            def_ratings.append(rating)
-        elif p_pos == "D":
-            def_ratings.append(rating)
-        elif p_pos == "M":
-            mid_ratings.append(rating)
-        elif p_pos == "F":
-            att_ratings.append(rating)
+        if rating is not None:
+            if p_pos == "G":
+                goleiro_info = p_info
+                def_ratings.append(rating)
+            elif p_pos == "D":
+                def_ratings.append(rating)
+            elif p_pos == "M":
+                mid_ratings.append(rating)
+            elif p_pos == "F":
+                att_ratings.append(rating)
 
-        if rating >= 6.80:
-            pilares_altos.append(p_info)
-        elif rating >= 6.40:
-            pilares_medios.append(p_info)
-        elif rating < 6.00 or is_untested:
+            if rating >= 6.80:
+                pilares_altos.append(p_info)
+            elif rating >= 6.40:
+                pilares_medios.append(p_info)
+            elif rating < 6.00:
+                estreantes_vulneraveis.append(p_info)
+        else:
             estreantes_vulneraveis.append(p_info)
 
-    rating_medio_xi = round(total_rating / max(1, cnt), 2)
+    rating_medio_xi = round(total_rating / max(1, cnt), 2) if cnt > 0 else None
     def_avg = round(sum(def_ratings) / max(1, len(def_ratings)), 2)
     mid_avg = round(sum(mid_ratings) / max(1, len(mid_ratings)), 2)
     att_avg = round(sum(att_ratings) / max(1, len(att_ratings)), 2)

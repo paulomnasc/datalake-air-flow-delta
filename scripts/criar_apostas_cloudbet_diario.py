@@ -670,9 +670,11 @@ def run_cloudbet_bet_creator(
         elif wtw_live.get('home') and wtw_live.get('away'):
             eval_fix['odd_home'] = float(wtw_live['home']['price'])
             eval_fix['odd_away'] = float(wtw_live['away']['price'])
+            draw_str = ""
             if wtw_live.get('draw'):
                 eval_fix['odd_draw'] = float(wtw_live['draw']['price'])
-            odds_1x2_msg = f"🔄 [Odds 1X2 In-Play Cloudbet] #{f_id} {home} vs {away} ➔ {home} @ {eval_fix['odd_home']:.2f} | {away} @ {eval_fix['odd_away']:.2f} (Rest of Match)"
+                draw_str = f" | Empate @ {eval_fix['odd_draw']:.2f}"
+            odds_1x2_msg = f"🔄 [Odds 1X2 In-Play Cloudbet] #{f_id} {home} vs {away} ➔ {home} @ {eval_fix['odd_home']:.2f}{draw_str} | {away} @ {eval_fix['odd_away']:.2f} (Rest of Match)"
             print(f"   {odds_1x2_msg}")
         elif dnb_live.get('home') and dnb_live.get('away'):
             dnb_h = float(dnb_live['home']['price'])

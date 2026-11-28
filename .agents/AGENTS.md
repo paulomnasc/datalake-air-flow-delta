@@ -279,6 +279,19 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   2. `🤖 [PARECER COGNITIVO DA IA SENTINELA]`: Contém o diagnóstico tático, interpretação esportiva e justificativa qualitativa do modelo de IA fundamentando por que houve ou não desfalque estrutural ou oportunidade de valor.
 - **Proibição de Agrupamentos Confusos:** É expressamente proibido misturar jogadores de equipes opostas em frases corridas genéricas sem identificar seus times e setores ou fundir dados numéricos do banco de dados com opiniões da IA sem a devida demarcação dos blocos.
 
+---
+
+## 25. Prioridade Absoluta a Identificadores Únicos Numéricos e Chaves Primárias (Proibição de Matching Textual e Heurísticas como `is_team_match`)
+- **Princípio da Integridade Relacional e Determinística:**
+  - Toda e qualquer reconciliação de dados, sincronização de placar, atualização de status de partidas (`1H`, `HT`, `2H`, `FT`), cruzamento de eventos in-play ou liquidação de apostas **DEVE OBRIGATORIAMENTE ser orientada a identificadores únicos numéricos e chaves primárias do banco de dados** (`fixture_id`, `home_team_id`, `away_team_id`, `event_id`).
+- **Proibição Absoluta de Matching Aproximado de Nomes (`is_team_match` e similares):**
+  - É expressamente proibido utilizar funções de similaridade textual, correspondência aproximada por palavras soltas ou heurísticas de interseção de termos (como `is_team_match()`) para alterar status (`status = 'FT'`), persistir placares ou transicionar o ciclo de vida de partidas.
+  - O matching textual é comprovadamente falho e vulnerável a colisões catastróficas entre equipes com prefixos idênticos (ex: artigos árabes como *"Al"*, onde *"Al-Hazm"* colide com *"Al-Ettifaq"*, e *"Al-Nassr"* colide com *"Al-Hilal"*, causando encerramentos prematuros e falsos positivos de status).
+- **Diretriz Operacional para Feeds Externos e APIs:**
+  - Feeds que retornam o `fixture_id` oficial (ex: API-Sports Live Stream / API-Football) têm autoridade direta para atualizar o status e placar da partida correspondente.
+  - Feeds ou scrapers sem `fixture_id` nativo nunca devem alterar diretamente o status terminal de uma partida (`FT`) sem validação prévia contra chaves numéricas ou confirmação da API oficial por `fixture_id`.
+
+
 
 
 

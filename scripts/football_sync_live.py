@@ -750,13 +750,41 @@ def main():
         a_team = fix['away_team'].strip()
 
         matched_ev = None
+        # Prioridade Absoluta a IDs Numéricos e Chaves Primárias (Regra 25 do AGENTS.md):
+        # 1. Correspondência determinística direta por fixture_id oficial da API
         for ev in live_events:
-            if ev.get('fixture_id') and ev.get('fixture_id') == fid:
+            if ev.get('fixture_id') and int(ev['fixture_id']) == fid:
                 matched_ev = ev
                 break
-            if is_team_match(h_team, ev['home_team']) and is_team_match(a_team, ev['away_team']):
-                matched_ev = ev
-                break
+
+        # 2. Se não houver fixture_id direto no feed externo (ex: ESPN / Cloudbet),
+        # exige correspondência de altíssima fidelidade e NUNCA permite encerramento terminal (FT) via texto aproximado
+        if matched_ev is None:
+            for ev in live_events:
+                # Se o evento externo carrega outro fixture_id conhecido diferente, nunca pareia
+                if ev.get('fixture_id') and int(ev.get('fixture_id')) != fid:
+                    continue
+
+                ev_h = ev.get('home_team', '').strip()
+                ev_a = ev.get('away_team', '').strip()
+
+                # Comparação exata normalizada (sem substrings arbitrárias que colidam por artigos como 'Al')
+                norm_db_h = re.sub(r'[^a-z0-9]', '', h_team.lower())
+                norm_ev_h = re.sub(r'[^a-z0-9]', '', ev_h.lower())
+                norm_db_a = re.sub(r'[^a-z0-9]', '', a_team.lower())
+                norm_ev_a = re.sub(r'[^a-z0-9]', '', ev_a.lower())
+
+                # Exige correspondência rigorosa de ambos os clubes
+                is_home_match = (norm_db_h == norm_ev_h) or (norm_db_h in norm_ev_h and len(norm_db_h) >= 6) or (norm_ev_h in norm_db_h and len(norm_ev_h) >= 6)
+                is_away_match = (norm_db_a == norm_ev_a) or (norm_db_a in norm_ev_a and len(norm_db_a) >= 6) or (norm_ev_a in norm_db_a and len(norm_ev_a) >= 6)
+
+                if is_home_match and is_away_match:
+                    # Trava de Segurança Regra 25: Feed sem fixture_id nativo NÃO PODE marcar 'FT' em jogo em andamento
+                    if ev.get('status') in ('FT', 'FINISHED') and not ev.get('fixture_id'):
+                        print(f"🛡️ [Regra 25 - Veto FT Textual] Ignorando status terminal FT de feed sem fixture_id para #{fid} ({h_team} vs {a_team})")
+                        continue
+                    matched_ev = ev
+                    break
 
         # Fallback do cronômetro dinâmico contínuo (Avanço 100% autônomo sem travas)
         f_date = fix['fixture_date']

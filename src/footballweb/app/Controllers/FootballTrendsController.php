@@ -101,10 +101,12 @@ class FootballTrendsController extends BaseController
         $builder = $db->table('fixtures_trends ft');
         $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level,
                           th.avg_goals_scored as home_avg_goals_scored, th.avg_goals_conceded as home_avg_goals_conceded, th.clean_sheets_pct as home_clean_sheets_pct, th.avg_corners as home_avg_corners, th.avg_cards as home_avg_cards,
-                          ta.avg_goals_scored as away_avg_goals_scored, ta.avg_goals_conceded as away_avg_goals_conceded, ta.clean_sheets_pct as away_clean_sheets_pct, ta.avg_corners as away_avg_corners, ta.avg_cards as away_avg_cards');
+                          ta.avg_goals_scored as away_avg_goals_scored, ta.avg_goals_conceded as away_avg_goals_conceded, ta.clean_sheets_pct as away_clean_sheets_pct, ta.avg_corners as away_avg_corners, ta.avg_cards as away_avg_cards,
+                          mlc.status as lineup_status, mlc.titulares_home, mlc.titulares_away, mlc.lineups_json');
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
+        $builder->join('match_lineups_cache mlc', 'ft.fixture_id = mlc.fixture_id', 'left');
         
         // Converte o intervalo de datas do fuso do usuário para UTC diretamente, viabilizando uso total do índice idx_fixture_date
         $dtUserZone = new \DateTimeZone($userTimezone);
@@ -135,6 +137,37 @@ class FootballTrendsController extends BaseController
 
         $builder->orderBy('ft.fixture_date', 'ASC');
         $fixtures = $builder->get()->getResultObject();
+
+        // Extrai notas de rendimento dos atletas das partidas com súmula confirmada (Cache-First)
+        $playerRatingsMap = [];
+        $confirmedFixturePlayerIds = [];
+        foreach ($fixtures as $fix) {
+            if (!empty($fix->lineups_json)) {
+                $lineupsArr = is_string($fix->lineups_json) ? json_decode($fix->lineups_json, true) : $fix->lineups_json;
+                if (is_array($lineupsArr)) {
+                    foreach ($lineupsArr as $tData) {
+                        $startXI = $tData['startXI'] ?? [];
+                        foreach ($startXI as $pItem) {
+                            $pId = (int)($pItem['player']['id'] ?? 0);
+                            if ($pId > 0) {
+                                $confirmedFixturePlayerIds[] = $pId;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!empty($confirmedFixturePlayerIds) && $db->tableExists('player_ratings_cache')) {
+            $uniquePids = array_values(array_unique($confirmedFixturePlayerIds));
+            $rRows = $db->table('player_ratings_cache')
+                ->select('player_id, rating_media')
+                ->whereIn('player_id', $uniquePids)
+                ->get()
+                ->getResultArray();
+            foreach ($rRows as $rRow) {
+                $playerRatingsMap[(int)$rRow['player_id']] = (float)$rRow['rating_media'];
+            }
+        }
 
         // Extrai ligas únicas para filtro em abas na View
         $leagues = [];
@@ -210,6 +243,7 @@ class FootballTrendsController extends BaseController
             'allBetFixtureIds'           => $allBetFixtureIds,
             'allCancelledBetFixtureIds'  => $allCancelledBetFixtureIds,
             'destaqueFixtureIds'         => $destaqueFixtureIds,
+            'playerRatingsMap'           => $playerRatingsMap,
             'fixtures'           => $fixtures,
             'leagues'            => $leagues,
             'title'              => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
@@ -584,8 +618,10 @@ class FootballTrendsController extends BaseController
 
                 // Busca fixture compatível no banco
                 $builder = $db->table('fixtures_trends ft');
-                $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level');
+                $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level,
+                                  mlc.status as lineup_status, mlc.titulares_home, mlc.titulares_away, mlc.lineups_json');
                 $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
+                $builder->join('match_lineups_cache mlc', 'ft.fixture_id = mlc.fixture_id', 'left');
                 $builder->like('ft.home_team', str_replace('-', ' ', $homeSlug));
                 $builder->like('ft.away_team', str_replace('-', ' ', $awaySlug));
                 $fixture = $builder->get()->getRow();
@@ -598,6 +634,26 @@ class FootballTrendsController extends BaseController
                 } else {
                     $homeTeam = ucwords(str_replace('-', ' ', $homeSlug));
                     $awayTeam = ucwords(str_replace('-', ' ', $awaySlug));
+                }
+            }
+        }
+
+        $playerRatingsMap = [];
+        if ($fixture && !empty($fixture->lineups_json) && $db->tableExists('player_ratings_cache')) {
+            $lineupsArr = is_string($fixture->lineups_json) ? json_decode($fixture->lineups_json, true) : $fixture->lineups_json;
+            $pids = [];
+            if (is_array($lineupsArr)) {
+                foreach ($lineupsArr as $tData) {
+                    foreach (($tData['startXI'] ?? []) as $pItem) {
+                        $pId = (int)($pItem['player']['id'] ?? 0);
+                        if ($pId > 0) $pids[] = $pId;
+                    }
+                }
+            }
+            if (!empty($pids)) {
+                $rRows = $db->table('player_ratings_cache')->select('player_id, rating_media')->whereIn('player_id', array_unique($pids))->get()->getResultArray();
+                foreach ($rRows as $rRow) {
+                    $playerRatingsMap[(int)$rRow['player_id']] = (float)$rRow['rating_media'];
                 }
             }
         }
@@ -617,6 +673,7 @@ class FootballTrendsController extends BaseController
             'allBetFixtureIds'           => [],
             'allCancelledBetFixtureIds'  => [],
             'destaqueFixtureIds'         => [],
+            'playerRatingsMap'           => $playerRatingsMap,
             'fixtures'           => $fixture ? [$fixture] : [],
             'leagues'            => $fixture ? [$fixture->league_name] : [],
             'title'              => "Estatísticas {$homeTeam} x {$awayTeam} | CristalBet",

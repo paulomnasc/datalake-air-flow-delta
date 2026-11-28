@@ -57,6 +57,113 @@ except ImportError:
         def log_lifecycle_event(*args, **kwargs):
             return None
 
+try:
+    from gemini_sentinel import coletar_sumula_e_desfalques_apisports
+except ImportError:
+    try:
+        from scripts.gemini_sentinel import coletar_sumula_e_desfalques_apisports
+    except ImportError:
+        coletar_sumula_e_desfalques_apisports = None
+
+def ensure_inplay_handicap_governance(cursor, conn, fix: dict, home: str, away: str) -> tuple:
+    """
+    Governança Mandatória de Handicap Asiático In-Play:
+    Exige que a partida possua Súmula Oficial Confirmada, chancela da IA sobre as escalações
+    e consonância com os cálculos do Gatekeeper (BET confirmado no card).
+    Caso não exista, invoca o fluxo de aprovação sob demanda.
+    Retorna: (is_aprovado: bool, time_autorizado: str, motivo_diagnostico: str)
+    """
+    f_id = fix.get('fixture_id')
+    if not f_id or not cursor:
+        return False, "", "Dados da partida ou conexão de banco ausentes."
+
+    # 1. Verifica se já possui Súmula Oficial no MySQL (Cache-First - Regra 1)
+    cursor.execute("""
+        SELECT status, titulares_home, titulares_away 
+        FROM match_lineups_cache 
+        WHERE fixture_id = %s AND status = 'CONFIRMADA'
+    """, (f_id,))
+    cached_lineup = cursor.fetchone()
+
+    ia_status = (fix.get('auditoria_ia_status') or '').strip().upper()
+    ah_sugg = (fix.get('ah_suggestion') or '').strip()
+    is_card_approved = bool(ah_sugg and not any(k in ah_sugg.lower() for k in ('absten', 'sem entrada', 'no_bet', 'bloquead')))
+
+    # Se já possui súmula confirmada, parecer favorável da IA e BET confirmado no card
+    if cached_lineup and ia_status == 'CONFIRMADO' and is_card_approved:
+        fav_team = home if home.lower() in ah_sugg.lower() else (away if away.lower() in ah_sugg.lower() else "")
+        # Checa força de escalação para enriquecer diagnóstico
+        from asian_handicap_engine import get_lineup_strength_summary_for_fixture
+        lineup_sum = get_lineup_strength_summary_for_fixture(cursor, f_id, home, away)
+        diag_lineup = f" | {lineup_sum['text_verdict']}" if lineup_sum.get("has_lineup") else ""
+        return True, fav_team, f"Partida com Súmula Oficial Confirmada e BET Chancelado pela IA no card{diag_lineup}."
+
+    # 2. Invocação Sob Demanda do Fluxo de Aprovação
+    if not coletar_sumula_e_desfalques_apisports:
+        return False, "", "Módulo de coleta de súmula oficial indisponível."
+
+    sumula = coletar_sumula_e_desfalques_apisports(
+        cursor=cursor,
+        fixture_id=f_id,
+        home_team_id=fix.get('home_team_id'),
+        away_team_id=fix.get('away_team_id'),
+        home_team=home,
+        away_team=away,
+        palpite="",
+        league_id=fix.get('league_id')
+    )
+
+    if not sumula.get("tem_sumula"):
+        return False, "", "Ausência de Súmula Oficial Confirmada (titulares não publicados pela federação)."
+
+    # Verifica alertas de desfalques / time misto emitidos na súmula
+    motivos_alerta = sumula.get("motivos_alerta_elenco") or []
+    if sumula.get("alerta_estrutural_elenco") and len(motivos_alerta) > 0:
+        cursor.execute("UPDATE fixtures_trends SET auditoria_ia_status = 'ALERTA_RISCO', updated_at = NOW() WHERE fixture_id = %s", (f_id,))
+        if conn:
+            conn.commit()
+        return False, "", f"Alerta de Risco na Escalação Oficial: {'; '.join(motivos_alerta[:2])}."
+
+    # 3. Submissão ao Gatekeeper de Handicap para chancela matemática do Card
+    status_gk_card, palpite_card, conf_card, detalhe_card, best_cand_card, _ = calculate_unified_handicap_recommendation(
+        fix, betano_lines=None, allow_api_fetch=False, cursor=cursor
+    )
+
+    if status_gk_card != 'APROVADO' or not best_cand_card:
+        cursor.execute("""
+            UPDATE fixtures_trends SET
+                ah_suggestion = 'Sem Entrada (Abstenção)',
+                updated_at = NOW()
+            WHERE fixture_id = %s
+        """, (f_id,))
+        if conn:
+            conn.commit()
+        return False, "", "Gatekeeper de Handicap reprovou o confronto (consonância matemática desfavorável)."
+
+    # Determina o time favorito respaldado pelas escalações e matemática
+    fav_team = home if home.lower() in palpite_card.lower() else (away if away.lower() in palpite_card.lower() else "")
+    resumo_ia = f"📋 Escalação Confirmada: Titulares oficiais validados com força máxima para {fav_team}."
+    cat_card = best_cand_card.get('gatekeeper_category') or 'Quase Premium'
+
+    # Atualiza e carimba formalmente o card em fixtures_trends
+    cursor.execute("""
+        UPDATE fixtures_trends SET
+            ah_suggestion = %s,
+            ah_confidence = %s,
+            ah_reasoning = %s,
+            gatekeeper_category = %s,
+            auditoria_ia_status = 'CONFIRMADO',
+            auditoria_ia_resumo = %s,
+            auditoria_ia_parecer = %s,
+            auditoria_ia_checked_at = NOW(),
+            updated_at = NOW()
+        WHERE fixture_id = %s
+    """, (palpite_card, conf_card, detalhe_card, cat_card, resumo_ia, detalhe_card, f_id))
+    if conn:
+        conn.commit()
+
+    return True, fav_team, "Súmula Oficial Confirmada, IA chancela força máxima e Gatekeeper valida BET no card."
+
 def get_tactical_reset_context_for_fixture(cursor, fixture_id: int, home_team: str, away_team: str) -> dict:
     """
     Recupera contexto de Reset Tático por Súmula ou Drift previamente homologado pela Sentinela
@@ -758,6 +865,32 @@ def run_cloudbet_bet_creator(
             except Exception:
                 pass
         elif ah_markets:
+            # Governança Mandatória: Trava de Súmula Oficial e Chancela de IA no In-Play
+            is_gov_ok, fav_team_chancelado, motivo_gov = ensure_inplay_handicap_governance(
+                cursor=cursor, conn=conn, fix=eval_fix, home=home, away=away
+            )
+            if not is_gov_ok:
+                motivo_ah_gov = f"🛡️ [Gatekeeper AH - NO_BET] #{f_id} {home} vs {away}: {motivo_gov}"
+                print(f"   {motivo_ah_gov}")
+                try:
+                    log_lifecycle_event(
+                        cursor=cursor,
+                        fixture_id=f_id,
+                        componente='CLOUDBET_RADAR',
+                        tipo_evento='AH_REPROVADO',
+                        estado_novo='REPROVADO_GOVERNANCA',
+                        estado_anterior=None,
+                        motivo=motivo_ah_gov,
+                        fase_jogo=fix.get('status') or 'NS',
+                        minuto_jogo=elapsed_min,
+                        placar_momento=f"{g_home}x{g_away}",
+                        delta={'motivo_bloqueio': motivo_gov}
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                continue
+
             cloudbet_lines = []
             for hcap, outcomes in ah_markets.items():
                 if 'home' in outcomes:
@@ -792,6 +925,30 @@ def run_cloudbet_bet_creator(
                         'bookmaker': 'Cloudbet',
                         'source': 'Cloudbet'
                     })
+
+            if fav_team_chancelado:
+                cloudbet_lines = [c for c in cloudbet_lines if fav_team_chancelado.lower() in c.get('palpite_str', '').lower()]
+                if not cloudbet_lines:
+                    motivo_ah_no_fav = f"⏳ [Cloudbet AH] #{f_id} {home} vs {away}: Nenhuma linha ativa para a equipe chancelada ({fav_team_chancelado})."
+                    print(f"   {motivo_ah_no_fav}")
+                    try:
+                        log_lifecycle_event(
+                            cursor=cursor,
+                            fixture_id=f_id,
+                            componente='CLOUDBET_RADAR',
+                            tipo_evento='AH_STANDBY',
+                            estado_novo='STANDBY_EQUIPE_SEM_LINHAS',
+                            estado_anterior=None,
+                            motivo=motivo_ah_no_fav,
+                            fase_jogo=fix.get('status') or 'NS',
+                            minuto_jogo=elapsed_min,
+                            placar_momento=f"{g_home}x{g_away}",
+                            delta={'equipe_chancelada': fav_team_chancelado}
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
+                    continue
 
             sample_lines = ", ".join([f"{c['palpite_str']} @ {c['odd']:.2f}" for c in cloudbet_lines[:4]])
             print(f"   📊 [Cloudbet AH] {len(cloudbet_lines)} linha(s) cotada(s): {sample_lines}{'...' if len(cloudbet_lines) > 4 else ''}")

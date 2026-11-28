@@ -2417,8 +2417,8 @@ def calculate_unified_handicap_recommendation(
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
                 f"As odds 1x2 da casa apontam {fav_team}{t1_str} como favorito, respaldado por sua superioridade no U5J "
-                f"({fav_eff:.1f} pts vs {dog_eff:.1f} pts do {dog_team}). As linhas conservadoras a favor do favorito (0.0 AH e -0.25 AH) "
-                f"não atingiram os limiares mínimos de rentabilidade (+EV >= 5.0%), e as linhas defensivas no azarão foram terminantemente "
+                f"({fav_eff:.1f} pts vs {dog_eff:.1f} pts do azarão {dog_team}). As linhas conservadoras a favor do favorito {fav_team} (0.0 AH e -0.25 AH) "
+                f"não atingiram os limiares mínimos de rentabilidade (+EV >= 5.0%), e as linhas defensivas no azarão {dog_team} foram terminantemente "
                 f"bloqueadas por inferioridade técnica. Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
             )
         elif dnb_cand and (fav_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA")) and (dog_eff > fav_eff or dog_trend == "CURVA_ASCENDENTE"):
@@ -2936,8 +2936,8 @@ def generate_high_level_ah_narrative(
                 f"SUGGESTION: Sem Entrada (Abstenção)\n"
                 f"REASON: 🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
                 f"As odds 1x2 da casa apontam {fav_t} como favorito, respaldado por superioridade nos últimos 5 jogos "
-                f"({fav_e:.1f} pts vs {und_e:.1f} pts do {und_t}). As linhas a favor do favorito (0.0 AH e -0.25 AH) "
-                f"não atingiram os limiares de rentabilidade (+EV >= 5.0%), e linhas a favor do azarão foram bloqueadas por inferioridade técnica. Abstenção mandatória."
+                f"({fav_e:.1f} pts vs {und_e:.1f} pts do azarão {und_t}). As linhas a favor do favorito {fav_t} (0.0 AH e -0.25 AH) "
+                f"não atingiram os limiares de rentabilidade (+EV >= 5.0%), e linhas a favor do azarão {und_t} foram bloqueadas por inferioridade técnica. Abstenção mandatória."
             )
         return (
             f"STATUS GK: NO_BET\n"
@@ -3099,6 +3099,106 @@ def generate_high_level_ah_narrative(
         )
 
     return narrative
+
+
+def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: str, away_team: str) -> dict:
+    """
+    Obtém a força das escalações oficiais a partir de match_lineups_cache e player_ratings_cache.
+    Retorna o totalizador de pontos dos 11 titulares, a média e o veredito do time favorito por elenco.
+    """
+    summary = {
+        "has_lineup": False,
+        "home_total": 0.0,
+        "away_total": 0.0,
+        "home_avg": 0.0,
+        "away_avg": 0.0,
+        "fav_lineup_team": None,
+        "is_equal": False,
+        "diff_pts": 0.0,
+        "text_verdict": ""
+    }
+    if not cursor or not fixture_id:
+        return summary
+
+    try:
+        cursor.execute("""
+            SELECT lineups_json, status 
+            FROM match_lineups_cache 
+            WHERE fixture_id = %s
+        """, (fixture_id,))
+        row = cursor.fetchone()
+        if not row or not row.get("lineups_json"):
+            return summary
+
+        lineups = json.loads(row["lineups_json"])
+        if not isinstance(lineups, list) or len(lineups) < 2:
+            return summary
+
+        # Coleta IDs de todos os titulares
+        pids = []
+        for l in lineups:
+            for p in l.get("startXI", []):
+                pid = (p.get("player") or {}).get("id")
+                if pid:
+                    pids.append(int(pid))
+
+        ratings_map = {}
+        if pids:
+            try:
+                from player_ratings_manager import get_players_ratings_map
+                ratings_map = get_players_ratings_map(cursor, pids)
+            except Exception:
+                pass
+
+        h_xi = lineups[0].get("startXI", [])
+        a_xi = lineups[1].get("startXI", [])
+
+        h_total = 0.0
+        for p in h_xi:
+            pid = int((p.get("player") or {}).get("id") or 0)
+            rating = (ratings_map.get(pid) or {}).get("rating_media", 6.5)
+            h_total += float(rating)
+
+        a_total = 0.0
+        for p in a_xi:
+            pid = int((p.get("player") or {}).get("id") or 0)
+            rating = (ratings_map.get(pid) or {}).get("rating_media", 6.5)
+            a_total += float(rating)
+
+        h_cnt = max(1, len(h_xi))
+        a_cnt = max(1, len(a_xi))
+
+        summary["has_lineup"] = True
+        summary["home_total"] = round(h_total, 1)
+        summary["away_total"] = round(a_total, 1)
+        summary["home_avg"] = round(h_total / h_cnt, 2)
+        summary["away_avg"] = round(a_total / a_cnt, 2)
+        diff = round(abs(h_total - a_total), 1)
+        summary["diff_pts"] = diff
+
+        if abs(h_total - a_total) < 0.8:
+            summary["is_equal"] = True
+            summary["fav_lineup_team"] = None
+            summary["text_verdict"] = (
+                f"Súmula Oficial: Equilíbrio técnico perfeito entre os 11 titulares "
+                f"({home_team} {summary['home_total']:.1f} pts vs {away_team} {summary['away_total']:.1f} pts)."
+            )
+        elif h_total > a_total:
+            summary["fav_lineup_team"] = home_team
+            summary["text_verdict"] = (
+                f"Súmula Oficial: Favoritismo técnico do {home_team} por força dos titulares "
+                f"({summary['home_total']:.1f} pts ⭐ vs {summary['away_total']:.1f} pts do {away_team}, vantagem de +{diff:.1f} pts)."
+            )
+        else:
+            summary["fav_lineup_team"] = away_team
+            summary["text_verdict"] = (
+                f"Súmula Oficial: Favoritismo técnico do {away_team} por força dos titulares "
+                f"({summary['away_total']:.1f} pts ⭐ vs {summary['home_total']:.1f} pts do {home_team}, vantagem de +{diff:.1f} pts)."
+            )
+    except Exception as e:
+        pass
+
+    return summary
 
 
 def compose_compound_ah_reasoning(
@@ -3328,6 +3428,22 @@ def compose_compound_ah_reasoning(
         }, ensure_ascii=False)
 
     nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
+    lineup_summary = get_lineup_strength_summary_for_fixture(cursor, fixture_id, home_team, away_team)
+    if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict"):
+        lineup_text = lineup_summary["text_verdict"]
+        # Se main_calc possui REASON: insere o parecer de escalação logo abaixo da síntese da IA
+        if "REASON:" in main_calc and "Súmula Oficial: Favoritismo" not in main_calc and "Súmula Oficial: Equilíbrio" not in main_calc:
+            parts = main_calc.split("REASON:", 1)
+            reason_body = parts[1].strip()
+            if "💡 Síntese da IA:" in reason_body:
+                reason_body = reason_body.replace(
+                    "💡 Síntese da IA:",
+                    f"💡 Síntese da IA: {lineup_text}\n"
+                )
+            else:
+                reason_body = f"💡 Parecer Tático da IA: {lineup_text}\n\n{reason_body}"
+            main_calc = f"{parts[0].strip()}\nREASON: {reason_body}"
+
     if not existing_motivation:
         nl_mot = generate_high_level_ah_narrative(
             suggestion=suggestion,
@@ -3339,8 +3455,13 @@ def compose_compound_ah_reasoning(
             odd_home=odd_home,
             odd_away=odd_away
         )
+        if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict"):
+            if "Força das Escalações:" not in nl_mot:
+                nl_mot = f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}\n{nl_mot}"
     else:
         nl_mot = existing_motivation
+        if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict") and "Força das Escalações:" not in nl_mot:
+            nl_mot = f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}\n{nl_mot}"
 
     calc_details = main_calc
 

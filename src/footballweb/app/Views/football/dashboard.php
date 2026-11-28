@@ -3904,6 +3904,180 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                          </div>
                                      <?php endif; ?>
 
+                                     <!-- Força dos Titulares & Escalação Oficial Ranqueada (Player Ratings) -->
+                                     <?php
+                                     $hasLineupConfirmed = !empty($fix->lineup_status) && $fix->lineup_status === 'CONFIRMADA' && !empty($fix->lineups_json);
+                                     if ($hasLineupConfirmed):
+                                         $lineupsData = is_string($fix->lineups_json) ? json_decode($fix->lineups_json, true) : $fix->lineups_json;
+                                         if (is_array($lineupsData) && count($lineupsData) >= 2):
+                                             $hTeamData = $lineupsData[0];
+                                             $aTeamData = $lineupsData[1];
+                                             
+                                             $hStartXI = $hTeamData['startXI'] ?? [];
+                                             $aStartXI = $aTeamData['startXI'] ?? [];
+                                             
+                                             $hPlayers = [];
+                                             $hTotalScore = 0.0;
+                                             foreach ($hStartXI as $p) {
+                                                 $pId = (int)($p['player']['id'] ?? 0);
+                                                 $pName = $p['player']['name'] ?? 'Jogador';
+                                                 $pPos = $p['player']['pos'] ?? 'M';
+                                                 $pNum = $p['player']['number'] ?? '';
+                                                 $rating = isset($playerRatingsMap[$pId]) ? (float)$playerRatingsMap[$pId] : 6.5;
+                                                 $hPlayers[] = [
+                                                     'id' => $pId,
+                                                     'name' => $pName,
+                                                     'pos' => $pPos,
+                                                     'num' => $pNum,
+                                                     'rating' => $rating
+                                                 ];
+                                                 $hTotalScore += $rating;
+                                             }
+                                             usort($hPlayers, function($a, $b) {
+                                                 return $b['rating'] <=> $a['rating'];
+                                             });
+
+                                             $aPlayers = [];
+                                             $aTotalScore = 0.0;
+                                             foreach ($aStartXI as $p) {
+                                                 $pId = (int)($p['player']['id'] ?? 0);
+                                                 $pName = $p['player']['name'] ?? 'Jogador';
+                                                 $pPos = $p['player']['pos'] ?? 'M';
+                                                 $pNum = $p['player']['number'] ?? '';
+                                                 $rating = isset($playerRatingsMap[$pId]) ? (float)$playerRatingsMap[$pId] : 6.5;
+                                                 $aPlayers[] = [
+                                                     'id' => $pId,
+                                                     'name' => $pName,
+                                                     'pos' => $pPos,
+                                                     'num' => $pNum,
+                                                     'rating' => $rating
+                                                 ];
+                                                 $aTotalScore += $rating;
+                                             }
+                                             usort($aPlayers, function($a, $b) {
+                                                 return $b['rating'] <=> $a['rating'];
+                                             });
+
+                                             $hTotalScore = round($hTotalScore, 1);
+                                             $aTotalScore = round($aTotalScore, 1);
+                                             $hCount = count($hPlayers);
+                                             $aCount = count($aPlayers);
+                                             $hAvgScore = $hCount > 0 ? round($hTotalScore / $hCount, 2) : 0;
+                                             $aAvgScore = $aCount > 0 ? round($aTotalScore / $aCount, 2) : 0;
+
+                                             $sumBoth = $hTotalScore + $aTotalScore;
+                                             $hPct = $sumBoth > 0 ? round(($hTotalScore / $sumBoth) * 100, 1) : 50;
+                                             $aPct = 100 - $hPct;
+
+                                             $isHomeLeader = ($hTotalScore > $aTotalScore);
+                                             $isAwayLeader = ($aTotalScore > $hTotalScore);
+                                             $collapseId = "lineupRanking_" . (int)$fix->fixture_id;
+                                     ?>
+                                     <div class="lineup-ratings-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                             <span style="font-size: 0.74rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 5px;">
+                                                 <i class="bi bi-shield-check" style="color: #00e676;"></i> Força dos Titulares (Súmula Oficial)
+                                             </span>
+                                             <button type="button" class="btn btn-xs" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #ffffff; font-size: 0.70rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#<?= $collapseId ?>" aria-expanded="false" aria-controls="<?= $collapseId ?>">
+                                                 <i class="bi bi-people-fill"></i> Ranking Titulares <i class="bi bi-chevron-down ms-1"></i>
+                                             </button>
+                                         </div>
+
+                                         <!-- Linha de Total de Pontuação com Estrela Dourada no time líder -->
+                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;">
+                                             <!-- Mandante -->
+                                             <div style="text-align: left; border-right: 1px solid rgba(255, 255, 255, 0.08); padding-right: 8px;">
+                                                 <div style="font-size: 0.78rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                     <span><?= htmlspecialchars($fix->home_team) ?></span>
+                                                     <?php if ($isHomeLeader): ?>
+                                                         <span style="color: #facc15; font-size: 0.95rem; text-shadow: 0 0 6px rgba(250, 204, 21, 0.7);" title="Maior Pontuação Coletiva">⭐</span>
+                                                     <?php endif; ?>
+                                                 </div>
+                                                 <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+                                                     <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isHomeLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($hTotalScore, 1) ?> pts</span>
+                                                     <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($hAvgScore, 2) ?> avg)</span>
+                                                 </div>
+                                             </div>
+                                             <!-- Visitante -->
+                                             <div style="text-align: right; padding-left: 8px;">
+                                                 <div style="font-size: 0.78rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; justify-content: flex-end; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                     <?php if ($isAwayLeader): ?>
+                                                         <span style="color: #facc15; font-size: 0.95rem; text-shadow: 0 0 6px rgba(250, 204, 21, 0.7);" title="Maior Pontuação Coletiva">⭐</span>
+                                                     <?php endif; ?>
+                                                     <span><?= htmlspecialchars($fix->away_team) ?></span>
+                                                 </div>
+                                                 <div style="display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin-top: 2px;">
+                                                     <span style="font-size: 0.68rem; color: #94a3b8; font-weight: 600;">(<?= number_format($aAvgScore, 2) ?> avg)</span>
+                                                     <span style="font-size: 0.95rem; font-weight: 800; color: <?= $isAwayLeader ? '#facc15' : '#ffffff' ?>;"><?= number_format($aTotalScore, 1) ?> pts</span>
+                                                 </div>
+                                             </div>
+                                         </div>
+
+                                         <!-- Barra de Proporção Visual -->
+                                         <div style="height: 4px; border-radius: 2px; overflow: hidden; display: flex; margin-bottom: 4px; background: rgba(255, 255, 255, 0.1);">
+                                             <div style="width: <?= $hPct ?>%; background: <?= $isHomeLeader ? '#facc15' : '#38bdf8' ?>;" title="<?= htmlspecialchars($fix->home_team) ?>: <?= $hPct ?>%"></div>
+                                             <div style="width: <?= $aPct ?>%; background: <?= $isAwayLeader ? '#facc15' : '#818cf8' ?>;" title="<?= htmlspecialchars($fix->away_team) ?>: <?= $aPct ?>%"></div>
+                                         </div>
+
+                                         <!-- Tabela Expansível de Ranking dos Jogadores -->
+                                         <div class="collapse" id="<?= $collapseId ?>" style="margin-top: 8px;">
+                                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px;">
+                                                 <!-- Coluna Mandante -->
+                                                 <div>
+                                                     <div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between;">
+                                                         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                         <span><?= number_format($hTotalScore, 1) ?> pts <?= $isHomeLeader ? '⭐' : '' ?></span>
+                                                     </div>
+                                                     <?php foreach ($hPlayers as $idx => $p): 
+                                                         $hasStar = ($p['rating'] >= 7.0);
+                                                     ?>
+                                                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 4px; font-size: 0.72rem; border-radius: 3px; background: <?= ($idx % 2 === 0) ? 'rgba(255,255,255,0.03)' : 'transparent' ?>;">
+                                                             <span style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="<?= htmlspecialchars($p['name']) ?>">
+                                                                 <span style="color: #94a3b8; font-size: 0.65rem;"><?= $idx + 1 ?>.</span>
+                                                                 <?= htmlspecialchars($p['name']) ?>
+                                                                 <span style="color: #64748b; font-size: 0.65rem;">(<?= htmlspecialchars($p['pos']) ?>)</span>
+                                                             </span>
+                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : '#ffffff' ?>; display: inline-flex; align-items: center; gap: 2px;">
+                                                                 <?= number_format($p['rating'], 1) ?>
+                                                                 <?php if ($hasStar): ?>
+                                                                     <span style="color: #facc15; font-size: 0.75rem;" title="Nota de Excelência (>= 7.0)">⭐</span>
+                                                                 <?php endif; ?>
+                                                             </span>
+                                                         </div>
+                                                     <?php endforeach; ?>
+                                                 </div>
+                                                 <!-- Coluna Visitante -->
+                                                 <div>
+                                                     <div style="font-size: 0.72rem; font-weight: 700; color: #818cf8; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between;">
+                                                         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;"><?= htmlspecialchars($fix->away_team) ?></span>
+                                                         <span><?= number_format($aTotalScore, 1) ?> pts <?= $isAwayLeader ? '⭐' : '' ?></span>
+                                                     </div>
+                                                     <?php foreach ($aPlayers as $idx => $p): 
+                                                         $hasStar = ($p['rating'] >= 7.0);
+                                                     ?>
+                                                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 4px; font-size: 0.72rem; border-radius: 3px; background: <?= ($idx % 2 === 0) ? 'rgba(255,255,255,0.03)' : 'transparent' ?>;">
+                                                             <span style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="<?= htmlspecialchars($p['name']) ?>">
+                                                                 <span style="color: #94a3b8; font-size: 0.65rem;"><?= $idx + 1 ?>.</span>
+                                                                 <?= htmlspecialchars($p['name']) ?>
+                                                                 <span style="color: #64748b; font-size: 0.65rem;">(<?= htmlspecialchars($p['pos']) ?>)</span>
+                                                             </span>
+                                                             <span style="font-weight: 700; color: <?= $hasStar ? '#00e676' : '#ffffff' ?>; display: inline-flex; align-items: center; gap: 2px;">
+                                                                 <?= number_format($p['rating'], 1) ?>
+                                                                 <?php if ($hasStar): ?>
+                                                                     <span style="color: #facc15; font-size: 0.75rem;" title="Nota de Excelência (>= 7.0)">⭐</span>
+                                                                 <?php endif; ?>
+                                                             </span>
+                                                         </div>
+                                                     <?php endforeach; ?>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     </div>
+                                     <?php 
+                                         endif;
+                                     endif; 
+                                     ?>
+
                                     <!-- Árvore de Decisão & Processamento AH -->
                                     <?php 
                                         $decision = getBetDecisionTree($fix);
@@ -4388,6 +4562,20 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                             </span>
                                                         <?php endif; ?>
                                                     </div>
+
+                                                    <?php if (!empty($hasLineupConfirmed) && ($hTotalScore > 0 || $aTotalScore > 0)): ?>
+                                                        <div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 4px; font-size: 0.74rem; color: #ffffff; line-height: 1.4;">
+                                                            <span style="font-weight: 700; color: #38bdf8;"><i class="bi bi-person-check-fill me-1"></i> Parecer da IA por Força de Escalação:</span>
+                                                            <?php if ($isHomeLeader): ?>
+                                                                O <strong><?= htmlspecialchars($fix->home_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($hTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($aTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->away_team) ?>).
+                                                            <?php elseif ($isAwayLeader): ?>
+                                                                O <strong><?= htmlspecialchars($fix->away_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($aTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($hTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->home_team) ?>).
+                                                            <?php else: ?>
+                                                                Escalações com forças técnicas perfeitamente equivalentes (<strong><?= number_format($hTotalScore, 1) ?> pts</strong> cada).
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+
                                                     <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
                                                         <?= htmlspecialchars($ah_block_desc ?: $nl_explanation) ?>
                                                     </div>
@@ -4497,6 +4685,19 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
+
+                                                <?php if (!empty($hasLineupConfirmed) && ($hTotalScore > 0 || $aTotalScore > 0)): ?>
+                                                    <div style="margin-top: 8px; margin-bottom: 6px; padding: 6px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 4px; font-size: 0.74rem; color: #ffffff; line-height: 1.4;">
+                                                        <span style="font-weight: 700; color: #38bdf8;"><i class="bi bi-person-check-fill me-1"></i> Parecer da IA por Força de Escalação:</span>
+                                                        <?php if ($isHomeLeader): ?>
+                                                            O <strong><?= htmlspecialchars($fix->home_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($hTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($aTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->away_team) ?>).
+                                                        <?php elseif ($isAwayLeader): ?>
+                                                            O <strong><?= htmlspecialchars($fix->away_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($aTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($hTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->home_team) ?>).
+                                                        <?php else: ?>
+                                                            Escalações com forças técnicas perfeitamente equivalentes (<strong><?= number_format($hTotalScore, 1) ?> pts</strong> cada).
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endif; ?>
 
                                                 <div style="margin-top: 6px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.4;">
                                                     <div style="font-weight: 700; color: #10b981; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">

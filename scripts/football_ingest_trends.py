@@ -2360,8 +2360,8 @@ def calculate_asian_handicap_suggestion(
                 main_reason = (
                     f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
                     f"As odds 1x2 da casa apontam {fav_team}{t1_str} como favorito, respaldado por sua superioridade no U5J "
-                    f"({fav_eff:.1f} pts vs {dog_eff:.1f} pts do {dog_team}). As linhas conservadoras a favor do favorito (0.0 AH e -0.25 AH) "
-                    f"não atingiram os limiares mínimos de rentabilidade (+EV >= 5.0%), e as linhas defensivas no azarão foram terminantemente "
+                    f"({fav_eff:.1f} pts vs {dog_eff:.1f} pts do azarão {dog_team}). As linhas conservadoras a favor do favorito {fav_team} (0.0 AH e -0.25 AH) "
+                    f"não atingiram os limiares mínimos de rentabilidade (+EV >= 5.0%), e as linhas defensivas no azarão {dog_team} foram terminantemente "
                     f"bloqueadas por inferioridade técnica. Matriz Poisson: xG {home_team} {lambda_home:.2f} x {lambda_away:.2f} {away_team}. Abstenção mandatória."
                 )
             elif dnb_cand and (fav_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA")) and (dog_eff > fav_eff or dog_trend == "CURVA_ASCENDENTE"):

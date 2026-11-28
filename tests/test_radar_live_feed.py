@@ -108,6 +108,50 @@ class TestRadarLiveFeed(unittest.TestCase):
         self.assertIn("Inter Miami", motivo_gravado)
         self.assertIn("#1649500", motivo_gravado)
 
+    def test_ensure_inplay_handicap_governance_pregame_confirmed(self):
+        """Verifica se partida já chancelada com súmula e IA no pré-jogo é autorizada imediatamente."""
+        from scripts.criar_apostas_cloudbet_diario import ensure_inplay_handicap_governance
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor.fetchone.return_value = {
+            'status': 'CONFIRMADA',
+            'titulares_home': 'Jogador 1, Jogador 2',
+            'titulares_away': 'Jogador 3, Jogador 4'
+        }
+        fix = {
+            'fixture_id': 1649500,
+            'auditoria_ia_status': 'CONFIRMADO',
+            'status_gatekeeper': 'APROVADO',
+            'ah_suggestion': 'Columbus Crew +0.5 AH',
+            'home_team': 'Columbus Crew',
+            'away_team': 'Inter Miami'
+        }
+        ok, fav, motivo = ensure_inplay_handicap_governance(mock_cursor, mock_conn, fix, 'Columbus Crew', 'Inter Miami')
+        self.assertTrue(ok)
+        self.assertEqual(fav, 'Columbus Crew')
+        self.assertIn('Súmula Oficial Confirmada', motivo)
+
+    def test_ensure_inplay_handicap_governance_missing_lineup(self):
+        """Verifica se partida sem súmula oficial publicada é barrada com NO_BET."""
+        from scripts.criar_apostas_cloudbet_diario import ensure_inplay_handicap_governance
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor.fetchone.return_value = None  # Sem cache
+
+        with patch('scripts.criar_apostas_cloudbet_diario.coletar_sumula_e_desfalques_apisports') as mock_sumula:
+            mock_sumula.return_value = {'tem_sumula': False}
+            fix = {
+                'fixture_id': 1649500,
+                'auditoria_ia_status': None,
+                'status_gatekeeper': 'NO_BET',
+                'ah_suggestion': 'Sem Entrada (Abstenção)',
+                'home_team': 'Columbus Crew',
+                'away_team': 'Inter Miami'
+            }
+            ok, fav, motivo = ensure_inplay_handicap_governance(mock_cursor, mock_conn, fix, 'Columbus Crew', 'Inter Miami')
+            self.assertFalse(ok)
+            self.assertIn('Ausência de Súmula Oficial Confirmada', motivo)
+
 
 if __name__ == '__main__':
     unittest.main()

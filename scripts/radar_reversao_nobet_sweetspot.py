@@ -86,6 +86,9 @@ def enviar_push_ntfy_reversao(titulo: str, mensagem: str, tags: str = "arrows_co
     import requests
     
     env_vars = get_live_env_vars()
+    lineups_only = os.environ.get("NTFY_LINEUPS_ONLY") or env_vars.get("NTFY_LINEUPS_ONLY", "false")
+    if str(lineups_only).strip().lower() in ("true", "1", "yes", "on"):
+        return False
     topic = os.environ.get("NTFY_TOPIC") or env_vars.get("NTFY_TOPIC", "footbalweb_sentinela")
     server = (os.environ.get("NTFY_SERVER") or env_vars.get("NTFY_SERVER", "https://ntfy.sh")).rstrip("/")
     base_url = (os.environ.get("NTFY_BASE_URL") or env_vars.get("NTFY_BASE_URL", "https://cristalbet.com.br")).rstrip("/")

@@ -347,6 +347,10 @@ def enviar_push_mobile(titulo: str, mensagem: str, fixture_id: int = None, prior
         if str(enabled).strip().lower() not in ("true", "1", "yes", "on"):
             return False
 
+        lineups_only = os.environ.get("NTFY_LINEUPS_ONLY") or env_vars.get("NTFY_LINEUPS_ONLY", "false")
+        if str(lineups_only).strip().lower() in ("true", "1", "yes", "on"):
+            return False
+
         topic = os.environ.get("NTFY_TOPIC") or env_vars.get("NTFY_TOPIC", "footbalweb_sentinela")
         if not topic:
             return False

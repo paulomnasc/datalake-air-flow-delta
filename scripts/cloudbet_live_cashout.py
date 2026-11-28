@@ -1335,6 +1335,19 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
         meta_event_id = str(cb_meta.get('event_id') or '')
         meta_market_url = str(cb_meta.get('market_url') or '')
 
+        # Exceção Estrutural de Proteção de Capital Real:
+        # Se a aposta original for REAL (dinheiro alocado na corretora),
+        # o Hedge OBRIGATORIAMENTE executa em Produção Real mesmo se o sistema estiver em Dry-Run!
+        orig_is_sim = cb_meta.get('is_simulated')
+        is_real_cloudbet_position = (
+            bet.get('tipo') in ('Robô Cloudbet (Real)', 'Hedge Real') or
+            (bool(bet_id) and not str(bet_id).startswith(('cb_sim_', 'cross_hedge_', 'sim_')) and orig_is_sim is False)
+        )
+        hedge_dry_run = False if is_real_cloudbet_position else client.dry_run
+
+        if is_real_cloudbet_position and client.dry_run:
+            print(f"   🛡️ [Exceção Dry-Run: Posição Real Detectada] Aposta #{aposta_id} possui bilhete real na Cloudbet ({bet_id}). Hedge In-Play configurado em PRODUÇÃO REAL para proteger o capital!")
+
         # Buffer de Liquidez In-Play: Micro-sondagens rápidas (até 4 tentativas a cada 4s)
         # para capturar a reabertura imediata da linha após suspensões dinâmicas da corretora
         event_id = None
@@ -1455,7 +1468,7 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                     print(f"⚠️ [Erro Lifecycle Logger Hedge Retentativa]: {e_log}")
             continue
 
-        if hedge_price <= 1.0 and not client.dry_run:
+        if hedge_price <= 1.0 and not hedge_dry_run:
             print(f"   ⚠️ [Hedge Cloudbet] Mercado oposto '{opposite_market_url}' suspenso/sem liquidez neste instante.")
             try:
                 from lifecycle_logger import log_lifecycle_event
@@ -1575,14 +1588,14 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
             continue
 
         # 🚀 ETAPA 2 DO TWO-PHASE COMMIT: Dispara ordem de Hedge na Cloudbet
-        print(f"   🚀 [Disparando Hedge Real via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+        print(f"   🚀 [Disparando Hedge {'Real' if not hedge_dry_run else 'Simulado'} via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
             event_id=event_id,
             market_url=opposite_market_url,
             price=hedge_price,
             stake=hedge_stake,
-            dry_run=client.dry_run
+            dry_run=hedge_dry_run
         )
 
         # Extração tolerante de identificador da ordem aceita (betId, betslipId, referenceId ou id aninhado)
@@ -1614,11 +1627,11 @@ def check_and_execute_cloudbet_live_cashouts(dry_run_override: Optional[bool] = 
                 "bet_id": bet_id_hedge,
                 "event_id": str(event_id) if event_id else '',
                 "market_url": opposite_market_url,
-                "is_simulated": bool(res_co.get("is_simulated", client.dry_run)),
+                "is_simulated": bool(res_co.get("is_simulated", hedge_dry_run)),
                 "currency": cur
             })
-            tag_categoria = "Green-Hedge In-Play" if is_green_hedge else "Hedge Real In-Play"
-            tipo_aposta_nome = "Green-Hedge" if is_green_hedge else "Hedge Real"
+            tag_categoria = "Green-Hedge In-Play" if is_green_hedge else ("Hedge Real In-Play" if not hedge_dry_run else "Hedge Simulado In-Play")
+            tipo_aposta_nome = "Green-Hedge" if is_green_hedge else ("Hedge Real" if not hedge_dry_run else "Hedge Simulado")
             reason_txt = (
                 "Green-Hedge In-Play acionado para travar lucro e eliminar risco terminal aproveitando cotação inflada da ponta oposta."
                 if is_green_hedge else
@@ -1808,6 +1821,19 @@ def executar_hedge_prejogo_cloudbet(
         meta_event_id = str(cb_meta.get('event_id') or '')
         meta_market_url = str(cb_meta.get('market_url') or '')
 
+        # Exceção Estrutural de Proteção de Capital Real:
+        # Se a aposta original for REAL (dinheiro alocado na corretora),
+        # o Hedge Pré-Jogo OBRIGATORIAMENTE executa em Produção Real mesmo se o sistema estiver em Dry-Run!
+        orig_is_sim = cb_meta.get('is_simulated')
+        is_real_cloudbet_position = (
+            bet.get('tipo') in ('Robô Cloudbet (Real)', 'Hedge Real') or
+            (bool(bet_id) and not str(bet_id).startswith(('cb_sim_', 'cross_pregame_', 'cross_hedge_', 'sim_')) and orig_is_sim is False)
+        )
+        hedge_dry_run = False if is_real_cloudbet_position else client.dry_run
+
+        if is_real_cloudbet_position and client.dry_run:
+            print(f"   🛡️ [Exceção Dry-Run: Posição Real Detectada] Aposta #{aposta_id} possui bilhete real na Cloudbet ({bet_id}). Hedge Pré-Jogo configurado em PRODUÇÃO REAL para proteger o capital!")
+
         casa_nome = bet.get('casa_de_aposta') or 'Cloudbet'
         event_id, opposite_market_url, hedge_price, min_stake, opp_palpite = find_cloudbet_opposite_market_and_quote(
             client=client,
@@ -1847,7 +1873,7 @@ def executar_hedge_prejogo_cloudbet(
                 print(f"⚠️ [Erro Lifecycle Logger Hedge Pré-Jogo]: {e_log}")
             return {"success": False, "motivo": "Mercado Cloudbet não disponível"}
 
-        if hedge_price <= 1.0 and not client.dry_run:
+        if hedge_price <= 1.0 and not hedge_dry_run:
             print(f"   ⚠️ [Hedge Cloudbet Pré-Jogo] Mercado oposto '{opposite_market_url}' sem cotação pré-jogo disponível.")
             try:
                 from lifecycle_logger import log_lifecycle_event
@@ -1869,7 +1895,7 @@ def executar_hedge_prejogo_cloudbet(
             return {"success": False, "motivo": "Mercado oposto sem cotação"}
 
         min_hedge_odd = float(os.environ.get("CLOUDBET_HEDGE_MIN_ODD", "1.65"))
-        if hedge_price < min_hedge_odd and not client.dry_run:
+        if hedge_price < min_hedge_odd and not hedge_dry_run:
             print(f"   🛑 [Hedge Pré-Jogo Abortado - Odd Derretida] Cotação oposta de {hedge_price:.2f} inferior ao piso ({min_hedge_odd:.2f}).")
             tit_der = f"⚠️ Hedge Pré-Jogo Abortado (Odd Derretida): {home} vs {away}"
             msg_der = f"A cotação de cobertura derreteu para {hedge_price:.2f} (piso de segurança: {min_hedge_odd:.2f}). Ordem cancelada para proteger a banca."
@@ -1923,14 +1949,14 @@ def executar_hedge_prejogo_cloudbet(
             print(f"   ℹ️ [Linha Oposta Já Apostada na Cloudbet #{f_id}] {opposite_palpite} (ID #{linha_oposta_existe['id']}). Duplicação de hedge bloqueada.")
             return {"success": True, "is_duplicate": True, "hedge_aposta_id": linha_oposta_existe['id']}
 
-        print(f"   🚀 [Disparando Ordem Real Pré-Jogo via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
+        print(f"   🚀 [Disparando Ordem {'Real' if not hedge_dry_run else 'Simulada'} Pré-Jogo via API Cloudbet] Comprando ponta oposta: {opposite_market_url} @ {hedge_price} (Stake: {hedge_stake} {client.currency})...")
         res_co = client.execute_cashout(
             bet_id=bet_id,
             event_id=event_id,
             market_url=opposite_market_url,
             price=hedge_price,
             stake=hedge_stake,
-            dry_run=client.dry_run
+            dry_run=hedge_dry_run
         )
 
         bet_id_hedge = res_co.get("betId") or res_co.get("referenceId") or res_co.get("betslipId")
@@ -1948,7 +1974,7 @@ def executar_hedge_prejogo_cloudbet(
             return {"success": False, "motivo": f"Falha na API Cloudbet: {res_co}"}
 
         hedge_info = {
-            "mode": "dry_run_pregame_hedge" if client.dry_run else "real_pregame_hedge",
+            "mode": "dry_run_pregame_hedge" if hedge_dry_run else "real_pregame_hedge",
             "hedge_ref": bet_id_hedge,
             "market_url": opposite_market_url,
             "price": hedge_price,
@@ -1962,10 +1988,12 @@ def executar_hedge_prejogo_cloudbet(
                 "bet_id": bet_id_hedge,
                 "event_id": str(event_id) if event_id else '',
                 "market_url": opposite_market_url,
-                "is_simulated": bool(res_co.get("is_simulated", client.dry_run)),
+                "is_simulated": bool(res_co.get("is_simulated", hedge_dry_run)),
                 "currency": client.currency
             })
-            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de Hedge Real Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: Hedge Real Pré-Jogo emitido."
+            tipo_hedge_nome = 'Hedge Real' if not hedge_dry_run else 'Hedge Simulado'
+            cat_hedge_nome = 'Hedge Real Pré-Jogo' if not hedge_dry_run else 'Hedge Simulado Pré-Jogo'
+            detalhado_hedge = f"|| CLOUDBET: {cb_payload} || Bilhete de {tipo_hedge_nome} Pré-Jogo emitido pelo robô para neutralizar aposta #{aposta_id}. Motivo Grok IA: {motivo_clean[:180]} || HEDGE_ORIGEM: #{aposta_id} || CLOUDBET_BET_ID: {bet_id_hedge} || STATUS GK: APROVADO\nSUGGESTION: {opposite_palpite}\nREASON: {tipo_hedge_nome} Pré-Jogo emitido."
 
             cursor.execute("""
                 INSERT INTO apostas (
@@ -1975,13 +2003,14 @@ def executar_hedge_prejogo_cloudbet(
                     resultado_detalhado, criado_em, updated_at, confirmada
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s,
-                    'Cloudbet', %s, %s, %s, 'APROVADO', 'Hedge Real Pré-Jogo',
-                    %s, %s, %s, 'Hedge Real', 'Pendente',
+                    'Cloudbet', %s, %s, %s, 'APROVADO', %s,
+                    %s, %s, %s, %s, 'Pendente',
                     %s, NOW(), NOW(), 1
                 )
             """, (
                 usuario_id, client.currency, f_id, home, away, bet.get('mercado', 'Handicap Asiático'),
-                opposite_palpite, hedge_price, hedge_price, data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2),
+                opposite_palpite, hedge_price, hedge_price, cat_hedge_nome,
+                data_jogo_hedge, hedge_stake, round(hedge_stake * hedge_price, 2), tipo_hedge_nome,
                 detalhado_hedge
             ))
             new_hedge_aposta_id = cursor.lastrowid

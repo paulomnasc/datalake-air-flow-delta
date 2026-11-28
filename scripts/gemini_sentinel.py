@@ -933,7 +933,8 @@ def enviar_push_mobile(titulo: str, mensagem: str, fixture_id: int = None, prior
             "message": mensagem,
             "priority": prioridade,
             "tags": tags or ["soccer"],
-            "click": click_url
+            "click": click_url,
+            "markdown": True
         }
 
         resp = requests.post(
@@ -2694,7 +2695,9 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                             alerta_enviado = True
                     conn.commit()
 
-                    if alerta_enviado:
+                    # Push mobile suprimido para observação preliminar quando NTFY_LINEUPS_ONLY=true (mantido no Sininho web)
+                    lineups_only = os.environ.get("NTFY_LINEUPS_ONLY") or env_vars.get("NTFY_LINEUPS_ONLY", "false")
+                    if alerta_enviado and str(lineups_only).strip().lower() not in ("true", "1", "yes", "on"):
                         enviar_push_mobile(
                             titulo=titulo_alerta,
                             mensagem=parecer,
@@ -2908,8 +2911,9 @@ def processar_auditoria_prejogo(window_minutes: int = 50, specific_fixture_id: i
                                 verde_enviado = True
                         conn.commit()
 
-                        # Dispara push notification para o smartphone via ntfy (prioridade alta)
-                        if verde_enviado:
+                        # Push mobile suprimido para mensagem genérica de hora de apostar quando NTFY_LINEUPS_ONLY=true (mantido no Sininho web)
+                        lineups_only = os.environ.get("NTFY_LINEUPS_ONLY") or env_vars.get("NTFY_LINEUPS_ONLY", "false")
+                        if verde_enviado and str(lineups_only).strip().lower() not in ("true", "1", "yes", "on"):
                             enviar_push_mobile(
                                 titulo=tit_verde,
                                 mensagem=msg_verde,

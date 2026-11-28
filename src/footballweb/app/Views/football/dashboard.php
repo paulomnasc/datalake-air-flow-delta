@@ -4587,6 +4587,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                     </div>
 
                                                     <?php if (!empty($hasLineupConfirmed) && ($hTotalScore > 0 || $aTotalScore > 0)): ?>
+                                                        <?php
+                                                            $lineupStatusElencos = '';
+                                                            $fullReasonSource = ($raw_reasoning ?? '') . ' ' . ($motivation ?? '') . ' ' . ($main_analysis ?? '');
+                                                            if (preg_match('/Status dos Elencos:\s*([^\|\n\r]+)/u', $fullReasonSource, $mStatusElencos)) {
+                                                                $lineupStatusElencos = trim($mStatusElencos[1]);
+                                                            }
+                                                        ?>
                                                         <div style="margin-bottom: 8px; padding: 6px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 4px; font-size: 0.74rem; color: #ffffff; line-height: 1.4;">
                                                             <span style="font-weight: 700; color: #38bdf8;"><i class="bi bi-person-check-fill me-1"></i> Parecer da IA por Força de Escalação:</span>
                                                             <?php if ($isHomeLeader): ?>
@@ -4595,6 +4602,11 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                                 O <strong><?= htmlspecialchars($fix->away_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($aTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($hTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->home_team) ?>).
                                                             <?php else: ?>
                                                                 Escalações com forças técnicas perfeitamente equivalentes (<strong><?= number_format($hTotalScore, 1) ?> pts</strong> cada).
+                                                            <?php endif; ?>
+                                                            <?php if (!empty($lineupStatusElencos)): ?>
+                                                                <div style="margin-top: 4px; font-size: 0.71rem; color: #cbd5e1; border-top: 1px dashed rgba(255, 255, 255, 0.12); padding-top: 4px;">
+                                                                    <span style="color: #38bdf8; font-weight: 600;"><i class="bi bi-shield-shaded me-1"></i> Núcleo Titular (Core):</span> <?= htmlspecialchars($lineupStatusElencos) ?>
+                                                                </div>
                                                             <?php endif; ?>
                                                         </div>
                                                     <?php endif; ?>
@@ -4710,6 +4722,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                 </div>
 
                                                 <?php if (!empty($hasLineupConfirmed) && ($hTotalScore > 0 || $aTotalScore > 0)): ?>
+                                                    <?php
+                                                        $lineupStatusElencos = '';
+                                                        $fullReasonSource = ($raw_reasoning ?? '') . ' ' . ($motivation ?? '') . ' ' . ($main_analysis ?? '');
+                                                        if (preg_match('/Status dos Elencos:\s*([^\|\n\r]+)/u', $fullReasonSource, $mStatusElencos)) {
+                                                            $lineupStatusElencos = trim($mStatusElencos[1]);
+                                                        }
+                                                    ?>
                                                     <div style="margin-top: 8px; margin-bottom: 6px; padding: 6px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 4px; font-size: 0.74rem; color: #ffffff; line-height: 1.4;">
                                                         <span style="font-weight: 700; color: #38bdf8;"><i class="bi bi-person-check-fill me-1"></i> Parecer da IA por Força de Escalação:</span>
                                                         <?php if ($isHomeLeader): ?>
@@ -4718,6 +4737,11 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                                             O <strong><?= htmlspecialchars($fix->away_team) ?></strong> é o favorito a nível de escalação titular (<strong><?= number_format($aTotalScore, 1) ?> pts ⭐</strong> vs <strong><?= number_format($hTotalScore, 1) ?> pts</strong> do <?= htmlspecialchars($fix->home_team) ?>).
                                                         <?php else: ?>
                                                             Escalações com forças técnicas perfeitamente equivalentes (<strong><?= number_format($hTotalScore, 1) ?> pts</strong> cada).
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($lineupStatusElencos)): ?>
+                                                            <div style="margin-top: 4px; font-size: 0.71rem; color: #cbd5e1; border-top: 1px dashed rgba(255, 255, 255, 0.12); padding-top: 4px;">
+                                                                <span style="color: #38bdf8; font-weight: 600;"><i class="bi bi-shield-shaded me-1"></i> Núcleo Titular (Core):</span> <?= htmlspecialchars($lineupStatusElencos) ?>
+                                                            </div>
                                                         <?php endif; ?>
                                                     </div>
                                                 <?php endif; ?>

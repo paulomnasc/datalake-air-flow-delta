@@ -3191,6 +3191,45 @@ def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: 
         diff = round(abs(h_total - a_total), 1)
         summary["diff_pts"] = diff
 
+        # Análise do Core Titular (Espinha Dorsal de Elite) de cada equipe
+        def evaluate_team_core(tid, xi):
+            xi_pids = set(int((p.get("player") or {}).get("id") or 0) for p in xi)
+            core_db = []
+            if tid:
+                cursor.execute("""
+                    SELECT player_id, player_name, rating_media, jogos_titular 
+                    FROM player_ratings_cache 
+                    WHERE team_id = %s AND rating_media >= 6.8 AND (jogos_titular >= 2 OR rating_media >= 7.2)
+                    ORDER BY rating_media DESC LIMIT 5
+                """, (tid,))
+                core_db = cursor.fetchall() or []
+                if len(core_db) < 3:
+                    cursor.execute("""
+                        SELECT player_id, player_name, rating_media, jogos_titular 
+                        FROM player_ratings_cache 
+                        WHERE team_id = %s AND rating_media IS NOT NULL
+                        ORDER BY rating_media DESC LIMIT 5
+                    """, (tid,))
+                    core_db = cursor.fetchall() or []
+            tot = len(core_db)
+            if tot == 0:
+                return {"label": "Em consolidação", "desc": "amostragem de elenco em formação", "is_complete": False}
+            pres = [p["player_name"] for p in core_db if p["player_id"] in xi_pids]
+            miss = [p["player_name"] for p in core_db if p["player_id"] not in xi_pids]
+            if len(miss) == 0:
+                return {"label": f"Força Máxima ({tot}/{tot})", "desc": f"força máxima confirmada (core de elite {tot}/{tot} titulares escalado)", "is_complete": True}
+            elif len(pres) >= (tot * 0.7):
+                return {"label": f"Espinha Preservada ({len(pres)}/{tot})", "desc": f"espinha dorsal preservada ({len(pres)}/{tot} titulares de elite escalados; fora: {', '.join(miss)})", "is_complete": False}
+            else:
+                return {"label": f"Núcleo Desfalcado ({len(pres)}/{tot})", "desc": f"desfalques no núcleo titular ({len(pres)}/{tot} de elite escalados; ausências: {', '.join(miss)})", "is_complete": False}
+
+        h_tid = lineups[0].get("team", {}).get("id")
+        a_tid = lineups[1].get("team", {}).get("id")
+        h_core = evaluate_team_core(h_tid, h_xi)
+        a_core = evaluate_team_core(a_tid, a_xi)
+        summary["home_core"] = h_core
+        summary["away_core"] = a_core
+
         # Se ambas as equipes têm pelo menos 6 titulares com notas reais
         if h_rated_cnt >= 6 and a_rated_cnt >= 6:
             if abs(h_total - a_total) < 0.8:
@@ -3198,19 +3237,22 @@ def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: 
                 summary["fav_lineup_team"] = None
                 summary["text_verdict"] = (
                     f"Súmula Oficial: Equilíbrio técnico perfeito entre os titulares "
-                    f"({home_team} {summary['home_total']:.1f} pts vs {away_team} {summary['away_total']:.1f} pts)."
+                    f"({home_team} {summary['home_total']:.1f} pts vs {away_team} {summary['away_total']:.1f} pts). "
+                    f"Status dos Elencos: {home_team} com {h_core['desc']}; {away_team} com {a_core['desc']}."
                 )
             elif h_total > a_total:
                 summary["fav_lineup_team"] = home_team
                 summary["text_verdict"] = (
                     f"Súmula Oficial: Favoritismo técnico do {home_team} por força dos titulares "
-                    f"({summary['home_total']:.1f} pts ⭐ vs {summary['away_total']:.1f} pts do {away_team}, vantagem de +{diff:.1f} pts)."
+                    f"({summary['home_total']:.1f} pts ⭐ vs {summary['away_total']:.1f} pts do {away_team}, vantagem de +{diff:.1f} pts). "
+                    f"Status dos Elencos: {home_team} com {h_core['desc']}; {away_team} com {a_core['desc']}."
                 )
             else:
                 summary["fav_lineup_team"] = away_team
                 summary["text_verdict"] = (
                     f"Súmula Oficial: Favoritismo técnico do {away_team} por força dos titulares "
-                    f"({summary['away_total']:.1f} pts ⭐ vs {summary['home_total']:.1f} pts do {home_team}, vantagem de +{diff:.1f} pts)."
+                    f"({summary['away_total']:.1f} pts ⭐ vs {summary['home_total']:.1f} pts do {home_team}, vantagem de +{diff:.1f} pts). "
+                    f"Status dos Elencos: {away_team} com {a_core['desc']}; {home_team} com {h_core['desc']}."
                 )
         else:
             summary["text_verdict"] = (

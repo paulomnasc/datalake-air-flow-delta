@@ -4717,8 +4717,8 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Retorna o feed de telemetria em tempo real do Radar In-Play (Cloudbet & DAGs).
-     * Consulta os últimos logs registrados em pipeline_lifecycle_logs para componente CLOUDBET_RADAR.
+     * Retorna o feed de telemetria em tempo real do Radar In-Play e Sentinela IA (Cloudbet, Sentinela e DAGs).
+     * Consulta os últimos logs registrados em pipeline_lifecycle_logs para componentes do ecossistema ao vivo.
      */
     public function radarFeed()
     {
@@ -4738,9 +4738,9 @@ class ApostaController extends BaseController
 
         $db = \Config\Database::connect();
         $builder = $db->table('pipeline_lifecycle_logs')
-            ->where('componente', 'CLOUDBET_RADAR')
+            ->whereIn('componente', ['CLOUDBET_RADAR', 'IA_SENTINELA', 'SENTINELA_5MIN', 'LIVE_MATCH_CLOCK', 'CLOUDBET_LIVE_CASHOUT'])
             ->orderBy('id', 'DESC')
-            ->limit(40);
+            ->limit(50);
 
         $logs = $builder->get()->getResultArray();
 
@@ -4755,6 +4755,7 @@ class ApostaController extends BaseController
             $formatted[] = [
                 'id'               => (int)$log['id'],
                 'fixture_id'       => (int)$log['fixture_id'],
+                'componente'       => $log['componente'],
                 'tipo_evento'      => $log['tipo_evento'],
                 'estado_novo'      => $log['estado_novo'],
                 'motivo_detalhado' => $log['motivo_detalhado'],

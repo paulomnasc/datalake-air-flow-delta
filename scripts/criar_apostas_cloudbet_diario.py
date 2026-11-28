@@ -513,30 +513,19 @@ def run_cloudbet_bet_creator(
         """, (target_date_str,))
         fixtures = cursor.fetchall()
     else:
-        # Padrão: JANELA PRÉ-JOGO (T-75) + IN-PLAY 0-35m (com Súmula e 0x0)
+        # Padrão: JANELA PRÉ-JOGO (T-75) + IN-PLAY ABERTO (1H, 2H, HT, LIVE)
         cursor.execute("""
             SELECT ft.* 
             FROM fixtures_trends ft
             LEFT JOIN match_lineups_cache mlc ON mlc.fixture_id = ft.fixture_id
-            WHERE ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
+            WHERE ft.status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC', 'CANCELLED', 'POSTPONED')
+              AND ft.fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 140 MINUTE)
               AND ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 75 MINUTE)
               AND (
-                  ft.status = 'NS'
-                  OR (ft.status IN ('1H', 'LIVE', 'IN_PLAY') AND COALESCE(ft.goals_home, 0) = 0 AND COALESCE(ft.goals_away, 0) = 0)
-                  OR (
-                      ft.status IN ('1H', 'LIVE', 'IN_PLAY') 
-                      AND EXISTS (
-                          SELECT 1 FROM pipeline_lifecycle_logs pll 
-                          WHERE pll.fixture_id = ft.fixture_id 
-                            AND pll.tipo_evento IN ('REVERSAO_TATICA_SUMULA', 'REVERSAO_TATICA_DRIFT')
-                      )
-                  )
-              )
-              AND (
-                  -- Em andamento: titulares já em campo
-                  ft.status IN ('1H', 'LIVE', 'IN_PLAY')
-                  -- Pré-jogo: súmula oficial OBRIGATORIAMENTE confirmada no banco
-                  OR (ft.status = 'NS' AND mlc.status = 'CONFIRMADA')
+                  -- Partidas em andamento: titulares já em campo
+                  ft.status IN ('1H', '2H', 'HT', 'LIVE', 'IN_PLAY')
+                  -- Pré-jogo: súmula oficial confirmada ou janela iminente
+                  OR (ft.status = 'NS' AND (mlc.status = 'CONFIRMADA' OR ft.fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)))
               )
               AND (ft.auditoria_ia_status IS NULL OR ft.auditoria_ia_status != 'ALERTA_RISCO')
             ORDER BY ft.fixture_date ASC
@@ -544,7 +533,9 @@ def run_cloudbet_bet_creator(
         fixtures = cursor.fetchall()
 
     total_jogos_analisados = len(fixtures)
-    msg_scan = f"📋 Encontradas {total_jogos_analisados} partidas na Janela Pré-Jogo (T-75) e In-Play 0-35m (com súmula confirmada e sem veto de risco)."
+    lista_nomes_jogos = [f"{f.get('home_team', '').strip()} vs {f.get('away_team', '').strip()}" for f in fixtures]
+    jogos_str = f" ({', '.join(lista_nomes_jogos)})" if 0 < total_jogos_analisados <= 3 else (f" ({', '.join(lista_nomes_jogos[:3])} +{total_jogos_analisados - 3})" if total_jogos_analisados > 3 else "")
+    msg_scan = f"📋 Encontradas {total_jogos_analisados} partida(s){jogos_str} na Janela de Monitoramento (T-75 e In-Play)."
     print(msg_scan + "\n")
 
     # Registro de Telemetria no Radar In-Play (Regras 6, 14 e 16)
@@ -558,7 +549,7 @@ def run_cloudbet_bet_creator(
                 estado_novo='MONITORANDO',
                 estado_anterior=None,
                 motivo=msg_scan,
-                delta={'total_jogos': total_jogos_analisados, 'target_date': target_date_str or 'hoje'}
+                delta={'total_jogos': total_jogos_analisados, 'jogos': lista_nomes_jogos, 'target_date': target_date_str or 'hoje'}
             )
             conn.commit()
         except Exception as e_log:
@@ -640,6 +631,28 @@ def run_cloudbet_bet_creator(
 
         print(f"\n🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} ('{match['event_name']}')")
         try:
+            partes_detalhe = []
+            if not ah_markets:
+                partes_detalhe.append("AH suspenso")
+            else:
+                partes_detalhe.append(f"{len(ah_markets)} linhas AH")
+
+            if not tg_markets:
+                partes_detalhe.append("Gols suspenso")
+            else:
+                partes_detalhe.append(f"{len(tg_markets)} linhas Gols")
+
+            if cards_markets:
+                if is_inplay or (fix.get('status') and fix.get('status') not in ('NS', 'TBD')):
+                    partes_detalhe.append(f"{len(cards_markets)} linhas Cartões (ignoradas: jogo em andamento, Under restrito ao pré-jogo)")
+                else:
+                    partes_detalhe.append(f"{len(cards_markets)} linhas Cartões abertas")
+            else:
+                partes_detalhe.append("Cartões suspenso")
+
+            resumo_linhas_str = "; ".join(partes_detalhe)
+            motivo_match = f"🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id}: {resumo_linhas_str}."
+
             log_lifecycle_event(
                 cursor=cursor,
                 fixture_id=f_id,
@@ -647,11 +660,11 @@ def run_cloudbet_bet_creator(
                 tipo_evento='LINHAS_ATIVAS',
                 estado_novo='LINHAS_RECEBIDAS',
                 estado_anterior=None,
-                motivo=f"🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} com mercados recebidos (AH: {len(ah_markets)}, Gols: {len(tg_markets)}, Cartões: {len(cards_markets)}).",
+                motivo=motivo_match,
                 fase_jogo=fix.get('status') or 'NS',
                 minuto_jogo=int(fix.get('elapsed') or 0),
                 placar_momento=f"{g_home}x{g_away}",
-                delta={'event_id': event_id, 'event_name': match['event_name']}
+                delta={'event_id': event_id, 'event_name': match['event_name'], 'ah_count': len(ah_markets), 'tg_count': len(tg_markets), 'cards_count': len(cards_markets)}
             )
             conn.commit()
         except Exception as e_log:

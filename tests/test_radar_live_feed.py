@@ -55,6 +55,8 @@ class TestRadarLiveFeed(unittest.TestCase):
         self.assertIn("public function radarFeed()", content, "Método radarFeed() ausente em ApostaController.php")
         self.assertIn("pipeline_lifecycle_logs", content, "Consulta à tabela pipeline_lifecycle_logs ausente")
         self.assertIn("CLOUDBET_RADAR", content, "Filtro pelo componente CLOUDBET_RADAR ausente")
+        self.assertIn("IA_SENTINELA", content, "Filtro pelo componente IA_SENTINELA ausente no radarFeed")
+        self.assertIn("SENTINELA_5MIN", content, "Filtro pelo componente SENTINELA_5MIN ausente no radarFeed")
 
     def test_header_view_has_radar_tabs_and_container(self):
         """Verifica se header.php contém a interface com abas, pulse dot e container do radar."""

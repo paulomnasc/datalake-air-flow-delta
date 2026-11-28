@@ -1629,6 +1629,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     .radar-feed-item.varredura {
         border-left-color: #6366f1;
     }
+    .radar-feed-item.sentinela {
+        border-left-color: #ec4899;
+    }
+    .radar-feed-item.match-clock {
+        border-left-color: #06b6d4;
+    }
+    .radar-feed-item.cashout {
+        border-left-color: #8b5cf6;
+    }
     </style>
 
     <script>
@@ -1702,6 +1711,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                 let html = '';
                 data.logs.forEach(log => {
+                    const comp = log.componente || '';
                     const tipo = log.tipo_evento || '';
                     let itemClass = 'radar-feed-item';
                     let iconHtml = '<i class="bi bi-info-circle text-info"></i>';
@@ -1728,6 +1738,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         iconHtml = '<i class="bi bi-broadcast text-indigo"></i>';
                         badgeLabel = 'VARREDURA CICLO';
                         badgeBg = 'background: rgba(99, 102, 241, 0.2); color: #a5b4fc;';
+                    } else if (comp === 'IA_SENTINELA' || comp === 'SENTINELA_5MIN') {
+                        itemClass += ' sentinela';
+                        iconHtml = '<i class="bi bi-shield-check text-pink"></i>';
+                        badgeLabel = (comp === 'SENTINELA_5MIN') ? 'SENTINELA T-5M' : 'SENTINELA IA';
+                        badgeBg = 'background: rgba(236, 72, 153, 0.2); color: #f472b6;';
+                    } else if (comp === 'LIVE_MATCH_CLOCK') {
+                        itemClass += ' match-clock';
+                        iconHtml = '<i class="bi bi-stopwatch text-cyan"></i>';
+                        badgeLabel = 'CRONÔMETRO AO VIVO';
+                        badgeBg = 'background: rgba(6, 182, 212, 0.2); color: #22d3ee;';
+                    } else if (comp === 'CLOUDBET_LIVE_CASHOUT') {
+                        itemClass += ' cashout';
+                        iconHtml = '<i class="bi bi-cash-coin text-purple"></i>';
+                        badgeLabel = 'CASHOUT IN-PLAY';
+                        badgeBg = 'background: rgba(139, 92, 246, 0.2); color: #c084fc;';
                     }
 
                     const hora = log.hora_formatada || '';

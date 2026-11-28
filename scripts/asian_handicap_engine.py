@@ -3453,8 +3453,10 @@ def compose_compound_ah_reasoning(
     lineup_summary = get_lineup_strength_summary_for_fixture(cursor, fixture_id, home_team, away_team)
     if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict"):
         lineup_text = lineup_summary["text_verdict"]
+        # Remove qualquer veredito prévio desatualizado de Súmula Oficial para evitar contradições
+        main_calc = re.sub(r'Súmula Oficial:[^\n\r]+(\r?\n)?', '', main_calc)
         # Se main_calc possui REASON: insere o parecer de escalação logo abaixo da síntese da IA
-        if "REASON:" in main_calc and "Súmula Oficial: Favoritismo" not in main_calc and "Súmula Oficial: Equilíbrio" not in main_calc:
+        if "REASON:" in main_calc:
             parts = main_calc.split("REASON:", 1)
             reason_body = parts[1].strip()
             if "💡 Síntese da IA:" in reason_body:
@@ -3478,12 +3480,17 @@ def compose_compound_ah_reasoning(
             odd_away=odd_away
         )
         if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict"):
-            if "Força das Escalações:" not in nl_mot:
+            if "• 📋 Força das Escalações:" in nl_mot:
+                nl_mot = re.sub(r'• 📋 Força das Escalações:[^\n\r]+', f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}", nl_mot)
+            else:
                 nl_mot = f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}\n{nl_mot}"
     else:
         nl_mot = existing_motivation
-        if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict") and "Força das Escalações:" not in nl_mot:
-            nl_mot = f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}\n{nl_mot}"
+        if lineup_summary.get("has_lineup") and lineup_summary.get("text_verdict"):
+            if "• 📋 Força das Escalações:" in nl_mot:
+                nl_mot = re.sub(r'• 📋 Força das Escalações:[^\n\r]+', f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}", nl_mot)
+            else:
+                nl_mot = f"• 📋 Força das Escalações: {lineup_summary['text_verdict']}\n{nl_mot}"
 
     calc_details = main_calc
 

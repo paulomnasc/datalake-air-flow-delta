@@ -98,5 +98,16 @@ class TestPlayerRatingsManager(unittest.TestCase):
         self.assertEqual(len(res["estreantes_vulneraveis"]), 0)
         self.assertIn("Elenco Competitivo Estável", res["resumo_qualitativo"])
 
+    def test_resilient_import_in_isolated_scripts_context(self):
+        """Verifica se o módulo suporta importação direta sem depender de 'scripts.' no namespace."""
+        import importlib
+        try:
+            mod = importlib.import_module("player_ratings_manager")
+            self.assertTrue(hasattr(mod, "get_players_ratings_map"))
+            self.assertTrue(hasattr(mod, "calculate_lineup_strength"))
+            self.assertTrue(hasattr(mod, "enrich_fixture_player_ratings_from_api"))
+        except ImportError as e:
+            self.fail(f"Falha ao importar player_ratings_manager diretamente: {e}")
+
 if __name__ == '__main__':
     unittest.main()

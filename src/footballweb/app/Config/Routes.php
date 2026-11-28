@@ -107,6 +107,7 @@ $routes->post('/notificacoes/despinar/(:num)', 'ApostaController::despinarNotifi
 $routes->post('/notificacoes/excluir/(:num)', 'ApostaController::excluirNotificacao/$1', ['as' => 'notificacoes.excluir']);
 $routes->post('/notificacoes/limpar-historico', 'ApostaController::limparHistoricoNotificacoes', ['as' => 'notificacoes.limpar_historico']);
 $routes->post('/notificacoes/analisar-grok', 'ApostaController::analisarEscalacaoGrok', ['as' => 'notificacoes.analisar_grok']);
+$routes->get('/notificacoes/radar-feed', 'ApostaController::radarFeed', ['as' => 'notificacoes.radar_feed']);
 
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira

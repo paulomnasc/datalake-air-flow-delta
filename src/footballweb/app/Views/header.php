@@ -1040,8 +1040,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-collapse-sidebar-notif" title="Recolher para barra lateral" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
                     <i class="bi bi-list fs-5 text-light"></i>
                 </button>
-                <i class="bi bi-bell-fill text-warning fs-5"></i>
-                <span class="fw-bold text-light" style="font-size: 0.95rem; letter-spacing: 0.3px;">Notificações</span>
+                <i class="bi bi-broadcast text-info fs-5" id="header-sidebar-icon"></i>
+                <span class="fw-bold text-light" id="header-sidebar-title" style="font-size: 0.95rem; letter-spacing: 0.3px;">Central & Radar</span>
             </div>
             <div class="d-flex align-items-center gap-1">
                 <button type="button" class="btn btn-sm btn-outline-secondary p-0" id="btn-pin-sidebar-notif" title="Fixar barra lateral aberta" style="border-radius: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18);">
@@ -1053,8 +1053,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
         </div>
 
-        <!-- Barra de Ações Rápidas -->
-        <div class="sidebar-notif-toolbar px-3 py-2 d-flex justify-content-between align-items-center" style="background: #162032; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <!-- Seletor de Abas: Notificações vs Radar In-Play -->
+        <div class="sidebar-notif-tabs px-3 py-1 d-flex gap-2 align-items-center" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <button type="button" class="sidebar-notif-tab-btn active" id="tab-btn-notificacoes" onclick="switchSidebarTab('notificacoes')">
+                <i class="bi bi-bell-fill text-warning"></i> Alertas & Apostas
+            </button>
+            <button type="button" class="sidebar-notif-tab-btn" id="tab-btn-radar" onclick="switchSidebarTab('radar')">
+                <span class="pulse-radar-dot"></span> <i class="bi bi-radar text-info"></i> Radar In-Play
+            </button>
+        </div>
+
+        <!-- Barra de Ações Rápidas (Apenas aba Notificações) -->
+        <div class="sidebar-notif-toolbar px-3 py-2 d-flex justify-content-between align-items-center" id="toolbar-notificacoes" style="background: #162032; border-bottom: 1px solid rgba(255,255,255,0.08);">
             <button type="button" class="btn btn-sm btn-link text-info text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-marcar-todas-lidas" style="font-size: 0.76rem; font-weight: 500;" title="Marcar todos os alertas como lidos">
                 <i class="bi bi-check2-all"></i> Marcar lidos
             </button>
@@ -1063,8 +1073,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </button>
         </div>
 
+        <!-- Toolbar da Aba Radar In-Play -->
+        <div class="sidebar-notif-toolbar px-3 py-2 d-flex justify-content-between align-items-center" id="toolbar-radar" style="background: #162032; border-bottom: 1px solid rgba(255,255,255,0.08); display: none;">
+            <div class="d-flex align-items-center gap-1 text-info small" style="font-size: 0.76rem;">
+                <span class="pulse-radar-dot"></span> Feed ao vivo da DAG Cloudbet
+            </div>
+            <button type="button" class="btn btn-sm btn-link text-light text-decoration-none p-0 d-flex align-items-center gap-1" id="btn-refresh-radar" onclick="loadRadarFeed(true)" style="font-size: 0.76rem; font-weight: 500;" title="Atualizar feed do Radar">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </button>
+        </div>
+
         <!-- Caixa de Pesquisa de Notificações em Tempo Real -->
-        <div class="sidebar-notif-search px-3 py-2" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div class="sidebar-notif-search px-3 py-2" id="search-notificacoes" style="background: #111c2e; border-bottom: 1px solid rgba(255,255,255,0.08);">
             <div class="position-relative">
                 <i class="bi bi-search position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; pointer-events: none;"></i>
                 <input type="text" id="input-busca-notificacoes" class="form-control form-control-sm text-light ps-4 pe-4" placeholder="Buscar por time, título ou texto..." style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; font-size: 0.8rem;" autocomplete="off">
@@ -1077,10 +1097,20 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <span class="text-secondary opacity-75">ESC limpa</span>
             </div>
         </div>
+
+        <!-- Container da Aba Notificações -->
         <div id="lista-notificacoes-container" class="sidebar-notif-body flex-grow-1" style="overflow-y: auto;">
             <div class="text-center text-muted p-4" id="notif-empty-state" style="font-size: 0.88rem;">
                 <i class="bi bi-bell-slash fs-4 d-block mb-2 text-secondary"></i>
                 Nenhuma notificação recente.
+            </div>
+        </div>
+
+        <!-- Container da Aba Radar In-Play -->
+        <div id="lista-radar-container" class="sidebar-notif-body flex-grow-1 p-2" style="overflow-y: auto; display: none;">
+            <div class="text-center text-muted p-4" id="radar-empty-state" style="font-size: 0.88rem;">
+                <i class="bi bi-broadcast fs-4 d-block mb-2 text-info opacity-50"></i>
+                Aguardando ciclo de varredura do Radar In-Play...
             </div>
         </div>
         <div class="sidebar-notif-footer p-2 text-center border-top border-secondary" style="background: #0f172a;">
@@ -1537,6 +1567,68 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     body.sidebar-notif-pinned .sidebar-notif-backdrop {
         display: none !important;
     }
+
+    /* Estilos das Abas da Sidebar (Notificações vs Radar In-Play) */
+    .sidebar-notif-tab-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        color: #94a3b8;
+        font-size: 0.80rem;
+        font-weight: 500;
+        padding: 5px 12px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .sidebar-notif-tab-btn:hover {
+        color: #f8fafc;
+        background: rgba(255, 255, 255, 0.06);
+    }
+    .sidebar-notif-tab-btn.active {
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.12);
+        border-color: rgba(56, 189, 248, 0.35);
+        font-weight: 600;
+    }
+    .pulse-radar-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #10b981;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse-radar 2s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+    @keyframes pulse-radar {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .radar-feed-item {
+        border-left: 3px solid #38bdf8;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        transition: background 0.2s ease;
+    }
+    .radar-feed-item:hover {
+        background: rgba(30, 41, 59, 0.8);
+    }
+    .radar-feed-item.linhas-fechadas {
+        border-left-color: #f59e0b;
+    }
+    .radar-feed-item.ordem-emitida {
+        border-left-color: #10b981;
+    }
+    .radar-feed-item.linhas-ativas {
+        border-left-color: #38bdf8;
+    }
+    .radar-feed-item.varredura {
+        border-left-color: #6366f1;
+    }
     </style>
 
     <script>
@@ -1549,7 +1641,118 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         const clearHistoryUrl = '<?= base_url('notificacoes/limpar-historico') ?>';
         const analisarGrokUrl = '<?= base_url('notificacoes/analisar-grok') ?>';
 
-        let popupsExibidos = new Set();
+        const radarApiUrl = '<?= base_url('notificacoes/radar-feed') ?>';
+        let currentSidebarTab = 'notificacoes';
+        let radarPollingTimer = null;
+
+        window.switchSidebarTab = function(tabName) {
+            currentSidebarTab = tabName;
+            const tabNotifBtn = document.getElementById('tab-btn-notificacoes');
+            const tabRadarBtn = document.getElementById('tab-btn-radar');
+            const contNotif = document.getElementById('lista-notificacoes-container');
+            const contRadar = document.getElementById('lista-radar-container');
+            const toolNotif = document.getElementById('toolbar-notificacoes');
+            const toolRadar = document.getElementById('toolbar-radar');
+            const searchNotif = document.getElementById('search-notificacoes');
+            const titleEl = document.getElementById('header-sidebar-title');
+            const iconEl = document.getElementById('header-sidebar-icon');
+
+            if (tabName === 'radar') {
+                if (tabNotifBtn) tabNotifBtn.classList.remove('active');
+                if (tabRadarBtn) tabRadarBtn.classList.add('active');
+                if (contNotif) contNotif.style.display = 'none';
+                if (contRadar) contRadar.style.display = 'block';
+                if (toolNotif) toolNotif.style.display = 'none';
+                if (toolRadar) toolRadar.style.display = 'flex';
+                if (searchNotif) searchNotif.style.display = 'none';
+                if (titleEl) titleEl.innerText = 'Radar In-Play (DAG)';
+                if (iconEl) iconEl.className = 'bi bi-broadcast text-info fs-5';
+                loadRadarFeed(false);
+            } else {
+                if (tabRadarBtn) tabRadarBtn.classList.remove('active');
+                if (tabNotifBtn) tabNotifBtn.classList.add('active');
+                if (contRadar) contRadar.style.display = 'none';
+                if (contNotif) contNotif.style.display = 'block';
+                if (toolRadar) toolRadar.style.display = 'none';
+                if (toolNotif) toolNotif.style.display = 'flex';
+                if (searchNotif) searchNotif.style.display = 'block';
+                if (titleEl) titleEl.innerText = 'Central & Notificações';
+                if (iconEl) iconEl.className = 'bi bi-bell-fill text-warning fs-5';
+            }
+        };
+
+        window.loadRadarFeed = function(forceReload) {
+            const container = document.getElementById('lista-radar-container');
+            if (!container) return;
+
+            fetch(radarApiUrl, {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.success || !data.logs || data.logs.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-muted p-4" style="font-size: 0.88rem;">
+                            <i class="bi bi-broadcast fs-4 d-block mb-2 text-info opacity-50"></i>
+                            Aguardando ciclo de varredura do Radar In-Play...
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                data.logs.forEach(log => {
+                    const tipo = log.tipo_evento || '';
+                    let itemClass = 'radar-feed-item';
+                    let iconHtml = '<i class="bi bi-info-circle text-info"></i>';
+                    let badgeLabel = 'INFO';
+                    let badgeBg = 'background: rgba(56, 189, 248, 0.2); color: #38bdf8;';
+
+                    if (tipo === 'LINHAS_FECHADAS') {
+                        itemClass += ' linhas-fechadas';
+                        iconHtml = '<i class="bi bi-hourglass-split text-warning"></i>';
+                        badgeLabel = 'LINHAS FECHADAS';
+                        badgeBg = 'background: rgba(245, 158, 11, 0.2); color: #f59e0b;';
+                    } else if (tipo === 'ORDEM_EMITIDA') {
+                        itemClass += ' ordem-emitida';
+                        iconHtml = '<i class="bi bi-check-circle-fill text-success"></i>';
+                        badgeLabel = 'ORDEM EMITIDA';
+                        badgeBg = 'background: rgba(16, 185, 129, 0.2); color: #10b981;';
+                    } else if (tipo === 'LINHAS_ATIVAS') {
+                        itemClass += ' linhas-ativas';
+                        iconHtml = '<i class="bi bi-search text-info"></i>';
+                        badgeLabel = 'LINHAS ATIVAS';
+                        badgeBg = 'background: rgba(56, 189, 248, 0.2); color: #38bdf8;';
+                    } else if (tipo === 'VARREDURA_INPLAY') {
+                        itemClass += ' varredura';
+                        iconHtml = '<i class="bi bi-broadcast text-indigo"></i>';
+                        badgeLabel = 'VARREDURA CICLO';
+                        badgeBg = 'background: rgba(99, 102, 241, 0.2); color: #a5b4fc;';
+                    }
+
+                    const hora = log.hora_formatada || '';
+                    const motivo = log.motivo_detalhado || '';
+
+                    html += `
+                        <div class="${itemClass}">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge" style="font-size: 0.68rem; padding: 3px 6px; font-weight: 600; border-radius: 4px; ${badgeBg}">
+                                    ${iconHtml} ${badgeLabel}
+                                </span>
+                                <span class="text-secondary" style="font-size: 0.72rem;">${hora}</span>
+                            </div>
+                            <div class="text-light" style="font-size: 0.80rem; line-height: 1.45; word-break: break-word;">
+                                ${motivo}
+                            </div>
+                        </div>`;
+                });
+
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                console.warn('[Radar In-Play] Erro ao carregar feed:', err);
+            });
+        };
         try {
             const saved = sessionStorage.getItem('popups_notificacoes_exibidos');
             if (saved) {
@@ -2649,6 +2852,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             // Iniciar checagem
             checkNotificacoes();
             setInterval(checkNotificacoes, 30000);
+
+            // Polling do Radar In-Play a cada 15 segundos quando a sidebar estiver aberta e na aba radar
+            setInterval(function() {
+                const drawer = document.getElementById('sidebar-notificacoes');
+                if (drawer && drawer.classList.contains('open') && currentSidebarTab === 'radar') {
+                    loadRadarFeed(false);
+                }
+            }, 15000);
         });
     })();
     </script>

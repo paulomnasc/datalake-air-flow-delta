@@ -2064,7 +2064,10 @@ def repescar_nobet_por_sumula(cursor, conn, window_minutes: int = 50, user_ids: 
 
         if lineups_raw and cursor:
             try:
-                from scripts.player_ratings_manager import get_players_ratings_map, calculate_lineup_strength
+                try:
+                    from player_ratings_manager import get_players_ratings_map, calculate_lineup_strength
+                except ImportError:
+                    from scripts.player_ratings_manager import get_players_ratings_map, calculate_lineup_strength
                 for t_entry in lineups_raw:
                     t_info = t_entry.get("team") or {}
                     t_id_entry = t_info.get("id")

@@ -4716,6 +4716,61 @@ class ApostaController extends BaseController
         return $this->response->setJSON(['success' => true, 'message' => 'Histórico de notificações limpo com sucesso']);
     }
 
+    /**
+     * Retorna o feed de telemetria em tempo real do Radar In-Play (Cloudbet & DAGs).
+     * Consulta os últimos logs registrados em pipeline_lifecycle_logs para componente CLOUDBET_RADAR.
+     */
+    public function radarFeed()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'total'   => 0,
+                'logs'    => []
+            ]);
+        }
+
+        // Libera trava de sessão
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('pipeline_lifecycle_logs')
+            ->where('componente', 'CLOUDBET_RADAR')
+            ->orderBy('id', 'DESC')
+            ->limit(40);
+
+        $logs = $builder->get()->getResultArray();
+
+        // Higienização e formatação elegante para consumo no frontend (Regras 13, 17 e 23)
+        $formatted = [];
+        foreach ($logs as $log) {
+            $delta = null;
+            if (!empty($log['delta_json'])) {
+                $delta = json_decode($log['delta_json'], true);
+            }
+
+            $formatted[] = [
+                'id'               => (int)$log['id'],
+                'fixture_id'       => (int)$log['fixture_id'],
+                'tipo_evento'      => $log['tipo_evento'],
+                'estado_novo'      => $log['estado_novo'],
+                'motivo_detalhado' => $log['motivo_detalhado'],
+                'delta'            => $delta,
+                'criado_em'        => $log['criado_em'],
+                'hora_formatada'   => !empty($log['criado_em']) ? date('H:i:s', strtotime($log['criado_em'])) : ''
+            ];
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'total'   => count($formatted),
+            'logs'    => $formatted
+        ]);
+    }
+
 
     /**
      * Relatório Analítico de Abstenções (NO_BET)

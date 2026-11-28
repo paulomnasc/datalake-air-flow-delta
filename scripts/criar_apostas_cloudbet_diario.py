@@ -48,6 +48,14 @@ from cards_engine import (
     calculate_poisson_under_cdf,
     CARDS_GATEKEEPER_EXCLUDED_LEAGUE_IDS
 )
+try:
+    from lifecycle_logger import log_lifecycle_event
+except ImportError:
+    try:
+        from scripts.lifecycle_logger import log_lifecycle_event
+    except ImportError:
+        def log_lifecycle_event(*args, **kwargs):
+            return None
 
 def get_tactical_reset_context_for_fixture(cursor, fixture_id: int, home_team: str, away_team: str) -> dict:
     """
@@ -264,6 +272,24 @@ def place_and_commit_cloudbet_bet(
 
         conn.commit()
         print(f"✅ [Aposta {mercado} Registrada com Sucesso] ID #{new_aposta_id} gravada e debitada. Novo saldo: {s_post:.4f} {client.currency}")
+        try:
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=f_id,
+                aposta_id=new_aposta_id,
+                componente='CLOUDBET_RADAR',
+                tipo_evento='ORDEM_EMITIDA',
+                estado_novo='APOSTA_PENDENTE',
+                estado_anterior=None,
+                motivo=f"🎯 [Ordem Cloudbet Emitida] #{f_id} {home} vs {away}: {selected_palpite} @ {odd_val:.2f} (Odd Justa: {odd_justa:.2f} | EV: +{ev_perc:.1f}%) | Aposta #{new_aposta_id}",
+                fase_jogo=fix.get('status') or 'NS',
+                minuto_jogo=int(fix.get('elapsed') or 0),
+                placar_momento=f"{int(fix.get('goals_home') or 0)}x{int(fix.get('goals_away') or 0)}",
+                delta={'aposta_id': new_aposta_id, 'mercado': mercado, 'palpite': selected_palpite, 'odd': odd_val, 'odd_justa': odd_justa, 'ev_percentual': ev_perc, 'bet_id': bet_id}
+            )
+            conn.commit()
+        except Exception as e_log:
+            pass
         return True, False
 
     except pymysql.err.IntegrityError as e_dup:
@@ -518,7 +544,25 @@ def run_cloudbet_bet_creator(
         fixtures = cursor.fetchall()
 
     total_jogos_analisados = len(fixtures)
-    print(f"📋 Encontradas {total_jogos_analisados} partidas na Janela Pré-Jogo (T-75) e In-Play 0-35m (com súmula confirmada e sem veto de risco).\n")
+    msg_scan = f"📋 Encontradas {total_jogos_analisados} partidas na Janela Pré-Jogo (T-75) e In-Play 0-35m (com súmula confirmada e sem veto de risco)."
+    print(msg_scan + "\n")
+
+    # Registro de Telemetria no Radar In-Play (Regras 6, 14 e 16)
+    if total_jogos_analisados > 0:
+        try:
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=fixtures[0]['fixture_id'],
+                componente='CLOUDBET_RADAR',
+                tipo_evento='VARREDURA_INPLAY',
+                estado_novo='MONITORANDO',
+                estado_anterior=None,
+                motivo=msg_scan,
+                delta={'total_jogos': total_jogos_analisados, 'target_date': target_date_str or 'hoje'}
+            )
+            conn.commit()
+        except Exception as e_log:
+            print(f"⚠️ [Radar In-Play Telemetria] Falha ao registrar log de varredura: {e_log}")
 
     now_utc_reference = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -572,11 +616,46 @@ def run_cloudbet_bet_creator(
         cards_markets = markets.get('cards', {})
 
         if not ah_markets and not tg_markets and not cards_markets:
-            print(f"⏳ [Linhas Fechadas Cloudbet] #{f_id} {home} vs {away} ({dt_str}) ➔ Evento '{match['event_name']}' (ID {event_id}): Linhas de AH, Gols e Cartões ainda desativadas/fechadas.")
+            msg_fechadas = f"⏳ [Linhas Fechadas Cloudbet] #{f_id} {home} vs {away} ({dt_str}) ➔ Evento '{match['event_name']}' (ID {event_id}): Linhas de AH, Gols e Cartões ainda desativadas/fechadas."
+            print(msg_fechadas)
             apostas_sem_linhas += 1
+            try:
+                log_lifecycle_event(
+                    cursor=cursor,
+                    fixture_id=f_id,
+                    componente='CLOUDBET_RADAR',
+                    tipo_evento='LINHAS_FECHADAS',
+                    estado_novo='STANDBY_LINHAS',
+                    estado_anterior=None,
+                    motivo=msg_fechadas,
+                    fase_jogo=fix.get('status') or 'NS',
+                    minuto_jogo=int(fix.get('elapsed') or 0),
+                    placar_momento=f"{g_home}x{g_away}",
+                    delta={'event_id': event_id, 'event_name': match['event_name']}
+                )
+                conn.commit()
+            except Exception as e_log:
+                print(f"⚠️ [Radar In-Play Telemetria] Falha ao registrar linhas fechadas #{f_id}: {e_log}")
             continue
 
         print(f"\n🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} ('{match['event_name']}')")
+        try:
+            log_lifecycle_event(
+                cursor=cursor,
+                fixture_id=f_id,
+                componente='CLOUDBET_RADAR',
+                tipo_evento='LINHAS_ATIVAS',
+                estado_novo='LINHAS_RECEBIDAS',
+                estado_anterior=None,
+                motivo=f"🔍 [Match Encontrado] #{f_id} {home} vs {away} ({dt_str}) ➔ Cloudbet ID {event_id} com mercados recebidos (AH: {len(ah_markets)}, Gols: {len(tg_markets)}, Cartões: {len(cards_markets)}).",
+                fase_jogo=fix.get('status') or 'NS',
+                minuto_jogo=int(fix.get('elapsed') or 0),
+                placar_momento=f"{g_home}x{g_away}",
+                delta={'event_id': event_id, 'event_name': match['event_name']}
+            )
+            conn.commit()
+        except Exception as e_log:
+            pass
 
         # Dupla Verificação In-Play: Sincronização Dinâmica de Cotações 1X2 / DNB da Cloudbet (Regra 8 e 12)
         eval_fix = dict(fix)

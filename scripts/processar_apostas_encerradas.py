@@ -704,7 +704,10 @@ def process_pending_bets():
                 )
                 # Enriquecimento Pós-Jogo de Notas de Rendimento dos Jogadores (Cache-First)
                 try:
-                    from scripts.player_ratings_manager import enrich_fixture_player_ratings_from_api
+                    try:
+                        from player_ratings_manager import enrich_fixture_player_ratings_from_api
+                    except ImportError:
+                        from scripts.player_ratings_manager import enrich_fixture_player_ratings_from_api
                     enrich_fixture_player_ratings_from_api(cursor, conn, fix_id_val)
                 except Exception as e_pr:
                     print(f"⚠️ [Player Ratings Enrichment] #{fix_id_val}: {e_pr}")

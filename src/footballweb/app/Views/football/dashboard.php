@@ -3037,6 +3037,18 @@ if (!function_exists('getTeamRankBadgeStyle')) {
                                         <?= lang('App.no') ?>
                                     </span>
                                 </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(56, 189, 248, 0.08); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.25);" title="Exibir apenas partidas que ainda não iniciaram (exclui jogos ao vivo / in-play)">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #38bdf8; font-weight: 600;">
+                                        ⏳ <?= lang('App.only_pre_match') ?>
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlyPreMatchToggle" name="only_pre_match" value="1" onchange="toggleOnlyPreMatchFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlyPreMatchToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
+                                        <?= lang('App.no') ?>
+                                    </span>
+                                </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.08); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.25);" title="Exibir apenas partidas que possuem resenha e análise editorial">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
                                         <i class="bi bi-chat-quote-fill"></i> <?= lang('App.with_review') ?>
@@ -5613,6 +5625,7 @@ if (!function_exists('getTeamRankBadgeStyle')) {
     let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
     let currentOnlySinalVerdeFilter = false;
     let currentOnlyHasBetFilter = false;
+    let currentOnlyPreMatchFilter = false;
     let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
 
     function toggleSinalVerdeFilter(checkbox) {
@@ -5655,6 +5668,16 @@ if (!function_exists('getTeamRankBadgeStyle')) {
         applyFilters();
     }
 
+    function toggleOnlyPreMatchFilter(checkbox) {
+        currentOnlyPreMatchFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlyPreMatchToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlyPreMatchFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlyPreMatchFilter ? '#38bdf8' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
     function toggleResenhaFilter(checkbox) {
         currentOnlyResenhaFilter = checkbox.checked;
         const statusSpan = document.getElementById('onlyResenhaToggleStatus');
@@ -5689,12 +5712,13 @@ if (!function_exists('getTeamRankBadgeStyle')) {
             const matchTab = (currentTabFilter === 'competicoes' || (isLive && !isFinished));
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
             const matchHasBet = (!currentOnlyHasBetFilter || hasAposta);
+            const matchPreMatch = (!currentOnlyPreMatchFilter || (!isLive && !isFinished));
             const matchFinished = (currentShowFinishedFilter || !isFinished);
             const matchPostponed = (currentShowPostponedFilter || !isPostponed);
             const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
             const matchSinalVerde = (!currentOnlySinalVerdeFilter || hasSinalVerde);
             
-            if (matchLeague && matchTab && matchText && matchHasBet && matchFinished && matchPostponed && matchResenha && matchSinalVerde) {
+            if (matchLeague && matchTab && matchText && matchHasBet && matchPreMatch && matchFinished && matchPostponed && matchResenha && matchSinalVerde) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {

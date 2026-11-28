@@ -134,6 +134,7 @@ return [
     'from_date'             => 'From',
     'to_date'               => 'To',
     'show_postponed'        => 'Show Postponed',
+    'only_pre_match'        => 'Only Pre-Match',
     'safe_bets'             => 'Safe Bet Simulations',
     'surebets'              => 'Surebets (Oddspedia)',
     'with_bets'             => 'With Bet Simulation',

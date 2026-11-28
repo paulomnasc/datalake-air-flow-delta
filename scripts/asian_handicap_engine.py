@@ -3147,20 +3147,35 @@ def get_lineup_strength_summary_for_fixture(cursor, fixture_id: int, home_team: 
             try:
                 from player_ratings_manager import get_players_ratings_map, enrich_team_player_ratings_from_api
                 ratings_map = get_players_ratings_map(cursor, pids)
-                
-                # Se menos da metade dos titulares tiverem notas no banco local,
-                # efetua enriquecimento automático via API-Sports (Regra 3 - Dados Fidedignos)
-                if len(ratings_map) < (len(pids) * 0.5):
-                    h_tid = lineups[0].get("team", {}).get("id")
-                    a_tid = lineups[1].get("team", {}).get("id")
-                    if h_tid:
-                        enrich_team_player_ratings_from_api(cursor, cursor.connection, int(h_tid))
-                    if a_tid:
-                        enrich_team_player_ratings_from_api(cursor, cursor.connection, int(a_tid))
-                    # Recarrega o mapa após enriquecimento
+
+                h_xi_temp = lineups[0].get("startXI", [])
+                a_xi_temp = lineups[1].get("startXI", [])
+                h_pids = [int((p.get("player") or {}).get("id") or 0) for p in h_xi_temp if (p.get("player") or {}).get("id")]
+                a_pids = [int((p.get("player") or {}).get("id") or 0) for p in a_xi_temp if (p.get("player") or {}).get("id")]
+
+                h_rated = sum(1 for pid in h_pids if pid in ratings_map)
+                a_rated = sum(1 for pid in a_pids if pid in ratings_map)
+
+                # Avaliação independente por equipe (Regras 3 e 6):
+                # Se qualquer uma das equipes tiver menos de 50% dos titulares com notas no cache local,
+                # aciona o enriquecimento individual daquela equipe via API-Sports
+                needs_reload = False
+                h_tid = lineups[0].get("team", {}).get("id")
+                a_tid = lineups[1].get("team", {}).get("id")
+
+                if h_tid and h_pids and h_rated < (len(h_pids) * 0.5):
+                    enrich_team_player_ratings_from_api(cursor, getattr(cursor, 'connection', None), int(h_tid))
+                    needs_reload = True
+
+                if a_tid and a_pids and a_rated < (len(a_pids) * 0.5):
+                    enrich_team_player_ratings_from_api(cursor, getattr(cursor, 'connection', None), int(a_tid))
+                    needs_reload = True
+
+                if needs_reload:
+                    # Recarrega o mapa após enriquecimento individual
                     ratings_map = get_players_ratings_map(cursor, pids)
-            except Exception:
-                pass
+            except Exception as e_enrich:
+                print(f"⚠️ [LineupStrengthSummary] Aviso no enriquecimento de notas: {e_enrich}")
 
         h_xi = lineups[0].get("startXI", [])
         a_xi = lineups[1].get("startXI", [])

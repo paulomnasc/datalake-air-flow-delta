@@ -538,6 +538,25 @@ def coletar_sumula_e_desfalques_apisports(
             if hasattr(cursor, 'connection') and cursor.connection:
                 cursor.connection.commit()
             print(f"💾 [Cache Súmula MySQL] Súmula oficial de #{fixture_id} ({home_team} vs {away_team}) persistida com sucesso em match_lineups_cache.")
+
+            # Sincronização Estrutural Sistêmica de Notas (Regras 3 e 6):
+            # Garante que os elencos de mandante e visitante possuam histórico de notas em player_ratings_cache
+            try:
+                try:
+                    from player_ratings_manager import enrich_team_player_ratings_from_api
+                except ImportError:
+                    from scripts.player_ratings_manager import enrich_team_player_ratings_from_api
+
+                for tid_to_check in [home_team_id, away_team_id]:
+                    if tid_to_check:
+                        cursor.execute("SELECT COUNT(*) as cnt FROM player_ratings_cache WHERE team_id = %s", (tid_to_check,))
+                        row_cnt = cursor.fetchone()
+                        cnt_val = row_cnt['cnt'] if isinstance(row_cnt, dict) else (row_cnt[0] if row_cnt else 0)
+                        if cnt_val == 0:
+                            print(f"📥 [Sentinela Súmula] Enriquecendo notas reais de jogadores do time #{tid_to_check}...")
+                            enrich_team_player_ratings_from_api(cursor, getattr(cursor, 'connection', None), int(tid_to_check))
+            except Exception as e_ratings_sync:
+                print(f"⚠️ [Sentinela Súmula] Aviso ao sincronizar notas de jogadores: {e_ratings_sync}")
         except Exception as e_save_cache:
             print(f"⚠️ [Cache Súmula] Falha ao persistir em match_lineups_cache: {e_save_cache}")
 

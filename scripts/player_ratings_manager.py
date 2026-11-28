@@ -65,6 +65,7 @@ def enrich_team_player_ratings_from_api(cursor, conn, team_id: int, season: int 
     """
     Enriquece a tabela player_ratings_cache com as notas reais e estatísticas de todos os atletas de um time na temporada.
     Consulta a API-Sports (/players?team=X&season=Y) quando os atletas do time ainda não possuem notas registradas.
+    Possui paginação automática e fallback para temporada anterior caso o elenco tenha pouca amostragem.
     Respeita estritamente a salvaguarda de cota da API (Regra 3, item 1).
     """
     if not team_id:
@@ -80,80 +81,98 @@ def enrich_team_player_ratings_from_api(cursor, conn, team_id: int, season: int 
         season = datetime.now().year
 
     total_inserted = 0
-    url = f"https://v3.football.api-sports.io/players?team={team_id}&season={season}"
     headers = {"x-apisports-key": api_key}
 
+    def _fetch_and_save_season_players(s_year: int) -> int:
+        nonlocal total_inserted
+        current_page = 1
+        total_pages = 1
+        inserted_this_season = 0
+
+        while current_page <= total_pages and current_page <= 3:
+            url = f"https://v3.football.api-sports.io/players?team={team_id}&season={s_year}&page={current_page}"
+            try:
+                r = requests.get(url, headers=headers, timeout=12)
+                if r.status_code != 200:
+                    break
+                data = r.json()
+                paging = data.get("paging") or {}
+                total_pages = int(paging.get("total") or 1)
+                players_list = data.get("response") or []
+                if not players_list:
+                    break
+
+                for item in players_list:
+                    p_obj = item.get("player") or {}
+                    p_id = int(p_obj.get("id") or 0)
+                    p_name = p_obj.get("name") or "Atleta"
+                    
+                    stats_list = item.get("statistics") or []
+                    if not stats_list:
+                        continue
+
+                    for stats in stats_list:
+                        games = stats.get("games") or {}
+                        raw_rating = games.get("rating")
+                        if not raw_rating:
+                            continue
+
+                        try:
+                            match_rating = round(float(raw_rating), 2)
+                        except (ValueError, TypeError):
+                            continue
+
+                        league_id = int((stats.get("league") or {}).get("id") or 0)
+                        minutes = int(games.get("minutes") or 0)
+                        lineups_cnt = int(games.get("lineups") or 0)
+                        apps_cnt = int(games.get("appearences") or 0)
+                        subs_cnt = max(0, apps_cnt - lineups_cnt)
+                        pos = str(games.get("position") or "M")[:1].upper()
+                        if pos not in ("G", "D", "M", "F"):
+                            pos = "M"
+
+                        goals = int((stats.get("goals") or {}).get("total") or 0)
+                        assists = int((stats.get("goals") or {}).get("assists") or 0)
+
+                        cursor.execute("""
+                            INSERT INTO player_ratings_cache (
+                                player_id, team_id, league_id, season, player_name, position,
+                                rating_media, rating_ultimos5, minutos_jogados, jogos_titular, jogos_reserva,
+                                gols, assistencias, is_estreante_base, updated_at
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s,
+                                %s, %s, 0, NOW()
+                            )
+                            ON DUPLICATE KEY UPDATE
+                                rating_ultimos5 = VALUES(rating_media),
+                                rating_media = VALUES(rating_media),
+                                minutos_jogados = VALUES(minutos_jogados),
+                                jogos_titular = VALUES(jogos_titular),
+                                jogos_reserva = VALUES(jogos_reserva),
+                                gols = VALUES(gols),
+                                assistencias = VALUES(assistencias),
+                                updated_at = NOW()
+                        """, (
+                            p_id, team_id, league_id, s_year, p_name, pos,
+                            match_rating, match_rating, minutes, lineups_cnt, subs_cnt,
+                            goals, assists
+                        ))
+                        inserted_this_season += 1
+                        total_inserted += 1
+
+                current_page += 1
+            except Exception as e_page:
+                print(f"⚠️ [EnrichTeamPlayerRatings Erro Time #{team_id} Pág {current_page}]: {e_page}")
+                break
+
+        return inserted_this_season
+
     try:
-        r = requests.get(url, headers=headers, timeout=12)
-        if r.status_code != 200:
-            return 0
-        data = r.json()
-        players_list = data.get("response") or []
-        if not players_list:
-            # Fallback de temporada anterior se a temporada atual ainda não tiver jogos
-            if season == datetime.now().year:
-                r_prev = requests.get(f"https://v3.football.api-sports.io/players?team={team_id}&season={season - 1}", headers=headers, timeout=12)
-                if r_prev.status_code == 200:
-                    players_list = r_prev.json().get("response") or []
-                    season = season - 1
-
-        for item in players_list:
-            p_obj = item.get("player") or {}
-            p_id = int(p_obj.get("id") or 0)
-            p_name = p_obj.get("name") or "Atleta"
-            
-            stats_list = item.get("statistics") or []
-            if not stats_list:
-                continue
-
-            for stats in stats_list:
-                games = stats.get("games") or {}
-                raw_rating = games.get("rating")
-                if not raw_rating:
-                    continue
-
-                try:
-                    match_rating = round(float(raw_rating), 2)
-                except (ValueError, TypeError):
-                    continue
-
-                league_id = int((stats.get("league") or {}).get("id") or 0)
-                minutes = int(games.get("minutes") or 0)
-                lineups_cnt = int(games.get("lineups") or 0)
-                apps_cnt = int(games.get("appearences") or 0)
-                subs_cnt = max(0, apps_cnt - lineups_cnt)
-                pos = str(games.get("position") or "M")[:1].upper()
-                if pos not in ("G", "D", "M", "F"):
-                    pos = "M"
-
-                goals = int((stats.get("goals") or {}).get("total") or 0)
-                assists = int((stats.get("goals") or {}).get("assists") or 0)
-
-                cursor.execute("""
-                    INSERT INTO player_ratings_cache (
-                        player_id, team_id, league_id, season, player_name, position,
-                        rating_media, rating_ultimos5, minutos_jogados, jogos_titular, jogos_reserva,
-                        gols, assistencias, is_estreante_base, updated_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s,
-                        %s, %s, 0, NOW()
-                    )
-                    ON DUPLICATE KEY UPDATE
-                        rating_ultimos5 = VALUES(rating_media),
-                        rating_media = VALUES(rating_media),
-                        minutos_jogados = VALUES(minutos_jogados),
-                        jogos_titular = VALUES(jogos_titular),
-                        jogos_reserva = VALUES(jogos_reserva),
-                        gols = VALUES(gols),
-                        assistencias = VALUES(assistencias),
-                        updated_at = NOW()
-                """, (
-                    p_id, team_id, league_id, season, p_name, pos,
-                    match_rating, match_rating, minutes, lineups_cnt, subs_cnt,
-                    goals, assists
-                ))
-                total_inserted += 1
+        inserted = _fetch_and_save_season_players(season)
+        # Se a temporada atual retornou menos de 10 atletas com notas, consulta a temporada anterior para complementar
+        if inserted < 10 and season == datetime.now().year and is_apisports_quota_safe(0.80):
+            _fetch_and_save_season_players(season - 1)
 
         if conn and total_inserted > 0:
             conn.commit()

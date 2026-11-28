@@ -134,6 +134,7 @@ return [
     'from_date'             => 'Desde',
     'to_date'               => 'Hasta',
     'show_postponed'        => 'Mostrar Postergados',
+    'only_pre_match'        => 'Solo Pre-Partido',
     'safe_bets'             => 'Simulaciones de Apuestas Seguras',
     'surebets'              => 'Surebets (Oddspedia)',
     'with_bets'             => 'Con Simulación de Apuesta',

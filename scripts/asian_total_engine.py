@@ -520,7 +520,7 @@ def evaluate_and_select_best_goals_candidate(
         approved_list.append(cand)
 
     if not approved_list:
-        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha inteira autorizada (2.0 ou 3.0) com perfil tático condizente, valor esperado (+EV >= 8.0%) e probabilidade >= 62.0% no Sweet Spot Conservador (1.60 - 1.95)."
+        return 'NO_BET', None, [], f"Gatekeeper de Gols Asiáticos: Nenhuma linha inteira encontrada (2.0 ou 3.0) com perfil tático condizente, valor esperado (+EV >= 8.0%) e probabilidade >= 62.0% no Sweet Spot Conservador (1.60 - 1.95)."
 
     # Ordenação Soberana por Maior Probabilidade Efetiva (Win-Rate First) e desempate por maior EV%
     approved_list.sort(key=lambda x: (x['prob_efetiva'], x['ev_pct']), reverse=True)
